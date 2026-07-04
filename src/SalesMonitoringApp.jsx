@@ -8,7 +8,7 @@ import {
 import {
   Upload, Download, X, ChevronDown, Search, RefreshCw, Users, Package,
   Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard, UserRound,
-  Boxes, Crosshair, Check, AlertTriangle, CalendarDays, SlidersHorizontal,
+  Boxes, Crosshair, Check, AlertTriangle, CalendarDays, Settings,
   FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
@@ -440,14 +440,6 @@ function FilterBar({ salesOptions, groupOptions, filters, setFilters }) {
         onChange={(v) => setFilters((f) => ({ ...f, salesCodes: v }))} placeholder="Cari sales..." />
       <MultiSelect label="Grup Barang" icon={Package} options={groupOptions} selected={filters.groups}
         onChange={(v) => setFilters((f) => ({ ...f, groups: v }))} placeholder="Cari grup..." />
-      <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style={{ background: COLORS.surface2, border: `1px solid ${COLORS.border}` }}>
-        <CalendarDays size={14} style={{ color: COLORS.textMuted }} />
-        <input type="date" value={filters.dateFrom || ""} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
-          className="bg-transparent outline-none" style={{ color: COLORS.text, colorScheme: "dark" }} />
-        <span style={{ color: COLORS.textMuted }}>-</span>
-        <input type="date" value={filters.dateTo || ""} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
-          className="bg-transparent outline-none" style={{ color: COLORS.text, colorScheme: "dark" }} />
-      </div>
       {active > 0 && (
         <button onClick={() => setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" })}
           className="sm-btn flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm" style={{ color: COLORS.coral, background: COLORS.coral + "14", border: `1px solid ${COLORS.coral}33` }}>
@@ -725,6 +717,78 @@ function ProductFocusReportPage({ agg }) {
   );
 }
 
+function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWorkDays }) {
+  const [localTargets, setLocalTargets] = useState(targets);
+  const [localWorkDays, setLocalWorkDays] = useState(workDays);
+
+  useEffect(() => {
+    if (isOpen) {
+      setLocalTargets(targets);
+      setLocalWorkDays(workDays);
+    }
+  }, [isOpen, targets, workDays]);
+
+  if (!isOpen) return null;
+
+  const handleTargetChange = (salesCode, field, value) => {
+    setLocalTargets(prev => prev.map(t => {
+      if (t.code === salesCode) {
+        const newTotal = { ...t.total, [field]: Number(value) || 0 };
+        return { ...t, total: newTotal };
+      }
+      return t;
+    }));
+  };
+
+  const handleSave = () => {
+    setTargets(localTargets);
+    setWorkDays(localWorkDays);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
+      <div className="sm-card sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" style={{ background: COLORS.surface }}>
+        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+          <SectionTitle title="Pengaturan" icon={Settings} />
+          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: COLORS.surface2 }}><X size={16} /></button>
+        </div>
+        <div className="p-5 overflow-y-auto">
+          <div className="mb-6">
+            <label className="block text-sm font-medium mb-2">Hari Kerja Efektif</label>
+            <input type="number" value={localWorkDays} onChange={e => setLocalWorkDays(Number(e.target.value))}
+              className="w-full px-3 py-2 rounded-lg mono" style={{ background: COLORS.surface2, border: `1px solid ${COLORS.border}` }} />
+          </div>
+          <h3 className="text-base font-semibold disp mb-3">Target Sales</h3>
+          <div className="space-y-3">
+            {localTargets.map(t => (
+              <div key={t.code} className="p-3 rounded-lg" style={{ background: COLORS.surface2 }}>
+                <p className="font-semibold text-sm mb-2">{t.name}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: COLORS.textMuted }}>Target Value (Rp)</label>
+                    <input type="number" value={t.total.value} onChange={e => handleTargetChange(t.code, 'value', e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: COLORS.ink, border: `1px solid ${COLORS.border}` }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: COLORS.textMuted }}>Target Active Outlet (AO)</label>
+                    <input type="number" value={t.total.ao} onChange={e => handleTargetChange(t.code, 'ao', e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: COLORS.ink, border: `1px solid ${COLORS.border}` }} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="p-4 mt-auto flex justify-end gap-3" style={{ background: COLORS.surface2, borderTop: `1px solid ${COLORS.border}` }}>
+          <button onClick={onClose} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${COLORS.border}` }}>Batal</button>
+          <button onClick={handleSave} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: COLORS.gold, color: "#0A1120" }}>Simpan Perubahan</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ============================================================================
    UPLOAD / EXPORT
 ============================================================================ */
@@ -812,10 +876,12 @@ export default function SalesMonitoringApp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("main");
-  const [filters, setFilters] = useState({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
-  const targets = DEFAULT_TARGETS;
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const salesOptions = useMemo(() => targets.map((t) => t.name), [targets]);
+  const [filters, setFilters] = useState({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
+  const [workDays, setWorkDays] = useState(WORK_DAYS_DEFAULT);
+  const [targets, setTargets] = useState(DEFAULT_TARGETS);
+
   const groupOptions = useMemo(() => {
     const s = new Set();
     targets.forEach((t) => t.groups.forEach((g) => s.add(g.name)));
@@ -823,6 +889,7 @@ export default function SalesMonitoringApp() {
     return Array.from(s).sort();
   }, [targets, rawRows]);
 
+  const salesOptions = useMemo(() => targets.map((t) => t.name), [targets]);
   const nameToCode = useMemo(() => Object.fromEntries(targets.map((t) => [t.name, t.code])), [targets]);
   const filtersWithCodes = useMemo(() => ({ ...filters, salesCodes: filters.salesCodes.map((n) => nameToCode[n] || n) }), [filters, nameToCode]);
   const aggFinal = useAggregates(rawRows, targets, filtersWithCodes);
@@ -851,6 +918,7 @@ export default function SalesMonitoringApp() {
   return (
     <div className="smapp min-h-screen" style={{ background: `radial-gradient(1200px 600px at 10% -10%, #16233F 0%, ${COLORS.ink} 60%)` }}>
       <style>{GLOBAL_STYLE}</style>
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} />
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
         {/* header */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
@@ -863,11 +931,18 @@ export default function SalesMonitoringApp() {
               <p className="text-xs" style={{ color: COLORS.textMuted }}>Dashboard pencapaian sales, produk & produk fokus</p>
             </div>
           </div>
-          <button onClick={() => exportToExcel(aggFinal, targets)} disabled={!rawRows.length}
-            className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
-            style={{ background: COLORS.gold, color: "#0A1120" }}>
-            <Download size={15} /> Export Excel
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setIsSettingsOpen(true)}
+              className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+              style={{ background: COLORS.surface2, color: COLORS.text, border: `1px solid ${COLORS.border}` }}>
+              <Settings size={15} /> Pengaturan
+            </button>
+            <button onClick={() => exportToExcel(aggFinal, targets)} disabled={!rawRows.length}
+              className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+              style={{ background: COLORS.gold, color: "#0A1120" }}>
+              <Download size={15} /> Export Excel
+            </button>
+          </div>
         </div>
 
         {/* upload */}
@@ -908,7 +983,7 @@ export default function SalesMonitoringApp() {
         ) : (
           <>
             <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} />
-            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={WORK_DAYS_DEFAULT} />}
+            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} />}
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} />}
             {activeTab === "product" && <ProductReportPage agg={aggFinal} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} />}
