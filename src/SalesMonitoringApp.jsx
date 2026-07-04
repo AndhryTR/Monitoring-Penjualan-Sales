@@ -8,9 +8,14 @@ import {
 import {
   Upload, Download, X, ChevronDown, Search, RefreshCw, Users, Package,
   Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard, UserRound,
-  Boxes, Crosshair, Check, AlertTriangle, CalendarDays, SlidersHorizontal,
+  Boxes, Crosshair, Check, AlertTriangle, CalendarDays, Settings,
   FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus,
 } from "lucide-react";
+import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
+import { useCountUp } from "./hooks/useCountUp.js";
+import { KpiCard } from "./components/KpiCard.jsx";
+import { AchBadge } from "./components/AchBadge.jsx";
+import { PaceStrip } from "./components/PaceStrip.jsx";
 
 /* ============================================================================
    DESIGN TOKENS
@@ -18,19 +23,7 @@ import {
    violet = focus-product accent. Display: Space Grotesk, Body: Inter,
    Data/mono: JetBrains Mono.
 ============================================================================ */
-const COLORS = {
-  ink: "#0A1120",
-  surface: "#111A2E",
-  surface2: "#182642",
-  border: "#26355A",
-  text: "#E8EDF7",
-  textMuted: "#8C9AB8",
-  gold: "#F2B84B",
-  coral: "#FF6B5E",
-  mint: "#34D9A5",
-  violet: "#9B8CF2",
-  blue: "#5AA9FF",
-};
+import { COLORS } from "./constants/colors.js";
 
 const GLOBAL_STYLE = `
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
@@ -84,11 +77,11 @@ const DEFAULT_TARGETS = [
       { name: "SWEET TEN SNACK", value: 6000000, ao: 40 },
     ],
     focus: [
-      { name: "FISCH CAKE", target: 60, keyword: "FISCH" }, { name: "PANDA", target: 60, keyword: "PANDA" },
-      { name: "MI KRITING", target: 1000, keyword: "__GROUP__" }, { name: "ROTI RENYAH", target: 120, keyword: "RENYAH" },
-      { name: "MOCHI MINI", target: 40, keyword: "MOCHI MINI" }, { name: "MOCHI SUPER", target: 60, keyword: "MOCHI SUPER" },
-      { name: "KALIO CHIPS 6X10", target: 200, keyword: "KALIO CHIP" }, { name: "TAIKO CHIPS 10 X 10", target: 200, keyword: "TAIKO" },
-      { name: "ULALA", target: 150, keyword: "ULALA" },
+      { name: "FISCH CAKE", target: 60, keyword: "FISCH", unit: "KARTON" }, { name: "PANDA", target: 60, keyword: "PANDA", unit: "KARTON" },
+      { name: "MI KRITING", target: 1000, keyword: "MI GAJAH", unit: "IKAT" }, { name: "ROTI RENYAH", target: 120, keyword: "RENYAH", unit: "KARTON" },
+      { name: "MOCHI MINI", target: 40, keyword: "MOCHI MINI", unit: "KARTON" }, { name: "MOCHI SUPER", target: 60, keyword: "MOCHI SUPER", unit: "KARTON" },
+      { name: "KALIO CHIPS 6X10", target: 200, keyword: "KALIO CHIP", unit: "KARTON" }, { name: "TAIKO CHIPS 10 X 10", target: 200, keyword: "TAIKO CHIPS", unit: "KARTON" },
+      { name: "ULALA", target: 150, keyword: "ULALA", unit: "KARTON" },
     ] },
   { code: "TF", name: "TAUFAN ARI KUSAIRI", tier: "amber", total: { value: 270000000, ao: 250 },
     groups: [
@@ -99,11 +92,11 @@ const DEFAULT_TARGETS = [
       { name: "SWEET TEN SNACK", value: 6000000, ao: 40 },
     ],
     focus: [
-      { name: "FISCH CAKE", target: 40, keyword: "FISCH" }, { name: "PANDA", target: 40, keyword: "PANDA" },
-      { name: "MI KRITING", target: 600, keyword: "__GROUP__" }, { name: "ROTI RENYAH", target: 80, keyword: "RENYAH" },
-      { name: "MOCHI MINI", target: 30, keyword: "MOCHI MINI" }, { name: "MOCHI SUPER", target: 40, keyword: "MOCHI SUPER" },
-      { name: "KALIO CHIPS 6X10", target: 150, keyword: "KALIO CHIP" }, { name: "TAIKO CHIPS 10 X 10", target: 150, keyword: "TAIKO" },
-      { name: "ULALA", target: 80, keyword: "ULALA" },
+      { name: "FISCH CAKE", target: 40, keyword: "FISCH", unit: "KARTON" }, { name: "PANDA", target: 40, keyword: "PANDA", unit: "KARTON" },
+      { name: "MI KRITING", target: 600, keyword: "MI GAJAH", unit: "IKAT" }, { name: "ROTI RENYAH", target: 80, keyword: "RENYAH", unit: "KARTON" },
+      { name: "MOCHI MINI", target: 30, keyword: "MOCHI MINI", unit: "KARTON" }, { name: "MOCHI SUPER", target: 40, keyword: "MOCHI SUPER", unit: "KARTON" },
+      { name: "KALIO CHIPS 6X10", target: 150, keyword: "KALIO CHIP", unit: "KARTON" }, { name: "TAIKO CHIPS 10 X 10", target: 150, keyword: "TAIKO CHIPS", unit: "KARTON" },
+      { name: "ULALA", target: 80, keyword: "ULALA", unit: "KARTON" },
     ] },
   { code: "AZ", name: "AZUL AZMIL SANI", tier: "amber", total: { value: 269000000, ao: 250 },
     groups: [
@@ -114,11 +107,11 @@ const DEFAULT_TARGETS = [
       { name: "SWEET TEN SNACK", value: 5000000, ao: 40 },
     ],
     focus: [
-      { name: "FISCH CAKE", target: 40, keyword: "FISCH" }, { name: "PANDA", target: 40, keyword: "PANDA" },
-      { name: "MI KRITING", target: 600, keyword: "__GROUP__" }, { name: "ROTI RENYAH", target: 120, keyword: "RENYAH" },
-      { name: "MOCHI MINI", target: 80, keyword: "MOCHI MINI" }, { name: "MOCHI SUPER", target: 60, keyword: "MOCHI SUPER" },
-      { name: "KALIO CHIPS 6X10", target: 60, keyword: "KALIO CHIP" }, { name: "TAIKO CHIPS 10 X 10", target: 50, keyword: "TAIKO" },
-      { name: "ULALA", target: 50, keyword: "ULALA" },
+      { name: "FISCH CAKE", target: 40, keyword: "FISH", unit: "KARTON" }, { name: "PANDA", target: 40, keyword: "PANDA", unit: "KARTON" },
+      { name: "MI KRITING", target: 600, keyword: "MI GAJAH", unit: "IKAT" }, { name: "ROTI RENYAH", target: 120, keyword: "RENYAH", unit: "KARTON" },
+      { name: "MOCHI MINI", target: 80, keyword: "MOCHI MINI", unit: "KARTON" }, { name: "MOCHI SUPER", target: 60, keyword: "MOCHI SUPER", unit: "KARTON" },
+      { name: "KALIO CHIPS 6X10", target: 60, keyword: "KALIO CHIP", unit: "KARTON" }, { name: "TAIKO CHIPS 10 X 10", target: 50, keyword: "TAIKO CHIPS", unit: "KARTON" },
+      { name: "ULALA", target: 50, keyword: "ULALA", unit: "KARTON" },
     ] },
   { code: "SS", name: "SUSAN HANI", tier: "amber", total: { value: 400500000, ao: 250 },
     groups: [
@@ -128,11 +121,11 @@ const DEFAULT_TARGETS = [
       { name: "RPFI", value: 70000000, ao: 180 }, { name: "GAS", value: 4000000, ao: 15 },
     ],
     focus: [
-      { name: "JES LOLY", target: 30, keyword: "JES LOLY" }, { name: "TEABUZZ", target: 15, keyword: "TEABUZZ" },
-      { name: "CUSTARD", target: 15, keyword: "CUSTARD" }, { name: "KARIZATO", target: 20, keyword: "KARIZATO" },
-      { name: "DOLAR CHOCO", target: 20, keyword: "DOLAR CHOCO" }, { name: "LOLY POP MILENI", target: 10, keyword: "LOLY POP" },
-      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "CHOCO CRUN" },
-      { name: "GAS", target: 6, keyword: "GAS_EXACT" },
+      { name: "JES LOLY", target: 30, keyword: "JESS LOLY", unit: "KARTON" }, { name: "TEABUZZ", target: 15, keyword: "TEE BUZZ", unit: "KARTON" },
+      { name: "CUSTARD", target: 15, keyword: "CUSTARD", unit: "KARTON" }, { name: "KARIZATO", target: 20, keyword: "KARIZATO", unit: "KARTON" },
+      { name: "DOLAR CHOCO", target: 20, keyword: "DOLLAR", unit: "KARTON" }, { name: "LOLY POP MILENI", target: 10, keyword: "LOLY POP", unit: "KARTON" },
+      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR", unit: "KARTON" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "COCO CRUNCH", unit: "KARTON" },
+      { name: "GAS", target: 6, keyword: "GAS_EXACT", unit: "KARTON" },
     ] },
   { code: "SOF", name: "SOFYAN HADI", tier: "amber", total: { value: 264500000, ao: 250 },
     groups: [
@@ -142,11 +135,11 @@ const DEFAULT_TARGETS = [
       { name: "RPFI", value: 80000000, ao: 180 }, { name: "GAS", value: 1000000, ao: 15 },
     ],
     focus: [
-      { name: "JES LOLY", target: 10, keyword: "JES LOLY" }, { name: "TEABUZZ", target: 15, keyword: "TEABUZZ" },
-      { name: "CUSTARD", target: 8, keyword: "CUSTARD" }, { name: "KARIZATO", target: 10, keyword: "KARIZATO" },
-      { name: "DOLAR CHOCO", target: 10, keyword: "DOLAR CHOCO" }, { name: "LOLY POP MILENI", target: 15, keyword: "LOLY POP" },
-      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "CHOCO CRUN" },
-      { name: "GAS", target: 6, keyword: "GAS_EXACT" },
+      { name: "JES LOLY", target: 10, keyword: "JESS LOLY", unit: "KARTON" }, { name: "TEABUZZ", target: 15, keyword: "TEE BUZZ", unit: "KARTON" },
+      { name: "CUSTARD", target: 8, keyword: "CUSTARD", unit: "KARTON" }, { name: "KARIZATO", target: 10, keyword: "KARIZATO", unit: "KARTON" },
+      { name: "DOLAR CHOCO", target: 10, keyword: "DOLLAR", unit: "KARTON" }, { name: "LOLY POP MILENI", target: 15, keyword: "LOLY POP", unit: "KARTON" },
+      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR", unit: "KARTON" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "COCO CRUNCH", unit: "KARTON" },
+      { name: "GAS", target: 6, keyword: "GAS_EXACT", unit: "KARTON" },
     ] },
   { code: "IGP", name: "I GUSTI PUTU SUARDIKA", tier: "amber", total: { value: 378500000, ao: 250 },
     groups: [
@@ -156,11 +149,11 @@ const DEFAULT_TARGETS = [
       { name: "RPFI", value: 90000000, ao: 180 }, { name: "GAS", value: 1000000, ao: 15 },
     ],
     focus: [
-      { name: "JES LOLY", target: 10, keyword: "JES LOLY" }, { name: "TEABUZZ", target: 15, keyword: "TEABUZZ" },
-      { name: "CUSTARD", target: 8, keyword: "CUSTARD" }, { name: "KARIZATO", target: 10, keyword: "KARIZATO" },
-      { name: "DOLAR CHOCO", target: 10, keyword: "DOLAR CHOCO" }, { name: "LOLY POP MILENI", target: 15, keyword: "LOLY POP" },
-      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "CHOCO CRUN" },
-      { name: "GAS", target: 6, keyword: "GAS_EXACT" },
+      { name: "JES LOLY", target: 10, keyword: "JESS LOLY", unit: "KARTON" }, { name: "TEABUZZ", target: 15, keyword: "TEE BUZZ", unit: "KARTON" },
+      { name: "CUSTARD", target: 8, keyword: "CUSTARD", unit: "KARTON" }, { name: "KARIZATO", target: 10, keyword: "KARIZATO", unit: "KARTON" },
+      { name: "DOLAR CHOCO", target: 10, keyword: "DOLLAR", unit: "KARTON" }, { name: "LOLY POP MILENI", target: 15, keyword: "LOLY POP", unit: "KARTON" },
+      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR", unit: "KARTON" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "COCO CRUNCH", unit: "KARTON" },
+      { name: "GAS", target: 6, keyword: "GAS_EXACT", unit: "KARTON" },
     ] },
   { code: "HEM", name: "HEMA MALIHI", tier: "violet", total: { value: 178300000, ao: 240 },
     groups: [{ name: "PLANGI 2", value: 153300000, ao: 240 }, { name: "PLANGI JAYA", value: 25000988, ao: 130 }], focus: [] },
@@ -267,7 +260,7 @@ function generateSampleRows() {
     s.groups.forEach((g, gi) => {
       const nOutlets = 2 + Math.floor(rnd() * 3);
       for (let o = 0; o < nOutlets; o++) {
-        const d = dates[Math.floor(rnd() * dates.length)];
+                const d = dates[Math.floor(rnd() * dates.length)];
         const pctOfTarget = 0.005 + rnd() * 0.06;
         const value = Math.round((g.value || 500000) * pctOfTarget / nOutlets);
         rows.push({
@@ -285,20 +278,21 @@ function generateSampleRows() {
 /* ============================================================================
    AGGREGATION HELPERS
 ============================================================================ */
-function fmtRp(n) {
-  if (n === null || n === undefined || isNaN(n)) return "-";
-  return "Rp " + new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Math.round(n));
-}
-function fmtNum(n) { return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Math.round(n || 0)); }
-function fmtPct(n) { return n === null || n === undefined ? "-" : (n * 100).toFixed(1) + "%"; }
 function dateKey(d) { if (!d) return "unknown"; return d.toISOString().slice(0, 10); }
 function monthKey(d) { if (!d) return "unknown"; return d.toISOString().slice(0, 7); }
 
 function matchFocus(row, focusItem) {
   if (focusItem.keyword === "__GROUP__") return normalizeHeader(row.group) === normalizeHeader(focusItem.name);
-  if (focusItem.keyword === "GAS_EXACT") return normalizeHeader(row.productName) === "GAS";
-  if (row.unit !== "KARTON") return false;
-  return normalizeHeader(row.productName).includes(normalizeHeader(focusItem.keyword));
+
+  // Default to KARTON if unit is not specified in config, for backward compatibility
+  const targetUnit = normalizeHeader(focusItem.unit || "KARTON");
+  if (normalizeHeader(row.unit) !== targetUnit) return false;
+
+  const nameMatches = focusItem.keyword === "GAS_EXACT"
+    ? normalizeHeader(row.productName) === "GAS"
+    : normalizeHeader(row.productName).includes(normalizeHeader(focusItem.keyword));
+
+  return nameMatches;
 }
 
 function useAggregates(rows, targets, filters) {
@@ -402,87 +396,6 @@ function useAggregates(rows, targets, filters) {
 /* ============================================================================
    SMALL UI PRIMITIVES
 ============================================================================ */
-function useCountUp(target, duration = 800) {
-  const [val, setVal] = useState(0);
-  const raf = useRef(null);
-  const start = useRef(null);
-  const from = useRef(0);
-  useEffect(() => {
-    from.current = val;
-    start.current = null;
-    const step = (ts) => {
-      if (!start.current) start.current = ts;
-      const progress = Math.min(1, (ts - start.current) / duration);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setVal(from.current + (target - from.current) * eased);
-      if (progress < 1) raf.current = requestAnimationFrame(step);
-    };
-    raf.current = requestAnimationFrame(step);
-    return () => raf.current && cancelAnimationFrame(raf.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target]);
-  return val;
-}
-
-function AchBadge({ ach }) {
-  if (ach === null || ach === undefined) return <span className="mono text-xs" style={{ color: COLORS.textMuted }}>-</span>;
-  const pct = ach * 100;
-  const color = pct >= 100 ? COLORS.mint : pct >= 70 ? COLORS.gold : COLORS.coral;
-  const Icon = pct >= 100 ? ArrowUpRight : pct >= 70 ? Minus : ArrowDownRight;
-  return (
-    <span className="mono text-xs font-semibold inline-flex items-center gap-1 px-2 py-0.5 rounded-full"
-      style={{ color, background: color + "1A", border: `1px solid ${color}44` }}>
-      <Icon size={12} /> {pct.toFixed(1)}%
-    </span>
-  );
-}
-
-function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct, delay = 0 }) {
-  const numeric = isPct ? (value || 0) * 100 : (value || 0);
-  const animated = useCountUp(numeric);
-  return (
-    <div className="sm-card sm-fadeup p-5" style={{ animationDelay: `${delay}ms` }}>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs uppercase tracking-wider font-semibold" style={{ color: COLORS.textMuted }}>{label}</span>
-        <div className="p-1.5 rounded-lg" style={{ background: accent + "1A" }}>
-          <Icon size={14} style={{ color: accent }} />
-        </div>
-      </div>
-      <div className="disp text-2xl font-bold mono">
-        {isMoney ? fmtRp(animated) : isPct ? animated.toFixed(1) + "%" : fmtNum(animated)}
-      </div>
-      {sub && <div className="text-xs mt-1.5" style={{ color: COLORS.textMuted }}>{sub}</div>}
-    </div>
-  );
-}
-
-function PaceStrip({ timeGonePct, achPct }) {
-  const capped = Math.min(100, (achPct || 0) * 100);
-  const ahead = (achPct || 0) * 100 >= timeGonePct * 100;
-  const color = ahead ? COLORS.mint : COLORS.coral;
-  return (
-    <div className="sm-card sm-fadeup p-5 mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Sparkles size={15} style={{ color: COLORS.gold }} />
-          <span className="disp text-sm font-semibold">Pace ke Target</span>
-        </div>
-        <span className="text-xs mono" style={{ color }}>
-          {ahead ? "Di atas pace waktu" : "Di bawah pace waktu"}
-        </span>
-      </div>
-      <div className="relative h-4 rounded-full overflow-hidden" style={{ background: COLORS.surface2 }}>
-        <div className="sm-progress-fill h-full rounded-full" style={{ width: `${capped}%`, background: `linear-gradient(90deg, ${color}99, ${color})` }} />
-        <div className="absolute top-0 h-full w-[2px]" style={{ left: `${Math.min(100, timeGonePct * 100)}%`, background: "#fff" }} />
-      </div>
-      <div className="flex justify-between mt-2 text-xs mono" style={{ color: COLORS.textMuted }}>
-        <span>ACH {fmtPct(achPct)}</span>
-        <span>Time Gone {fmtPct(timeGonePct)}</span>
-      </div>
-    </div>
-  );
-}
-
 function MultiSelect({ label, icon: Icon, options, selected, onChange, placeholder }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -617,8 +530,10 @@ const CHART_TOOLTIP_STYLE = { background: COLORS.surface, border: `1px solid ${C
    PAGES
 ============================================================================ */
 function MainReportPage({ agg, workDays }) {
+  const uniqueDaysInData = useMemo(() => new Set(agg.filteredRows.map(r => dateKey(r.date))).size, [agg.filteredRows]);
   const t = agg.totals;
-  const timeGone = workDays ? Math.min(1, 2 / workDays) : 0; // placeholder pace baseline; real "hari ini" comes from data range
+  // Calculate time gone based on unique work days found in the data vs total work days in the month.
+  const timeGone = workDays ? Math.min(1, uniqueDaysInData / workDays) : 0;
   return (
     <div className="sm-fadein">
       <PaceStrip timeGonePct={timeGone} achPct={t.ach} />
@@ -817,6 +732,78 @@ function ProductFocusReportPage({ agg }) {
   );
 }
 
+function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWorkDays }) {
+  const [localTargets, setLocalTargets] = useState(targets);
+  const [localWorkDays, setLocalWorkDays] = useState(workDays);
+
+  useEffect(() => {
+    if (isOpen) {
+      setLocalTargets(targets);
+      setLocalWorkDays(workDays);
+    }
+  }, [isOpen, targets, workDays]);
+
+  if (!isOpen) return null;
+
+  const handleTargetChange = (salesCode, field, value) => {
+    setLocalTargets(prev => prev.map(t => {
+      if (t.code === salesCode) {
+        const newTotal = { ...t.total, [field]: Number(value) || 0 };
+        return { ...t, total: newTotal };
+      }
+      return t;
+    }));
+  };
+
+  const handleSave = () => {
+    setTargets(localTargets);
+    setWorkDays(localWorkDays);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
+      <div className="sm-card sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" style={{ background: COLORS.surface }}>
+        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+          <SectionTitle title="Pengaturan" icon={Settings} />
+          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: COLORS.surface2 }}><X size={16} /></button>
+        </div>
+        <div className="p-5 overflow-y-auto">
+          <div className="mb-6">
+            <label className="block text-sm font-medium mb-2">Hari Kerja Efektif</label>
+            <input type="number" value={localWorkDays} onChange={e => setLocalWorkDays(Number(e.target.value))}
+              className="w-full px-3 py-2 rounded-lg mono" style={{ background: COLORS.surface2, border: `1px solid ${COLORS.border}` }} />
+          </div>
+          <h3 className="text-base font-semibold disp mb-3">Target Sales</h3>
+          <div className="space-y-3">
+            {localTargets.map(t => (
+              <div key={t.code} className="p-3 rounded-lg" style={{ background: COLORS.surface2 }}>
+                <p className="font-semibold text-sm mb-2">{t.name}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: COLORS.textMuted }}>Target Value (Rp)</label>
+                    <input type="number" value={t.total.value} onChange={e => handleTargetChange(t.code, 'value', e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: COLORS.ink, border: `1px solid ${COLORS.border}` }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: COLORS.textMuted }}>Target Active Outlet (AO)</label>
+                    <input type="number" value={t.total.ao} onChange={e => handleTargetChange(t.code, 'ao', e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: COLORS.ink, border: `1px solid ${COLORS.border}` }} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="p-4 mt-auto flex justify-end gap-3" style={{ background: COLORS.surface2, borderTop: `1px solid ${COLORS.border}` }}>
+          <button onClick={onClose} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${COLORS.border}` }}>Batal</button>
+          <button onClick={handleSave} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: COLORS.gold, color: "#0A1120" }}>Simpan Perubahan</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ============================================================================
    UPLOAD / EXPORT
 ============================================================================ */
@@ -904,10 +891,12 @@ export default function SalesMonitoringApp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("main");
-  const [filters, setFilters] = useState({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
-  const targets = DEFAULT_TARGETS;
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const salesOptions = useMemo(() => targets.map((t) => t.name), [targets]);
+  const [filters, setFilters] = useState({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
+  const [workDays, setWorkDays] = useState(WORK_DAYS_DEFAULT);
+  const [targets, setTargets] = useState(DEFAULT_TARGETS);
+
   const groupOptions = useMemo(() => {
     const s = new Set();
     targets.forEach((t) => t.groups.forEach((g) => s.add(g.name)));
@@ -915,6 +904,7 @@ export default function SalesMonitoringApp() {
     return Array.from(s).sort();
   }, [targets, rawRows]);
 
+  const salesOptions = useMemo(() => targets.map((t) => t.name), [targets]);
   const nameToCode = useMemo(() => Object.fromEntries(targets.map((t) => [t.name, t.code])), [targets]);
   const filtersWithCodes = useMemo(() => ({ ...filters, salesCodes: filters.salesCodes.map((n) => nameToCode[n] || n) }), [filters, nameToCode]);
   const aggFinal = useAggregates(rawRows, targets, filtersWithCodes);
@@ -943,6 +933,7 @@ export default function SalesMonitoringApp() {
   return (
     <div className="smapp min-h-screen" style={{ background: `radial-gradient(1200px 600px at 10% -10%, #16233F 0%, ${COLORS.ink} 60%)` }}>
       <style>{GLOBAL_STYLE}</style>
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} />
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
         {/* header */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
@@ -955,11 +946,18 @@ export default function SalesMonitoringApp() {
               <p className="text-xs" style={{ color: COLORS.textMuted }}>Dashboard pencapaian sales, produk & produk fokus</p>
             </div>
           </div>
-          <button onClick={() => exportToExcel(aggFinal, targets)} disabled={!rawRows.length}
-            className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
-            style={{ background: COLORS.gold, color: "#0A1120" }}>
-            <Download size={15} /> Export Excel
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setIsSettingsOpen(true)}
+              className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+              style={{ background: COLORS.surface2, color: COLORS.text, border: `1px solid ${COLORS.border}` }}>
+              <Settings size={15} /> Pengaturan
+            </button>
+            <button onClick={() => exportToExcel(aggFinal, targets)} disabled={!rawRows.length}
+              className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+              style={{ background: COLORS.gold, color: "#0A1120" }}>
+              <Download size={15} /> Export Excel
+            </button>
+          </div>
         </div>
 
         {/* upload */}
@@ -1000,7 +998,7 @@ export default function SalesMonitoringApp() {
         ) : (
           <>
             <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} />
-            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={WORK_DAYS_DEFAULT} />}
+            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} />}
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} />}
             {activeTab === "product" && <ProductReportPage agg={aggFinal} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} />}
