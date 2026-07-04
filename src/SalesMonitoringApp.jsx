@@ -440,6 +440,14 @@ function FilterBar({ salesOptions, groupOptions, filters, setFilters }) {
         onChange={(v) => setFilters((f) => ({ ...f, salesCodes: v }))} placeholder="Cari sales..." />
       <MultiSelect label="Grup Barang" icon={Package} options={groupOptions} selected={filters.groups}
         onChange={(v) => setFilters((f) => ({ ...f, groups: v }))} placeholder="Cari grup..." />
+      <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style={{ background: COLORS.surface2, border: `1px solid ${COLORS.border}` }}>
+        <CalendarDays size={14} style={{ color: COLORS.textMuted }} />
+        <input type="date" value={filters.dateFrom || ""} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
+          className="bg-transparent outline-none" style={{ color: COLORS.text, colorScheme: "dark" }} />
+        <span style={{ color: COLORS.textMuted }}>-</span>
+        <input type="date" value={filters.dateTo || ""} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
+          className="bg-transparent outline-none" style={{ color: COLORS.text, colorScheme: "dark" }} />
+      </div>
       {active > 0 && (
         <button onClick={() => setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" })}
           className="sm-btn flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm" style={{ color: COLORS.coral, background: COLORS.coral + "14", border: `1px solid ${COLORS.coral}33` }}>
