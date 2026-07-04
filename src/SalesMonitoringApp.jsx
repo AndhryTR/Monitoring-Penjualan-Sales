@@ -77,11 +77,11 @@ const DEFAULT_TARGETS = [
       { name: "SWEET TEN SNACK", value: 6000000, ao: 40 },
     ],
     focus: [
-      { name: "FISCH CAKE", target: 60, keyword: "FISCH" }, { name: "PANDA", target: 60, keyword: "PANDA" },
-      { name: "MI KRITING", target: 1000, keyword: "__GROUP__" }, { name: "ROTI RENYAH", target: 120, keyword: "RENYAH" },
-      { name: "MOCHI MINI", target: 40, keyword: "MOCHI MINI" }, { name: "MOCHI SUPER", target: 60, keyword: "MOCHI SUPER" },
-      { name: "KALIO CHIPS 6X10", target: 200, keyword: "KALIO CHIP" }, { name: "TAIKO CHIPS 10 X 10", target: 200, keyword: "TAIKO" },
-      { name: "ULALA", target: 150, keyword: "ULALA" },
+      { name: "FISCH CAKE", target: 60, keyword: "FISCH", unit: "KARTON" }, { name: "PANDA", target: 60, keyword: "PANDA", unit: "KARTON" },
+      { name: "MI KRITING", target: 1000, keyword: "MI GAJAH", unit: "IKAT" }, { name: "ROTI RENYAH", target: 120, keyword: "RENYAH", unit: "KARTON" },
+      { name: "MOCHI MINI", target: 40, keyword: "MOCHI MINI", unit: "KARTON" }, { name: "MOCHI SUPER", target: 60, keyword: "MOCHI SUPER", unit: "KARTON" },
+      { name: "KALIO CHIPS 6X10", target: 200, keyword: "KALIO CHIP", unit: "KARTON" }, { name: "TAIKO CHIPS 10 X 10", target: 200, keyword: "TAIKO CHIPS", unit: "KARTON" },
+      { name: "ULALA", target: 150, keyword: "ULALA", unit: "KARTON" },
     ] },
   { code: "TF", name: "TAUFAN ARI KUSAIRI", tier: "amber", total: { value: 270000000, ao: 250 },
     groups: [
@@ -92,11 +92,11 @@ const DEFAULT_TARGETS = [
       { name: "SWEET TEN SNACK", value: 6000000, ao: 40 },
     ],
     focus: [
-      { name: "FISCH CAKE", target: 40, keyword: "FISCH" }, { name: "PANDA", target: 40, keyword: "PANDA" },
-      { name: "MI KRITING", target: 600, keyword: "__GROUP__" }, { name: "ROTI RENYAH", target: 80, keyword: "RENYAH" },
-      { name: "MOCHI MINI", target: 30, keyword: "MOCHI MINI" }, { name: "MOCHI SUPER", target: 40, keyword: "MOCHI SUPER" },
-      { name: "KALIO CHIPS 6X10", target: 150, keyword: "KALIO CHIP" }, { name: "TAIKO CHIPS 10 X 10", target: 150, keyword: "TAIKO" },
-      { name: "ULALA", target: 80, keyword: "ULALA" },
+      { name: "FISCH CAKE", target: 40, keyword: "FISCH", unit: "KARTON" }, { name: "PANDA", target: 40, keyword: "PANDA", unit: "KARTON" },
+      { name: "MI KRITING", target: 600, keyword: "MI GAJAH", unit: "IKAT" }, { name: "ROTI RENYAH", target: 80, keyword: "RENYAH", unit: "KARTON" },
+      { name: "MOCHI MINI", target: 30, keyword: "MOCHI MINI", unit: "KARTON" }, { name: "MOCHI SUPER", target: 40, keyword: "MOCHI SUPER", unit: "KARTON" },
+      { name: "KALIO CHIPS 6X10", target: 150, keyword: "KALIO CHIP", unit: "KARTON" }, { name: "TAIKO CHIPS 10 X 10", target: 150, keyword: "TAIKO CHIPS", unit: "KARTON" },
+      { name: "ULALA", target: 80, keyword: "ULALA", unit: "KARTON" },
     ] },
   { code: "AZ", name: "AZUL AZMIL SANI", tier: "amber", total: { value: 269000000, ao: 250 },
     groups: [
@@ -107,11 +107,11 @@ const DEFAULT_TARGETS = [
       { name: "SWEET TEN SNACK", value: 5000000, ao: 40 },
     ],
     focus: [
-      { name: "FISCH CAKE", target: 40, keyword: "FISCH" }, { name: "PANDA", target: 40, keyword: "PANDA" },
-      { name: "MI KRITING", target: 600, keyword: "__GROUP__" }, { name: "ROTI RENYAH", target: 120, keyword: "RENYAH" },
-      { name: "MOCHI MINI", target: 80, keyword: "MOCHI MINI" }, { name: "MOCHI SUPER", target: 60, keyword: "MOCHI SUPER" },
-      { name: "KALIO CHIPS 6X10", target: 60, keyword: "KALIO CHIP" }, { name: "TAIKO CHIPS 10 X 10", target: 50, keyword: "TAIKO" },
-      { name: "ULALA", target: 50, keyword: "ULALA" },
+      { name: "FISCH CAKE", target: 40, keyword: "FISH", unit: "KARTON" }, { name: "PANDA", target: 40, keyword: "PANDA", unit: "KARTON" },
+      { name: "MI KRITING", target: 600, keyword: "MI GAJAH", unit: "IKAT" }, { name: "ROTI RENYAH", target: 120, keyword: "RENYAH", unit: "KARTON" },
+      { name: "MOCHI MINI", target: 80, keyword: "MOCHI MINI", unit: "KARTON" }, { name: "MOCHI SUPER", target: 60, keyword: "MOCHI SUPER", unit: "KARTON" },
+      { name: "KALIO CHIPS 6X10", target: 60, keyword: "KALIO CHIP", unit: "KARTON" }, { name: "TAIKO CHIPS 10 X 10", target: 50, keyword: "TAIKO CHIPS", unit: "KARTON" },
+      { name: "ULALA", target: 50, keyword: "ULALA", unit: "KARTON" },
     ] },
   { code: "SS", name: "SUSAN HANI", tier: "amber", total: { value: 400500000, ao: 250 },
     groups: [
@@ -121,11 +121,11 @@ const DEFAULT_TARGETS = [
       { name: "RPFI", value: 70000000, ao: 180 }, { name: "GAS", value: 4000000, ao: 15 },
     ],
     focus: [
-      { name: "JES LOLY", target: 30, keyword: "JES LOLY" }, { name: "TEABUZZ", target: 15, keyword: "TEABUZZ" },
-      { name: "CUSTARD", target: 15, keyword: "CUSTARD" }, { name: "KARIZATO", target: 20, keyword: "KARIZATO" },
-      { name: "DOLAR CHOCO", target: 20, keyword: "DOLAR CHOCO" }, { name: "LOLY POP MILENI", target: 10, keyword: "LOLY POP" },
-      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "CHOCO CRUN" },
-      { name: "GAS", target: 6, keyword: "GAS_EXACT" },
+      { name: "JES LOLY", target: 30, keyword: "JES LOLY", unit: "KARTON" }, { name: "TEABUZZ", target: 15, keyword: "TEABUZZ", unit: "KARTON" },
+      { name: "CUSTARD", target: 15, keyword: "CUSTARD", unit: "KARTON" }, { name: "KARIZATO", target: 20, keyword: "KARIZATO", unit: "KARTON" },
+      { name: "DOLAR CHOCO", target: 20, keyword: "DOLLAR", unit: "KARTON" }, { name: "LOLY POP MILENI", target: 10, keyword: "LOLY POP", unit: "KARTON" },
+      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR", unit: "KARTON" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "COCO CRUNCH", unit: "KARTON" },
+      { name: "GAS", target: 6, keyword: "GAS_EXACT", unit: "KARTON" },
     ] },
   { code: "SOF", name: "SOFYAN HADI", tier: "amber", total: { value: 264500000, ao: 250 },
     groups: [
@@ -135,11 +135,11 @@ const DEFAULT_TARGETS = [
       { name: "RPFI", value: 80000000, ao: 180 }, { name: "GAS", value: 1000000, ao: 15 },
     ],
     focus: [
-      { name: "JES LOLY", target: 10, keyword: "JES LOLY" }, { name: "TEABUZZ", target: 15, keyword: "TEABUZZ" },
-      { name: "CUSTARD", target: 8, keyword: "CUSTARD" }, { name: "KARIZATO", target: 10, keyword: "KARIZATO" },
-      { name: "DOLAR CHOCO", target: 10, keyword: "DOLAR CHOCO" }, { name: "LOLY POP MILENI", target: 15, keyword: "LOLY POP" },
-      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "CHOCO CRUN" },
-      { name: "GAS", target: 6, keyword: "GAS_EXACT" },
+      { name: "JES LOLY", target: 10, keyword: "JES LOLY", unit: "KARTON" }, { name: "TEABUZZ", target: 15, keyword: "TEABUZZ", unit: "KARTON" },
+      { name: "CUSTARD", target: 8, keyword: "CUSTARD", unit: "KARTON" }, { name: "KARIZATO", target: 10, keyword: "KARIZATO", unit: "KARTON" },
+      { name: "DOLAR CHOCO", target: 10, keyword: "DOLLAR", unit: "KARTON" }, { name: "LOLY POP MILENI", target: 15, keyword: "LOLY POP", unit: "KARTON" },
+      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR", unit: "KARTON" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "COCO CRUNCH", unit: "KARTON" },
+      { name: "GAS", target: 6, keyword: "GAS_EXACT", unit: "KARTON" },
     ] },
   { code: "IGP", name: "I GUSTI PUTU SUARDIKA", tier: "amber", total: { value: 378500000, ao: 250 },
     groups: [
@@ -149,11 +149,11 @@ const DEFAULT_TARGETS = [
       { name: "RPFI", value: 90000000, ao: 180 }, { name: "GAS", value: 1000000, ao: 15 },
     ],
     focus: [
-      { name: "JES LOLY", target: 10, keyword: "JES LOLY" }, { name: "TEABUZZ", target: 15, keyword: "TEABUZZ" },
-      { name: "CUSTARD", target: 8, keyword: "CUSTARD" }, { name: "KARIZATO", target: 10, keyword: "KARIZATO" },
-      { name: "DOLAR CHOCO", target: 10, keyword: "DOLAR CHOCO" }, { name: "LOLY POP MILENI", target: 15, keyword: "LOLY POP" },
-      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "CHOCO CRUN" },
-      { name: "GAS", target: 6, keyword: "GAS_EXACT" },
+      { name: "JES LOLY", target: 10, keyword: "JES LOLY", unit: "KARTON" }, { name: "TEABUZZ", target: 15, keyword: "TEABUZZ", unit: "KARTON" },
+      { name: "CUSTARD", target: 8, keyword: "CUSTARD", unit: "KARTON" }, { name: "KARIZATO", target: 10, keyword: "KARIZATO", unit: "KARTON" },
+      { name: "DOLAR CHOCO", target: 10, keyword: "DOLLAR", unit: "KARTON" }, { name: "LOLY POP MILENI", target: 15, keyword: "LOLY POP", unit: "KARTON" },
+      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR", unit: "KARTON" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "COCO CRUNCH", unit: "KARTON" },
+      { name: "GAS", target: 6, keyword: "GAS_EXACT", unit: "KARTON" },
     ] },
   { code: "HEM", name: "HEMA MALIHI", tier: "violet", total: { value: 178300000, ao: 240 },
     groups: [{ name: "PLANGI 2", value: 153300000, ao: 240 }, { name: "PLANGI JAYA", value: 25000988, ao: 130 }], focus: [] },
@@ -283,9 +283,16 @@ function monthKey(d) { if (!d) return "unknown"; return d.toISOString().slice(0,
 
 function matchFocus(row, focusItem) {
   if (focusItem.keyword === "__GROUP__") return normalizeHeader(row.group) === normalizeHeader(focusItem.name);
-  if (focusItem.keyword === "GAS_EXACT") return normalizeHeader(row.productName) === "GAS";
-  if (row.unit !== "KARTON") return false;
-  return normalizeHeader(row.productName).includes(normalizeHeader(focusItem.keyword));
+
+  // Default to KARTON if unit is not specified in config, for backward compatibility
+  const targetUnit = normalizeHeader(focusItem.unit || "KARTON");
+  if (normalizeHeader(row.unit) !== targetUnit) return false;
+
+  const nameMatches = focusItem.keyword === "GAS_EXACT"
+    ? normalizeHeader(row.productName) === "GAS"
+    : normalizeHeader(row.productName).includes(normalizeHeader(focusItem.keyword));
+
+  return nameMatches;
 }
 
 function useAggregates(rows, targets, filters) {
@@ -440,6 +447,14 @@ function FilterBar({ salesOptions, groupOptions, filters, setFilters }) {
         onChange={(v) => setFilters((f) => ({ ...f, salesCodes: v }))} placeholder="Cari sales..." />
       <MultiSelect label="Grup Barang" icon={Package} options={groupOptions} selected={filters.groups}
         onChange={(v) => setFilters((f) => ({ ...f, groups: v }))} placeholder="Cari grup..." />
+      <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style={{ background: COLORS.surface2, border: `1px solid ${COLORS.border}` }}>
+        <CalendarDays size={14} style={{ color: COLORS.textMuted }} />
+        <input type="date" value={filters.dateFrom || ""} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
+          className="bg-transparent outline-none" style={{ color: COLORS.text, colorScheme: "dark" }} />
+        <span style={{ color: COLORS.textMuted }}>-</span>
+        <input type="date" value={filters.dateTo || ""} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
+          className="bg-transparent outline-none" style={{ color: COLORS.text, colorScheme: "dark" }} />
+      </div>
       {active > 0 && (
         <button onClick={() => setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" })}
           className="sm-btn flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm" style={{ color: COLORS.coral, background: COLORS.coral + "14", border: `1px solid ${COLORS.coral}33` }}>
