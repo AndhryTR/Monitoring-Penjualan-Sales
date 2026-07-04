@@ -441,10 +441,25 @@ function MultiSelect({ label, icon: Icon, options, selected, onChange, placehold
 
 function FilterBar({ salesOptions, groupOptions, filters, setFilters }) {
   const active = filters.salesCodes.length + filters.groups.length + (filters.dateFrom ? 1 : 0) + (filters.dateTo ? 1 : 0);
+  const nameToCode = useMemo(() => Object.fromEntries(salesOptions.map((s) => [s.name, s.code])), [salesOptions]);
+  const codeToName = useMemo(() => Object.fromEntries(salesOptions.map(s => [s.code, s.name])), [salesOptions]);
+  const selectedNames = useMemo(() => filters.salesCodes.map(code => codeToName[code]).filter(Boolean), [filters.salesCodes, codeToName]);
+
+  const handleSalesChange = (selectedNames) => {
+    const selectedCodes = selectedNames.map(name => nameToCode[name]);
+    setFilters(f => ({ ...f, salesCodes: selectedCodes }));
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-3 mb-6">
-      <MultiSelect label="Sales" icon={Users} options={salesOptions} selected={filters.salesCodes}
-        onChange={(v) => setFilters((f) => ({ ...f, salesCodes: v }))} placeholder="Cari sales..." />
+      <MultiSelect
+        label="Sales"
+        icon={Users}
+        options={salesOptions.map(s => s.name)}
+        selected={selectedNames}
+        onChange={handleSalesChange}
+        placeholder="Cari sales..."
+      />
       <MultiSelect label="Grup Barang" icon={Package} options={groupOptions} selected={filters.groups}
         onChange={(v) => setFilters((f) => ({ ...f, groups: v }))} placeholder="Cari grup..." />
       <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style={{ background: COLORS.surface2, border: `1px solid ${COLORS.border}` }}>
@@ -807,7 +822,7 @@ function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWork
 /* ============================================================================
    UPLOAD / EXPORT
 ============================================================================ */
-function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading }) {
+function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading, sampleLoading }) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef(null);
   const handleFiles = (files) => { if (files && files[0]) onFile(files[0]); };
@@ -833,8 +848,11 @@ function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading 
         </div>
         {!hasData && (
           <button onClick={(e) => { e.stopPropagation(); onSample(); }} className="sm-btn text-xs px-3 py-2 rounded-lg font-medium"
-            style={{ background: COLORS.surface2, border: `1px solid ${COLORS.border}`, color: COLORS.textMuted }}>
-            Coba data contoh
+            style={{ background: COLORS.surface2, border: `1px solid ${COLORS.border}`, color: COLORS.textMuted }}
+            disabled={sampleLoading}>
+            {sampleLoading
+              ? <span className="flex items-center gap-1.5"><RefreshCw size={13} className="sm-pulse" /> Memuat...</span>
+              : "Coba data contoh"}
           </button>
         )}
         {hasData && (
@@ -889,6 +907,7 @@ export default function SalesMonitoringApp() {
   const [rawRows, setRawRows] = useState([]);
   const [fileName, setFileName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sampleLoading, setSampleLoading] = useState(false);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("main");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -904,10 +923,8 @@ export default function SalesMonitoringApp() {
     return Array.from(s).sort();
   }, [targets, rawRows]);
 
-  const salesOptions = useMemo(() => targets.map((t) => t.name), [targets]);
-  const nameToCode = useMemo(() => Object.fromEntries(targets.map((t) => [t.name, t.code])), [targets]);
-  const filtersWithCodes = useMemo(() => ({ ...filters, salesCodes: filters.salesCodes.map((n) => nameToCode[n] || n) }), [filters, nameToCode]);
-  const aggFinal = useAggregates(rawRows, targets, filtersWithCodes);
+  const salesOptions = useMemo(() => targets.map((t) => ({ name: t.name, code: t.code })), [targets]);
+  const aggFinal = useAggregates(rawRows, targets, filters);
 
   const handleFile = useCallback(async (file) => {
     setLoading(true); setError("");
@@ -915,6 +932,16 @@ export default function SalesMonitoringApp() {
       const rows = await parseWorkbookFile(file);
       if (!rows.length) { setError("File terbaca tapi tidak ada baris data yang cocok. Pastikan kolom sesuai format sell-out."); }
       setRawRows(rows);
+      if (rows.length > 0) {
+        const dates = rows.map(r => r.date).filter(Boolean).map(d => d.getTime());
+        const minDate = new Date(Math.min(...dates));
+        const maxDate = new Date(Math.max(...dates));
+        setFilters(f => ({
+          ...f,
+          dateFrom: minDate.toISOString().slice(0, 10),
+          dateTo: maxDate.toISOString().slice(0, 10),
+        }));
+      }
       setFileName(file.name);
     } catch (e) {
       setError("Gagal membaca file. Pastikan formatnya .xlsx/.xls yang valid.");
@@ -922,8 +949,15 @@ export default function SalesMonitoringApp() {
   }, []);
 
   const handleSample = useCallback(() => {
-    setRawRows(generateSampleRows());
-    setFileName("Data Contoh (demo)");
+    setSampleLoading(true);
+    // Simulasi loading agar terasa responsif
+    setTimeout(() => {
+      const sampleRows = generateSampleRows();
+      setRawRows(sampleRows);
+      setFileName("Data Contoh (demo)");
+      setFilters({ salesCodes: [], groups: [], dateFrom: "2026-07-01", dateTo: "2026-07-03" });
+      setSampleLoading(false);
+    }, 300);
   }, []);
 
   const handleReset = useCallback(() => { setRawRows([]); setFileName(""); }, []);
@@ -962,7 +996,7 @@ export default function SalesMonitoringApp() {
 
         {/* upload */}
         <div className="mb-6 sm-fadeup" style={{ animationDelay: "40ms" }}>
-          <UploadDropzone onFile={handleFile} hasData={!!rawRows.length} fileName={fileName} onReset={handleReset} onSample={handleSample} loading={loading} />
+          <UploadDropzone onFile={handleFile} hasData={!!rawRows.length} fileName={fileName} onReset={handleReset} onSample={handleSample} loading={loading} sampleLoading={sampleLoading} />
           {error && (
             <div className="mt-3 flex items-center gap-2 text-sm px-4 py-2.5 rounded-xl" style={{ background: COLORS.coral + "14", color: COLORS.coral, border: `1px solid ${COLORS.coral}33` }}>
               <AlertTriangle size={14} /> {error}
