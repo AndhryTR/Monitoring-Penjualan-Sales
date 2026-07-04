@@ -11,6 +11,11 @@ import {
   Boxes, Crosshair, Check, AlertTriangle, CalendarDays, SlidersHorizontal,
   FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus,
 } from "lucide-react";
+import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
+import { useCountUp } from "./hooks/useCountUp.js";
+import { KpiCard } from "./components/KpiCard.jsx";
+import { AchBadge } from "./components/AchBadge.jsx";
+import { PaceStrip } from "./components/PaceStrip.jsx";
 
 /* ============================================================================
    DESIGN TOKENS
@@ -18,19 +23,7 @@ import {
    violet = focus-product accent. Display: Space Grotesk, Body: Inter,
    Data/mono: JetBrains Mono.
 ============================================================================ */
-const COLORS = {
-  ink: "#0A1120",
-  surface: "#111A2E",
-  surface2: "#182642",
-  border: "#26355A",
-  text: "#E8EDF7",
-  textMuted: "#8C9AB8",
-  gold: "#F2B84B",
-  coral: "#FF6B5E",
-  mint: "#34D9A5",
-  violet: "#9B8CF2",
-  blue: "#5AA9FF",
-};
+import { COLORS } from "./constants/colors.js";
 
 const GLOBAL_STYLE = `
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
@@ -267,7 +260,7 @@ function generateSampleRows() {
     s.groups.forEach((g, gi) => {
       const nOutlets = 2 + Math.floor(rnd() * 3);
       for (let o = 0; o < nOutlets; o++) {
-        const d = dates[Math.floor(rnd() * dates.length)];
+                const d = dates[Math.floor(rnd() * dates.length)];
         const pctOfTarget = 0.005 + rnd() * 0.06;
         const value = Math.round((g.value || 500000) * pctOfTarget / nOutlets);
         rows.push({
@@ -285,12 +278,6 @@ function generateSampleRows() {
 /* ============================================================================
    AGGREGATION HELPERS
 ============================================================================ */
-function fmtRp(n) {
-  if (n === null || n === undefined || isNaN(n)) return "-";
-  return "Rp " + new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Math.round(n));
-}
-function fmtNum(n) { return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Math.round(n || 0)); }
-function fmtPct(n) { return n === null || n === undefined ? "-" : (n * 100).toFixed(1) + "%"; }
 function dateKey(d) { if (!d) return "unknown"; return d.toISOString().slice(0, 10); }
 function monthKey(d) { if (!d) return "unknown"; return d.toISOString().slice(0, 7); }
 
@@ -402,87 +389,6 @@ function useAggregates(rows, targets, filters) {
 /* ============================================================================
    SMALL UI PRIMITIVES
 ============================================================================ */
-function useCountUp(target, duration = 800) {
-  const [val, setVal] = useState(0);
-  const raf = useRef(null);
-  const start = useRef(null);
-  const from = useRef(0);
-  useEffect(() => {
-    from.current = val;
-    start.current = null;
-    const step = (ts) => {
-      if (!start.current) start.current = ts;
-      const progress = Math.min(1, (ts - start.current) / duration);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setVal(from.current + (target - from.current) * eased);
-      if (progress < 1) raf.current = requestAnimationFrame(step);
-    };
-    raf.current = requestAnimationFrame(step);
-    return () => raf.current && cancelAnimationFrame(raf.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target]);
-  return val;
-}
-
-function AchBadge({ ach }) {
-  if (ach === null || ach === undefined) return <span className="mono text-xs" style={{ color: COLORS.textMuted }}>-</span>;
-  const pct = ach * 100;
-  const color = pct >= 100 ? COLORS.mint : pct >= 70 ? COLORS.gold : COLORS.coral;
-  const Icon = pct >= 100 ? ArrowUpRight : pct >= 70 ? Minus : ArrowDownRight;
-  return (
-    <span className="mono text-xs font-semibold inline-flex items-center gap-1 px-2 py-0.5 rounded-full"
-      style={{ color, background: color + "1A", border: `1px solid ${color}44` }}>
-      <Icon size={12} /> {pct.toFixed(1)}%
-    </span>
-  );
-}
-
-function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct, delay = 0 }) {
-  const numeric = isPct ? (value || 0) * 100 : (value || 0);
-  const animated = useCountUp(numeric);
-  return (
-    <div className="sm-card sm-fadeup p-5" style={{ animationDelay: `${delay}ms` }}>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs uppercase tracking-wider font-semibold" style={{ color: COLORS.textMuted }}>{label}</span>
-        <div className="p-1.5 rounded-lg" style={{ background: accent + "1A" }}>
-          <Icon size={14} style={{ color: accent }} />
-        </div>
-      </div>
-      <div className="disp text-2xl font-bold mono">
-        {isMoney ? fmtRp(animated) : isPct ? animated.toFixed(1) + "%" : fmtNum(animated)}
-      </div>
-      {sub && <div className="text-xs mt-1.5" style={{ color: COLORS.textMuted }}>{sub}</div>}
-    </div>
-  );
-}
-
-function PaceStrip({ timeGonePct, achPct }) {
-  const capped = Math.min(100, (achPct || 0) * 100);
-  const ahead = (achPct || 0) * 100 >= timeGonePct * 100;
-  const color = ahead ? COLORS.mint : COLORS.coral;
-  return (
-    <div className="sm-card sm-fadeup p-5 mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Sparkles size={15} style={{ color: COLORS.gold }} />
-          <span className="disp text-sm font-semibold">Pace ke Target</span>
-        </div>
-        <span className="text-xs mono" style={{ color }}>
-          {ahead ? "Di atas pace waktu" : "Di bawah pace waktu"}
-        </span>
-      </div>
-      <div className="relative h-4 rounded-full overflow-hidden" style={{ background: COLORS.surface2 }}>
-        <div className="sm-progress-fill h-full rounded-full" style={{ width: `${capped}%`, background: `linear-gradient(90deg, ${color}99, ${color})` }} />
-        <div className="absolute top-0 h-full w-[2px]" style={{ left: `${Math.min(100, timeGonePct * 100)}%`, background: "#fff" }} />
-      </div>
-      <div className="flex justify-between mt-2 text-xs mono" style={{ color: COLORS.textMuted }}>
-        <span>ACH {fmtPct(achPct)}</span>
-        <span>Time Gone {fmtPct(timeGonePct)}</span>
-      </div>
-    </div>
-  );
-}
-
 function MultiSelect({ label, icon: Icon, options, selected, onChange, placeholder }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
