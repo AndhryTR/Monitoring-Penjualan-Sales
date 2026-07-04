@@ -288,9 +288,10 @@ function matchFocus(row, focusItem) {
   const targetUnit = normalizeHeader(focusItem.unit || "KARTON");
   if (row.unit !== targetUnit) return false;
 
+  const rowProductName = normalizeHeader(row.productName);
   const nameMatches = focusItem.keyword === "GAS_EXACT"
-    ? normalizeHeader(row.productName) === "GAS"
-    : normalizeHeader(row.productName).includes(normalizeHeader(focusItem.keyword));
+    ? rowProductName === "GAS"
+    : rowProductName.includes(normalizeHeader(focusItem.keyword));
 
   return nameMatches;
 }
