@@ -523,8 +523,10 @@ const CHART_TOOLTIP_STYLE = { background: COLORS.surface, border: `1px solid ${C
    PAGES
 ============================================================================ */
 function MainReportPage({ agg, workDays }) {
+  const uniqueDaysInData = useMemo(() => new Set(agg.filteredRows.map(r => dateKey(r.date))).size, [agg.filteredRows]);
   const t = agg.totals;
-  const timeGone = workDays ? Math.min(1, 2 / workDays) : 0; // placeholder pace baseline; real "hari ini" comes from data range
+  // Calculate time gone based on unique work days found in the data vs total work days in the month.
+  const timeGone = workDays ? Math.min(1, uniqueDaysInData / workDays) : 0;
   return (
     <div className="sm-fadein">
       <PaceStrip timeGonePct={timeGone} achPct={t.ach} />
