@@ -286,7 +286,7 @@ function matchFocus(row, focusItem) {
 
   // Default to KARTON if unit is not specified in config, for backward compatibility
   const targetUnit = normalizeHeader(focusItem.unit || "KARTON");
-  if (normalizeHeader(row.unit) !== targetUnit) return false;
+  if (row.unit !== targetUnit) return false;
 
   const nameMatches = focusItem.keyword === "GAS_EXACT"
     ? normalizeHeader(row.productName) === "GAS"
