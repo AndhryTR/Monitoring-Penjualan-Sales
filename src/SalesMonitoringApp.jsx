@@ -9,7 +9,7 @@ import {
   Upload, Download, X, ChevronDown, Search, RefreshCw, Users, Package,
   Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard, UserRound,
   Boxes, Crosshair, Check, AlertTriangle, CalendarDays, Settings,
-  FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus, Sun, Moon, ChevronLeft, ChevronRight, Menu, Filter, Loader2,
+  FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
 import { useCountUp } from "./hooks/useCountUp.js";
@@ -942,13 +942,15 @@ export default function SalesMonitoringApp() {
       setRawRows(rows);
       if (rows.length > 0) {
         const dates = rows.map(r => r.date).filter(Boolean).map(d => d.getTime());
-        const minDate = new Date(Math.min(...dates));
-        const maxDate = new Date(Math.max(...dates));
-        setFilters(f => ({
-          ...f,
-          dateFrom: minDate.toISOString().slice(0, 10),
-          dateTo: maxDate.toISOString().slice(0, 10),
-        }));
+        if (dates.length > 0) {
+          const minDate = new Date(Math.min(...dates));
+          const maxDate = new Date(Math.max(...dates));
+          setFilters(f => ({
+            ...f,
+            dateFrom: minDate.toISOString().slice(0, 10),
+            dateTo: maxDate.toISOString().slice(0, 10),
+          }));
+        }
       }
       setFileName(file.name);
     } catch (e) {
