@@ -9,7 +9,7 @@ export function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct,
   return (
     <div className="sm-card sm-fadeup p-5" style={{ animationDelay: `${delay}ms` }}>
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs uppercase tracking-wider font-semibold" style={{ color: COLORS.textMuted }}>{label}</span>
+        <span className="text-xs uppercase tracking-wider font-semibold" style={{ color: colors.textMuted }}>{label}</span>
         <div className="p-1.5 rounded-lg" style={{ background: accent + "1A" }}>
           <Icon size={14} style={{ color: accent }} />
         </div>
