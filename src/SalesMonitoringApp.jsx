@@ -509,7 +509,7 @@ function DataTable({ columns, rows, initialSortKey, colors }) {
           </thead>
           <tbody>
             {sorted.map((row, i) => (
-              <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${COLORS.border}` }}>
+              <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.border}` }}>
                 {columns.map((c) => (
                   <td key={c.key} className="px-4 py-3 whitespace-nowrap">
                     {c.render ? c.render(row) : row[c.key]}
