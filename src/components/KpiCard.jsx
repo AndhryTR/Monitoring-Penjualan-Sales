@@ -3,7 +3,7 @@ import { useCountUp } from "../hooks/useCountUp";
 import { fmtRp, fmtNum } from "../utils/formatters";
 import { THEMES } from "../constants/colors";
 
-export function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct, delay = 0 }) {
+export function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct, delay = 0, colors }) {
   const numeric = isPct ? (value || 0) * 100 : (value || 0);
   const animated = useCountUp(numeric);
   return (
