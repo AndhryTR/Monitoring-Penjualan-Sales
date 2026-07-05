@@ -25,14 +25,14 @@ import { PaceStrip } from "./components/PaceStrip.jsx";
 ============================================================================ */
 import { THEMES } from "./constants/colors.js";
 
-const createGlobalStyle = (COLORS) => `
+const createGlobalStyle = (colors) => `
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
 * { box-sizing: border-box; }
-.smapp { font-family: 'Inter', sans-serif; color: ${COLORS.text}; background: ${COLORS.ink}; }
+.smapp { font-family: 'Inter', sans-serif; color: ${colors.text}; background: ${colors.ink}; }
 .smapp .disp { font-family: 'Space Grotesk', sans-serif; }
 .smapp .mono { font-family: 'JetBrains Mono', monospace; }
 .smapp *::-webkit-scrollbar { height: 8px; width: 8px; }
-.smapp *::-webkit-scrollbar-thumb { background: ${COLORS.border}; border-radius: 4px; border: 2px solid ${COLORS.ink}; }
+.smapp *::-webkit-scrollbar-thumb { background: ${colors.border}; border-radius: 4px; border: 2px solid ${colors.ink}; }
 .smapp *::-webkit-scrollbar-track { background: transparent; }
 @keyframes smFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes smFadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -42,17 +42,17 @@ const createGlobalStyle = (COLORS) => `
 .sm-fadeup { animation: smFadeUp .45s cubic-bezier(.16,1,.3,1) both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
 .sm-fadein { animation: smFadeIn .3s ease both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
 .sm-pulse { animation: smPulse 1.8s ease-in-out infinite; }
-.sm-shimmer { background: linear-gradient(90deg, ${COLORS.surface2} 0%, ${COLORS.border} 50%, ${COLORS.surface2} 100%); background-size: 800px 100%; animation: smShimmer 1.4s linear infinite; }
-.sm-card { background: ${COLORS.surface}; border-radius: 16px; transition: transform .25s ease, box-shadow .25s ease, background .3s ease; box-shadow: 6px 6px 12px ${COLORS.shadow1}, -6px -6px 12px ${COLORS.shadow2}; }
-.sm-card:hover { transform: translateY(-2px); box-shadow: 8px 8px 16px ${COLORS.shadow1}, -8px -8px 16px ${COLORS.shadow2}; }
+.sm-shimmer { background: linear-gradient(90deg, ${colors.surface2} 0%, ${colors.border} 50%, ${colors.surface2} 100%); background-size: 800px 100%; animation: smShimmer 1.4s linear infinite; }
+.sm-card { background: ${colors.surface}; border-radius: 16px; transition: transform .25s ease, box-shadow .25s ease, background .3s ease; box-shadow: 6px 6px 12px ${colors.shadow1}, -6px -6px 12px ${colors.shadow2}; }
+.sm-card:hover { transform: translateY(-2px); box-shadow: 8px 8px 16px ${colors.shadow1}, -8px -8px 16px ${colors.shadow2}; }
 .sm-tab-btn { position: relative; transition: color .2s ease; }
 .sm-chip { transition: all .18s ease; }
 .sm-chip:hover { transform: translateY(-1px); }
 .sm-row { transition: background .15s ease; }
-.sm-row:hover { background: ${COLORS.surface2}; }
-.sm-btn { transition: transform .2s ease, box-shadow .2s ease, background .2s ease; box-shadow: 4px 4px 8px ${COLORS.shadow1}, -4px -4px 8px ${COLORS.shadow2}; }
-.sm-btn:hover { transform: translateY(-2px); box-shadow: 6px 6px 10px ${COLORS.shadow1}, -6px -6px 10px ${COLORS.shadow2}; }
-.sm-btn:active { transform: translateY(0); box-shadow: inset 3px 3px 6px ${COLORS.shadowInset1}, inset -3px -3px 6px ${COLORS.shadowInset2}; }
+.sm-row:hover { background: ${colors.surface2}; }
+.sm-btn { transition: transform .2s ease, box-shadow .2s ease, background .2s ease; box-shadow: 4px 4px 8px ${colors.shadow1}, -4px -4px 8px ${colors.shadow2}; }
+.sm-btn:hover { transform: translateY(-2px); box-shadow: 6px 6px 10px ${colors.shadow1}, -6px -6px 10px ${colors.shadow2}; }
+.sm-btn:active { transform: translateY(0); box-shadow: inset 3px 3px 6px ${colors.shadowInset1}, inset -3px -3px 6px ${colors.shadowInset2}; }
 .sm-progress-fill { transition: width 1s cubic-bezier(.16,1,.3,1); }
 .sm-drop { transition: border-color .2s ease, background .2s ease; }
 .sm-scale-in { animation: smFadeUp .5s cubic-bezier(.16,1,.3,1) both; }
@@ -465,10 +465,10 @@ function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors }) 
       <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }}>
         <CalendarDays size={14} style={{ color: colors.textMuted }} />
         <input type="date" value={filters.dateFrom || ""} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
-          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme: "dark" }} />
+          className="bg-transparent outline-none" style={{ color: colors.text, colorscheme: "dark" }} />
         <span style={{ color: colors.textMuted }}>-</span>
         <input type="date" value={filters.dateTo || ""} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
-          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme: "dark" }} />
+          className="bg-transparent outline-none" style={{ color: colors.text, colorscheme: "dark" }} />
       </div>
       {active > 0 && (
         <button onClick={() => setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" })}
