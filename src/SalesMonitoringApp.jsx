@@ -5,7 +5,7 @@ import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell,
 } from "recharts";
-import {
+import { 
   Upload, Download, X, ChevronDown, Search, RefreshCw, Users, Package,
   Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard, UserRound,
   Boxes, Crosshair, Check, AlertTriangle, CalendarDays, Settings,
@@ -23,36 +23,36 @@ import { PaceStrip } from "./components/PaceStrip.jsx";
    violet = focus-product accent. Display: Space Grotesk, Body: Inter,
    Data/mono: JetBrains Mono.
 ============================================================================ */
-import { COLORS } from "./constants/colors.js";
+import { THEMES } from "./constants/colors.js";
 
-const GLOBAL_STYLE = `
+const createGlobalStyle = (COLORS) => `
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
 * { box-sizing: border-box; }
 .smapp { font-family: 'Inter', sans-serif; color: ${COLORS.text}; background: ${COLORS.ink}; }
 .smapp .disp { font-family: 'Space Grotesk', sans-serif; }
 .smapp .mono { font-family: 'JetBrains Mono', monospace; }
 .smapp *::-webkit-scrollbar { height: 8px; width: 8px; }
-.smapp *::-webkit-scrollbar-thumb { background: ${COLORS.border}; border-radius: 4px; }
+.smapp *::-webkit-scrollbar-thumb { background: ${COLORS.border}; border-radius: 4px; border: 2px solid ${COLORS.ink}; }
 .smapp *::-webkit-scrollbar-track { background: transparent; }
 @keyframes smFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes smFadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes smPulse { 0%,100% { opacity:1 } 50% { opacity:.55 } }
 @keyframes smShimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
 @keyframes smDash { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
-.sm-fadeup { animation: smFadeUp .45s cubic-bezier(.16,1,.3,1) both; }
-.sm-fadein { animation: smFadeIn .3s ease both; }
+.sm-fadeup { animation: smFadeUp .45s cubic-bezier(.16,1,.3,1) both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
+.sm-fadein { animation: smFadeIn .3s ease both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
 .sm-pulse { animation: smPulse 1.8s ease-in-out infinite; }
-.sm-shimmer { background: linear-gradient(90deg, ${COLORS.surface2} 0%, #22335c 50%, ${COLORS.surface2} 100%); background-size: 800px 100%; animation: smShimmer 1.4s linear infinite; }
-.sm-card { background: ${COLORS.surface}; border: 1px solid ${COLORS.border}; border-radius: 16px; transition: border-color .25s ease, transform .25s ease, box-shadow .25s ease; }
-.sm-card:hover { border-color: #3A4C7C; }
+.sm-shimmer { background: linear-gradient(90deg, ${COLORS.surface2} 0%, ${COLORS.border} 50%, ${COLORS.surface2} 100%); background-size: 800px 100%; animation: smShimmer 1.4s linear infinite; }
+.sm-card { background: ${COLORS.surface}; border-radius: 16px; transition: transform .25s ease, box-shadow .25s ease, background .3s ease; box-shadow: 6px 6px 12px ${COLORS.shadow1}, -6px -6px 12px ${COLORS.shadow2}; }
+.sm-card:hover { transform: translateY(-2px); box-shadow: 8px 8px 16px ${COLORS.shadow1}, -8px -8px 16px ${COLORS.shadow2}; }
 .sm-tab-btn { position: relative; transition: color .2s ease; }
 .sm-chip { transition: all .18s ease; }
 .sm-chip:hover { transform: translateY(-1px); }
 .sm-row { transition: background .15s ease; }
 .sm-row:hover { background: ${COLORS.surface2}; }
-.sm-btn { transition: transform .15s ease, box-shadow .2s ease, background .2s ease; }
-.sm-btn:hover { transform: translateY(-1px); }
-.sm-btn:active { transform: translateY(0); }
+.sm-btn { transition: transform .2s ease, box-shadow .2s ease, background .2s ease; box-shadow: 4px 4px 8px ${COLORS.shadow1}, -4px -4px 8px ${COLORS.shadow2}; }
+.sm-btn:hover { transform: translateY(-2px); box-shadow: 6px 6px 10px ${COLORS.shadow1}, -6px -6px 10px ${COLORS.shadow2}; }
+.sm-btn:active { transform: translateY(0); box-shadow: inset 3px 3px 6px ${COLORS.shadowInset1}, inset -3px -3px 6px ${COLORS.shadowInset2}; }
 .sm-progress-fill { transition: width 1s cubic-bezier(.16,1,.3,1); }
 .sm-drop { transition: border-color .2s ease, background .2s ease; }
 .sm-scale-in { animation: smFadeUp .5s cubic-bezier(.16,1,.3,1) both; }
@@ -161,7 +161,6 @@ const DEFAULT_TARGETS = [
     groups: [{ name: "PLANGI 2", value: 153300709, ao: 240 }, { name: "PLANGI JAYA", value: 25000000, ao: 130 }], focus: [] },
 ];
 
-const TIER_COLOR = { mint: COLORS.mint, amber: COLORS.gold, violet: COLORS.violet };
 const WORK_DAYS_DEFAULT = 27;
 
 /* ============================================================================
@@ -396,7 +395,7 @@ function useAggregates(rows, targets, filters) {
 /* ============================================================================
    SMALL UI PRIMITIVES
 ============================================================================ */
-function MultiSelect({ label, icon: Icon, options, selected, onChange, placeholder }) {
+function MultiSelect({ label, icon: Icon, options, selected, onChange, placeholder, colors }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef(null);
@@ -410,23 +409,23 @@ function MultiSelect({ label, icon: Icon, options, selected, onChange, placehold
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen(!open)} className="sm-btn flex items-center gap-2 px-3 py-2 rounded-xl text-sm"
-        style={{ background: COLORS.surface2, border: `1px solid ${selected.length ? COLORS.gold + "88" : COLORS.border}` }}>
-        <Icon size={14} style={{ color: COLORS.textMuted }} />
+        style={{ background: colors.surface2, border: `1px solid ${selected.length ? colors.gold + "88" : colors.border}` }}>
+        <Icon size={14} style={{ color: colors.textMuted }} />
         <span>{label}{selected.length ? ` (${selected.length})` : ""}</span>
-        <ChevronDown size={14} style={{ color: COLORS.textMuted, transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+        <ChevronDown size={14} style={{ color: colors.textMuted, transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && (
-        <div className="sm-fadein absolute z-20 mt-2 w-64 rounded-xl p-2 shadow-2xl" style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}` }}>
-          <div className="flex items-center gap-2 px-2 py-1.5 mb-1 rounded-lg" style={{ background: COLORS.surface2 }}>
-            <Search size={13} style={{ color: COLORS.textMuted }} />
+        <div className="sm-fadein absolute z-20 mt-2 w-64 rounded-xl p-2 shadow-2xl" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+          <div className="flex items-center gap-2 px-2 py-1.5 mb-1 rounded-lg" style={{ background: colors.surface2 }}>
+            <Search size={13} style={{ color: colors.textMuted }} />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder || "Cari..."}
-              className="bg-transparent outline-none text-sm w-full" style={{ color: COLORS.text }} />
+              className="bg-transparent outline-none text-sm w-full" style={{ color: colors.text }} />
           </div>
           <div className="max-h-56 overflow-y-auto">
-            {filtered.length === 0 && <div className="text-xs px-2 py-2" style={{ color: COLORS.textMuted }}>Tidak ada hasil</div>}
+            {filtered.length === 0 && <div className="text-xs px-2 py-2" style={{ color: colors.textMuted }}>Tidak ada hasil</div>}
             {filtered.map((o) => (
               <button key={o} onClick={() => toggle(o)} className="sm-row w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm">
-                <div className="w-4 h-4 rounded flex items-center justify-center" style={{ background: selected.includes(o) ? COLORS.gold : "transparent", border: `1px solid ${selected.includes(o) ? COLORS.gold : COLORS.border}` }}>
+                <div className="w-4 h-4 rounded flex items-center justify-center" style={{ background: selected.includes(o) ? colors.gold : "transparent", border: `1px solid ${selected.includes(o) ? colors.gold : colors.border}` }}>
                   {selected.includes(o) && <Check size={11} color="#0A1120" />}
                 </div>
                 <span className="truncate">{o}</span>
@@ -439,7 +438,7 @@ function MultiSelect({ label, icon: Icon, options, selected, onChange, placehold
   );
 }
 
-function FilterBar({ salesOptions, groupOptions, filters, setFilters }) {
+function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors }) {
   const active = filters.salesCodes.length + filters.groups.length + (filters.dateFrom ? 1 : 0) + (filters.dateTo ? 1 : 0);
   const nameToCode = useMemo(() => Object.fromEntries(salesOptions.map((s) => [s.name, s.code])), [salesOptions]);
   const codeToName = useMemo(() => Object.fromEntries(salesOptions.map(s => [s.code, s.name])), [salesOptions]);
@@ -458,21 +457,22 @@ function FilterBar({ salesOptions, groupOptions, filters, setFilters }) {
         options={salesOptions.map(s => s.name)}
         selected={selectedNames}
         onChange={handleSalesChange}
+        colors={colors}
         placeholder="Cari sales..."
       />
       <MultiSelect label="Grup Barang" icon={Package} options={groupOptions} selected={filters.groups}
-        onChange={(v) => setFilters((f) => ({ ...f, groups: v }))} placeholder="Cari grup..." />
-      <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style={{ background: COLORS.surface2, border: `1px solid ${COLORS.border}` }}>
-        <CalendarDays size={14} style={{ color: COLORS.textMuted }} />
+        onChange={(v) => setFilters((f) => ({ ...f, groups: v }))} placeholder="Cari grup..." colors={colors} />
+      <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }}>
+        <CalendarDays size={14} style={{ color: colors.textMuted }} />
         <input type="date" value={filters.dateFrom || ""} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
-          className="bg-transparent outline-none" style={{ color: COLORS.text, colorScheme: "dark" }} />
-        <span style={{ color: COLORS.textMuted }}>-</span>
+          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme: "dark" }} />
+        <span style={{ color: colors.textMuted }}>-</span>
         <input type="date" value={filters.dateTo || ""} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
-          className="bg-transparent outline-none" style={{ color: COLORS.text, colorScheme: "dark" }} />
+          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme: "dark" }} />
       </div>
       {active > 0 && (
         <button onClick={() => setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" })}
-          className="sm-btn flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm" style={{ color: COLORS.coral, background: COLORS.coral + "14", border: `1px solid ${COLORS.coral}33` }}>
+          className="sm-btn flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm" style={{ color: colors.coral, background: colors.coral + "14", border: `1px solid ${colors.coral}33` }}>
           <RefreshCw size={13} /> Reset ({active})
         </button>
       )}
@@ -480,7 +480,7 @@ function FilterBar({ salesOptions, groupOptions, filters, setFilters }) {
   );
 }
 
-function DataTable({ columns, rows, initialSortKey }) {
+function DataTable({ columns, rows, initialSortKey, colors }) {
   const [sortKey, setSortKey] = useState(initialSortKey || columns[0].key);
   const [sortDir, setSortDir] = useState("desc");
   const sorted = useMemo(() => {
@@ -498,10 +498,10 @@ function DataTable({ columns, rows, initialSortKey }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr style={{ background: COLORS.surface2 }}>
+            <tr style={{ background: colors.surface2 }}>
               {columns.map((c) => (
                 <th key={c.key} onClick={() => toggleSort(c.key)} className="px-4 py-3 text-left cursor-pointer select-none whitespace-nowrap"
-                  style={{ color: COLORS.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  style={{ color: colors.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   {c.label} {sortKey === c.key && (sortDir === "asc" ? "↑" : "↓")}
                 </th>
               ))}
@@ -518,7 +518,7 @@ function DataTable({ columns, rows, initialSortKey }) {
               </tr>
             ))}
             {sorted.length === 0 && (
-              <tr><td colSpan={columns.length} className="px-4 py-10 text-center" style={{ color: COLORS.textMuted }}>Belum ada data untuk filter ini</td></tr>
+              <tr><td colSpan={columns.length} className="px-4 py-10 text-center" style={{ color: colors.textMuted }}>Belum ada data untuk filter ini</td></tr>
             )}
           </tbody>
         </table>
@@ -527,82 +527,83 @@ function DataTable({ columns, rows, initialSortKey }) {
   );
 }
 
-function SectionTitle({ title, sub, icon: Icon }) {
+function SectionTitle({ title, sub, icon: Icon, colors }) {
   return (
     <div className="flex items-center gap-3 mb-4">
-      {Icon && <div className="p-2 rounded-xl" style={{ background: COLORS.gold + "1A" }}><Icon size={16} style={{ color: COLORS.gold }} /></div>}
+      {Icon && <div className="p-2 rounded-xl" style={{ background: colors.gold + "1A" }}><Icon size={16} style={{ color: colors.gold }} /></div>}
       <div>
         <h2 className="disp text-lg font-semibold">{title}</h2>
-        {sub && <p className="text-xs" style={{ color: COLORS.textMuted }}>{sub}</p>}
+        {sub && <p className="text-xs" style={{ color: colors.textMuted }}>{sub}</p>}
       </div>
     </div>
   );
 }
 
-const CHART_TOOLTIP_STYLE = { background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 10, color: COLORS.text, fontSize: 12 };
+const createChartTooltipStyle = (colors) => ({ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10, color: colors.text, fontSize: 12 });
 
 /* ============================================================================
    PAGES
 ============================================================================ */
-function MainReportPage({ agg, workDays }) {
+function MainReportPage({ agg, workDays, colors }) {
   const uniqueDaysInData = useMemo(() => new Set(agg.filteredRows.map(r => dateKey(r.date))).size, [agg.filteredRows]);
   const t = agg.totals;
   // Calculate time gone based on unique work days found in the data vs total work days in the month.
   const timeGone = workDays ? Math.min(1, uniqueDaysInData / workDays) : 0;
   return (
     <div className="sm-fadein">
-      <PaceStrip timeGonePct={timeGone} achPct={t.ach} />
+      <PaceStrip timeGonePct={timeGone} achPct={t.ach} colors={colors} />
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-        <KpiCard label="Target Value" value={t.targetValue} isMoney icon={Target} accent={COLORS.blue} delay={0} />
-        <KpiCard label="Realisasi Value" value={t.realisasiValue} isMoney icon={TrendingUp} accent={COLORS.mint} delay={40} />
-        <KpiCard label="Achievement" value={t.ach} isPct icon={Sparkles} accent={COLORS.gold} delay={80} />
-        <KpiCard label="Deviasi Value" value={t.deviasiValue} isMoney icon={TrendingDown} accent={COLORS.coral} delay={120} />
-        <KpiCard label="Active Outlet" value={t.realisasiAo} icon={Users} accent={COLORS.violet} delay={160} />
-        <KpiCard label="Target AO" value={t.targetAo} icon={Boxes} accent={COLORS.textMuted} delay={200} />
+        <KpiCard label="Target Value" value={t.targetValue} isMoney icon={Target} accent={colors.blue} delay={0} colors={colors} />
+        <KpiCard label="Realisasi Value" value={t.realisasiValue} isMoney icon={TrendingUp} accent={colors.mint} delay={40} colors={colors} />
+        <KpiCard label="Achievement" value={t.ach} isPct icon={Sparkles} accent={colors.gold} delay={80} colors={colors} />
+        <KpiCard label="Deviasi Value" value={t.deviasiValue} isMoney icon={TrendingDown} accent={colors.coral} delay={120} colors={colors} />
+        <KpiCard label="Active Outlet" value={t.realisasiAo} icon={Users} accent={colors.violet} delay={160} colors={colors} />
+        <KpiCard label="Target AO" value={t.targetAo} icon={Boxes} accent={colors.textMuted} delay={200} colors={colors} />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6 mb-8">
         <div className="sm-card p-5 sm-fadeup">
-          <SectionTitle title="Tren Harian" sub="Realisasi value per tanggal" icon={CalendarDays} />
+          <SectionTitle title="Tren Harian" sub="Realisasi value per tanggal" icon={CalendarDays} colors={colors} />
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={agg.daily}>
               <defs>
                 <linearGradient id="gGold" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={COLORS.gold} stopOpacity={0.5} />
-                  <stop offset="100%" stopColor={COLORS.gold} stopOpacity={0} />
+                  <stop offset="0%" stopColor={colors.gold} stopOpacity={0.5} />
+                  <stop offset="100%" stopColor={colors.gold} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} vertical={false} />
-              <XAxis dataKey="date" tick={{ fill: COLORS.textMuted, fontSize: 11 }} axisLine={{ stroke: COLORS.border }} tickLine={false} />
-              <YAxis tick={{ fill: COLORS.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(v) => fmtRp(v)} />
-              <Area type="monotone" dataKey="value" stroke={COLORS.gold} fill="url(#gGold)" strokeWidth={2} />
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
+              <XAxis dataKey="date" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
+              <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
+              <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} />
+              <Area type="monotone" dataKey="value" stroke={colors.gold} fill="url(#gGold)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
         <div className="sm-card p-5 sm-fadeup" style={{ animationDelay: "60ms" }}>
-          <SectionTitle title="Kumulatif Bulanan" sub="Total realisasi per bulan" icon={LayoutDashboard} />
+          <SectionTitle title="Kumulatif Bulanan" sub="Total realisasi per bulan" icon={LayoutDashboard} colors={colors} />
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={agg.monthly}>
-              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: COLORS.textMuted, fontSize: 11 }} axisLine={{ stroke: COLORS.border }} tickLine={false} />
-              <YAxis tick={{ fill: COLORS.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
-              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(v) => fmtRp(v)} />
-              <Bar dataKey="value" fill={COLORS.mint} radius={[6, 6, 0, 0]} />
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
+              <XAxis dataKey="month" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
+              <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
+              <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} />
+              <Bar dataKey="value" fill={colors.mint} radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      <SectionTitle title="Ringkasan Semua Sales" icon={Users} />
+      <SectionTitle title="Ringkasan Semua Sales" icon={Users} colors={colors} />
       <DataTable
+        colors={colors}
         initialSortKey="realisasiValue"
         columns={[
           { key: "name", label: "Sales" },
           { key: "targetValue", label: "Target", render: (r) => <span className="mono">{fmtRp(r.targetValue)}</span> },
           { key: "realisasiValue", label: "Realisasi", render: (r) => <span className="mono">{fmtRp(r.realisasiValue)}</span> },
-          { key: "ach", label: "ACH", render: (r) => <AchBadge ach={r.ach} /> },
-          { key: "deviasiValue", label: "Deviasi", render: (r) => <span className="mono" style={{ color: COLORS.textMuted }}>{fmtRp(r.deviasiValue)}</span> },
+          { key: "ach", label: "ACH", render: (r) => <AchBadge ach={r.ach} colors={colors} /> },
+          { key: "deviasiValue", label: "Deviasi", render: (r) => <span className="mono" style={{ color: colors.textMuted }}>{fmtRp(r.deviasiValue)}</span> },
           { key: "realisasiAo", label: "AO", render: (r) => <span className="mono">{r.realisasiAo}/{r.targetAo}</span> },
         ]}
         rows={agg.bySales}
@@ -611,7 +612,7 @@ function MainReportPage({ agg, workDays }) {
   );
 }
 
-function SalesReportPage({ agg }) {
+function SalesReportPage({ agg, colors }) {
   const rows = agg.bySales;
   const topGroups = useMemo(() => {
     const bySalesGroup = {};
@@ -623,22 +624,23 @@ function SalesReportPage({ agg }) {
   }, [agg.filteredRows]);
   return (
     <div className="sm-fadein">
-      <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} />
+      <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} />
       <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
         <BarChart data={rows} layout="vertical" margin={{ left: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} horizontal={false} />
-          <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
-          <YAxis type="category" dataKey="name" width={160} tick={{ fill: COLORS.text, fontSize: 12 }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(v) => fmtRp(v)} />
+          <CartesianGrid strokeDasharray="3 3" stroke={colors.border} horizontal={false} />
+          <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
+          <YAxis type="category" dataKey="name" width={160} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
+          <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} />
           <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
-            {rows.map((r, i) => <Cell key={i} fill={r.ach >= 1 ? COLORS.mint : r.ach >= 0.7 ? COLORS.gold : COLORS.coral} />)}
+            {rows.map((r, i) => <Cell key={i} fill={r.ach >= 1 ? colors.mint : r.ach >= 0.7 ? colors.gold : colors.coral} />)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
 
       <div className="mt-8">
-        <SectionTitle title="Detail per Sales × Grup Produk" icon={Boxes} />
+        <SectionTitle title="Detail per Sales × Grup Produk" icon={Boxes} colors={colors} />
         <DataTable
+          colors={colors}
           initialSortKey="value"
           columns={[
             { key: "salesName", label: "Sales" },
@@ -656,31 +658,32 @@ function SalesReportPage({ agg }) {
   );
 }
 
-function ProductReportPage({ agg }) {
+function ProductReportPage({ agg, colors }) {
   return (
     <div className="sm-fadein">
-      <SectionTitle title="Pencapaian per Grup Produk" sub="Ranking berdasarkan realisasi" icon={Boxes} />
+      <SectionTitle title="Pencapaian per Grup Produk" sub="Ranking berdasarkan realisasi" icon={Boxes} colors={colors} />
       <ResponsiveContainer width="100%" height={Math.max(240, agg.byGroup.length * 42)}>
         <BarChart data={agg.byGroup} layout="vertical" margin={{ left: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} horizontal={false} />
-          <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
-          <YAxis type="category" dataKey="name" width={170} tick={{ fill: COLORS.text, fontSize: 12 }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(v) => fmtRp(v)} />
+          <CartesianGrid strokeDasharray="3 3" stroke={colors.border} horizontal={false} />
+          <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
+          <YAxis type="category" dataKey="name" width={170} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
+          <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} />
           <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
-            {agg.byGroup.map((r, i) => <Cell key={i} fill={r.ach >= 1 ? COLORS.mint : r.ach >= 0.7 ? COLORS.gold : COLORS.coral} />)}
+            {agg.byGroup.map((r, i) => <Cell key={i} fill={r.ach >= 1 ? colors.mint : r.ach >= 0.7 ? colors.gold : colors.coral} />)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
 
       <div className="mt-8">
-        <SectionTitle title="Detail Grup Produk" icon={Package} />
+        <SectionTitle title="Detail Grup Produk" icon={Package} colors={colors} />
         <DataTable
+          colors={colors}
           initialSortKey="realisasiValue"
           columns={[
             { key: "name", label: "Grup Produk" },
             { key: "targetValue", label: "Target", render: (r) => <span className="mono">{fmtRp(r.targetValue)}</span> },
             { key: "realisasiValue", label: "Realisasi", render: (r) => <span className="mono">{fmtRp(r.realisasiValue)}</span> },
-            { key: "ach", label: "ACH", render: (r) => <AchBadge ach={r.ach} /> },
+            { key: "ach", label: "ACH", render: (r) => <AchBadge ach={r.ach} colors={colors} /> },
             { key: "realisasiAo", label: "Outlet", render: (r) => <span className="mono">{r.realisasiAo}</span> },
           ]}
           rows={agg.byGroup}
@@ -690,39 +693,39 @@ function ProductReportPage({ agg }) {
   );
 }
 
-function ProductFocusReportPage({ agg }) {
+function ProductFocusReportPage({ agg, colors }) {
   const [focusFilter, setFocusFilter] = useState([]);
   const focusNames = useMemo(() => Array.from(new Set(agg.focusRows.map((f) => f.name))), [agg.focusRows]);
   const rows = focusFilter.length ? agg.focusRows.filter((f) => focusFilter.includes(f.name)) : agg.focusRows;
   return (
     <div className="sm-fadein">
       <div className="mb-6">
-        <MultiSelect label="Produk Fokus" icon={Crosshair} options={focusNames} selected={focusFilter} onChange={setFocusFilter} placeholder="Cari produk fokus..." />
+        <MultiSelect label="Produk Fokus" icon={Crosshair} options={focusNames} selected={focusFilter} onChange={setFocusFilter} placeholder="Cari produk fokus..." colors={colors} />
       </div>
-      <SectionTitle title="Pencapaian Produk Fokus per Sales" sub="Target & realisasi dalam satuan karton" icon={Crosshair} />
+      <SectionTitle title="Pencapaian Produk Fokus per Sales" sub="Target & realisasi dalam satuan karton" icon={Crosshair} colors={colors} />
       {rows.length === 0 && (
-        <div className="sm-card p-8 text-center" style={{ color: COLORS.textMuted }}>
-          <AlertTriangle size={24} className="mx-auto mb-2" style={{ color: COLORS.gold }} />
+        <div className="sm-card p-8 text-center" style={{ color: colors.textMuted }}>
+          <AlertTriangle size={24} className="mx-auto mb-2" style={{ color: colors.gold }} />
           Tidak ada data produk fokus untuk sales/filter terpilih.
         </div>
       )}
       <div className="grid md:grid-cols-2 gap-4 mb-8">
         {rows.map((f, i) => {
           const pct = Math.min(150, (f.pct || 0) * 100);
-          const color = pct >= 100 ? COLORS.mint : pct >= 50 ? COLORS.gold : COLORS.coral;
+          const color = pct >= 100 ? colors.mint : pct >= 50 ? colors.gold : colors.coral;
           return (
             <div key={i} className="sm-card p-4 sm-fadeup" style={{ animationDelay: `${i * 25}ms` }}>
               <div className="flex justify-between items-baseline mb-2">
                 <div>
                   <div className="text-sm font-semibold disp">{f.name}</div>
-                  <div className="text-xs" style={{ color: COLORS.textMuted }}>{f.salesName}</div>
+                  <div className="text-xs" style={{ color: colors.textMuted }}>{f.salesName}</div>
                 </div>
                 <span className="mono text-sm font-semibold" style={{ color }}>{fmtPct(f.pct)}</span>
               </div>
-              <div className="h-2.5 rounded-full overflow-hidden" style={{ background: COLORS.surface2 }}>
+              <div className="h-2.5 rounded-full overflow-hidden" style={{ background: colors.surface2 }}>
                 <div className="sm-progress-fill h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: color }} />
               </div>
-              <div className="flex justify-between mt-1.5 text-xs mono" style={{ color: COLORS.textMuted }}>
+              <div className="flex justify-between mt-1.5 text-xs mono" style={{ color: colors.textMuted }}>
                 <span>{fmtNum(f.realisasi)} karton</span>
                 <span>Target {fmtNum(f.target)}</span>
               </div>
@@ -731,15 +734,16 @@ function ProductFocusReportPage({ agg }) {
         })}
       </div>
 
-      <SectionTitle title="Detail Tabel" icon={Crosshair} />
+      <SectionTitle title="Detail Tabel" icon={Crosshair} colors={colors} />
       <DataTable
+        colors={colors}
         initialSortKey="pct"
         columns={[
           { key: "salesName", label: "Sales" },
           { key: "name", label: "Produk Fokus" },
           { key: "target", label: "Target", render: (r) => <span className="mono">{fmtNum(r.target)}</span> },
           { key: "realisasi", label: "Realisasi", render: (r) => <span className="mono">{fmtNum(r.realisasi)}</span> },
-          { key: "pct", label: "%", render: (r) => <AchBadge ach={r.pct} /> },
+          { key: "pct", label: "%", render: (r) => <AchBadge ach={r.pct} colors={colors} /> },
         ]}
         rows={rows}
       />
@@ -747,7 +751,7 @@ function ProductFocusReportPage({ agg }) {
   );
 }
 
-function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWorkDays }) {
+function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWorkDays, colors }) {
   const [localTargets, setLocalTargets] = useState(targets);
   const [localWorkDays, setLocalWorkDays] = useState(workDays);
 
@@ -778,41 +782,41 @@ function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWork
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
-      <div className="sm-card sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" style={{ background: COLORS.surface }}>
-        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-          <SectionTitle title="Pengaturan" icon={Settings} />
-          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: COLORS.surface2 }}><X size={16} /></button>
+      <div className="sm-card sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
+        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
+          <SectionTitle title="Pengaturan" icon={Settings} colors={colors} />
+          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
         </div>
         <div className="p-5 overflow-y-auto">
           <div className="mb-6">
             <label className="block text-sm font-medium mb-2">Hari Kerja Efektif</label>
             <input type="number" value={localWorkDays} onChange={e => setLocalWorkDays(Number(e.target.value))}
-              className="w-full px-3 py-2 rounded-lg mono" style={{ background: COLORS.surface2, border: `1px solid ${COLORS.border}` }} />
+              className="w-full px-3 py-2 rounded-lg mono" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }} />
           </div>
           <h3 className="text-base font-semibold disp mb-3">Target Sales</h3>
           <div className="space-y-3">
             {localTargets.map(t => (
-              <div key={t.code} className="p-3 rounded-lg" style={{ background: COLORS.surface2 }}>
+              <div key={t.code} className="p-3 rounded-lg" style={{ background: colors.surface2 }}>
                 <p className="font-semibold text-sm mb-2">{t.name}</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs mb-1" style={{ color: COLORS.textMuted }}>Target Value (Rp)</label>
+                    <label className="block text-xs mb-1" style={{ color: colors.textMuted }}>Target Value (Rp)</label>
                     <input type="number" value={t.total.value} onChange={e => handleTargetChange(t.code, 'value', e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: COLORS.ink, border: `1px solid ${COLORS.border}` }} />
+                      className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: colors.ink, border: `1px solid ${colors.border}` }} />
                   </div>
                   <div>
-                    <label className="block text-xs mb-1" style={{ color: COLORS.textMuted }}>Target Active Outlet (AO)</label>
+                    <label className="block text-xs mb-1" style={{ color: colors.textMuted }}>Target Active Outlet (AO)</label>
                     <input type="number" value={t.total.ao} onChange={e => handleTargetChange(t.code, 'ao', e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: COLORS.ink, border: `1px solid ${COLORS.border}` }} />
+                      className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: colors.ink, border: `1px solid ${colors.border}` }} />
                   </div>
                 </div>
               </div>
             ))}
           </div>
         </div>
-        <div className="p-4 mt-auto flex justify-end gap-3" style={{ background: COLORS.surface2, borderTop: `1px solid ${COLORS.border}` }}>
-          <button onClick={onClose} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${COLORS.border}` }}>Batal</button>
-          <button onClick={handleSave} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: COLORS.gold, color: "#0A1120" }}>Simpan Perubahan</button>
+        <div className="p-4 mt-auto flex justify-end gap-3" style={{ background: colors.surface2, borderTop: `1px solid ${colors.border}` }}>
+          <button onClick={onClose} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${colors.border}` }}>Batal</button>
+          <button onClick={handleSave} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: colors.gold, color: "#0A1120" }}>Simpan Perubahan</button>
         </div>
       </div>
     </div>
@@ -822,7 +826,7 @@ function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWork
 /* ============================================================================
    UPLOAD / EXPORT
 ============================================================================ */
-function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading, sampleLoading }) {
+function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading, sampleLoading, colors }) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef(null);
   const handleFiles = (files) => { if (files && files[0]) onFile(files[0]); };
@@ -833,22 +837,22 @@ function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading,
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
         onClick={() => inputRef.current && inputRef.current.click()}
-        className="sm-drop cursor-pointer rounded-2xl p-6 flex items-center gap-4"
-        style={{ border: `1.5px dashed ${dragOver ? COLORS.gold : COLORS.border}`, background: dragOver ? COLORS.gold + "0D" : COLORS.surface }}
+        className="sm-drop cursor-pointer rounded-2xl p-6 flex items-center gap-4 transition-colors"
+        style={{ border: `1.5px dashed ${dragOver ? colors.gold : colors.border}`, background: dragOver ? colors.gold + "0D" : colors.surface }}
       >
         <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
-        <div className="p-3 rounded-xl" style={{ background: COLORS.gold + "1A" }}>
-          {loading ? <RefreshCw size={20} className="sm-pulse" style={{ color: COLORS.gold }} /> : <Upload size={20} style={{ color: COLORS.gold }} />}
+        <div className="p-3 rounded-xl" style={{ background: colors.gold + "1A" }}>
+          {loading ? <RefreshCw size={20} className="sm-pulse" style={{ color: colors.gold }} /> : <Upload size={20} style={{ color: colors.gold }} />}
         </div>
         <div className="flex-1">
           <div className="text-sm font-semibold disp">{loading ? "Memproses file..." : "Upload file Excel sell-out"}</div>
-          <div className="text-xs mt-0.5" style={{ color: COLORS.textMuted }}>
+          <div className="text-xs mt-0.5" style={{ color: colors.textMuted }}>
             {hasData ? `Sumber aktif: ${fileName}` : "Tarik & lepas file di sini, atau klik untuk memilih (.xlsx)"}
           </div>
         </div>
         {!hasData && (
           <button onClick={(e) => { e.stopPropagation(); onSample(); }} className="sm-btn text-xs px-3 py-2 rounded-lg font-medium"
-            style={{ background: COLORS.surface2, border: `1px solid ${COLORS.border}`, color: COLORS.textMuted }}
+            style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.textMuted }}
             disabled={sampleLoading}>
             {sampleLoading
               ? <span className="flex items-center gap-1.5"><RefreshCw size={13} className="sm-pulse" /> Memuat...</span>
@@ -857,7 +861,7 @@ function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading,
         )}
         {hasData && (
           <button onClick={(e) => { e.stopPropagation(); onReset(); }} className="sm-btn text-xs px-3 py-2 rounded-lg font-medium flex items-center gap-1.5"
-            style={{ background: COLORS.coral + "14", border: `1px solid ${COLORS.coral}33`, color: COLORS.coral }}>
+            style={{ background: colors.coral + "14", border: `1px solid ${colors.coral}33`, color: colors.coral }}>
             <X size={13} /> Hapus data
           </button>
         )}
@@ -910,11 +914,15 @@ export default function SalesMonitoringApp() {
   const [sampleLoading, setSampleLoading] = useState(false);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("main");
+  const [theme, setTheme] = useState('dark');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const [filters, setFilters] = useState({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
   const [workDays, setWorkDays] = useState(WORK_DAYS_DEFAULT);
   const [targets, setTargets] = useState(DEFAULT_TARGETS);
+
+  const colors = useMemo(() => THEMES[theme], [theme]);
+  const globalStyle = useMemo(() => createGlobalStyle(colors), [colors]);
 
   const groupOptions = useMemo(() => {
     const s = new Set();
@@ -965,30 +973,35 @@ export default function SalesMonitoringApp() {
   const activeIdx = TABS.findIndex((t) => t.key === activeTab);
 
   return (
-    <div className="smapp min-h-screen" style={{ background: `radial-gradient(1200px 600px at 10% -10%, #16233F 0%, ${COLORS.ink} 60%)` }}>
-      <style>{GLOBAL_STYLE}</style>
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} />
+    <div className="smapp min-h-screen transition-colors duration-300" style={{ background: theme === 'dark' ? `radial-gradient(1200px 600px at 10% -10%, #16233F 0%, ${colors.ink} 60%)` : colors.ink }}>
+      <style>{globalStyle}</style>
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} colors={colors} />
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
         {/* header */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl" style={{ background: `linear-gradient(135deg, ${COLORS.gold}, ${COLORS.coral})` }}>
+            <div className="p-2.5 rounded-2xl" style={{ background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})` }}>
               <FileSpreadsheet size={20} color="#0A1120" />
             </div>
             <div>
               <h1 className="disp text-xl font-bold">Monitoring Penjualan</h1>
-              <p className="text-xs" style={{ color: COLORS.textMuted }}>Dashboard pencapaian sales, produk & produk fokus</p>
+              <p className="text-xs" style={{ color: colors.textMuted }}>Dashboard pencapaian sales, produk & produk fokus</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+              className="sm-btn flex items-center gap-2 px-2.5 py-2.5 rounded-xl text-sm font-semibold"
+              style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
+              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
             <button onClick={() => setIsSettingsOpen(true)}
               className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
-              style={{ background: COLORS.surface2, color: COLORS.text, border: `1px solid ${COLORS.border}` }}>
+              style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
               <Settings size={15} /> Pengaturan
             </button>
             <button onClick={() => exportToExcel(aggFinal, targets)} disabled={!rawRows.length}
               className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
-              style={{ background: COLORS.gold, color: "#0A1120" }}>
+              style={{ background: colors.gold, color: "#0A1120" }}>
               <Download size={15} /> Export Excel
             </button>
           </div>
@@ -996,25 +1009,25 @@ export default function SalesMonitoringApp() {
 
         {/* upload */}
         <div className="mb-6 sm-fadeup" style={{ animationDelay: "40ms" }}>
-          <UploadDropzone onFile={handleFile} hasData={!!rawRows.length} fileName={fileName} onReset={handleReset} onSample={handleSample} loading={loading} sampleLoading={sampleLoading} />
+          <UploadDropzone onFile={handleFile} hasData={!!rawRows.length} fileName={fileName} onReset={handleReset} onSample={handleSample} loading={loading} sampleLoading={sampleLoading} colors={colors} />
           {error && (
-            <div className="mt-3 flex items-center gap-2 text-sm px-4 py-2.5 rounded-xl" style={{ background: COLORS.coral + "14", color: COLORS.coral, border: `1px solid ${COLORS.coral}33` }}>
+            <div className="mt-3 flex items-center gap-2 text-sm px-4 py-2.5 rounded-xl" style={{ background: colors.coral + "14", color: colors.coral, border: `1px solid ${colors.coral}33` }}>
               <AlertTriangle size={14} /> {error}
             </div>
           )}
         </div>
 
         {/* tabs */}
-        <div className="relative flex gap-1 mb-6 p-1 rounded-2xl sm-fadeup" style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, animationDelay: "80ms" }}>
+        <div className="relative flex gap-1 mb-6 p-1 rounded-2xl sm-fadeup" style={{ background: colors.surface, border: `1px solid ${colors.border}`, animationDelay: "80ms" }}>
           <div className="absolute top-1 bottom-1 rounded-xl transition-all duration-300 ease-out"
-            style={{ left: `calc(${activeIdx * 25}% + 4px)`, width: "calc(25% - 8px)", background: COLORS.surface2, border: `1px solid ${COLORS.border}` }} />
+            style={{ left: `calc(${activeIdx * 25}% + 4px)`, width: "calc(25% - 8px)", background: colors.surface2, border: `1px solid ${colors.border}` }} />
           {TABS.map((t) => {
             const Icon = t.icon;
             const isActive = t.key === activeTab;
             return (
               <button key={t.key} onClick={() => setActiveTab(t.key)}
                 className="sm-tab-btn relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium"
-                style={{ color: isActive ? COLORS.gold : COLORS.textMuted }}>
+                style={{ color: isActive ? colors.gold : colors.textMuted }}>
                 <Icon size={15} /> <span className="hidden sm:inline">{t.label}</span>
               </button>
             );
@@ -1023,23 +1036,23 @@ export default function SalesMonitoringApp() {
 
         {!rawRows.length ? (
           <div className="sm-card p-16 text-center sm-fadeup">
-            <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: COLORS.surface2 }}>
-              <FileSpreadsheet size={24} style={{ color: COLORS.textMuted }} />
+            <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.surface2 }}>
+              <FileSpreadsheet size={24} style={{ color: colors.textMuted }} />
             </div>
             <div className="disp text-base font-semibold mb-1">Belum ada data</div>
-            <p className="text-sm" style={{ color: COLORS.textMuted }}>Upload file Excel sell-out di atas, atau coba dengan data contoh untuk melihat dashboard bekerja.</p>
+            <p className="text-sm" style={{ color: colors.textMuted }}>Upload file Excel sell-out di atas, atau coba dengan data contoh untuk melihat dashboard bekerja.</p>
           </div>
         ) : (
           <>
-            <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} />
-            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} />}
-            {activeTab === "sales" && <SalesReportPage agg={aggFinal} />}
-            {activeTab === "product" && <ProductReportPage agg={aggFinal} />}
-            {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} />}
+            <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} />
+            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} />}
+            {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} />}
+            {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} />}
+            {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} />}
           </>
         )}
 
-        <div className="text-center text-xs mt-10 pb-4" style={{ color: COLORS.textMuted }}>
+        <div className="text-center text-xs mt-10 pb-4" style={{ color: colors.textMuted }}>
           Data diproses langsung di browser Anda — tidak diunggah ke server manapun.
         </div>
       </div>
