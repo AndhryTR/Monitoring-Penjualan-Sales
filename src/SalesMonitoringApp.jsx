@@ -465,10 +465,10 @@ function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors }) 
       <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }}>
         <CalendarDays size={14} style={{ color: colors.textMuted }} />
         <input type="date" value={filters.dateFrom || ""} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
-          className="bg-transparent outline-none" style={{ color: colors.text, colorscheme: "dark" }} />
+          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme: "dark" }} />
         <span style={{ color: colors.textMuted }}>-</span>
         <input type="date" value={filters.dateTo || ""} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
-          className="bg-transparent outline-none" style={{ color: colors.text, colorscheme: "dark" }} />
+          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme: "dark" }} />
       </div>
       {active > 0 && (
         <button onClick={() => setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" })}
@@ -622,6 +622,24 @@ function SalesReportPage({ agg, colors }) {
     });
     return bySalesGroup;
   }, [agg.filteredRows]);
+
+  // Custom Tooltip untuk menyesuaikan warna teks dengan warna bar
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      const barColor = data.ach >= 1 ? colors.mint : data.ach >= 0.7 ? colors.gold : colors.coral;
+      return (
+        <div className="p-3 shadow-lg" style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10, fontSize: 12 }}>
+          <div className="font-semibold mb-1" style={{ color: colors.text }}>{label}</div>
+          <div className="mono font-semibold" style={{ color: barColor }}>
+            Realisasi: {fmtRp(data.realisasiValue)}
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="sm-fadein">
       <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} />
@@ -630,7 +648,10 @@ function SalesReportPage({ agg, colors }) {
           <CartesianGrid strokeDasharray="3 3" stroke={colors.border} horizontal={false} />
           <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
           <YAxis type="category" dataKey="name" width={160} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} />
+          
+          {/* Implementasi Custom Tooltip di sini */}
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: colors.surface2 }} />
+          
           <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
             {rows.map((r, i) => <Cell key={i} fill={r.ach >= 1 ? colors.mint : r.ach >= 0.7 ? colors.gold : colors.coral} />)}
           </Bar>
@@ -659,6 +680,24 @@ function SalesReportPage({ agg, colors }) {
 }
 
 function ProductReportPage({ agg, colors }) {
+  
+  // Custom Tooltip yang sama untuk Product Report
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      const barColor = data.ach >= 1 ? colors.mint : data.ach >= 0.7 ? colors.gold : colors.coral;
+      return (
+        <div className="p-3 shadow-lg" style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10, fontSize: 12 }}>
+          <div className="font-semibold mb-1" style={{ color: colors.text }}>{label}</div>
+          <div className="mono font-semibold" style={{ color: barColor }}>
+            Realisasi: {fmtRp(data.realisasiValue)}
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="sm-fadein">
       <SectionTitle title="Pencapaian per Grup Produk" sub="Ranking berdasarkan realisasi" icon={Boxes} colors={colors} />
@@ -667,7 +706,10 @@ function ProductReportPage({ agg, colors }) {
           <CartesianGrid strokeDasharray="3 3" stroke={colors.border} horizontal={false} />
           <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
           <YAxis type="category" dataKey="name" width={170} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} />
+          
+          {/* Implementasi Custom Tooltip di sini */}
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: colors.surface2 }} />
+          
           <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
             {agg.byGroup.map((r, i) => <Cell key={i} fill={r.ach >= 1 ? colors.mint : r.ach >= 0.7 ? colors.gold : colors.coral} />)}
           </Bar>
