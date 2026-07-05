@@ -3,7 +3,7 @@ import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { THEMES } from "../constants/colors";
 
 export function AchBadge({ ach }) {
-  if (ach === null || ach === undefined) return <span className="mono text-xs" style={{ color: COLORS.textMuted }}>-</span>;
+  if (ach === null || ach === undefined) return <span className="mono text-xs" style={{ color: colors.textMuted }}>-</span>;
   const pct = ach * 100;
   const color = pct >= 100 ? colors.mint : pct >= 70 ? colors.gold : colors.coral;
   const Icon = pct >= 100 ? ArrowUpRight : pct >= 70 ? Minus : ArrowDownRight;
