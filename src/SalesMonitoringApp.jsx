@@ -9,7 +9,7 @@ import {
   Upload, Download, X, ChevronDown, Search, RefreshCw, Users, Package,
   Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard, UserRound,
   Boxes, Crosshair, Check, AlertTriangle, CalendarDays, Settings,
-  FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus,
+  FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus, Sun, Moon, ChevronLeft, ChevronRight, Menu, Filter, Loader2,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
 import { useCountUp } from "./hooks/useCountUp.js";
