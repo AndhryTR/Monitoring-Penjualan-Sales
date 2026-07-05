@@ -17,7 +17,7 @@ export function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct,
       <div className="disp text-2xl font-bold mono">
         {isMoney ? fmtRp(animated) : isPct ? animated.toFixed(1) + "%" : fmtNum(animated)}
       </div>
-      {sub && <div className="text-xs mt-1.5" style={{ color: COLORS.textMuted }}>{sub}</div>}
+      {sub && <div className="text-xs mt-1.5" style={{ color: colors.textMuted }}>{sub}</div>}
     </div>
   );
 }
