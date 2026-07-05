@@ -1,5 +1,3 @@
-// src/constants/colors.js
-
 export const THEMES = {
   dark: {
     ink: "#0A1120",
