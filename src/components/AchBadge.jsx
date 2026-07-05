@@ -2,7 +2,7 @@ import React from "react";
 import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { THEMES } from "../constants/colors";
 
-export function AchBadge({ ach }) {
+export function AchBadge({ ach, colors }) {
   if (ach === null || ach === undefined) return <span className="mono text-xs" style={{ color: colors.textMuted }}>-</span>;
   const pct = ach * 100;
   const color = pct >= 100 ? colors.mint : pct >= 70 ? colors.gold : colors.coral;
