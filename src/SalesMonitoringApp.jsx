@@ -59,7 +59,7 @@ const createGlobalStyle = (COLORS) => `
 `;
 
 /* ============================================================================
-   DEFAULT TARGET CONFIG  (carried over structure — editable in-app) andhrytr
+   DEFAULT TARGET CONFIG  (carried over structure — editable in-app)
 ============================================================================ */
 const DEFAULT_TARGETS = [
   { code: "AGM", name: "AGUNG MULIADI", tier: "mint", total: { value: 249910430, ao: 255 },
