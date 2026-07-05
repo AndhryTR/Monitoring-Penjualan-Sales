@@ -1,7 +1,7 @@
 import React from "react";
 import { useCountUp } from "../hooks/useCountUp";
 import { fmtRp, fmtNum } from "../utils/formatters";
-import { COLORS } from "../constants/colors";
+import { THEMES } from "../constants/colors";
 
 export function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct, delay = 0 }) {
   const numeric = isPct ? (value || 0) * 100 : (value || 0);
