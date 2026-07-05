@@ -1026,7 +1026,7 @@ export default function SalesMonitoringApp() {
               <FileSpreadsheet size={20} color="#0A1120" />
             </div>
             <div>
-              <h1 className="disp text-xl font-bold">Monitoring Penjualan</h1>
+              <h1 className="disp text-xl font-bold">Monitoring Penjualan by Andri.S</h1>
               <p className="text-xs" style={{ color: colors.textMuted }}>Dashboard pencapaian sales, produk & produk fokus</p>
             </div>
           </div>
