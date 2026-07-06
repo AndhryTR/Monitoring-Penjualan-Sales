@@ -16,6 +16,7 @@ import { useCountUp } from "./hooks/useCountUp.js";
 import { KpiCard } from "./components/KpiCard.jsx";
 import { AchBadge } from "./components/AchBadge.jsx";
 import { PaceStrip } from "./components/PaceStrip.jsx";
+import { DEFAULT_TARGETS } from "./constants/defaultTargets.js";
 
 /* ============================================================================
    DESIGN TOKENS
@@ -58,109 +59,6 @@ const createGlobalStyle = (colors) => `
 .sm-scale-in { animation: smFadeUp .5s cubic-bezier(.16,1,.3,1) both; }
 `;
 
-/* ============================================================================
-   DEFAULT TARGET CONFIG  (carried over structure — editable in-app)
-============================================================================ */
-const DEFAULT_TARGETS = [
-  { code: "AGM", name: "AGUNG MULIADI", tier: "mint", total: { value: 249910430, ao: 255 },
-    groups: [{ name: "ENESIS", value: 163875988, ao: 255 }, { name: "ENESIS-NF", value: 86034443, ao: 255 }], focus: [] },
-  { code: "HBB", name: "HABIBURROHMAN, SHI", tier: "mint", total: { value: 264185709, ao: 277 },
-    groups: [{ name: "ENESIS", value: 182184972, ao: 277 }, { name: "ENESIS-NF", value: 82000737, ao: 277 }], focus: [] },
-  { code: "NMM", name: "NUKMAN MUZAKKI", tier: "mint", total: { value: 522042079, ao: 290 },
-    groups: [{ name: "ENESIS", value: 450862419, ao: 290 }, { name: "ENESIS-NF", value: 71179659, ao: 290 }], focus: [] },
-  { code: "BKN", name: "BUDI KARYAWAN", tier: "amber", total: { value: 445000000, ao: 250 },
-    groups: [
-      { name: "B-FOODS", value: 90000000, ao: 180 }, { name: "KEXIN FOOD", value: 10000000, ao: 60 },
-      { name: "MI KRITING", value: 45000000, ao: 100 }, { name: "MOCHI CONLEY", value: 185000000, ao: 120 },
-      { name: "PLANGI JAYA", value: 55000000, ao: 120 }, { name: "SHB", value: 4000000, ao: 20 },
-      { name: "SNACK", value: 30000000, ao: 140 }, { name: "SWEET TEN GROUP", value: 20000000, ao: 40 },
-      { name: "SWEET TEN SNACK", value: 6000000, ao: 40 },
-    ],
-    focus: [
-      { name: "FISH CAKE", target: 60, keyword: "FISH", unit: "KARTON" }, { name: "PANDA", target: 60, keyword: "PANDA", unit: "KARTON" },
-      { name: "MI KRITING", target: 1000, keyword: "MI GAJAH", unit: "IKAT" }, { name: "ROTI RENYAH", target: 120, keyword: "RENYAH", unit: "KARTON" },
-      { name: "MOCHI MINI", target: 40, keyword: "MOCHI MINI", unit: "KARTON" }, { name: "MOCHI SUPER", target: 60, keyword: "MOCHI SUPER", unit: "KARTON" },
-      { name: "KALIO CHIPS 6X10", target: 200, keyword: "KALIO CHIP", unit: "KARTON" }, { name: "TAIKO CHIPS 10 X 10", target: 200, keyword: "TAIKO CHIPS", unit: "KARTON" },
-      { name: "ULALA", target: 150, keyword: "ULALA", unit: "KARTON" },
-    ] },
-  { code: "TF", name: "TAUFAN ARI KUSAIRI", tier: "amber", total: { value: 270000000, ao: 250 },
-    groups: [
-      { name: "B-FOODS", value: 75000000, ao: 180 }, { name: "KEXIN FOOD", value: 15000000, ao: 80 },
-      { name: "MI KRITING", value: 30000000, ao: 80 }, { name: "MOCHI CONLEY", value: 60000000, ao: 120 },
-      { name: "PLANGI JAYA", value: 40000000, ao: 120 }, { name: "SHB", value: 4000000, ao: 40 },
-      { name: "SNACK", value: 25000000, ao: 140 }, { name: "SWEET TEN GROUP", value: 15000000, ao: 40 },
-      { name: "SWEET TEN SNACK", value: 6000000, ao: 40 },
-    ],
-    focus: [
-      { name: "FISH CAKE", target: 40, keyword: "FISH", unit: "KARTON" }, { name: "PANDA", target: 40, keyword: "PANDA", unit: "KARTON" },
-      { name: "MI KRITING", target: 600, keyword: "MI GAJAH", unit: "IKAT" }, { name: "ROTI RENYAH", target: 80, keyword: "RENYAH", unit: "KARTON" },
-      { name: "MOCHI MINI", target: 30, keyword: "MOCHI MINI", unit: "KARTON" }, { name: "MOCHI SUPER", target: 40, keyword: "MOCHI SUPER", unit: "KARTON" },
-      { name: "KALIO CHIPS 6X10", target: 150, keyword: "KALIO CHIP", unit: "KARTON" }, { name: "TAIKO CHIPS 10 X 10", target: 150, keyword: "TAIKO CHIPS", unit: "KARTON" },
-      { name: "ULALA", target: 80, keyword: "ULALA", unit: "KARTON" },
-    ] },
-  { code: "AZ", name: "AZUL AZMIL SANI", tier: "amber", total: { value: 269000000, ao: 250 },
-    groups: [
-      { name: "B-FOODS", value: 85000000, ao: 180 }, { name: "KEXIN FOOD", value: 15000000, ao: 40 },
-      { name: "MI KRITING", value: 25000000, ao: 80 }, { name: "MOCHI CONLEY", value: 60000000, ao: 120 },
-      { name: "PLANGI JAYA", value: 40000000, ao: 120 }, { name: "SHB", value: 4000000, ao: 40 },
-      { name: "SNACK", value: 20000000, ao: 140 }, { name: "SWEET TEN GROUP", value: 15000000, ao: 40 },
-      { name: "SWEET TEN SNACK", value: 5000000, ao: 40 },
-    ],
-    focus: [
-      { name: "FISH CAKE", target: 40, keyword: "FISH", unit: "KARTON" }, { name: "PANDA", target: 40, keyword: "PANDA", unit: "KARTON" },
-      { name: "MI KRITING", target: 600, keyword: "MI GAJAH", unit: "IKAT" }, { name: "ROTI RENYAH", target: 120, keyword: "RENYAH", unit: "KARTON" },
-      { name: "MOCHI MINI", target: 80, keyword: "MOCHI MINI", unit: "KARTON" }, { name: "MOCHI SUPER", target: 60, keyword: "MOCHI SUPER", unit: "KARTON" },
-      { name: "KALIO CHIPS 6X10", target: 60, keyword: "KALIO CHIP", unit: "KARTON" }, { name: "TAIKO CHIPS 10 X 10", target: 50, keyword: "TAIKO CHIPS", unit: "KARTON" },
-      { name: "ULALA", target: 50, keyword: "ULALA", unit: "KARTON" },
-    ] },
-  { code: "SS", name: "SUSAN HANI", tier: "amber", total: { value: 400500000, ao: 250 },
-    groups: [
-      { name: "BATTERY", value: 7500000, ao: 40 }, { name: "ILS", value: 0, ao: 0 }, { name: "IWM", value: 6000000, ao: 30 },
-      { name: "MAAM MAAM", value: 48000000, ao: 120 }, { name: "PMM-MOCHI", value: 0, ao: 0 },
-      { name: "PUSAN MANIS MULIA", value: 15000000, ao: 40 }, { name: "ROTI", value: 250000000, ao: 210 },
-      { name: "RPFI", value: 70000000, ao: 180 }, { name: "GAS", value: 4000000, ao: 15 },
-    ],
-    focus: [
-      { name: "JES LOLY", target: 30, keyword: "JESS LOLY", unit: "KARTON" }, { name: "TEABUZZ", target: 15, keyword: "TEE BUZZ", unit: "KARTON" },
-      { name: "CUSTARD", target: 15, keyword: "CUSTARD", unit: "KARTON" }, { name: "KARIZATO", target: 20, keyword: "KARIZATO", unit: "KARTON" },
-      { name: "DOLAR CHOCO", target: 20, keyword: "DOLLAR", unit: "KARTON" }, { name: "LOLY POP MILENI", target: 10, keyword: "LOLY POP", unit: "KARTON" },
-      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR", unit: "KARTON" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "COCO CRUNCH", unit: "KARTON" },
-      { name: "GAS", target: 6, keyword: "GAS_EXACT", unit: "KARTON" },
-    ] },
-  { code: "SOF", name: "SOFYAN HADI", tier: "amber", total: { value: 264500000, ao: 250 },
-    groups: [
-      { name: "BATTERY", value: 7500000, ao: 40 }, { name: "ILS", value: 0, ao: 0 }, { name: "IWM", value: 6000000, ao: 30 },
-      { name: "MAAM MAAM", value: 25000000, ao: 120 }, { name: "PMM-MOCHI", value: 0, ao: 0 },
-      { name: "PUSAN MANIS MULIA", value: 15000000, ao: 80 }, { name: "ROTI", value: 130000000, ao: 180 },
-      { name: "RPFI", value: 80000000, ao: 180 }, { name: "GAS", value: 1000000, ao: 15 },
-    ],
-    focus: [
-      { name: "JES LOLY", target: 10, keyword: "JESS LOLY", unit: "KARTON" }, { name: "TEABUZZ", target: 15, keyword: "TEE BUZZ", unit: "KARTON" },
-      { name: "CUSTARD", target: 8, keyword: "CUSTARD", unit: "KARTON" }, { name: "KARIZATO", target: 10, keyword: "KARIZATO", unit: "KARTON" },
-      { name: "DOLAR CHOCO", target: 10, keyword: "DOLLAR", unit: "KARTON" }, { name: "LOLY POP MILENI", target: 15, keyword: "LOLY POP", unit: "KARTON" },
-      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR", unit: "KARTON" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "COCO CRUNCH", unit: "KARTON" },
-      { name: "GAS", target: 6, keyword: "GAS_EXACT", unit: "KARTON" },
-    ] },
-  { code: "IGP", name: "I GUSTI PUTU SUARDIKA", tier: "amber", total: { value: 378500000, ao: 250 },
-    groups: [
-      { name: "BATTERY", value: 7500000, ao: 40 }, { name: "ILS", value: 0, ao: 0 }, { name: "IWM", value: 6000000, ao: 30 },
-      { name: "MAAM MAAM", value: 39000000, ao: 120 }, { name: "PMM-MOCHI", value: 0, ao: 0 },
-      { name: "PUSAN MANIS MULIA", value: 15000000, ao: 80 }, { name: "ROTI", value: 220000000, ao: 180 },
-      { name: "RPFI", value: 90000000, ao: 180 }, { name: "GAS", value: 1000000, ao: 15 },
-    ],
-    focus: [
-      { name: "JES LOLY", target: 10, keyword: "JESS LOLY", unit: "KARTON" }, { name: "TEABUZZ", target: 15, keyword: "TEE BUZZ", unit: "KARTON" },
-      { name: "CUSTARD", target: 8, keyword: "CUSTARD", unit: "KARTON" }, { name: "KARIZATO", target: 10, keyword: "KARIZATO", unit: "KARTON" },
-      { name: "DOLAR CHOCO", target: 10, keyword: "DOLLAR", unit: "KARTON" }, { name: "LOLY POP MILENI", target: 15, keyword: "LOLY POP", unit: "KARTON" },
-      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR", unit: "KARTON" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "COCO CRUNCH", unit: "KARTON" },
-      { name: "GAS", target: 6, keyword: "GAS_EXACT", unit: "KARTON" },
-    ] },
-  { code: "HEM", name: "HEMA MALIHI", tier: "violet", total: { value: 178300000, ao: 240 },
-    groups: [{ name: "PLANGI 2", value: 153300000, ao: 240 }, { name: "PLANGI JAYA", value: 25000988, ao: 130 }], focus: [] },
-  { code: "ANI", name: "MARIA ANDRIANI", tier: "violet", total: { value: 178300000, ao: 240 },
-    groups: [{ name: "PLANGI 2", value: 153300709, ao: 240 }, { name: "PLANGI JAYA", value: 25000000, ao: 130 }], focus: [] },
-];
-
 const WORK_DAYS_DEFAULT = 27;
 
 /* ============================================================================
@@ -194,17 +92,50 @@ function buildFieldMap(headerRow) {
   return map;
 }
 
-function toJsDate(v) {
-  if (v instanceof Date) return v;
+// Ubah nilai tanggal mentah dari Excel menjadi teks "YYYY-MM-DD" — TANPA PERNAH membuat
+// objek Date JavaScript untuk nilai ini. Ini sengaja dihindari karena objek Date selalu
+// membawa asumsi jam/zona waktu yang bisa berbeda-beda tergantung cara library membacanya
+// (sumber bug tanggal maju/mundur satu hari yang sebelumnya terjadi). Untuk sel tanggal
+// Excel (angka serial), kita ambil komponen tahun/bulan/tanggal langsung dari
+// XLSX.SSF.parse_date_code — angka polos, sama persis dengan yang tersimpan di file Excel.
+function excelValueToDateStr(v) {
+  if (v === null || v === undefined || v === "") return null;
   if (typeof v === "number") {
     const d = XLSX.SSF.parse_date_code(v);
-    if (d) return new Date(d.y, d.m - 1, d.d);
+    if (!d) return null;
+    return `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
   }
   if (typeof v === "string") {
-    const d = new Date(v);
-    if (!isNaN(d.getTime())) return d;
+    const s = v.trim();
+    // Sudah dalam format "YYYY-MM-DD..." — ambil apa adanya, tidak perlu diparsing ulang.
+    const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+    // Format umum "DD/MM/YYYY" atau "DD-MM-YYYY" (format tanggal Indonesia).
+    const slashMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (slashMatch) {
+      const [, day, month, year] = slashMatch;
+      return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+    return null;
   }
   return null;
+}
+
+// Dipakai HANYA untuk momen "sekarang" (mis. nama file export) — bukan untuk tanggal
+// yang berasal dari Excel — jadi aman memakai komponen tanggal lokal browser.
+function todayLocalDateStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Buat objek Date lokal dari teks "YYYY-MM-DD" — dipakai HANYA saat export ke Excel,
+// supaya kolom tanggal di file hasil export tetap berupa tanggal asli (bukan teks),
+// tanpa membawa balik ambiguitas UTC/lokal karena kita yang membangunnya sendiri.
+function dateStrToLocalDate(s) {
+  if (!s) return null;
+  const [y, m, d] = s.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
 }
 
 function parseWorkbookFile(file) {
@@ -212,7 +143,7 @@ function parseWorkbookFile(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const wb = XLSX.read(e.target.result, { type: "array", cellDates: true });
+        const wb = XLSX.read(e.target.result, { type: "array" });
         const sheetName = wb.SheetNames[0];
         const ws = wb.Sheets[sheetName];
         const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
@@ -226,7 +157,7 @@ function parseWorkbookFile(file) {
           const get = (f) => (fmap[f] !== undefined ? r[fmap[f]] : null);
           const dateRaw = get("date");
           rows.push({
-            date: toJsDate(dateRaw),
+            date: excelValueToDateStr(dateRaw),
             salesCode: String(get("salesCode") || "").trim(),
             salesName: String(get("salesName") || "").trim(),
             outletCode: String(get("outletCode") || "").trim(),
@@ -263,7 +194,7 @@ function generateSampleRows() {
         const pctOfTarget = 0.005 + rnd() * 0.06;
         const value = Math.round((g.value || 500000) * pctOfTarget / nOutlets);
         rows.push({
-          date: new Date(d), salesCode: s.code, salesName: s.name,
+          date: d, salesCode: s.code, salesName: s.name,
           outletCode: `${s.code}-OUT${o + 1}`, outletName: `Toko ${s.code} ${o + 1}`,
           invoiceNo: `INV${s.code}${gi}${o}`, productName: `${g.name} SAMPLE ITEM`,
           qty: Math.max(1, Math.round(rnd() * 20)), unit: "KARTON", value, group: g.name,
@@ -277,16 +208,9 @@ function generateSampleRows() {
 /* ============================================================================
    AGGREGATION HELPERS
 ============================================================================ */
-// Format tanggal ke "YYYY-MM-DD" berdasarkan komponen tanggal LOKAL (bukan toISOString,
-// yang mengonversi ke UTC dan bisa membuat tanggal mundur satu hari di zona waktu +N seperti WIB).
-function toLocalDateKey(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-function dateKey(d) { if (!d) return "unknown"; return toLocalDateKey(d); }
-function monthKey(d) { if (!d) return "unknown"; return toLocalDateKey(d).slice(0, 7); }
+// row.date sudah berupa teks "YYYY-MM-DD" (lihat excelValueToDateStr), jadi tinggal dipakai apa adanya.
+function dateKey(dateStr) { return dateStr || "unknown"; }
+function monthKey(dateStr) { return dateStr ? dateStr.slice(0, 7) : "unknown"; }
 
 function matchFocus(row, focusItem) {
   if (focusItem.keyword === "__GROUP__") return normalizeHeader(row.group) === normalizeHeader(focusItem.name);
@@ -304,14 +228,13 @@ function matchFocus(row, focusItem) {
 
 function useAggregates(rows, targets, filters) {
   return useMemo(() => {
-    const inRange = (d) => {
+    const inRange = (dateStr) => {
       if (!filters.dateFrom && !filters.dateTo) return true;
-      if (!d) return false;
-      // Bandingkan sebagai teks "YYYY-MM-DD" (lokal) — aman dari pergeseran zona waktu
-      // yang terjadi kalau membandingkan epoch ms hasil toISOString/new Date(UTC).
-      const key = toLocalDateKey(d);
-      if (filters.dateFrom && key < filters.dateFrom) return false;
-      if (filters.dateTo && key > filters.dateTo) return false;
+      if (!dateStr) return false;
+      // dateStr, filters.dateFrom, filters.dateTo semuanya teks "YYYY-MM-DD" —
+      // perbandingan teks di format ini otomatis benar secara kronologis.
+      if (filters.dateFrom && dateStr < filters.dateFrom) return false;
+      if (filters.dateTo && dateStr > filters.dateTo) return false;
       return true;
     };
     const filtered = rows.filter((r) => {
@@ -325,9 +248,44 @@ function useAggregates(rows, targets, filters) {
       ? targets.filter((t) => filters.salesCodes.includes(t.code))
       : targets;
 
-    // per sales
+    // Satu kali scan atas `filtered` untuk membangun semua struktur yang dipakai di bawah.
+    // Sebelumnya bySales, byGroup, dan focusRows masing-masing memanggil `filtered.filter(...)`
+    // dari NOL untuk tiap sales / tiap grup / tiap kombinasi sales×produk-fokus — untuk data
+    // dengan banyak baris & banyak sales/produk fokus ini jadi O(n × jumlah_sales) dst.
+    // Dengan mengelompokkan baris per kode sales & per grup dalam satu pass (O(n)), langkah-langkah
+    // berikutnya tinggal memakai subset yang sudah kecil, bukan menyisir ulang seluruh array.
+    const rowsBySales = new Map();
+    const rowsByGroup = new Map();
+    const dailyMap = new Map();
+    const monthlyMap = new Map();
+    const allOutletKeys = new Set();
+
+    for (const r of filtered) {
+      let salesBucket = rowsBySales.get(r.salesCode);
+      if (!salesBucket) { salesBucket = []; rowsBySales.set(r.salesCode, salesBucket); }
+      salesBucket.push(r);
+
+      if (r.group) {
+        let groupBucket = rowsByGroup.get(r.group);
+        if (!groupBucket) { groupBucket = []; rowsByGroup.set(r.group, groupBucket); }
+        groupBucket.push(r);
+      }
+
+      const dk = dateKey(r.date);
+      let d = dailyMap.get(dk);
+      if (!d) { d = { date: dk, value: 0, outlets: new Set() }; dailyMap.set(dk, d); }
+      d.value += r.value;
+      d.outlets.add(r.outletCode);
+
+      const mk = monthKey(r.date);
+      monthlyMap.set(mk, (monthlyMap.get(mk) || 0) + r.value);
+
+      allOutletKeys.add(r.salesCode + "|" + r.outletCode);
+    }
+
+    // per sales — pakai subset dari rowsBySales, bukan filter ulang `filtered`
     const bySales = relevantTargets.map((t) => {
-      const rs = filtered.filter((r) => r.salesCode === t.code);
+      const rs = rowsBySales.get(t.code) || [];
       const value = _.sumBy(rs, "value");
       const ao = new Set(rs.map((r) => r.outletCode)).size;
       const ach = t.total.value ? value / t.total.value : null;
@@ -341,7 +299,7 @@ function useAggregates(rows, targets, filters) {
     const totalTargetValue = _.sumBy(bySales, "targetValue");
     const totalTargetAo = _.sumBy(bySales, "targetAo");
     const totalRealisasiValue = _.sumBy(bySales, "realisasiValue");
-    const totalRealisasiAo = new Set(filtered.map((r) => r.salesCode + "|" + r.outletCode)).size;
+    const totalRealisasiAo = allOutletKeys.size;
     const overallAch = totalTargetValue ? totalRealisasiValue / totalTargetValue : null;
 
     // by group (respecting the group filter list of allowed groups, else all groups present in targets ∪ data)
@@ -354,7 +312,7 @@ function useAggregates(rows, targets, filters) {
     const byGroup = groupNames.map((gname) => {
       const targetValue = _.sumBy(relevantTargets, (t) => _.sumBy(t.groups.filter((g) => g.name === gname), "value"));
       const targetAo = _.sumBy(relevantTargets, (t) => _.sumBy(t.groups.filter((g) => g.name === gname), "ao"));
-      const rs = filtered.filter((r) => r.group === gname);
+      const rs = rowsByGroup.get(gname) || [];
       const value = _.sumBy(rs, "value");
       const ao = new Set(rs.map((r) => r.outletCode)).size;
       const ach = targetValue ? value / targetValue : null;
@@ -363,30 +321,23 @@ function useAggregates(rows, targets, filters) {
     }).sort((a, b) => b.realisasiValue - a.realisasiValue);
 
     // daily series
-    const dailyMap = {};
-    filtered.forEach((r) => {
-      const k = dateKey(r.date);
-      if (!dailyMap[k]) dailyMap[k] = { date: k, value: 0, outlets: new Set() };
-      dailyMap[k].value += r.value;
-      dailyMap[k].outlets.add(r.outletCode);
-    });
-    const daily = Object.values(dailyMap)
+    const daily = Array.from(dailyMap.values())
       .map((d) => ({ date: d.date, value: d.value, ao: d.outlets.size }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
     // monthly (cumulative) series
-    const monthlyMap = {};
-    filtered.forEach((r) => {
-      const k = monthKey(r.date);
-      monthlyMap[k] = (monthlyMap[k] || 0) + r.value;
-    });
-    const monthly = Object.entries(monthlyMap).map(([m, v]) => ({ month: m, value: v })).sort((a, b) => a.month.localeCompare(b.month));
+    const monthly = Array.from(monthlyMap.entries())
+      .map(([m, v]) => ({ month: m, value: v }))
+      .sort((a, b) => a.month.localeCompare(b.month));
 
-    // focus products
+    // focus products — cari kecocokan hanya di dalam baris milik sales tsb (rowsBySales),
+    // bukan menyisir ulang seluruh `filtered` untuk tiap kombinasi sales×produk-fokus
     const focusRows = [];
     relevantTargets.forEach((t) => {
+      if (!t.focus.length) return;
+      const salesRows = rowsBySales.get(t.code) || [];
       t.focus.forEach((f) => {
-        const rs = filtered.filter((r) => r.salesCode === t.code && matchFocus(r, f));
+        const rs = salesRows.filter((r) => matchFocus(r, f));
         const realisasi = _.sumBy(rs, "qty");
         const pct = f.target ? realisasi / f.target : null;
         focusRows.push({ salesCode: t.code, salesName: t.name, name: f.name, target: f.target, realisasi, pct });
@@ -943,10 +894,10 @@ function exportToExcel(agg, targets) {
   })));
   XLSX.utils.book_append_sheet(wb, wsFocus, "Produk Fokus");
 
-  const wsDaily = XLSX.utils.json_to_sheet(agg.daily.map((r) => ({ Tanggal: r.date, Realisasi: r.value, "Active Outlet": r.ao })));
+  const wsDaily = XLSX.utils.json_to_sheet(agg.daily.map((r) => ({ Tanggal: dateStrToLocalDate(r.date) || r.date, Realisasi: r.value, "Active Outlet": r.ao })));
   XLSX.utils.book_append_sheet(wb, wsDaily, "Tren Harian");
 
-  XLSX.writeFile(wb, `Laporan_Sales_${toLocalDateKey(new Date())}.xlsx`);
+  XLSX.writeFile(wb, `Laporan_Sales_${todayLocalDateStr()}.xlsx`);
 }
 
 /* ============================================================================
@@ -993,14 +944,14 @@ export default function SalesMonitoringApp() {
       if (!rows.length) { setError("File terbaca tapi tidak ada baris data yang cocok. Pastikan kolom sesuai format sell-out."); }
       setRawRows(rows);
       if (rows.length > 0) {
-        const dates = rows.map(r => r.date).filter(Boolean).map(d => d.getTime());
-        const minDate = new Date(Math.min(...dates));
-        const maxDate = new Date(Math.max(...dates));
-        setFilters(f => ({
-          ...f,
-          dateFrom: toLocalDateKey(minDate),
-          dateTo: toLocalDateKey(maxDate),
-        }));
+        const dateStrs = rows.map(r => r.date).filter(Boolean).sort();
+        if (dateStrs.length) {
+          setFilters(f => ({
+            ...f,
+            dateFrom: dateStrs[0],
+            dateTo: dateStrs[dateStrs.length - 1],
+          }));
+        }
       }
       setFileName(file.name);
     } catch (e) {
