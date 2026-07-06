@@ -277,8 +277,16 @@ function generateSampleRows() {
 /* ============================================================================
    AGGREGATION HELPERS
 ============================================================================ */
-function dateKey(d) { if (!d) return "unknown"; return d.toISOString().slice(0, 10); }
-function monthKey(d) { if (!d) return "unknown"; return d.toISOString().slice(0, 7); }
+// Format tanggal ke "YYYY-MM-DD" berdasarkan komponen tanggal LOKAL (bukan toISOString,
+// yang mengonversi ke UTC dan bisa membuat tanggal mundur satu hari di zona waktu +N seperti WIB).
+function toLocalDateKey(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+function dateKey(d) { if (!d) return "unknown"; return toLocalDateKey(d); }
+function monthKey(d) { if (!d) return "unknown"; return toLocalDateKey(d).slice(0, 7); }
 
 function matchFocus(row, focusItem) {
   if (focusItem.keyword === "__GROUP__") return normalizeHeader(row.group) === normalizeHeader(focusItem.name);
@@ -299,9 +307,11 @@ function useAggregates(rows, targets, filters) {
     const inRange = (d) => {
       if (!filters.dateFrom && !filters.dateTo) return true;
       if (!d) return false;
-      const t = d.getTime();
-      if (filters.dateFrom && t < new Date(filters.dateFrom).getTime()) return false;
-      if (filters.dateTo && t > new Date(filters.dateTo).getTime() + 86399999) return false;
+      // Bandingkan sebagai teks "YYYY-MM-DD" (lokal) — aman dari pergeseran zona waktu
+      // yang terjadi kalau membandingkan epoch ms hasil toISOString/new Date(UTC).
+      const key = toLocalDateKey(d);
+      if (filters.dateFrom && key < filters.dateFrom) return false;
+      if (filters.dateTo && key > filters.dateTo) return false;
       return true;
     };
     const filtered = rows.filter((r) => {
@@ -936,7 +946,7 @@ function exportToExcel(agg, targets) {
   const wsDaily = XLSX.utils.json_to_sheet(agg.daily.map((r) => ({ Tanggal: r.date, Realisasi: r.value, "Active Outlet": r.ao })));
   XLSX.utils.book_append_sheet(wb, wsDaily, "Tren Harian");
 
-  XLSX.writeFile(wb, `Laporan_Sales_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  XLSX.writeFile(wb, `Laporan_Sales_${toLocalDateKey(new Date())}.xlsx`);
 }
 
 /* ============================================================================
@@ -988,8 +998,8 @@ export default function SalesMonitoringApp() {
         const maxDate = new Date(Math.max(...dates));
         setFilters(f => ({
           ...f,
-          dateFrom: minDate.toISOString().slice(0, 10),
-          dateTo: maxDate.toISOString().slice(0, 10),
+          dateFrom: toLocalDateKey(minDate),
+          dateTo: toLocalDateKey(maxDate),
         }));
       }
       setFileName(file.name);
@@ -1026,7 +1036,7 @@ export default function SalesMonitoringApp() {
               <FileSpreadsheet size={20} color="#0A1120" />
             </div>
             <div>
-              <h1 className="disp text-xl font-bold">Monitoring Penjualan</h1>
+              <h1 className="disp text-xl font-bold">Monitoring Penjualan<b className="text-xs" style={{ color: colors.textMuted }}> by</b><b className="disp text-xl font-bold" style={{ color: colors.coral }}> Andri.S</b></h1>
               <p className="text-xs" style={{ color: colors.textMuted }}>Dashboard pencapaian sales, produk & produk fokus</p>
             </div>
           </div>
