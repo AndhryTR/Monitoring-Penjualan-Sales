@@ -16,7 +16,6 @@ import { useCountUp } from "./hooks/useCountUp.js";
 import { KpiCard } from "./components/KpiCard.jsx";
 import { AchBadge } from "./components/AchBadge.jsx";
 import { PaceStrip } from "./components/PaceStrip.jsx";
-import { DEFAULT_TARGETS } from "./constants/defaultTargets.js";
 
 /* ============================================================================
    DESIGN TOKENS
@@ -58,6 +57,109 @@ const createGlobalStyle = (colors) => `
 .sm-drop { transition: border-color .2s ease, background .2s ease; }
 .sm-scale-in { animation: smFadeUp .5s cubic-bezier(.16,1,.3,1) both; }
 `;
+
+/* ============================================================================
+   DEFAULT TARGET CONFIG  (carried over structure — editable in-app)
+============================================================================ */
+const DEFAULT_TARGETS = [
+  { code: "AGM", name: "AGUNG MULIADI", tier: "mint", total: { value: 249910430, ao: 255 },
+    groups: [{ name: "ENESIS", value: 163875988, ao: 255 }, { name: "ENESIS-NF", value: 86034443, ao: 255 }], focus: [] },
+  { code: "HBB", name: "HABIBURROHMAN, SHI", tier: "mint", total: { value: 264185709, ao: 277 },
+    groups: [{ name: "ENESIS", value: 182184972, ao: 277 }, { name: "ENESIS-NF", value: 82000737, ao: 277 }], focus: [] },
+  { code: "NMM", name: "NUKMAN MUZAKKI", tier: "mint", total: { value: 522042079, ao: 290 },
+    groups: [{ name: "ENESIS", value: 450862419, ao: 290 }, { name: "ENESIS-NF", value: 71179659, ao: 290 }], focus: [] },
+  { code: "BKN", name: "BUDI KARYAWAN", tier: "amber", total: { value: 445000000, ao: 250 },
+    groups: [
+      { name: "B-FOODS", value: 90000000, ao: 180 }, { name: "KEXIN FOOD", value: 10000000, ao: 60 },
+      { name: "MI KRITING", value: 45000000, ao: 100 }, { name: "MOCHI CONLEY", value: 185000000, ao: 120 },
+      { name: "PLANGI JAYA", value: 55000000, ao: 120 }, { name: "SHB", value: 4000000, ao: 20 },
+      { name: "SNACK", value: 30000000, ao: 140 }, { name: "SWEET TEN GROUP", value: 20000000, ao: 40 },
+      { name: "SWEET TEN SNACK", value: 6000000, ao: 40 },
+    ],
+    focus: [
+      { name: "FISH CAKE", target: 60, keyword: "FISH", unit: "KARTON" }, { name: "PANDA", target: 60, keyword: "PANDA", unit: "KARTON" },
+      { name: "MI KRITING", target: 1000, keyword: "MI GAJAH", unit: "IKAT" }, { name: "ROTI RENYAH", target: 120, keyword: "RENYAH", unit: "KARTON" },
+      { name: "MOCHI MINI", target: 40, keyword: "MOCHI MINI", unit: "KARTON" }, { name: "MOCHI SUPER", target: 60, keyword: "MOCHI SUPER", unit: "KARTON" },
+      { name: "KALIO CHIPS 6X10", target: 200, keyword: "KALIO CHIP", unit: "KARTON" }, { name: "TAIKO CHIPS 10 X 10", target: 200, keyword: "TAIKO CHIPS", unit: "KARTON" },
+      { name: "ULALA", target: 150, keyword: "ULALA", unit: "KARTON" },
+    ] },
+  { code: "TF", name: "TAUFAN ARI KUSAIRI", tier: "amber", total: { value: 270000000, ao: 250 },
+    groups: [
+      { name: "B-FOODS", value: 75000000, ao: 180 }, { name: "KEXIN FOOD", value: 15000000, ao: 80 },
+      { name: "MI KRITING", value: 30000000, ao: 80 }, { name: "MOCHI CONLEY", value: 60000000, ao: 120 },
+      { name: "PLANGI JAYA", value: 40000000, ao: 120 }, { name: "SHB", value: 4000000, ao: 40 },
+      { name: "SNACK", value: 25000000, ao: 140 }, { name: "SWEET TEN GROUP", value: 15000000, ao: 40 },
+      { name: "SWEET TEN SNACK", value: 6000000, ao: 40 },
+    ],
+    focus: [
+      { name: "FISH CAKE", target: 40, keyword: "FISH", unit: "KARTON" }, { name: "PANDA", target: 40, keyword: "PANDA", unit: "KARTON" },
+      { name: "MI KRITING", target: 600, keyword: "MI GAJAH", unit: "IKAT" }, { name: "ROTI RENYAH", target: 80, keyword: "RENYAH", unit: "KARTON" },
+      { name: "MOCHI MINI", target: 30, keyword: "MOCHI MINI", unit: "KARTON" }, { name: "MOCHI SUPER", target: 40, keyword: "MOCHI SUPER", unit: "KARTON" },
+      { name: "KALIO CHIPS 6X10", target: 150, keyword: "KALIO CHIP", unit: "KARTON" }, { name: "TAIKO CHIPS 10 X 10", target: 150, keyword: "TAIKO CHIPS", unit: "KARTON" },
+      { name: "ULALA", target: 80, keyword: "ULALA", unit: "KARTON" },
+    ] },
+  { code: "AZ", name: "AZUL AZMIL SANI", tier: "amber", total: { value: 269000000, ao: 250 },
+    groups: [
+      { name: "B-FOODS", value: 85000000, ao: 180 }, { name: "KEXIN FOOD", value: 15000000, ao: 40 },
+      { name: "MI KRITING", value: 25000000, ao: 80 }, { name: "MOCHI CONLEY", value: 60000000, ao: 120 },
+      { name: "PLANGI JAYA", value: 40000000, ao: 120 }, { name: "SHB", value: 4000000, ao: 40 },
+      { name: "SNACK", value: 20000000, ao: 140 }, { name: "SWEET TEN GROUP", value: 15000000, ao: 40 },
+      { name: "SWEET TEN SNACK", value: 5000000, ao: 40 },
+    ],
+    focus: [
+      { name: "FISH CAKE", target: 40, keyword: "FISH", unit: "KARTON" }, { name: "PANDA", target: 40, keyword: "PANDA", unit: "KARTON" },
+      { name: "MI KRITING", target: 600, keyword: "MI GAJAH", unit: "IKAT" }, { name: "ROTI RENYAH", target: 120, keyword: "RENYAH", unit: "KARTON" },
+      { name: "MOCHI MINI", target: 80, keyword: "MOCHI MINI", unit: "KARTON" }, { name: "MOCHI SUPER", target: 60, keyword: "MOCHI SUPER", unit: "KARTON" },
+      { name: "KALIO CHIPS 6X10", target: 60, keyword: "KALIO CHIP", unit: "KARTON" }, { name: "TAIKO CHIPS 10 X 10", target: 50, keyword: "TAIKO CHIPS", unit: "KARTON" },
+      { name: "ULALA", target: 50, keyword: "ULALA", unit: "KARTON" },
+    ] },
+  { code: "SS", name: "SUSAN HANI", tier: "amber", total: { value: 400500000, ao: 250 },
+    groups: [
+      { name: "BATTERY", value: 7500000, ao: 40 }, { name: "ILS", value: 0, ao: 0 }, { name: "IWM", value: 6000000, ao: 30 },
+      { name: "MAAM MAAM", value: 48000000, ao: 120 }, { name: "PMM-MOCHI", value: 0, ao: 0 },
+      { name: "PUSAN MANIS MULIA", value: 15000000, ao: 40 }, { name: "ROTI", value: 250000000, ao: 210 },
+      { name: "RPFI", value: 70000000, ao: 180 }, { name: "GAS", value: 4000000, ao: 15 },
+    ],
+    focus: [
+      { name: "JES LOLY", target: 30, keyword: "JESS LOLY", unit: "KARTON" }, { name: "TEABUZZ", target: 15, keyword: "TEE BUZZ", unit: "KARTON" },
+      { name: "CUSTARD", target: 15, keyword: "CUSTARD", unit: "KARTON" }, { name: "KARIZATO", target: 20, keyword: "KARIZATO", unit: "KARTON" },
+      { name: "DOLAR CHOCO", target: 20, keyword: "DOLLAR", unit: "KARTON" }, { name: "LOLY POP MILENI", target: 10, keyword: "LOLY POP", unit: "KARTON" },
+      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR", unit: "KARTON" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "COCO CRUNCH", unit: "KARTON" },
+      { name: "GAS", target: 6, keyword: "GAS_EXACT", unit: "KARTON" },
+    ] },
+  { code: "SOF", name: "SOFYAN HADI", tier: "amber", total: { value: 264500000, ao: 250 },
+    groups: [
+      { name: "BATTERY", value: 7500000, ao: 40 }, { name: "ILS", value: 0, ao: 0 }, { name: "IWM", value: 6000000, ao: 30 },
+      { name: "MAAM MAAM", value: 25000000, ao: 120 }, { name: "PMM-MOCHI", value: 0, ao: 0 },
+      { name: "PUSAN MANIS MULIA", value: 15000000, ao: 80 }, { name: "ROTI", value: 130000000, ao: 180 },
+      { name: "RPFI", value: 80000000, ao: 180 }, { name: "GAS", value: 1000000, ao: 15 },
+    ],
+    focus: [
+      { name: "JES LOLY", target: 10, keyword: "JESS LOLY", unit: "KARTON" }, { name: "TEABUZZ", target: 15, keyword: "TEE BUZZ", unit: "KARTON" },
+      { name: "CUSTARD", target: 8, keyword: "CUSTARD", unit: "KARTON" }, { name: "KARIZATO", target: 10, keyword: "KARIZATO", unit: "KARTON" },
+      { name: "DOLAR CHOCO", target: 10, keyword: "DOLLAR", unit: "KARTON" }, { name: "LOLY POP MILENI", target: 15, keyword: "LOLY POP", unit: "KARTON" },
+      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR", unit: "KARTON" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "COCO CRUNCH", unit: "KARTON" },
+      { name: "GAS", target: 6, keyword: "GAS_EXACT", unit: "KARTON" },
+    ] },
+  { code: "IGP", name: "I GUSTI PUTU SUARDIKA", tier: "amber", total: { value: 378500000, ao: 250 },
+    groups: [
+      { name: "BATTERY", value: 7500000, ao: 40 }, { name: "ILS", value: 0, ao: 0 }, { name: "IWM", value: 6000000, ao: 30 },
+      { name: "MAAM MAAM", value: 39000000, ao: 120 }, { name: "PMM-MOCHI", value: 0, ao: 0 },
+      { name: "PUSAN MANIS MULIA", value: 15000000, ao: 80 }, { name: "ROTI", value: 220000000, ao: 180 },
+      { name: "RPFI", value: 90000000, ao: 180 }, { name: "GAS", value: 1000000, ao: 15 },
+    ],
+    focus: [
+      { name: "JES LOLY", target: 10, keyword: "JESS LOLY", unit: "KARTON" }, { name: "TEABUZZ", target: 15, keyword: "TEE BUZZ", unit: "KARTON" },
+      { name: "CUSTARD", target: 8, keyword: "CUSTARD", unit: "KARTON" }, { name: "KARIZATO", target: 10, keyword: "KARIZATO", unit: "KARTON" },
+      { name: "DOLAR CHOCO", target: 10, keyword: "DOLLAR", unit: "KARTON" }, { name: "LOLY POP MILENI", target: 15, keyword: "LOLY POP", unit: "KARTON" },
+      { name: "BRITOBAR", target: 20, keyword: "BRITOBAR", unit: "KARTON" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "COCO CRUNCH", unit: "KARTON" },
+      { name: "GAS", target: 6, keyword: "GAS_EXACT", unit: "KARTON" },
+    ] },
+  { code: "HEM", name: "HEMA MALIHI", tier: "violet", total: { value: 178300000, ao: 240 },
+    groups: [{ name: "PLANGI 2", value: 153300000, ao: 240 }, { name: "PLANGI JAYA", value: 25000988, ao: 130 }], focus: [] },
+  { code: "ANI", name: "MARIA ANDRIANI", tier: "violet", total: { value: 178300000, ao: 240 },
+    groups: [{ name: "PLANGI 2", value: 153300709, ao: 240 }, { name: "PLANGI JAYA", value: 25000000, ao: 130 }], focus: [] },
+];
 
 const WORK_DAYS_DEFAULT = 27;
 
@@ -248,44 +350,9 @@ function useAggregates(rows, targets, filters) {
       ? targets.filter((t) => filters.salesCodes.includes(t.code))
       : targets;
 
-    // Satu kali scan atas `filtered` untuk membangun semua struktur yang dipakai di bawah.
-    // Sebelumnya bySales, byGroup, dan focusRows masing-masing memanggil `filtered.filter(...)`
-    // dari NOL untuk tiap sales / tiap grup / tiap kombinasi sales×produk-fokus — untuk data
-    // dengan banyak baris & banyak sales/produk fokus ini jadi O(n × jumlah_sales) dst.
-    // Dengan mengelompokkan baris per kode sales & per grup dalam satu pass (O(n)), langkah-langkah
-    // berikutnya tinggal memakai subset yang sudah kecil, bukan menyisir ulang seluruh array.
-    const rowsBySales = new Map();
-    const rowsByGroup = new Map();
-    const dailyMap = new Map();
-    const monthlyMap = new Map();
-    const allOutletKeys = new Set();
-
-    for (const r of filtered) {
-      let salesBucket = rowsBySales.get(r.salesCode);
-      if (!salesBucket) { salesBucket = []; rowsBySales.set(r.salesCode, salesBucket); }
-      salesBucket.push(r);
-
-      if (r.group) {
-        let groupBucket = rowsByGroup.get(r.group);
-        if (!groupBucket) { groupBucket = []; rowsByGroup.set(r.group, groupBucket); }
-        groupBucket.push(r);
-      }
-
-      const dk = dateKey(r.date);
-      let d = dailyMap.get(dk);
-      if (!d) { d = { date: dk, value: 0, outlets: new Set() }; dailyMap.set(dk, d); }
-      d.value += r.value;
-      d.outlets.add(r.outletCode);
-
-      const mk = monthKey(r.date);
-      monthlyMap.set(mk, (monthlyMap.get(mk) || 0) + r.value);
-
-      allOutletKeys.add(r.salesCode + "|" + r.outletCode);
-    }
-
-    // per sales — pakai subset dari rowsBySales, bukan filter ulang `filtered`
+    // per sales
     const bySales = relevantTargets.map((t) => {
-      const rs = rowsBySales.get(t.code) || [];
+      const rs = filtered.filter((r) => r.salesCode === t.code);
       const value = _.sumBy(rs, "value");
       const ao = new Set(rs.map((r) => r.outletCode)).size;
       const ach = t.total.value ? value / t.total.value : null;
@@ -299,7 +366,7 @@ function useAggregates(rows, targets, filters) {
     const totalTargetValue = _.sumBy(bySales, "targetValue");
     const totalTargetAo = _.sumBy(bySales, "targetAo");
     const totalRealisasiValue = _.sumBy(bySales, "realisasiValue");
-    const totalRealisasiAo = allOutletKeys.size;
+    const totalRealisasiAo = new Set(filtered.map((r) => r.salesCode + "|" + r.outletCode)).size;
     const overallAch = totalTargetValue ? totalRealisasiValue / totalTargetValue : null;
 
     // by group (respecting the group filter list of allowed groups, else all groups present in targets ∪ data)
@@ -312,7 +379,7 @@ function useAggregates(rows, targets, filters) {
     const byGroup = groupNames.map((gname) => {
       const targetValue = _.sumBy(relevantTargets, (t) => _.sumBy(t.groups.filter((g) => g.name === gname), "value"));
       const targetAo = _.sumBy(relevantTargets, (t) => _.sumBy(t.groups.filter((g) => g.name === gname), "ao"));
-      const rs = rowsByGroup.get(gname) || [];
+      const rs = filtered.filter((r) => r.group === gname);
       const value = _.sumBy(rs, "value");
       const ao = new Set(rs.map((r) => r.outletCode)).size;
       const ach = targetValue ? value / targetValue : null;
@@ -321,23 +388,30 @@ function useAggregates(rows, targets, filters) {
     }).sort((a, b) => b.realisasiValue - a.realisasiValue);
 
     // daily series
-    const daily = Array.from(dailyMap.values())
+    const dailyMap = {};
+    filtered.forEach((r) => {
+      const k = dateKey(r.date);
+      if (!dailyMap[k]) dailyMap[k] = { date: k, value: 0, outlets: new Set() };
+      dailyMap[k].value += r.value;
+      dailyMap[k].outlets.add(r.outletCode);
+    });
+    const daily = Object.values(dailyMap)
       .map((d) => ({ date: d.date, value: d.value, ao: d.outlets.size }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
     // monthly (cumulative) series
-    const monthly = Array.from(monthlyMap.entries())
-      .map(([m, v]) => ({ month: m, value: v }))
-      .sort((a, b) => a.month.localeCompare(b.month));
+    const monthlyMap = {};
+    filtered.forEach((r) => {
+      const k = monthKey(r.date);
+      monthlyMap[k] = (monthlyMap[k] || 0) + r.value;
+    });
+    const monthly = Object.entries(monthlyMap).map(([m, v]) => ({ month: m, value: v })).sort((a, b) => a.month.localeCompare(b.month));
 
-    // focus products — cari kecocokan hanya di dalam baris milik sales tsb (rowsBySales),
-    // bukan menyisir ulang seluruh `filtered` untuk tiap kombinasi sales×produk-fokus
+    // focus products
     const focusRows = [];
     relevantTargets.forEach((t) => {
-      if (!t.focus.length) return;
-      const salesRows = rowsBySales.get(t.code) || [];
       t.focus.forEach((f) => {
-        const rs = salesRows.filter((r) => matchFocus(r, f));
+        const rs = filtered.filter((r) => r.salesCode === t.code && matchFocus(r, f));
         const realisasi = _.sumBy(rs, "qty");
         const pct = f.target ? realisasi / f.target : null;
         focusRows.push({ salesCode: t.code, salesName: t.name, name: f.name, target: f.target, realisasi, pct });
