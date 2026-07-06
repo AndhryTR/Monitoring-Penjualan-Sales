@@ -194,17 +194,50 @@ function buildFieldMap(headerRow) {
   return map;
 }
 
-function toJsDate(v) {
-  if (v instanceof Date) return v;
+// Ubah nilai tanggal mentah dari Excel menjadi teks "YYYY-MM-DD" — TANPA PERNAH membuat
+// objek Date JavaScript untuk nilai ini. Ini sengaja dihindari karena objek Date selalu
+// membawa asumsi jam/zona waktu yang bisa berbeda-beda tergantung cara library membacanya
+// (sumber bug tanggal maju/mundur satu hari yang sebelumnya terjadi). Untuk sel tanggal
+// Excel (angka serial), kita ambil komponen tahun/bulan/tanggal langsung dari
+// XLSX.SSF.parse_date_code — angka polos, sama persis dengan yang tersimpan di file Excel.
+function excelValueToDateStr(v) {
+  if (v === null || v === undefined || v === "") return null;
   if (typeof v === "number") {
     const d = XLSX.SSF.parse_date_code(v);
-    if (d) return new Date(d.y, d.m - 1, d.d);
+    if (!d) return null;
+    return `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
   }
   if (typeof v === "string") {
-    const d = new Date(v);
-    if (!isNaN(d.getTime())) return d;
+    const s = v.trim();
+    // Sudah dalam format "YYYY-MM-DD..." — ambil apa adanya, tidak perlu diparsing ulang.
+    const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+    // Format umum "DD/MM/YYYY" atau "DD-MM-YYYY" (format tanggal Indonesia).
+    const slashMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (slashMatch) {
+      const [, day, month, year] = slashMatch;
+      return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+    return null;
   }
   return null;
+}
+
+// Dipakai HANYA untuk momen "sekarang" (mis. nama file export) — bukan untuk tanggal
+// yang berasal dari Excel — jadi aman memakai komponen tanggal lokal browser.
+function todayLocalDateStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Buat objek Date lokal dari teks "YYYY-MM-DD" — dipakai HANYA saat export ke Excel,
+// supaya kolom tanggal di file hasil export tetap berupa tanggal asli (bukan teks),
+// tanpa membawa balik ambiguitas UTC/lokal karena kita yang membangunnya sendiri.
+function dateStrToLocalDate(s) {
+  if (!s) return null;
+  const [y, m, d] = s.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
 }
 
 function parseWorkbookFile(file) {
@@ -212,7 +245,7 @@ function parseWorkbookFile(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const wb = XLSX.read(e.target.result, { type: "array", cellDates: true });
+        const wb = XLSX.read(e.target.result, { type: "array" });
         const sheetName = wb.SheetNames[0];
         const ws = wb.Sheets[sheetName];
         const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
@@ -226,7 +259,7 @@ function parseWorkbookFile(file) {
           const get = (f) => (fmap[f] !== undefined ? r[fmap[f]] : null);
           const dateRaw = get("date");
           rows.push({
-            date: toJsDate(dateRaw),
+            date: excelValueToDateStr(dateRaw),
             salesCode: String(get("salesCode") || "").trim(),
             salesName: String(get("salesName") || "").trim(),
             outletCode: String(get("outletCode") || "").trim(),
@@ -263,7 +296,7 @@ function generateSampleRows() {
         const pctOfTarget = 0.005 + rnd() * 0.06;
         const value = Math.round((g.value || 500000) * pctOfTarget / nOutlets);
         rows.push({
-          date: new Date(d), salesCode: s.code, salesName: s.name,
+          date: d, salesCode: s.code, salesName: s.name,
           outletCode: `${s.code}-OUT${o + 1}`, outletName: `Toko ${s.code} ${o + 1}`,
           invoiceNo: `INV${s.code}${gi}${o}`, productName: `${g.name} SAMPLE ITEM`,
           qty: Math.max(1, Math.round(rnd() * 20)), unit: "KARTON", value, group: g.name,
@@ -277,16 +310,9 @@ function generateSampleRows() {
 /* ============================================================================
    AGGREGATION HELPERS
 ============================================================================ */
-// Format tanggal ke "YYYY-MM-DD" berdasarkan komponen tanggal LOKAL (bukan toISOString,
-// yang mengonversi ke UTC dan bisa membuat tanggal mundur satu hari di zona waktu +N seperti WIB).
-function toLocalDateKey(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-function dateKey(d) { if (!d) return "unknown"; return toLocalDateKey(d); }
-function monthKey(d) { if (!d) return "unknown"; return toLocalDateKey(d).slice(0, 7); }
+// row.date sudah berupa teks "YYYY-MM-DD" (lihat excelValueToDateStr), jadi tinggal dipakai apa adanya.
+function dateKey(dateStr) { return dateStr || "unknown"; }
+function monthKey(dateStr) { return dateStr ? dateStr.slice(0, 7) : "unknown"; }
 
 function matchFocus(row, focusItem) {
   if (focusItem.keyword === "__GROUP__") return normalizeHeader(row.group) === normalizeHeader(focusItem.name);
@@ -304,14 +330,13 @@ function matchFocus(row, focusItem) {
 
 function useAggregates(rows, targets, filters) {
   return useMemo(() => {
-    const inRange = (d) => {
+    const inRange = (dateStr) => {
       if (!filters.dateFrom && !filters.dateTo) return true;
-      if (!d) return false;
-      // Bandingkan sebagai teks "YYYY-MM-DD" (lokal) — aman dari pergeseran zona waktu
-      // yang terjadi kalau membandingkan epoch ms hasil toISOString/new Date(UTC).
-      const key = toLocalDateKey(d);
-      if (filters.dateFrom && key < filters.dateFrom) return false;
-      if (filters.dateTo && key > filters.dateTo) return false;
+      if (!dateStr) return false;
+      // dateStr, filters.dateFrom, filters.dateTo semuanya teks "YYYY-MM-DD" —
+      // perbandingan teks di format ini otomatis benar secara kronologis.
+      if (filters.dateFrom && dateStr < filters.dateFrom) return false;
+      if (filters.dateTo && dateStr > filters.dateTo) return false;
       return true;
     };
     const filtered = rows.filter((r) => {
@@ -943,10 +968,10 @@ function exportToExcel(agg, targets) {
   })));
   XLSX.utils.book_append_sheet(wb, wsFocus, "Produk Fokus");
 
-  const wsDaily = XLSX.utils.json_to_sheet(agg.daily.map((r) => ({ Tanggal: r.date, Realisasi: r.value, "Active Outlet": r.ao })));
+  const wsDaily = XLSX.utils.json_to_sheet(agg.daily.map((r) => ({ Tanggal: dateStrToLocalDate(r.date) || r.date, Realisasi: r.value, "Active Outlet": r.ao })));
   XLSX.utils.book_append_sheet(wb, wsDaily, "Tren Harian");
 
-  XLSX.writeFile(wb, `Laporan_Sales_${toLocalDateKey(new Date())}.xlsx`);
+  XLSX.writeFile(wb, `Laporan_Sales_${todayLocalDateStr()}.xlsx`);
 }
 
 /* ============================================================================
@@ -993,14 +1018,14 @@ export default function SalesMonitoringApp() {
       if (!rows.length) { setError("File terbaca tapi tidak ada baris data yang cocok. Pastikan kolom sesuai format sell-out."); }
       setRawRows(rows);
       if (rows.length > 0) {
-        const dates = rows.map(r => r.date).filter(Boolean).map(d => d.getTime());
-        const minDate = new Date(Math.min(...dates));
-        const maxDate = new Date(Math.max(...dates));
-        setFilters(f => ({
-          ...f,
-          dateFrom: toLocalDateKey(minDate),
-          dateTo: toLocalDateKey(maxDate),
-        }));
+        const dateStrs = rows.map(r => r.date).filter(Boolean).sort();
+        if (dateStrs.length) {
+          setFilters(f => ({
+            ...f,
+            dateFrom: dateStrs[0],
+            dateTo: dateStrs[dateStrs.length - 1],
+          }));
+        }
       }
       setFileName(file.name);
     } catch (e) {
