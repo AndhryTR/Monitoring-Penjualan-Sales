@@ -173,9 +173,12 @@ const ALIASES = {
   outletCode: ["KDRL", "KODE OUTLET", "KODE TOKO"],
   outletName: ["NMRL", "NAMA OUTLET", "NAMA TOKO"],
   invoiceNo: ["NOFK", "NO FAKTUR", "INVOICE"],
+  productCode: ["KDBR", "KODE BARANG", "KODE PRODUK"],
   productName: ["NMBR", "NAMA BARANG", "PRODUCT", "PRODUK"],
   qty: ["JUML", "QTY", "QUANTITY"],
   unit: ["UNIT", "SATUAN"],
+  konv: ["KONV"],
+  baseUnit: ["UNITK"],
   value: ["NTOT", "VALUE", "NILAI", "TOTAL"],
   group: ["GRUP", "GROUP", "KATEGORI", "GOLONGAN"],
 };
@@ -265,19 +268,53 @@ function parseWorkbookFile(file) {
             outletCode: String(get("outletCode") || "").trim(),
             outletName: String(get("outletName") || "").trim(),
             invoiceNo: String(get("invoiceNo") || "").trim(),
+            productCode: String(get("productCode") || "").trim(),
             productName: String(get("productName") || "").trim(),
             qty: Number(get("qty")) || 0,
             unit: String(get("unit") || "").trim().toUpperCase(),
+            konv: Number(get("konv")) || 0,
+            baseUnit: String(get("baseUnit") || "").trim().toUpperCase(),
             value: Number(get("value")) || 0,
             group: String(get("group") || "").trim(),
           });
         }
-        resolve(rows);
+        resolve(attachKartonQty(rows));
       } catch (err) { reject(err); }
     };
     reader.onerror = reject;
     reader.readAsArrayBuffer(file);
   });
+}
+
+// Beberapa barang dijual dalam lebih dari satu satuan (mis. KARTON, KTK, PCS, CAN).
+// Setiap baris transaksi punya KONV (faktor ke satuan dasar UNITK) sendiri-sendiri —
+// termasuk baris yang satuannya KARTON. Baris KARTON itu jadi "kurs resmi" produk
+// tersebut ("1 KARTON = KONV satuan dasar"), dipakai untuk mengonversi baris lain
+// (satuan apa pun) menjadi setara KARTON: qtyKarton = (qty * KONV baris ini) / KONV baris KARTON.
+// Kalau produk itu tidak pernah muncul dengan satuan KARTON sama sekali di data, konversinya
+// tidak bisa diturunkan — qtyKarton diberi null dan ditandai lewat `unconvertible: true`
+// supaya tetap terlihat di UI, bukan diam-diam dianggap benar.
+function attachKartonQty(rows) {
+  const kartonFactor = {};
+  rows.forEach((r) => {
+    if (r.unit === "KARTON" && r.konv > 0 && r.productCode && !(r.productCode in kartonFactor)) {
+      kartonFactor[r.productCode] = r.konv;
+    }
+  });
+  return rows.map((r) => {
+    if (r.unit === "KARTON") return { ...r, qtyKarton: r.qty, unconvertible: false };
+    const factor = kartonFactor[r.productCode];
+    if (factor && r.konv > 0) {
+      return { ...r, qtyKarton: (r.qty * r.konv) / factor, unconvertible: false };
+    }
+    return { ...r, qtyKarton: null, unconvertible: true };
+  });
+}
+
+// Kuantitas efektif dalam satuan karton untuk dijumlahkan — pakai hasil konversi kalau ada,
+// jatuh balik ke angka asli kalau produknya memang tidak bisa dikonversi (lihat attachKartonQty).
+function effectiveKartonQty(row) {
+  return row.qtyKarton !== null && row.qtyKarton !== undefined ? row.qtyKarton : row.qty;
 }
 
 /* ---- compact sample data generator (for "Load Sample Data") ---- */
@@ -304,7 +341,7 @@ function generateSampleRows() {
       }
     });
   });
-  return rows;
+  return attachKartonQty(rows);
 }
 
 /* ============================================================================
@@ -317,15 +354,12 @@ function monthKey(dateStr) { return dateStr ? dateStr.slice(0, 7) : "unknown"; }
 function matchFocus(row, focusItem) {
   if (focusItem.keyword === "__GROUP__") return normalizeHeader(row.group) === normalizeHeader(focusItem.name);
 
-  // Default to KARTON if unit is not specified in config, for backward compatibility
-  const targetUnit = normalizeHeader(focusItem.unit || "KARTON");
-  if (normalizeHeader(row.unit) !== targetUnit) return false;
-
-  const nameMatches = focusItem.keyword === "GAS_EXACT"
-    ? normalizeHeader(row.productName) === "GAS"
-    : normalizeHeader(row.productName).includes(normalizeHeader(focusItem.keyword));
-
-  return nameMatches;
+  // Catatan: field `unit` pada konfigurasi produk fokus tidak lagi dipakai untuk
+  // menyaring baris — sejak kuantitas otomatis dikonversi ke setara KARTON
+  // (lihat attachKartonQty/effectiveKartonQty), pencocokan cukup berdasarkan
+  // nama/grup produk saja, apa pun satuan asli transaksinya.
+  if (focusItem.keyword === "GAS_EXACT") return normalizeHeader(row.productName) === "GAS";
+  return normalizeHeader(row.productName).includes(normalizeHeader(focusItem.keyword));
 }
 
 function useAggregates(rows, targets, filters) {
@@ -374,8 +408,9 @@ function useAggregates(rows, targets, filters) {
       // Breakdown per produk fokus milik sales ini — sejajar dengan `groups` di atas.
       const focus = t.focus.map((f) => {
         const frs = rs.filter((r) => matchFocus(r, f));
-        const realisasi = _.sumBy(frs, "qty");
-        return { name: f.name, target: f.target, realisasi, pct: f.target ? realisasi / f.target : null };
+        const realisasi = _.sumBy(frs, effectiveKartonQty);
+        const hasUnconvertible = frs.some((r) => r.unconvertible);
+        return { name: f.name, target: f.target, realisasi, pct: f.target ? realisasi / f.target : null, hasUnconvertible };
       });
 
       return { code: t.code, name: t.name, tier: t.tier, targetValue: t.total.value, targetAo: t.total.ao,
@@ -434,9 +469,10 @@ function useAggregates(rows, targets, filters) {
     relevantTargets.forEach((t) => {
       t.focus.forEach((f) => {
         const rs = filtered.filter((r) => r.salesCode === t.code && matchFocus(r, f));
-        const realisasi = _.sumBy(rs, "qty");
+        const realisasi = _.sumBy(rs, effectiveKartonQty);
         const pct = f.target ? realisasi / f.target : null;
-        focusRows.push({ salesCode: t.code, salesName: t.name, name: f.name, target: f.target, realisasi, pct });
+        const hasUnconvertible = rs.some((r) => r.unconvertible);
+        focusRows.push({ salesCode: t.code, salesName: t.name, name: f.name, target: f.target, realisasi, pct, hasUnconvertible });
       });
     });
 
@@ -824,7 +860,12 @@ function ProductFocusReportPage({ agg, colors }) {
             <div key={i} className="sm-card p-4 sm-fadeup" style={{ animationDelay: `${i * 25}ms` }}>
               <div className="flex justify-between items-baseline mb-2">
                 <div>
-                  <div className="text-sm font-semibold disp">{f.name}</div>
+                  <div className="text-sm font-semibold disp flex items-center gap-1.5">
+                    {f.name}
+                    {f.hasUnconvertible && (
+                      <AlertTriangle size={12} style={{ color: colors.gold }} title="Sebagian transaksi tidak bisa dikonversi ke satuan karton (tidak ada referensi KARTON untuk produk ini di data)" />
+                    )}
+                  </div>
                   <div className="text-xs" style={{ color: colors.textMuted }}>{f.salesName}</div>
                 </div>
                 <span className="mono text-sm font-semibold" style={{ color }}>{fmtPct(f.pct)}</span>
@@ -847,7 +888,12 @@ function ProductFocusReportPage({ agg, colors }) {
         initialSortKey="pct"
         columns={[
           { key: "salesName", label: "Sales" },
-          { key: "name", label: "Produk Fokus" },
+          { key: "name", label: "Produk Fokus", render: (r) => (
+            <span className="flex items-center gap-1.5">
+              {r.name}
+              {r.hasUnconvertible && <AlertTriangle size={12} style={{ color: colors.gold }} title="Sebagian transaksi tidak bisa dikonversi ke satuan karton" />}
+            </span>
+          ) },
           { key: "target", label: "Target", render: (r) => <span className="mono">{fmtNum(r.target)}</span> },
           { key: "realisasi", label: "Realisasi", render: (r) => <span className="mono">{fmtNum(r.realisasi)}</span> },
           { key: "pct", label: "%", render: (r) => <AchBadge ach={r.pct} colors={colors} /> },
@@ -1010,9 +1056,11 @@ function exportToExcel(agg, targets, opts) {
     const s = {
       font: { bold: !!style.bold, sz: style.size || 10, name: "Calibri", color: { rgb: style.color || "000000" } },
       alignment: { horizontal: style.align || (isNum ? "right" : "left"), vertical: "center", wrapText: true },
-      border: { top: { style: "thin", color: { rgb: "D9D9D9" } }, bottom: { style: "thin", color: { rgb: "D9D9D9" } },
-        left: { style: "thin", color: { rgb: "D9D9D9" } }, right: { style: "thin", color: { rgb: "D9D9D9" } } },
     };
+    if (style.border !== false) {
+      s.border = { top: { style: "thin", color: { rgb: "D9D9D9" } }, bottom: { style: "thin", color: { rgb: "D9D9D9" } },
+        left: { style: "thin", color: { rgb: "D9D9D9" } }, right: { style: "thin", color: { rgb: "D9D9D9" } } };
+    }
     if (style.fill) s.fill = { patternType: "solid", fgColor: { rgb: style.fill } };
     if (style.numFmt) s.numFmt = style.numFmt;
     cellObj.s = s;
@@ -1106,7 +1154,7 @@ function exportToExcel(agg, targets, opts) {
       }
       if (i < sm.focus.length) {
         const f = sm.focus[i];
-        setCell(r, 11, f.name, { align: "left" });
+        setCell(r, 11, f.hasUnconvertible ? `${f.name} *` : f.name, { align: "left" });
         setCell(r, 12, f.target, { numFmt: XL_NUMFMT_INT, align: "center" });
         setCell(r, 13, f.realisasi, { numFmt: XL_NUMFMT_INT, align: "center" });
         setCell(r, 14, f.target ? f.pct : 0, { bold: true, fill: XL_COLORS.gold, numFmt: XL_NUMFMT_PCT1, align: "center" });
@@ -1134,6 +1182,13 @@ function exportToExcel(agg, targets, opts) {
   setCell(r, 9, tTargetV - tRealV, { bold: true, fill: XL_COLORS.navy, color: "FFFFFF", numFmt: XL_NUMFMT_MONEY });
   setCell(r, 10, tTargetAo - tRealAo, { bold: true, fill: XL_COLORS.navy, color: "FFFFFF", numFmt: XL_NUMFMT_INT, align: "center" });
   blank(r, [11, 12, 13, 14]);
+
+  const anyUnconvertible = agg.bySales.some((sm) => sm.focus.some((f) => f.hasUnconvertible));
+  if (anyUnconvertible) {
+    const noteRow = r + 2;
+    setCell(noteRow, 2, "* Sebagian transaksi produk ini tidak bisa dikonversi ke satuan karton (tidak ada baris satuan KARTON untuk produk tsb di data mentah) — angka realisasi memakai satuan asli.", { align: "left", size: 9, border: false });
+    merge(noteRow, 2, noteRow, 14);
+  }
 
   ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastRow - 1, c: 13 } });
   ws["!merges"] = merges;
