@@ -10,6 +10,7 @@ import {
   Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard, UserRound,
   Boxes, Crosshair, Check, AlertTriangle, CalendarDays, Settings,
   FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus, Sun, Moon, ChevronLeft, ChevronRight, Menu, Filter, Loader2,
+  Store, Trophy, BellRing, Rocket, MapPin,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
 import { useCountUp } from "./hooks/useCountUp.js";
@@ -362,7 +363,27 @@ function matchFocus(row, focusItem) {
   return normalizeHeader(row.productName).includes(normalizeHeader(focusItem.keyword));
 }
 
-// Tentukan satuan yang tepat untuk ditampilkan atas realisasi produk fokus:
+// Rincian per outlet untuk fitur drill-down — menerima kumpulan baris (biasanya
+// agg.filteredRows) dan sebuah predicate (fungsi filter tambahan: per sales, per
+// grup, atau per produk fokus), lalu kelompokkan berdasarkan outlet.
+function getOutletBreakdown(rows, predicate) {
+  const matched = predicate ? rows.filter(predicate) : rows;
+  const map = {};
+  matched.forEach((r) => {
+    const key = r.outletCode || r.outletName || "UNKNOWN";
+    if (!map[key]) {
+      map[key] = { outletCode: r.outletCode, outletName: r.outletName || r.outletCode || "(tanpa nama)",
+        value: 0, qty: 0, invoices: new Set(), lastDate: null };
+    }
+    map[key].value += r.value;
+    map[key].qty += effectiveKartonQty(r);
+    if (r.invoiceNo) map[key].invoices.add(r.invoiceNo);
+    if (!map[key].lastDate || r.date > map[key].lastDate) map[key].lastDate = r.date;
+  });
+  return Object.values(map)
+    .map((o) => ({ ...o, invoiceCount: o.invoices.size }))
+    .sort((a, b) => b.value - a.value);
+}
 // - Kalau semua baris yang cocok berhasil dikonversi -> "KARTON" (satuan hasil konversi).
 // - Kalau semua baris TIDAK bisa dikonversi (tidak ada referensi KARTON di data untuk
 //   produk itu) -> pakai satuan asli transaksinya apa adanya (mis. "IKAT").
@@ -379,7 +400,7 @@ function resolveFocusUnit(rows) {
   return "Campuran";
 }
 
-function useAggregates(rows, targets, filters) {
+function useAggregates(rows, targets, filters, workDays) {
   return useMemo(() => {
     const inRange = (dateStr) => {
       if (!filters.dateFrom && !filters.dateTo) return true;
@@ -419,6 +440,7 @@ function useAggregates(rows, targets, filters) {
           realisasiValue: gValue, realisasiAo: gAo,
           ach: g.value ? gValue / g.value : null, achAo: g.ao ? gAo / g.ao : null,
           deviasiValue: g.value ? g.value - gValue : 0, deviasiAo: g.ao ? g.ao - gAo : 0,
+          predicate: (row) => row.salesCode === t.code && row.group === g.name,
         };
       });
 
@@ -428,14 +450,15 @@ function useAggregates(rows, targets, filters) {
         const realisasi = _.sumBy(frs, effectiveKartonQty);
         const hasUnconvertible = frs.some((r) => r.unconvertible);
         const unit = resolveFocusUnit(frs);
-        return { name: f.name, target: f.target, realisasi, pct: f.target ? realisasi / f.target : null, hasUnconvertible, unit };
+        return { name: f.name, target: f.target, realisasi, pct: f.target ? realisasi / f.target : null, hasUnconvertible, unit,
+          predicate: (row) => row.salesCode === t.code && matchFocus(row, f) };
       });
 
       return { code: t.code, name: t.name, tier: t.tier, targetValue: t.total.value, targetAo: t.total.ao,
         realisasiValue: value, realisasiAo: ao, ach, achAo,
         deviasiValue: t.total.value ? t.total.value - value : null,
         deviasiAo: t.total.ao ? t.total.ao - ao : null,
-        groups, focus };
+        groups, focus, predicate: (row) => row.salesCode === t.code };
     });
 
     const totalTargetValue = _.sumBy(bySales, "targetValue");
@@ -459,7 +482,8 @@ function useAggregates(rows, targets, filters) {
       const ao = new Set(rs.map((r) => r.outletCode)).size;
       const ach = targetValue ? value / targetValue : null;
       return { name: gname, targetValue, targetAo, realisasiValue: value, realisasiAo: ao, ach,
-        deviasiValue: targetValue ? targetValue - value : null };
+        deviasiValue: targetValue ? targetValue - value : null,
+        predicate: (row) => row.group === gname };
     }).sort((a, b) => b.realisasiValue - a.realisasiValue);
 
     // daily series
@@ -491,7 +515,8 @@ function useAggregates(rows, targets, filters) {
         const pct = f.target ? realisasi / f.target : null;
         const hasUnconvertible = rs.some((r) => r.unconvertible);
         const unit = resolveFocusUnit(rs);
-        focusRows.push({ salesCode: t.code, salesName: t.name, name: f.name, target: f.target, realisasi, pct, hasUnconvertible, unit });
+        focusRows.push({ salesCode: t.code, salesName: t.name, name: f.name, target: f.target, realisasi, pct, hasUnconvertible, unit,
+          predicate: (row) => row.salesCode === t.code && matchFocus(row, f) });
       });
     });
 
@@ -503,13 +528,44 @@ function useAggregates(rows, targets, filters) {
       uniqueDays: uniqueDateStrs.length,
     };
 
+    // ---- Proyeksi akhir bulan: ekstrapolasi linear dari rata-rata realisasi/hari ----
+    const dailyRate = meta.uniqueDays > 0 ? totalRealisasiValue / meta.uniqueDays : 0;
+    const projectedValue = workDays ? dailyRate * workDays : null;
+    const projection = {
+      dailyRate,
+      projectedValue,
+      projectedAch: (projectedValue !== null && totalTargetValue) ? projectedValue / totalTargetValue : null,
+      daysRemaining: workDays ? Math.max(0, workDays - meta.uniqueDays) : null,
+    };
+    bySales.forEach((sm) => {
+      const smDailyRate = meta.uniqueDays > 0 ? sm.realisasiValue / meta.uniqueDays : 0;
+      sm.projectedValue = workDays ? smDailyRate * workDays : null;
+      sm.projectedAch = (sm.projectedValue !== null && sm.targetValue) ? sm.projectedValue / sm.targetValue : null;
+    });
+
+    // ---- Peringatan otomatis: sales/produk fokus yang masih 0% padahal sudah lewat beberapa hari kerja ----
+    const ALERT_MIN_DAYS = 3;
+    const alerts = [];
+    if (meta.uniqueDays >= ALERT_MIN_DAYS) {
+      bySales.forEach((sm) => {
+        if (sm.targetValue > 0 && sm.realisasiValue === 0) {
+          alerts.push({ type: "sales", title: sm.name, message: "Belum ada realisasi sama sekali", predicate: sm.predicate });
+        }
+        sm.focus.forEach((f) => {
+          if (f.target > 0 && f.realisasi === 0) {
+            alerts.push({ type: "focus", title: `${sm.name} — ${f.name}`, message: "Produk fokus belum terjual sama sekali", predicate: f.predicate });
+          }
+        });
+      });
+    }
+
     return {
-      filteredRows: filtered, bySales, byGroup, daily, monthly, focusRows, meta,
+      filteredRows: filtered, bySales, byGroup, daily, monthly, focusRows, meta, projection, alerts,
       totals: { targetValue: totalTargetValue, targetAo: totalTargetAo, realisasiValue: totalRealisasiValue,
         realisasiAo: totalRealisasiAo, ach: overallAch,
         deviasiValue: totalTargetValue ? totalTargetValue - totalRealisasiValue : null },
     };
-  }, [rows, targets, filters]);
+  }, [rows, targets, filters, workDays]);
 }
 
 /* ============================================================================
@@ -661,10 +717,170 @@ function SectionTitle({ title, sub, icon: Icon, colors }) {
 
 const createChartTooltipStyle = (colors) => ({ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10, color: colors.text, fontSize: 12 });
 
+// Tombol kecil untuk membuka rincian outlet (drill-down) dari sebuah baris tabel.
+function DrilldownButton({ colors, onClick, label = "Outlet" }) {
+  return (
+    <button onClick={onClick} className="sm-btn inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium"
+      style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.textMuted }}>
+      <Store size={12} /> {label}
+    </button>
+  );
+}
+
+// Modal rincian outlet — dipakai dari semua halaman (Main, Sales, Product, Product Focus)
+// lewat callback onDrilldown yang sama.
+function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets, colors }) {
+  if (!isOpen) return null;
+  const totalValue = _.sumBy(outlets, "value");
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
+      <div className="sm-card sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
+        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl" style={{ background: colors.violet + "1A" }}><MapPin size={16} style={{ color: colors.violet }} /></div>
+            <div>
+              <div className="disp text-base font-semibold">{title}</div>
+              {subtitle && <div className="text-xs" style={{ color: colors.textMuted }}>{subtitle}</div>}
+            </div>
+          </div>
+          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
+        </div>
+        <div className="p-5 overflow-y-auto">
+          {outlets.length === 0 ? (
+            <div className="text-center py-10" style={{ color: colors.textMuted }}>Tidak ada transaksi outlet untuk kombinasi filter ini.</div>
+          ) : (
+            <>
+              <div className="text-xs mb-3" style={{ color: colors.textMuted }}>
+                {outlets.length} outlet · total <span className="mono font-semibold" style={{ color: colors.text }}>{fmtRp(totalValue)}</span>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ background: colors.surface2 }}>
+                    <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.textMuted }}>OUTLET</th>
+                    <th className="px-3 py-2 text-right" style={{ fontSize: 11, color: colors.textMuted }}>VALUE</th>
+                    <th className="px-3 py-2 text-center" style={{ fontSize: 11, color: colors.textMuted }}>QTY</th>
+                    <th className="px-3 py-2 text-center" style={{ fontSize: 11, color: colors.textMuted }}>TRANSAKSI</th>
+                    <th className="px-3 py-2 text-center" style={{ fontSize: 11, color: colors.textMuted }}>TERAKHIR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {outlets.map((o, i) => (
+                    <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.border}` }}>
+                      <td className="px-3 py-2">{o.outletName}</td>
+                      <td className="px-3 py-2 mono text-right">{fmtRp(o.value)}</td>
+                      <td className="px-3 py-2 mono text-center">{fmtNum(o.qty)}</td>
+                      <td className="px-3 py-2 mono text-center">{o.invoiceCount}</td>
+                      <td className="px-3 py-2 mono text-center" style={{ color: colors.textMuted }}>{o.lastDate || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Papan peringkat sales berdasarkan ACH%, dengan proyeksi akhir bulan.
+function Leaderboard({ rows, colors, onDrilldown }) {
+  const ranked = useMemo(() => [...rows].sort((a, b) => (b.ach ?? -1) - (a.ach ?? -1)), [rows]);
+  const medal = (i) => ["🥇", "🥈", "🥉"][i] || `${i + 1}`;
+  return (
+    <div className="sm-card p-5 sm-fadeup mb-8">
+      <SectionTitle title="Leaderboard Sales" sub="Diurutkan berdasarkan pencapaian (ACH%)" icon={Trophy} colors={colors} />
+      <div className="space-y-2">
+        {ranked.map((sm, i) => (
+          <div key={sm.code} className="sm-row flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: i < 3 ? colors.gold + "0D" : "transparent" }}>
+            <div className="w-8 text-center text-base">{medal(i)}</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium truncate">{sm.name}</div>
+              <div className="text-xs mono" style={{ color: colors.textMuted }}>{fmtRp(sm.realisasiValue)} / {fmtRp(sm.targetValue)}</div>
+            </div>
+            {sm.projectedAch !== null && sm.projectedAch !== undefined && (
+              <div className="hidden sm:block text-xs mono text-right" style={{ color: colors.textMuted }}>
+                Proyeksi <span style={{ color: sm.projectedAch >= 1 ? colors.mint : colors.coral }}>{fmtPct(sm.projectedAch)}</span>
+              </div>
+            )}
+            <AchBadge ach={sm.ach} colors={colors} />
+            {onDrilldown && (
+              <DrilldownButton colors={colors} onClick={() => onDrilldown(sm.name, "Semua outlet", sm.predicate)} />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Kartu proyeksi akhir bulan — ekstrapolasi linear dari rata-rata realisasi harian saat ini.
+function ProjectionCard({ projection, totals, colors }) {
+  const onTrack = projection.projectedAch !== null ? projection.projectedAch >= 1 : null;
+  return (
+    <div className="sm-card p-5 sm-fadeup mb-6">
+      <SectionTitle title="Proyeksi Akhir Bulan" sub="Ekstrapolasi linear dari rata-rata realisasi harian saat ini" icon={Rocket} colors={colors} />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Rata-rata / Hari</div>
+          <div className="mono text-lg font-bold">{fmtRp(projection.dailyRate)}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Proyeksi Akhir Bulan</div>
+          <div className="mono text-lg font-bold">{fmtRp(projection.projectedValue)}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Proyeksi ACH%</div>
+          <div className="mono text-lg font-bold" style={{ color: onTrack === null ? colors.text : onTrack ? colors.mint : colors.coral }}>
+            {fmtPct(projection.projectedAch)}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Status</div>
+          <div className="text-sm font-semibold flex items-center gap-1.5" style={{ color: onTrack === null ? colors.textMuted : onTrack ? colors.mint : colors.coral }}>
+            {onTrack === null ? "Belum cukup data" : onTrack ? <><ArrowUpRight size={15} /> Sesuai/Lampaui Target</> : <><ArrowDownRight size={15} /> Berpotensi Meleset</>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Panel peringatan otomatis — sales/produk fokus yang masih 0% padahal sudah lewat beberapa hari kerja.
+function AlertsPanel({ alerts, colors, onDrilldown }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!alerts.length) return null;
+  const visible = expanded ? alerts : alerts.slice(0, 5);
+  return (
+    <div className="sm-card p-5 sm-fadeup mb-6" style={{ borderColor: colors.coral + "44" }}>
+      <div className="flex items-center justify-between mb-3">
+        <SectionTitle title="Perlu Perhatian" sub={`${alerts.length} item belum ada realisasi sama sekali`} icon={BellRing} colors={colors} />
+      </div>
+      <div className="space-y-2">
+        {visible.map((a, i) => (
+          <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ background: colors.coral + "0D" }}>
+            <AlertTriangle size={14} style={{ color: colors.coral, flexShrink: 0 }} />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium truncate">{a.title}</div>
+              <div className="text-xs" style={{ color: colors.textMuted }}>{a.message}</div>
+            </div>
+            {onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(a.title, a.message, a.predicate)} />}
+          </div>
+        ))}
+      </div>
+      {alerts.length > 5 && (
+        <button onClick={() => setExpanded(!expanded)} className="sm-btn text-xs font-medium mt-3" style={{ color: colors.gold }}>
+          {expanded ? "Tampilkan lebih sedikit" : `Tampilkan ${alerts.length - 5} lainnya`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* ============================================================================
    PAGES
 ============================================================================ */
-function MainReportPage({ agg, workDays, colors }) {
+function MainReportPage({ agg, workDays, colors, onDrilldown }) {
   const uniqueDaysInData = useMemo(() => new Set(agg.filteredRows.map(r => dateKey(r.date))).size, [agg.filteredRows]);
   const t = agg.totals;
   // Calculate time gone based on unique work days found in the data vs total work days in the month.
@@ -672,6 +888,7 @@ function MainReportPage({ agg, workDays, colors }) {
   return (
     <div className="sm-fadein">
       <PaceStrip timeGonePct={timeGone} achPct={t.ach} colors={colors} />
+      <AlertsPanel alerts={agg.alerts} colors={colors} onDrilldown={onDrilldown} />
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         <KpiCard label="Target Value" value={t.targetValue} isMoney icon={Target} accent={colors.blue} delay={0} colors={colors} />
         <KpiCard label="Realisasi Value" value={t.realisasiValue} isMoney icon={TrendingUp} accent={colors.mint} delay={40} colors={colors} />
@@ -680,6 +897,8 @@ function MainReportPage({ agg, workDays, colors }) {
         <KpiCard label="Active Outlet" value={t.realisasiAo} icon={Users} accent={colors.violet} delay={160} colors={colors} />
         <KpiCard label="Target AO" value={t.targetAo} icon={Boxes} accent={colors.textMuted} delay={200} colors={colors} />
       </div>
+
+      <ProjectionCard projection={agg.projection} totals={t} colors={colors} />
 
       <div className="grid lg:grid-cols-2 gap-6 mb-8">
         <div className="sm-card p-5 sm-fadeup">
@@ -725,6 +944,7 @@ function MainReportPage({ agg, workDays, colors }) {
           { key: "ach", label: "ACH", render: (r) => <AchBadge ach={r.ach} colors={colors} /> },
           { key: "deviasiValue", label: "Deviasi", render: (r) => <span className="mono" style={{ color: colors.textMuted }}>{fmtRp(r.deviasiValue)}</span> },
           { key: "realisasiAo", label: "AO", render: (r) => <span className="mono">{r.realisasiAo}/{r.targetAo}</span> },
+          { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(r.name, "Semua outlet", r.predicate)} /> },
         ]}
         rows={agg.bySales}
       />
@@ -732,16 +952,11 @@ function MainReportPage({ agg, workDays, colors }) {
   );
 }
 
-function SalesReportPage({ agg, colors }) {
+function SalesReportPage({ agg, colors, onDrilldown }) {
   const rows = agg.bySales;
-  const topGroups = useMemo(() => {
-    const bySalesGroup = {};
-    agg.filteredRows.forEach((r) => {
-      const key = r.salesCode + "|" + r.group;
-      bySalesGroup[key] = (bySalesGroup[key] || 0) + r.value;
-    });
-    return bySalesGroup;
-  }, [agg.filteredRows]);
+  const groupRows = useMemo(() => rows.flatMap((sm) => sm.groups.map((g) => ({
+    salesName: sm.name, groupName: g.name, value: g.realisasiValue, predicate: g.predicate,
+  }))), [rows]);
 
   // Custom Tooltip untuk menyesuaikan warna teks dengan warna bar
   const CustomTooltip = ({ active, payload, label }) => {
@@ -762,6 +977,8 @@ function SalesReportPage({ agg, colors }) {
 
   return (
     <div className="sm-fadein">
+      <Leaderboard rows={rows} colors={colors} onDrilldown={onDrilldown} />
+
       <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} />
       <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
         <BarChart data={rows} layout="vertical" margin={{ left: 10 }}>
@@ -787,19 +1004,16 @@ function SalesReportPage({ agg, colors }) {
             { key: "salesName", label: "Sales" },
             { key: "groupName", label: "Grup Produk" },
             { key: "value", label: "Realisasi", render: (r) => <span className="mono">{fmtRp(r.value)}</span> },
+            { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(`${r.salesName} — ${r.groupName}`, "Outlet", r.predicate)} /> },
           ]}
-          rows={Object.entries(topGroups).map(([k, v]) => {
-            const [code, group] = k.split("|");
-            const sm = rows.find((r) => r.code === code);
-            return { salesName: sm ? sm.name : code, groupName: group || "-", value: v };
-          })}
+          rows={groupRows}
         />
       </div>
     </div>
   );
 }
 
-function ProductReportPage({ agg, colors }) {
+function ProductReportPage({ agg, colors, onDrilldown }) {
   
   // Custom Tooltip yang sama untuk Product Report
   const CustomTooltip = ({ active, payload, label }) => {
@@ -847,6 +1061,7 @@ function ProductReportPage({ agg, colors }) {
             { key: "realisasiValue", label: "Realisasi", render: (r) => <span className="mono">{fmtRp(r.realisasiValue)}</span> },
             { key: "ach", label: "ACH", render: (r) => <AchBadge ach={r.ach} colors={colors} /> },
             { key: "realisasiAo", label: "Outlet", render: (r) => <span className="mono">{r.realisasiAo}</span> },
+            { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(r.name, "Outlet", r.predicate)} /> },
           ]}
           rows={agg.byGroup}
         />
@@ -855,7 +1070,7 @@ function ProductReportPage({ agg, colors }) {
   );
 }
 
-function ProductFocusReportPage({ agg, colors }) {
+function ProductFocusReportPage({ agg, colors, onDrilldown }) {
   const [focusFilter, setFocusFilter] = useState([]);
   const focusNames = useMemo(() => Array.from(new Set(agg.focusRows.map((f) => f.name))), [agg.focusRows]);
   const rows = focusFilter.length ? agg.focusRows.filter((f) => focusFilter.includes(f.name)) : agg.focusRows;
@@ -916,6 +1131,7 @@ function ProductFocusReportPage({ agg, colors }) {
           { key: "target", label: "Target", render: (r) => <span className="mono">{fmtNum(r.target)}</span> },
           { key: "realisasi", label: "Realisasi", render: (r) => <span className="mono">{fmtNum(r.realisasi)} <span style={{ color: colors.textMuted, fontSize: 10 }}>{r.unit}</span></span> },
           { key: "pct", label: "%", render: (r) => <AchBadge ach={r.pct} colors={colors} /> },
+          { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(`${r.salesName} — ${r.name}`, "Outlet", r.predicate)} /> },
         ]}
         rows={rows}
       />
@@ -1237,6 +1453,7 @@ export default function SalesMonitoringApp() {
   const [activeTab, setActiveTab] = useState("main");
   const [theme, setTheme] = useState('dark');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [drilldown, setDrilldown] = useState(null);
 
   const [filters, setFilters] = useState({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
   const [workDays, setWorkDays] = useState(WORK_DAYS_DEFAULT);
@@ -1254,7 +1471,10 @@ export default function SalesMonitoringApp() {
   }, [targets, rawRows]);
 
   const salesOptions = useMemo(() => targets.map((t) => ({ name: t.name, code: t.code })), [targets]);
-  const aggFinal = useAggregates(rawRows, targets, filters);
+  const aggFinal = useAggregates(rawRows, targets, filters, workDays);
+  const openDrilldown = (title, subtitle, predicate) => {
+    setDrilldown({ title, subtitle, outlets: getOutletBreakdown(aggFinal.filteredRows, predicate) });
+  };
 
   const handleFile = useCallback(async (file) => {
     setLoading(true); setError("");
@@ -1298,6 +1518,7 @@ export default function SalesMonitoringApp() {
     <div className="smapp min-h-screen transition-colors duration-300" style={{ background: theme === 'dark' ? `radial-gradient(1200px 600px at 10% -10%, #16233F 0%, ${colors.ink} 60%)` : colors.ink }}>
       <style>{globalStyle}</style>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} colors={colors} />
+      <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
         {/* header */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
@@ -1367,10 +1588,10 @@ export default function SalesMonitoringApp() {
         ) : (
           <>
             <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} />
-            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} />}
-            {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} />}
-            {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} />}
-            {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} />}
+            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} />}
+            {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
+            {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
+            {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
           </>
         )}
 
