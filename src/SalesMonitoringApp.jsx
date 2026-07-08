@@ -362,6 +362,23 @@ function matchFocus(row, focusItem) {
   return normalizeHeader(row.productName).includes(normalizeHeader(focusItem.keyword));
 }
 
+// Tentukan satuan yang tepat untuk ditampilkan atas realisasi produk fokus:
+// - Kalau semua baris yang cocok berhasil dikonversi -> "KARTON" (satuan hasil konversi).
+// - Kalau semua baris TIDAK bisa dikonversi (tidak ada referensi KARTON di data untuk
+//   produk itu) -> pakai satuan asli transaksinya apa adanya (mis. "IKAT").
+// - Kalau campuran (sebagian bisa dikonversi, sebagian tidak, atau satuan aslinya
+//   berbeda-beda) -> tandai "Campuran" supaya tidak menyesatkan.
+function resolveFocusUnit(rows) {
+  if (!rows.length) return "KARTON";
+  const unconv = rows.filter((r) => r.unconvertible);
+  if (unconv.length === 0) return "KARTON";
+  if (unconv.length === rows.length) {
+    const units = new Set(unconv.map((r) => r.unit || "?"));
+    return units.size === 1 ? [...units][0] : "Campuran";
+  }
+  return "Campuran";
+}
+
 function useAggregates(rows, targets, filters) {
   return useMemo(() => {
     const inRange = (dateStr) => {
@@ -410,7 +427,8 @@ function useAggregates(rows, targets, filters) {
         const frs = rs.filter((r) => matchFocus(r, f));
         const realisasi = _.sumBy(frs, effectiveKartonQty);
         const hasUnconvertible = frs.some((r) => r.unconvertible);
-        return { name: f.name, target: f.target, realisasi, pct: f.target ? realisasi / f.target : null, hasUnconvertible };
+        const unit = resolveFocusUnit(frs);
+        return { name: f.name, target: f.target, realisasi, pct: f.target ? realisasi / f.target : null, hasUnconvertible, unit };
       });
 
       return { code: t.code, name: t.name, tier: t.tier, targetValue: t.total.value, targetAo: t.total.ao,
@@ -472,7 +490,8 @@ function useAggregates(rows, targets, filters) {
         const realisasi = _.sumBy(rs, effectiveKartonQty);
         const pct = f.target ? realisasi / f.target : null;
         const hasUnconvertible = rs.some((r) => r.unconvertible);
-        focusRows.push({ salesCode: t.code, salesName: t.name, name: f.name, target: f.target, realisasi, pct, hasUnconvertible });
+        const unit = resolveFocusUnit(rs);
+        focusRows.push({ salesCode: t.code, salesName: t.name, name: f.name, target: f.target, realisasi, pct, hasUnconvertible, unit });
       });
     });
 
@@ -845,7 +864,7 @@ function ProductFocusReportPage({ agg, colors }) {
       <div className="mb-6">
         <MultiSelect label="Produk Fokus" icon={Crosshair} options={focusNames} selected={focusFilter} onChange={setFocusFilter} placeholder="Cari produk fokus..." colors={colors} />
       </div>
-      <SectionTitle title="Pencapaian Produk Fokus per Sales" sub="Target & realisasi dalam satuan karton" icon={Crosshair} colors={colors} />
+      <SectionTitle title="Pencapaian Produk Fokus per Sales" sub="Target & realisasi dalam satuan karton (kecuali ditandai lain, memakai satuan asli produk)" icon={Crosshair} colors={colors} />
       {rows.length === 0 && (
         <div className="sm-card p-8 text-center" style={{ color: colors.textMuted }}>
           <AlertTriangle size={24} className="mx-auto mb-2" style={{ color: colors.gold }} />
@@ -863,7 +882,7 @@ function ProductFocusReportPage({ agg, colors }) {
                   <div className="text-sm font-semibold disp flex items-center gap-1.5">
                     {f.name}
                     {f.hasUnconvertible && (
-                      <AlertTriangle size={12} style={{ color: colors.gold }} title="Sebagian transaksi tidak bisa dikonversi ke satuan karton (tidak ada referensi KARTON untuk produk ini di data)" />
+                      <AlertTriangle size={12} style={{ color: colors.gold }} title={`Tidak ada referensi KARTON untuk produk ini di data — realisasi ditampilkan dalam satuan asli (${f.unit})`} />
                     )}
                   </div>
                   <div className="text-xs" style={{ color: colors.textMuted }}>{f.salesName}</div>
@@ -874,7 +893,7 @@ function ProductFocusReportPage({ agg, colors }) {
                 <div className="sm-progress-fill h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: color }} />
               </div>
               <div className="flex justify-between mt-1.5 text-xs mono" style={{ color: colors.textMuted }}>
-                <span>{fmtNum(f.realisasi)} karton</span>
+                <span>{fmtNum(f.realisasi)} {f.unit.toLowerCase()}</span>
                 <span>Target {fmtNum(f.target)}</span>
               </div>
             </div>
@@ -891,11 +910,11 @@ function ProductFocusReportPage({ agg, colors }) {
           { key: "name", label: "Produk Fokus", render: (r) => (
             <span className="flex items-center gap-1.5">
               {r.name}
-              {r.hasUnconvertible && <AlertTriangle size={12} style={{ color: colors.gold }} title="Sebagian transaksi tidak bisa dikonversi ke satuan karton" />}
+              {r.hasUnconvertible && <AlertTriangle size={12} style={{ color: colors.gold }} title={`Satuan asli: ${r.unit}`} />}
             </span>
           ) },
           { key: "target", label: "Target", render: (r) => <span className="mono">{fmtNum(r.target)}</span> },
-          { key: "realisasi", label: "Realisasi", render: (r) => <span className="mono">{fmtNum(r.realisasi)}</span> },
+          { key: "realisasi", label: "Realisasi", render: (r) => <span className="mono">{fmtNum(r.realisasi)} <span style={{ color: colors.textMuted, fontSize: 10 }}>{r.unit}</span></span> },
           { key: "pct", label: "%", render: (r) => <AchBadge ach={r.pct} colors={colors} /> },
         ]}
         rows={rows}
