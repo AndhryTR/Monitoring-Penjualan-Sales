@@ -38,6 +38,15 @@ Buka `http://localhost:5173`.
    - Output Directory: `dist`
 4. Klik **Deploy**.
 
+## PWA (Instal ke HP)
+
+Aplikasi ini bisa diinstal seperti app native dan dipakai tanpa internet (setelah pernah dibuka sekali):
+
+- **Android/Chrome/Edge**: tombol **"Instal Aplikasi"** muncul otomatis di header kalau memenuhi syarat instalasi.
+- **iOS Safari**: tidak ada tombol instal otomatis (batasan Apple) — tap tombol yang sama untuk melihat instruksi manual (Share → Add to Home Screen).
+- Setelah diinstal, app shell (tampilan & kode) tersimpan lewat service worker sehingga tetap bisa dibuka offline. Data upload & pengaturan tetap tersimpan terpisah lewat fitur [persistensi data](#) yang sudah ada.
+- Kalau ada versi baru ter-deploy, muncul notifikasi kecil untuk update — tidak auto-refresh supaya tidak mengganggu pekerjaan yang sedang berjalan.
+
 ## Struktur project
 
 ```
