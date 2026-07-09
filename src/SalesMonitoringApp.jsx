@@ -1671,8 +1671,9 @@ const XL_NUMFMT_PCT1 = "0.0%";
 const XL_COLORS = { headerCyan: "6DD9FF", headerPurple: "7030A0", mint: "4BFF9C", yellowTier: "FFFF00", gold: "FFC000", navy: "002060" };
 const XL_TIER_FILL = { mint: XL_COLORS.mint, amber: XL_COLORS.yellowTier, violet: XL_COLORS.gold };
 
-function ExportPdfMenu({ agg, targets, workDays, depotName, disabled, colors }) {
+function ExportMenu({ agg, targets, workDays, depotName, disabled, colors }) {
   const [open, setOpen] = useState(false);
+  const [scorecardListOpen, setScorecardListOpen] = useState(false);
   const ref = useRef(null);
 
   useEffect(() => {
@@ -1682,29 +1683,75 @@ function ExportPdfMenu({ agg, targets, workDays, depotName, disabled, colors }) 
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [open]);
 
+  // Ditutup lagi tiap kali menu utama ditutup/dibuka ulang, supaya tidak
+  // "nyangkut" kebuka pas dropdown dipakai lagi lain waktu.
+  useEffect(() => { if (!open) setScorecardListOpen(false); }, [open]);
+
   const opts = { workDays, depotName };
-  const items = [
-    { label: "Laporan Ringkasan", desc: "KPI, leaderboard sales & rekap grup produk", action: () => exportSummaryPDF(agg, targets, opts) },
-    { label: "Scorecard Semua Sales", desc: `1 halaman per sales (${agg.bySales.length} sales)`, action: () => exportAllScorecardsPDF(agg, opts) },
-  ];
+  const salesSorted = useMemo(() => [...agg.bySales].sort((a, b) => a.name.localeCompare(b.name)), [agg.bySales]);
+
+  const MenuItem = ({ icon: Icon, iconColor, label, desc, onClick }) => (
+    <button onClick={onClick}
+      className="sm-row w-full text-left px-4 py-2.5 flex items-start gap-3">
+      <Icon size={15} className="mt-0.5 shrink-0" style={{ color: iconColor }} />
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{label}</div>
+        {desc && <div className="text-xs" style={{ color: colors.textMuted }}>{desc}</div>}
+      </div>
+    </button>
+  );
+
+  const SectionLabel = ({ children }) => (
+    <div className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: colors.textMuted }}>{children}</div>
+  );
 
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen((o) => !o)} disabled={disabled}
         className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
-        style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
-        <FileText size={15} /> Export PDF <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+        style={{ background: colors.gold, color: "#0A1120" }}>
+        <Download size={15} /> Export <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-72 rounded-xl overflow-hidden z-30 sm-fadein"
+        <div className="absolute right-0 mt-2 w-80 rounded-xl overflow-hidden sm-fadein"
           style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
-          {items.map((it) => (
-            <button key={it.label} onClick={() => { it.action(); setOpen(false); }}
-              className="sm-row w-full text-left px-4 py-3" style={{ borderBottom: `1px solid ${colors.border}` }}>
-              <div className="text-sm font-semibold">{it.label}</div>
-              <div className="text-xs" style={{ color: colors.textMuted }}>{it.desc}</div>
-            </button>
-          ))}
+          <SectionLabel>Excel</SectionLabel>
+          <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Export ke Excel"
+            desc="Format lengkap dengan target, deviasi & produk fokus"
+            onClick={() => { exportToExcel(agg, targets, opts); setOpen(false); }} />
+
+          <div style={{ borderTop: `1px solid ${colors.border}` }} />
+          <SectionLabel>PDF</SectionLabel>
+          <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Ringkasan"
+            desc="KPI, leaderboard sales & rekap grup produk"
+            onClick={() => { exportSummaryPDF(agg, targets, opts); setOpen(false); }} />
+          <MenuItem icon={FileText} iconColor={colors.coral} label="Scorecard Semua Sales"
+            desc={`1 halaman per sales (${agg.bySales.length} sales)`}
+            onClick={() => { exportAllScorecardsPDF(agg, opts); setOpen(false); }} />
+
+          <div style={{ borderTop: `1px solid ${colors.border}` }} />
+          <button onClick={() => setScorecardListOpen((v) => !v)}
+            className="sm-row w-full text-left px-4 py-2.5 flex items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <Printer size={15} className="mt-0.5 shrink-0" style={{ color: colors.gold }} />
+              <div className="min-w-0">
+                <div className="text-sm font-medium">Cetak Scorecard Individual</div>
+                <div className="text-xs" style={{ color: colors.textMuted }}>Pilih 1 sales untuk dicetak sendiri</div>
+              </div>
+            </div>
+            <ChevronDown size={13} style={{ color: colors.textMuted, transform: scorecardListOpen ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }} />
+          </button>
+          {scorecardListOpen && (
+            <div className="max-h-52 overflow-y-auto" style={{ borderTop: `1px solid ${colors.border}`, background: colors.surface2 }}>
+              {salesSorted.map((sm) => (
+                <button key={sm.code} onClick={() => { exportSalesScorecardPDF(sm, agg, opts); setOpen(false); }}
+                  className="sm-row w-full text-left pl-11 pr-4 py-2 flex items-center justify-between gap-2">
+                  <span className="text-sm truncate">{sm.name}</span>
+                  <span className="text-xs mono shrink-0" style={{ color: colors.textMuted }}>{fmtPct(sm.ach)}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -2241,7 +2288,7 @@ export default function SalesMonitoringApp() {
       <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={confirmPreview} preview={pendingPreview} colors={colors} />
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
         {/* header */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
+        <div className="relative z-40 flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-2xl" style={{ background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})` }}>
               <FileSpreadsheet size={20} color="#0A1120" />
@@ -2269,12 +2316,7 @@ export default function SalesMonitoringApp() {
               style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
               <Settings size={15} /> Pengaturan
             </button>
-            <button onClick={() => exportToExcel(aggFinal, targets, { workDays, depotName })} disabled={!rawRows.length}
-              className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
-              style={{ background: colors.gold, color: "#0A1120" }}>
-              <Download size={15} /> Export Excel
-            </button>
-            <ExportPdfMenu agg={aggFinal} targets={targets} workDays={workDays} depotName={depotName} disabled={!rawRows.length} colors={colors} />
+            <ExportMenu agg={aggFinal} targets={targets} workDays={workDays} depotName={depotName} disabled={!rawRows.length} colors={colors} />
           </div>
         </div>
 
