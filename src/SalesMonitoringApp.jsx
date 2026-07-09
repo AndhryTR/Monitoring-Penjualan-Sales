@@ -10,7 +10,7 @@ import {
   Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard, UserRound,
   Boxes, Crosshair, Check, AlertTriangle, CalendarDays, Settings,
   FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus, Sun, Moon, ChevronLeft, ChevronRight, Menu, Filter, Loader2,
-  Store, Trophy, BellRing, Rocket, MapPin,
+  Store, Trophy, BellRing, Rocket, MapPin, ClipboardList, CheckCircle2, XCircle, FileQuestion,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
 import { useCountUp } from "./hooks/useCountUp.js";
@@ -126,7 +126,7 @@ const DEFAULT_TARGETS = [
       { name: "CUSTARD", target: 15, keyword: "CUSTARD", unit: "KARTON" }, { name: "KARIZATO", target: 20, keyword: "KARIZATO", unit: "KARTON" },
       { name: "DOLAR CHOCO", target: 20, keyword: "DOLLAR", unit: "KARTON" }, { name: "LOLY POP MILENI", target: 10, keyword: "LOLY POP", unit: "KARTON" },
       { name: "BRITOBAR", target: 20, keyword: "BRITOBAR", unit: "KARTON" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "COCO CRUNCH", unit: "KARTON" },
-      { name: "GAS", target: 6, keyword: "GAS_EXACT", unit: "KARTON" },
+      { name: "GAS", target: 6, keyword: "PURITY", unit: "KARTON" },
     ] },
   { code: "SOF", name: "SOFYAN HADI", tier: "amber", total: { value: 264500000, ao: 250 },
     groups: [
@@ -140,7 +140,7 @@ const DEFAULT_TARGETS = [
       { name: "CUSTARD", target: 8, keyword: "CUSTARD", unit: "KARTON" }, { name: "KARIZATO", target: 10, keyword: "KARIZATO", unit: "KARTON" },
       { name: "DOLAR CHOCO", target: 10, keyword: "DOLLAR", unit: "KARTON" }, { name: "LOLY POP MILENI", target: 15, keyword: "LOLY POP", unit: "KARTON" },
       { name: "BRITOBAR", target: 20, keyword: "BRITOBAR", unit: "KARTON" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "COCO CRUNCH", unit: "KARTON" },
-      { name: "GAS", target: 6, keyword: "GAS_EXACT", unit: "KARTON" },
+      { name: "GAS", target: 6, keyword: "PURITY", unit: "KARTON" },
     ] },
   { code: "IGP", name: "I GUSTI PUTU SUARDIKA", tier: "amber", total: { value: 378500000, ao: 250 },
     groups: [
@@ -154,7 +154,7 @@ const DEFAULT_TARGETS = [
       { name: "CUSTARD", target: 8, keyword: "CUSTARD", unit: "KARTON" }, { name: "KARIZATO", target: 10, keyword: "KARIZATO", unit: "KARTON" },
       { name: "DOLAR CHOCO", target: 10, keyword: "DOLLAR", unit: "KARTON" }, { name: "LOLY POP MILENI", target: 15, keyword: "LOLY POP", unit: "KARTON" },
       { name: "BRITOBAR", target: 20, keyword: "BRITOBAR", unit: "KARTON" }, { name: "CHOCO CRUN 3X20", target: 150, keyword: "COCO CRUNCH", unit: "KARTON" },
-      { name: "GAS", target: 6, keyword: "GAS_EXACT", unit: "KARTON" },
+      { name: "GAS", target: 6, keyword: "PURITY", unit: "KARTON" },
     ] },
   { code: "HEM", name: "HEMA MALIHI", tier: "violet", total: { value: 178300000, ao: 240 },
     groups: [{ name: "PLANGI 2", value: 153300000, ao: 240 }, { name: "PLANGI JAYA", value: 25000988, ao: 130 }], focus: [] },
@@ -182,6 +182,13 @@ const ALIASES = {
   baseUnit: ["UNITK"],
   value: ["NTOT", "VALUE", "NILAI", "TOTAL"],
   group: ["GRUP", "GROUP", "KATEGORI", "GOLONGAN"],
+};
+
+const FIELD_LABELS = {
+  date: "Tanggal", salesCode: "Kode Sales", salesName: "Nama Sales", outletCode: "Kode Outlet",
+  outletName: "Nama Outlet", invoiceNo: "No Faktur", productCode: "Kode Produk", productName: "Nama Produk",
+  qty: "Kuantitas", unit: "Satuan", konv: "Faktor Konversi (KONV)", baseUnit: "Satuan Dasar (UNITK)",
+  value: "Nilai (Rp)", group: "Grup Produk",
 };
 
 function normalizeHeader(h) { return String(h || "").trim().toUpperCase(); }
@@ -253,17 +260,26 @@ function parseWorkbookFile(file) {
         const sheetName = wb.SheetNames[0];
         const ws = wb.Sheets[sheetName];
         const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
-        if (!aoa.length) return resolve([]);
+        if (!aoa.length) {
+          return resolve({ rows: [], parseMeta: { sheetName, totalDataRows: 0, skippedBlankRows: 0, rowsWithMissingDate: 0,
+            detectedFields: [], missingFields: Object.keys(ALIASES) } });
+        }
         const headerRowIdx = 0;
         const fmap = buildFieldMap(aoa[headerRowIdx]);
+        const missingFields = Object.keys(ALIASES).filter((f) => fmap[f] === undefined);
+        const detectedFields = Object.keys(ALIASES).filter((f) => fmap[f] !== undefined);
         const rows = [];
+        let skippedBlankRows = 0;
+        let rowsWithMissingDate = 0;
         for (let i = headerRowIdx + 1; i < aoa.length; i++) {
           const r = aoa[i];
-          if (!r || r.every((c) => c === null || c === "")) continue;
+          if (!r || r.every((c) => c === null || c === "")) { skippedBlankRows++; continue; }
           const get = (f) => (fmap[f] !== undefined ? r[fmap[f]] : null);
           const dateRaw = get("date");
+          const dateStr = excelValueToDateStr(dateRaw);
+          if (!dateStr) rowsWithMissingDate++;
           rows.push({
-            date: excelValueToDateStr(dateRaw),
+            date: dateStr,
             salesCode: String(get("salesCode") || "").trim(),
             salesName: String(get("salesName") || "").trim(),
             outletCode: String(get("outletCode") || "").trim(),
@@ -279,7 +295,10 @@ function parseWorkbookFile(file) {
             group: String(get("group") || "").trim(),
           });
         }
-        resolve(attachKartonQty(rows));
+        resolve({
+          rows: attachKartonQty(rows),
+          parseMeta: { sheetName, totalDataRows: aoa.length - 1, skippedBlankRows, rowsWithMissingDate, detectedFields, missingFields },
+        });
       } catch (err) { reject(err); }
     };
     reader.onerror = reject;
@@ -316,6 +335,61 @@ function attachKartonQty(rows) {
 // jatuh balik ke angka asli kalau produknya memang tidak bisa dikonversi (lihat attachKartonQty).
 function effectiveKartonQty(row) {
   return row.qtyKarton !== null && row.qtyKarton !== undefined ? row.qtyKarton : row.qty;
+}
+
+// Kumpulan semua catatan kualitas data dari SELURUH data yang diupload (tidak terpengaruh
+// filter yang sedang aktif di dashboard) — dipakai oleh halaman "Catatan Data".
+function useDataQualityNotes(rawRows, targets, parseMeta) {
+  return useMemo(() => {
+    const targetCodes = new Set(targets.map((t) => t.code));
+    const groupsBySalesCode = {};
+    targets.forEach((t) => { groupsBySalesCode[t.code] = new Set(t.groups.map((g) => g.name)); });
+
+    const unknownSalesMap = {};
+    const unconvertibleMap = {};
+    const unknownGroupMap = {};
+    let missingDateCount = 0;
+
+    rawRows.forEach((r) => {
+      if (!r.date) missingDateCount++;
+
+      if (r.salesCode && !targetCodes.has(r.salesCode)) {
+        const key = r.salesCode;
+        if (!unknownSalesMap[key]) unknownSalesMap[key] = { salesCode: key, salesName: r.salesName || "(tanpa nama)", rowCount: 0, value: 0 };
+        unknownSalesMap[key].rowCount++;
+        unknownSalesMap[key].value += r.value;
+      }
+
+      if (r.unconvertible) {
+        const key = r.productCode || r.productName;
+        if (!unconvertibleMap[key]) unconvertibleMap[key] = { productName: r.productName || key, unit: r.unit || "?", rowCount: 0, qty: 0 };
+        unconvertibleMap[key].rowCount++;
+        unconvertibleMap[key].qty += r.qty;
+      }
+
+      if (r.salesCode && targetCodes.has(r.salesCode) && r.group) {
+        const known = groupsBySalesCode[r.salesCode];
+        if (known && !known.has(r.group)) {
+          const key = r.salesCode + "|" + r.group;
+          if (!unknownGroupMap[key]) unknownGroupMap[key] = { salesCode: r.salesCode, salesName: r.salesName, group: r.group, rowCount: 0, value: 0 };
+          unknownGroupMap[key].rowCount++;
+          unknownGroupMap[key].value += r.value;
+        }
+      }
+    });
+
+    return {
+      totalDataRows: parseMeta?.totalDataRows || 0,
+      skippedBlankRows: parseMeta?.skippedBlankRows || 0,
+      rowsWithMissingDate: parseMeta?.rowsWithMissingDate || 0,
+      detectedFields: parseMeta?.detectedFields || [],
+      missingFields: parseMeta?.missingFields || [],
+      missingDateCount,
+      unknownSales: Object.values(unknownSalesMap).sort((a, b) => b.value - a.value),
+      unconvertibleProducts: Object.values(unconvertibleMap).sort((a, b) => b.rowCount - a.rowCount),
+      unknownGroups: Object.values(unknownGroupMap).sort((a, b) => b.value - a.value),
+    };
+  }, [rawRows, targets, parseMeta]);
 }
 
 /* ---- compact sample data generator (for "Load Sample Data") ---- */
@@ -656,21 +730,61 @@ function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors }) 
   );
 }
 
-function DataTable({ columns, rows, initialSortKey, colors }) {
+function DataTable({ columns, rows, initialSortKey, colors, searchable, searchKeys, searchPlaceholder }) {
   const [sortKey, setSortKey] = useState(initialSortKey || columns[0].key);
   const [sortDir, setSortDir] = useState("desc");
+  const [query, setQuery] = useState("");
+
+  // Kolom yang dijadikan target pencarian: pakai searchKeys eksplisit kalau ada,
+  // kalau tidak, fallback ke semua kolom yang nilainya berupa string di baris pertama.
+  const effectiveSearchKeys = useMemo(() => {
+    if (searchKeys && searchKeys.length) return searchKeys;
+    if (!rows.length) return [];
+    return columns.map((c) => c.key).filter((k) => typeof rows[0][k] === "string");
+  }, [searchKeys, columns, rows]);
+
+  const filtered = useMemo(() => {
+    if (!searchable || !query.trim()) return rows;
+    const q = query.trim().toLowerCase();
+    return rows.filter((row) => effectiveSearchKeys.some((k) => String(row[k] ?? "").toLowerCase().includes(q)));
+  }, [rows, searchable, query, effectiveSearchKeys]);
+
   const sorted = useMemo(() => {
-    const arr = [...rows];
+    const arr = [...filtered];
     arr.sort((a, b) => {
       const va = a[sortKey], vb = b[sortKey];
       if (typeof va === "string") return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
       return sortDir === "asc" ? (va || 0) - (vb || 0) : (vb || 0) - (va || 0);
     });
     return arr;
-  }, [rows, sortKey, sortDir]);
+  }, [filtered, sortKey, sortDir]);
   const toggleSort = (k) => { if (k === sortKey) setSortDir(sortDir === "asc" ? "desc" : "asc"); else { setSortKey(k); setSortDir("desc"); } };
   return (
     <div className="sm-card overflow-hidden">
+      {searchable && (
+        <div className="px-4 pt-4 pb-1">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }} />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={searchPlaceholder || "Cari..."}
+              className="w-full pl-9 pr-8 py-2 rounded-xl text-sm outline-none"
+              style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+            />
+            {query && (
+              <button onClick={() => setQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }}>
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          {query && (
+            <div className="text-xs mt-1.5" style={{ color: colors.textMuted }}>
+              {sorted.length} hasil untuk "{query}"
+            </div>
+          )}
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -694,7 +808,9 @@ function DataTable({ columns, rows, initialSortKey, colors }) {
               </tr>
             ))}
             {sorted.length === 0 && (
-              <tr><td colSpan={columns.length} className="px-4 py-10 text-center" style={{ color: colors.textMuted }}>Belum ada data untuk filter ini</td></tr>
+              <tr><td colSpan={columns.length} className="px-4 py-10 text-center" style={{ color: colors.textMuted }}>
+                {query ? "Tidak ada hasil yang cocok dengan pencarian" : "Belum ada data untuk filter ini"}
+              </td></tr>
             )}
           </tbody>
         </table>
@@ -730,8 +846,18 @@ function DrilldownButton({ colors, onClick, label = "Outlet" }) {
 // Modal rincian outlet — dipakai dari semua halaman (Main, Sales, Product, Product Focus)
 // lewat callback onDrilldown yang sama.
 function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets, colors }) {
+  const [query, setQuery] = useState("");
+  // Reset pencarian setiap kali modal dibuka untuk konteks (sales/grup/fokus) yang baru,
+  // supaya query lama dari drilldown sebelumnya tidak nyangkut.
+  useEffect(() => { if (isOpen) setQuery(""); }, [isOpen, title]);
+
   if (!isOpen) return null;
-  const totalValue = _.sumBy(outlets, "value");
+
+  const filteredOutlets = query.trim()
+    ? outlets.filter((o) => String(o.outletName || "").toLowerCase().includes(query.trim().toLowerCase()))
+    : outlets;
+  const totalValue = _.sumBy(filteredOutlets, "value");
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
       <div className="sm-card sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
@@ -745,13 +871,34 @@ function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets, color
           </div>
           <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
         </div>
+        {outlets.length > 0 && (
+          <div className="px-5 pt-4">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }} />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Cari nama outlet..."
+                className="w-full pl-9 pr-8 py-2 rounded-xl text-sm outline-none"
+                style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+              />
+              {query && (
+                <button onClick={() => setQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }}>
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         <div className="p-5 overflow-y-auto">
           {outlets.length === 0 ? (
             <div className="text-center py-10" style={{ color: colors.textMuted }}>Tidak ada transaksi outlet untuk kombinasi filter ini.</div>
+          ) : filteredOutlets.length === 0 ? (
+            <div className="text-center py-10" style={{ color: colors.textMuted }}>Tidak ada outlet yang cocok dengan pencarian "{query}".</div>
           ) : (
             <>
               <div className="text-xs mb-3" style={{ color: colors.textMuted }}>
-                {outlets.length} outlet · total <span className="mono font-semibold" style={{ color: colors.text }}>{fmtRp(totalValue)}</span>
+                {filteredOutlets.length} outlet · total <span className="mono font-semibold" style={{ color: colors.text }}>{fmtRp(totalValue)}</span>
               </div>
               <table className="w-full text-sm">
                 <thead>
@@ -764,7 +911,7 @@ function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets, color
                   </tr>
                 </thead>
                 <tbody>
-                  {outlets.map((o, i) => (
+                  {filteredOutlets.map((o, i) => (
                     <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.border}` }}>
                       <td className="px-3 py-2">{o.outletName}</td>
                       <td className="px-3 py-2 mono text-right">{fmtRp(o.value)}</td>
@@ -777,6 +924,98 @@ function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets, color
               </table>
             </>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Modal preview sebelum data dipakai ke seluruh dashboard — menampilkan ringkasan
+// hasil baca file (jumlah baris, rentang tanggal, kolom yang terdeteksi/tidak)
+// supaya kesalahan format ketahuan lebih awal, bukan setelah lihat angka aneh di dashboard.
+function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors }) {
+  if (!isOpen || !preview) return null;
+  const { rows, parseMeta, fileName } = preview;
+  const dateStrs = rows.map((r) => r.date).filter(Boolean).sort();
+  const uniqueSales = new Set(rows.map((r) => r.salesCode).filter(Boolean)).size;
+  const uniqueGroups = new Set(rows.map((r) => r.group).filter(Boolean)).size;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
+      <div className="sm-card sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
+        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl" style={{ background: colors.gold + "1A" }}><FileSpreadsheet size={16} style={{ color: colors.gold }} /></div>
+            <div>
+              <div className="disp text-base font-semibold">Preview Data</div>
+              <div className="text-xs" style={{ color: colors.textMuted }}>{fileName}</div>
+            </div>
+          </div>
+          <button onClick={onCancel} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
+        </div>
+        <div className="p-5 overflow-y-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <div className="sm-card p-3">
+              <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Baris Terbaca</div>
+              <div className="mono text-lg font-bold">{fmtNum(rows.length)}</div>
+            </div>
+            <div className="sm-card p-3">
+              <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Baris Dilewati</div>
+              <div className="mono text-lg font-bold" style={{ color: parseMeta.skippedBlankRows > 0 ? colors.gold : colors.text }}>{fmtNum(parseMeta.skippedBlankRows)}</div>
+            </div>
+            <div className="sm-card p-3">
+              <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Sales Terdeteksi</div>
+              <div className="mono text-lg font-bold">{uniqueSales}</div>
+            </div>
+            <div className="sm-card p-3">
+              <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Grup Produk</div>
+              <div className="mono text-lg font-bold">{uniqueGroups}</div>
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>Rentang Tanggal Terdeteksi</div>
+            <div className="text-sm font-medium">{dateStrs.length ? `${dateStrs[0]} — ${dateStrs[dateStrs.length - 1]}` : "Tidak ada tanggal valid terbaca"}</div>
+          </div>
+
+          <div className="mb-2">
+            <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>Kolom Terdeteksi</div>
+            <div className="flex flex-wrap gap-2">
+              {parseMeta.detectedFields.map((f) => (
+                <span key={f} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ background: colors.mint + "1A", color: colors.mint }}>
+                  <CheckCircle2 size={12} /> {FIELD_LABELS[f] || f}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {parseMeta.missingFields.length > 0 && (
+            <div className="mt-4">
+              <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>Kolom Tidak Terdeteksi</div>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {parseMeta.missingFields.map((f) => (
+                  <span key={f} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ background: colors.coral + "1A", color: colors.coral }}>
+                    <XCircle size={12} /> {FIELD_LABELS[f] || f}
+                  </span>
+                ))}
+              </div>
+              <p className="text-xs" style={{ color: colors.textMuted }}>Data tetap bisa dipakai, tapi kolom di atas akan kosong/nol pada baris yang terpengaruh.</p>
+            </div>
+          )}
+
+          {parseMeta.rowsWithMissingDate > 0 && (
+            <div className="mt-4 flex items-center gap-2 px-3 py-2 rounded-lg text-xs" style={{ background: colors.gold + "14", color: colors.gold }}>
+              <AlertTriangle size={13} /> {fmtNum(parseMeta.rowsWithMissingDate)} baris punya tanggal yang tidak terbaca.
+            </div>
+          )}
+        </div>
+        <div className="p-5 flex justify-end gap-3" style={{ borderTop: `1px solid ${colors.border}` }}>
+          <button onClick={onCancel} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
+            Batal
+          </button>
+          <button onClick={onConfirm} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.gold, color: "#0A1120" }}>
+            Gunakan Data Ini
+          </button>
         </div>
       </div>
     </div>
@@ -1000,6 +1239,9 @@ function SalesReportPage({ agg, colors, onDrilldown }) {
         <DataTable
           colors={colors}
           initialSortKey="value"
+          searchable
+          searchKeys={["salesName", "groupName"]}
+          searchPlaceholder="Cari nama sales atau grup produk..."
           columns={[
             { key: "salesName", label: "Sales" },
             { key: "groupName", label: "Grup Produk" },
@@ -1055,6 +1297,9 @@ function ProductReportPage({ agg, colors, onDrilldown }) {
         <DataTable
           colors={colors}
           initialSortKey="realisasiValue"
+          searchable
+          searchKeys={["name"]}
+          searchPlaceholder="Cari grup produk..."
           columns={[
             { key: "name", label: "Grup Produk" },
             { key: "targetValue", label: "Target", render: (r) => <span className="mono">{fmtRp(r.targetValue)}</span> },
@@ -1120,6 +1365,9 @@ function ProductFocusReportPage({ agg, colors, onDrilldown }) {
       <DataTable
         colors={colors}
         initialSortKey="pct"
+        searchable
+        searchKeys={["salesName", "name"]}
+        searchPlaceholder="Cari nama sales atau produk fokus..."
         columns={[
           { key: "salesName", label: "Sales" },
           { key: "name", label: "Produk Fokus", render: (r) => (
@@ -1135,6 +1383,98 @@ function ProductFocusReportPage({ agg, colors, onDrilldown }) {
         ]}
         rows={rows}
       />
+    </div>
+  );
+}
+
+function DataQualityPage({ notes, colors, onDrilldown }) {
+  const hasIssues = notes.missingFields.length || notes.unknownSales.length || notes.unconvertibleProducts.length ||
+    notes.unknownGroups.length || notes.skippedBlankRows > 0 || notes.rowsWithMissingDate > 0;
+
+  return (
+    <div className="sm-fadein">
+      <SectionTitle title="Catatan Data" sub="Ringkasan kualitas data dari seluruh file yang diupload (tidak terpengaruh filter)" icon={ClipboardList} colors={colors} />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <KpiCard label="Total Baris Terbaca" value={notes.totalDataRows} icon={FileSpreadsheet} accent={colors.blue} colors={colors} />
+        <KpiCard label="Baris Dilewati (Kosong)" value={notes.skippedBlankRows} icon={XCircle} accent={colors.textMuted} colors={colors} />
+        <KpiCard label="Tanggal Tidak Terbaca" value={notes.rowsWithMissingDate} icon={CalendarDays} accent={notes.rowsWithMissingDate > 0 ? colors.coral : colors.textMuted} colors={colors} />
+        <KpiCard label="Kolom Tidak Terdeteksi" value={notes.missingFields.length} icon={FileQuestion} accent={notes.missingFields.length > 0 ? colors.coral : colors.textMuted} colors={colors} />
+      </div>
+
+      {!hasIssues && (
+        <div className="sm-card p-8 text-center mb-6">
+          <CheckCircle2 size={28} className="mx-auto mb-2" style={{ color: colors.mint }} />
+          <div className="font-semibold mb-1">Tidak ada masalah kualitas data terdeteksi</div>
+          <p className="text-sm" style={{ color: colors.textMuted }}>Semua kolom terbaca dan cocok dengan konfigurasi Target saat ini.</p>
+        </div>
+      )}
+
+      {notes.missingFields.length > 0 && (
+        <div className="sm-card p-5 mb-6">
+          <SectionTitle title="Kolom Tidak Terdeteksi" sub="Nama kolom di file tidak cocok dengan alias yang dikenali aplikasi" icon={FileQuestion} colors={colors} />
+          <div className="flex flex-wrap gap-2">
+            {notes.missingFields.map((f) => (
+              <span key={f} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ background: colors.coral + "1A", color: colors.coral }}>
+                <XCircle size={12} /> {FIELD_LABELS[f] || f}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {notes.unknownSales.length > 0 && (
+        <div className="mb-8">
+          <SectionTitle title="Kode Sales Tidak Dikenali" sub="Ada di data, tapi tidak cocok dengan konfigurasi Target — transaksinya tidak ikut dihitung di dashboard manapun" icon={Users} colors={colors} />
+          <DataTable
+            colors={colors}
+            initialSortKey="value"
+            columns={[
+              { key: "salesCode", label: "Kode Sales" },
+              { key: "salesName", label: "Nama (di data)" },
+              { key: "rowCount", label: "Jumlah Baris", render: (r) => <span className="mono">{fmtNum(r.rowCount)}</span> },
+              { key: "value", label: "Total Value", render: (r) => <span className="mono">{fmtRp(r.value)}</span> },
+              { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(r.salesCode, "Outlet", (row) => row.salesCode === r.salesCode)} /> },
+            ]}
+            rows={notes.unknownSales}
+          />
+        </div>
+      )}
+
+      {notes.unknownGroups.length > 0 && (
+        <div className="mb-8">
+          <SectionTitle title="Grup Produk Tidak Dikenali" sub="Ada di data untuk sales tsb, tapi tidak ada di daftar grup produk sales itu pada konfigurasi Target" icon={Package} colors={colors} />
+          <DataTable
+            colors={colors}
+            initialSortKey="value"
+            columns={[
+              { key: "salesName", label: "Sales" },
+              { key: "group", label: "Grup Produk" },
+              { key: "rowCount", label: "Jumlah Baris", render: (r) => <span className="mono">{fmtNum(r.rowCount)}</span> },
+              { key: "value", label: "Total Value", render: (r) => <span className="mono">{fmtRp(r.value)}</span> },
+              { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(`${r.salesName} — ${r.group}`, "Outlet", (row) => row.salesCode === r.salesCode && row.group === r.group)} /> },
+            ]}
+            rows={notes.unknownGroups}
+          />
+        </div>
+      )}
+
+      {notes.unconvertibleProducts.length > 0 && (
+        <div className="mb-8">
+          <SectionTitle title="Produk Tidak Bisa Dikonversi ke KARTON" sub="Tidak ada baris bersatuan KARTON untuk produk ini di data, jadi angkanya memakai satuan asli" icon={AlertTriangle} colors={colors} />
+          <DataTable
+            colors={colors}
+            initialSortKey="rowCount"
+            columns={[
+              { key: "productName", label: "Nama Produk" },
+              { key: "unit", label: "Satuan Asli" },
+              { key: "rowCount", label: "Jumlah Baris", render: (r) => <span className="mono">{fmtNum(r.rowCount)}</span> },
+              { key: "qty", label: "Total Qty", render: (r) => <span className="mono">{fmtNum(r.qty)}</span> },
+            ]}
+            rows={notes.unconvertibleProducts}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -1442,6 +1782,7 @@ const TABS = [
   { key: "sales", label: "Sales Report", icon: UserRound },
   { key: "product", label: "Product Report", icon: Boxes },
   { key: "focus", label: "Product Focus", icon: Crosshair },
+  { key: "quality", label: "Catatan Data", icon: ClipboardList },
 ];
 
 export default function SalesMonitoringApp() {
@@ -1454,6 +1795,8 @@ export default function SalesMonitoringApp() {
   const [theme, setTheme] = useState('dark');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [drilldown, setDrilldown] = useState(null);
+  const [pendingPreview, setPendingPreview] = useState(null);
+  const [parseMeta, setParseMeta] = useState(null);
 
   const [filters, setFilters] = useState({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
   const [workDays, setWorkDays] = useState(WORK_DAYS_DEFAULT);
@@ -1472,6 +1815,7 @@ export default function SalesMonitoringApp() {
 
   const salesOptions = useMemo(() => targets.map((t) => ({ name: t.name, code: t.code })), [targets]);
   const aggFinal = useAggregates(rawRows, targets, filters, workDays);
+  const dataQualityNotes = useDataQualityNotes(rawRows, targets, parseMeta);
   const openDrilldown = (title, subtitle, predicate) => {
     setDrilldown({ title, subtitle, outlets: getOutletBreakdown(aggFinal.filteredRows, predicate) });
   };
@@ -1479,24 +1823,34 @@ export default function SalesMonitoringApp() {
   const handleFile = useCallback(async (file) => {
     setLoading(true); setError("");
     try {
-      const rows = await parseWorkbookFile(file);
-      if (!rows.length) { setError("File terbaca tapi tidak ada baris data yang cocok. Pastikan kolom sesuai format sell-out."); }
-      setRawRows(rows);
-      if (rows.length > 0) {
-        const dateStrs = rows.map(r => r.date).filter(Boolean).sort();
-        if (dateStrs.length) {
-          setFilters(f => ({
-            ...f,
-            dateFrom: dateStrs[0],
-            dateTo: dateStrs[dateStrs.length - 1],
-          }));
-        }
+      const { rows, parseMeta: meta } = await parseWorkbookFile(file);
+      if (!rows.length) {
+        setError("File terbaca tapi tidak ada baris data yang cocok. Pastikan kolom sesuai format sell-out.");
+        setLoading(false);
+        return;
       }
-      setFileName(file.name);
+      // Data belum langsung dipakai — tampilkan preview dulu, biar kesalahan format
+      // (kolom tidak terbaca, tanggal kosong, dsb) ketahuan sebelum masuk ke dashboard.
+      setPendingPreview({ rows, parseMeta: meta, fileName: file.name });
     } catch (e) {
       setError("Gagal membaca file. Pastikan formatnya .xlsx/.xls yang valid.");
     } finally { setLoading(false); }
   }, []);
+
+  const confirmPreview = useCallback(() => {
+    if (!pendingPreview) return;
+    const { rows, parseMeta: meta, fileName: name } = pendingPreview;
+    setRawRows(rows);
+    setParseMeta(meta);
+    setFileName(name);
+    const dateStrs = rows.map(r => r.date).filter(Boolean).sort();
+    if (dateStrs.length) {
+      setFilters(f => ({ ...f, dateFrom: dateStrs[0], dateTo: dateStrs[dateStrs.length - 1] }));
+    }
+    setPendingPreview(null);
+  }, [pendingPreview]);
+
+  const cancelPreview = useCallback(() => setPendingPreview(null), []);
 
   const handleSample = useCallback(() => {
     setSampleLoading(true);
@@ -1505,12 +1859,14 @@ export default function SalesMonitoringApp() {
       const sampleRows = generateSampleRows();
       setRawRows(sampleRows);
       setFileName("Data Contoh (demo)");
+      setParseMeta({ totalDataRows: sampleRows.length, skippedBlankRows: 0, rowsWithMissingDate: 0,
+        detectedFields: Object.keys(ALIASES), missingFields: [] });
       setFilters({ salesCodes: [], groups: [], dateFrom: "2026-07-01", dateTo: "2026-07-03" });
       setSampleLoading(false);
     }, 300);
   }, []);
 
-  const handleReset = useCallback(() => { setRawRows([]); setFileName(""); }, []);
+  const handleReset = useCallback(() => { setRawRows([]); setFileName(""); setParseMeta(null); }, []);
 
   const activeIdx = TABS.findIndex((t) => t.key === activeTab);
 
@@ -1519,6 +1875,7 @@ export default function SalesMonitoringApp() {
       <style>{globalStyle}</style>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} colors={colors} />
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
+      <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={confirmPreview} preview={pendingPreview} colors={colors} />
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
         {/* header */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
@@ -1563,7 +1920,7 @@ export default function SalesMonitoringApp() {
         {/* tabs */}
         <div className="relative flex gap-1 mb-6 p-1 rounded-2xl sm-fadeup" style={{ background: colors.surface, border: `1px solid ${colors.border}`, animationDelay: "80ms" }}>
           <div className="absolute top-1 bottom-1 rounded-xl transition-all duration-300 ease-out"
-            style={{ left: `calc(${activeIdx * 25}% + 4px)`, width: "calc(25% - 8px)", background: colors.surface2, border: `1px solid ${colors.border}` }} />
+            style={{ left: `calc(${activeIdx * 20}% + 4px)`, width: "calc(20% - 8px)", background: colors.surface2, border: `1px solid ${colors.border}` }} />
           {TABS.map((t) => {
             const Icon = t.icon;
             const isActive = t.key === activeTab;
@@ -1592,6 +1949,7 @@ export default function SalesMonitoringApp() {
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
+            {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
           </>
         )}
 
