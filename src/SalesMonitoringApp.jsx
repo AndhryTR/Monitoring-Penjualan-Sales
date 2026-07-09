@@ -13,6 +13,7 @@ import {
   Store, Trophy, BellRing, Rocket, MapPin, ClipboardList, CheckCircle2, XCircle, FileQuestion,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
+import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession } from "./utils/storage.js";
 import { useCountUp } from "./hooks/useCountUp.js";
 import { KpiCard } from "./components/KpiCard.jsx";
 import { AchBadge } from "./components/AchBadge.jsx";
@@ -1479,7 +1480,7 @@ function DataQualityPage({ notes, colors, onDrilldown }) {
   );
 }
 
-function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWorkDays, depotName, setDepotName, colors }) {
+function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWorkDays, depotName, setDepotName, onClearAll, colors }) {
   const [localTargets, setLocalTargets] = useState(targets);
   const [localWorkDays, setLocalWorkDays] = useState(workDays);
   const [localDepotName, setLocalDepotName] = useState(depotName);
@@ -1552,6 +1553,25 @@ function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWork
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="mt-8 p-4 rounded-lg" style={{ background: colors.coral + "0D", border: `1px solid ${colors.coral}33` }}>
+            <h3 className="text-sm font-semibold mb-1" style={{ color: colors.coral }}>Zona Berbahaya</h3>
+            <p className="text-xs mb-3" style={{ color: colors.textMuted }}>
+              Menghapus semua target, hari kerja, nama depo, tema, dan data upload yang tersimpan otomatis di perangkat ini. Tidak bisa dibatalkan.
+            </p>
+            <button
+              onClick={() => {
+                if (window.confirm("Yakin ingin menghapus semua data & pengaturan tersimpan di perangkat ini? Tindakan ini tidak bisa dibatalkan.")) {
+                  onClearAll?.();
+                  onClose();
+                }
+              }}
+              className="sm-btn px-3 py-2 rounded-lg text-xs font-semibold"
+              style={{ background: colors.coral + "1A", color: colors.coral, border: `1px solid ${colors.coral}4D` }}
+            >
+              Hapus Semua Data Tersimpan
+            </button>
           </div>
         </div>
         <div className="p-4 mt-auto flex justify-end gap-3" style={{ background: colors.surface2, borderTop: `1px solid ${colors.border}` }}>
@@ -1786,22 +1806,59 @@ const TABS = [
 ];
 
 export default function SalesMonitoringApp() {
+  // Dibaca sekali di render pertama (lazy initializer useState menjamin ini
+  // hanya jalan sekali, bukan setiap render) — jadi field-field di bawahnya
+  // bisa langsung memakai nilai tersimpan kalau ada, atau fallback ke default.
+  const [persistedSettings] = useState(() => loadSettings());
+
   const [rawRows, setRawRows] = useState([]);
   const [fileName, setFileName] = useState("");
   const [loading, setLoading] = useState(false);
   const [sampleLoading, setSampleLoading] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("main");
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState(persistedSettings?.theme || 'dark');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [drilldown, setDrilldown] = useState(null);
   const [pendingPreview, setPendingPreview] = useState(null);
   const [parseMeta, setParseMeta] = useState(null);
 
-  const [filters, setFilters] = useState({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
-  const [workDays, setWorkDays] = useState(WORK_DAYS_DEFAULT);
-  const [targets, setTargets] = useState(DEFAULT_TARGETS);
-  const [depotName, setDepotName] = useState("DEPO LOTIM");
+  const [filters, setFilters] = useState(persistedSettings?.filters || { salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
+  const [workDays, setWorkDays] = useState(persistedSettings?.workDays ?? WORK_DAYS_DEFAULT);
+  const [targets, setTargets] = useState(persistedSettings?.targets ?? DEFAULT_TARGETS);
+  const [depotName, setDepotName] = useState(persistedSettings?.depotName ?? "DEPO LOTIM");
+
+  // Muat data sesi terakhir (hasil upload/demo sebelumnya) dari IndexedDB saat
+  // pertama kali app dibuka. Async, jadi ditampilkan status loading singkat
+  // dulu supaya tidak "flash" ke tampilan "Belum ada data" sebelum sempat dicek.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const session = await loadSession();
+      if (!cancelled && session) {
+        setRawRows(session.rawRows || []);
+        setFileName(session.fileName || "");
+        setParseMeta(session.parseMeta || null);
+      }
+      if (!cancelled) setSessionLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Simpan otomatis setiap kali pengaturan berubah (tema, filter, target,
+  // hari kerja, nama depo) — jadi tidak perlu tombol "simpan" terpisah untuk ini,
+  // beda dengan raw data yang lebih berat dan disimpan terpisah di bawah.
+  useEffect(() => {
+    saveSettings({ theme, filters, workDays, targets, depotName });
+  }, [theme, filters, workDays, targets, depotName]);
+
+  // Simpan otomatis data transaksi ke IndexedDB tiap kali berubah (setelah upload
+  // dikonfirmasi atau data contoh dimuat). Di-skip saat kosong karena reset
+  // ditangani secara eksplisit lewat clearSession() di handleReset.
+  useEffect(() => {
+    if (rawRows.length) saveSession({ rawRows, fileName, parseMeta });
+  }, [rawRows, fileName, parseMeta]);
 
   const colors = useMemo(() => THEMES[theme], [theme]);
   const globalStyle = useMemo(() => createGlobalStyle(colors), [colors]);
@@ -1866,14 +1923,30 @@ export default function SalesMonitoringApp() {
     }, 300);
   }, []);
 
-  const handleReset = useCallback(() => { setRawRows([]); setFileName(""); setParseMeta(null); }, []);
+  const handleReset = useCallback(() => {
+    setRawRows([]); setFileName(""); setParseMeta(null);
+    clearSession();
+  }, []);
+
+  // Hapus TOTAL semua yang tersimpan di perangkat ini: settings (localStorage)
+  // + data sesi (IndexedDB) + reset semua state ke default pabrik.
+  const handleClearAll = useCallback(() => {
+    clearSettings();
+    clearSession();
+    setRawRows([]); setFileName(""); setParseMeta(null);
+    setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
+    setWorkDays(WORK_DAYS_DEFAULT);
+    setTargets(DEFAULT_TARGETS);
+    setDepotName("DEPO LOTIM");
+    setTheme('dark');
+  }, []);
 
   const activeIdx = TABS.findIndex((t) => t.key === activeTab);
 
   return (
     <div className="smapp min-h-screen transition-colors duration-300" style={{ background: theme === 'dark' ? `radial-gradient(1200px 600px at 10% -10%, #16233F 0%, ${colors.ink} 60%)` : colors.ink }}>
       <style>{globalStyle}</style>
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} colors={colors} />
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors} />
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
       <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={confirmPreview} preview={pendingPreview} colors={colors} />
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
@@ -1934,7 +2007,12 @@ export default function SalesMonitoringApp() {
           })}
         </div>
 
-        {!rawRows.length ? (
+        {sessionLoading ? (
+          <div className="sm-card p-16 text-center sm-fadeup">
+            <Loader2 size={24} className="mx-auto mb-4 animate-spin" style={{ color: colors.textMuted }} />
+            <p className="text-sm" style={{ color: colors.textMuted }}>Memuat data sesi terakhir...</p>
+          </div>
+        ) : !rawRows.length ? (
           <div className="sm-card p-16 text-center sm-fadeup">
             <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.surface2 }}>
               <FileSpreadsheet size={24} style={{ color: colors.textMuted }} />
@@ -1954,7 +2032,7 @@ export default function SalesMonitoringApp() {
         )}
 
         <div className="text-center text-xs mt-10 pb-4" style={{ color: colors.textMuted }}>
-          Data diproses langsung di browser Anda — tidak diunggah ke server manapun.
+          Data diproses langsung di browser Anda — tidak diunggah ke server manapun. Data & pengaturan disimpan otomatis di perangkat/browser ini agar tidak hilang saat refresh.
         </div>
       </div>
     </div>
