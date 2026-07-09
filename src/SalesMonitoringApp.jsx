@@ -10,10 +10,11 @@ import {
   Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard, UserRound,
   Boxes, Crosshair, Check, AlertTriangle, CalendarDays, Settings,
   FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus, Sun, Moon, ChevronLeft, ChevronRight, Menu, Filter, Loader2,
-  Store, Trophy, BellRing, Rocket, MapPin, ClipboardList, CheckCircle2, XCircle, FileQuestion, Smartphone, Share,
+  Store, Trophy, BellRing, Rocket, MapPin, ClipboardList, CheckCircle2, XCircle, FileQuestion, Smartphone, Share, Printer, FileText,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
 import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession } from "./utils/storage.js";
+import { exportSummaryPDF, exportSalesScorecardPDF, exportAllScorecardsPDF } from "./utils/pdfExport.js";
 // Modul virtual dari vite-plugin-pwa — hanya ada saat plugin ini terpasang &
 // dijalankan lewat Vite (dev atau build), bukan package npm biasa.
 import { useRegisterSW } from "virtual:pwa-register/react";
@@ -61,6 +62,29 @@ const createGlobalStyle = (colors) => `
 .sm-progress-fill { transition: width 1s cubic-bezier(.16,1,.3,1); }
 .sm-drop { transition: border-color .2s ease, background .2s ease; }
 .sm-scale-in { animation: smFadeUp .5s cubic-bezier(.16,1,.3,1) both; }
+
+/* ---------------------------------------------------------------------------
+   CETAK / EXPORT PDF
+   Konten cetak dirender selalu ada di DOM (supaya browser sempat melayout-nya),
+   tapi diletakkan di luar layar saat tampilan normal. Saat window.print()
+   dipanggil, @media print menyembunyikan SEMUA elemen lain dan hanya
+   menampilkan .smapp-print-area — trik standar "print hanya 1 elemen ini".
+--------------------------------------------------------------------------- */
+.smapp-print-area { position: fixed; left: -10000px; top: 0; width: 210mm; background: #fff; color: #111827; }
+.print-page { padding: 14mm 12mm; page-break-after: always; }
+.print-page:last-child { page-break-after: auto; }
+.print-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+.print-table th, .print-table td { border: 1px solid #D1D5DB; padding: 5px 8px; text-align: left; }
+.print-table th { background: #F3F4F6; font-size: 9.5px; text-transform: uppercase; letter-spacing: .03em; color: #4B5563; }
+.print-table td.num, .print-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+@media print {
+  @page { size: A4; margin: 12mm; }
+  body * { visibility: hidden; }
+  .smapp-print-area, .smapp-print-area * { visibility: visible; }
+  .smapp-print-area { position: absolute; left: 0; top: 0; width: 100%; background: #fff; }
+  .print-page { page-break-inside: avoid; }
+  .print-avoid-break { break-inside: avoid; }
+}
 `;
 
 /* ============================================================================
@@ -1027,7 +1051,7 @@ function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors }) {
 }
 
 // Papan peringkat sales berdasarkan ACH%, dengan proyeksi akhir bulan.
-function Leaderboard({ rows, colors, onDrilldown }) {
+function Leaderboard({ rows, colors, onDrilldown, onExportScorecard }) {
   const ranked = useMemo(() => [...rows].sort((a, b) => (b.ach ?? -1) - (a.ach ?? -1)), [rows]);
   const medal = (i) => ["🥇", "🥈", "🥉"][i] || `${i + 1}`;
   return (
@@ -1047,6 +1071,12 @@ function Leaderboard({ rows, colors, onDrilldown }) {
               </div>
             )}
             <AchBadge ach={sm.ach} colors={colors} />
+            {onExportScorecard && (
+              <button onClick={() => onExportScorecard(sm)} title="Cetak scorecard PDF"
+                className="sm-btn p-2 rounded-lg" style={{ background: colors.surface2, color: colors.textMuted }}>
+                <FileText size={14} />
+              </button>
+            )}
             {onDrilldown && (
               <DrilldownButton colors={colors} onClick={() => onDrilldown(sm.name, "Semua outlet", sm.predicate)} />
             )}
@@ -1195,8 +1225,9 @@ function MainReportPage({ agg, workDays, colors, onDrilldown }) {
   );
 }
 
-function SalesReportPage({ agg, colors, onDrilldown }) {
+function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName }) {
   const rows = agg.bySales;
+  const handleExportScorecard = (salesRow) => exportSalesScorecardPDF(salesRow, agg, { workDays, depotName });
   const groupRows = useMemo(() => rows.flatMap((sm) => sm.groups.map((g) => ({
     salesName: sm.name, groupName: g.name, value: g.realisasiValue, predicate: g.predicate,
   }))), [rows]);
@@ -1220,7 +1251,7 @@ function SalesReportPage({ agg, colors, onDrilldown }) {
 
   return (
     <div className="sm-fadein">
-      <Leaderboard rows={rows} colors={colors} onDrilldown={onDrilldown} />
+      <Leaderboard rows={rows} colors={colors} onDrilldown={onDrilldown} onExportScorecard={handleExportScorecard} />
 
       <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} />
       <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
@@ -1640,6 +1671,93 @@ const XL_NUMFMT_PCT1 = "0.0%";
 const XL_COLORS = { headerCyan: "6DD9FF", headerPurple: "7030A0", mint: "4BFF9C", yellowTier: "FFFF00", gold: "FFC000", navy: "002060" };
 const XL_TIER_FILL = { mint: XL_COLORS.mint, amber: XL_COLORS.yellowTier, violet: XL_COLORS.gold };
 
+function ExportMenu({ agg, targets, workDays, depotName, disabled, colors }) {
+  const [open, setOpen] = useState(false);
+  const [scorecardListOpen, setScorecardListOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
+
+  // Ditutup lagi tiap kali menu utama ditutup/dibuka ulang, supaya tidak
+  // "nyangkut" kebuka pas dropdown dipakai lagi lain waktu.
+  useEffect(() => { if (!open) setScorecardListOpen(false); }, [open]);
+
+  const opts = { workDays, depotName };
+  const salesSorted = useMemo(() => [...agg.bySales].sort((a, b) => a.name.localeCompare(b.name)), [agg.bySales]);
+
+  const MenuItem = ({ icon: Icon, iconColor, label, desc, onClick }) => (
+    <button onClick={onClick}
+      className="sm-row w-full text-left px-4 py-2.5 flex items-start gap-3">
+      <Icon size={15} className="mt-0.5 shrink-0" style={{ color: iconColor }} />
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{label}</div>
+        {desc && <div className="text-xs" style={{ color: colors.textMuted }}>{desc}</div>}
+      </div>
+    </button>
+  );
+
+  const SectionLabel = ({ children }) => (
+    <div className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: colors.textMuted }}>{children}</div>
+  );
+
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen((o) => !o)} disabled={disabled}
+        className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+        style={{ background: colors.gold, color: "#0A1120" }}>
+        <Download size={15} /> Export <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-2 w-80 rounded-xl overflow-hidden sm-fadein"
+          style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
+          <SectionLabel>Excel</SectionLabel>
+          <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Export ke Excel"
+            desc="Format lengkap dengan target, deviasi & produk fokus"
+            onClick={() => { exportToExcel(agg, targets, opts); setOpen(false); }} />
+
+          <div style={{ borderTop: `1px solid ${colors.border}` }} />
+          <SectionLabel>PDF</SectionLabel>
+          <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Ringkasan"
+            desc="KPI, leaderboard sales & rekap grup produk"
+            onClick={() => { exportSummaryPDF(agg, targets, opts); setOpen(false); }} />
+          <MenuItem icon={FileText} iconColor={colors.coral} label="Scorecard Semua Sales"
+            desc={`1 halaman per sales (${agg.bySales.length} sales)`}
+            onClick={() => { exportAllScorecardsPDF(agg, opts); setOpen(false); }} />
+
+          <div style={{ borderTop: `1px solid ${colors.border}` }} />
+          <button onClick={() => setScorecardListOpen((v) => !v)}
+            className="sm-row w-full text-left px-4 py-2.5 flex items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <Printer size={15} className="mt-0.5 shrink-0" style={{ color: colors.gold }} />
+              <div className="min-w-0">
+                <div className="text-sm font-medium">Cetak Scorecard Individual</div>
+                <div className="text-xs" style={{ color: colors.textMuted }}>Pilih 1 sales untuk dicetak sendiri</div>
+              </div>
+            </div>
+            <ChevronDown size={13} style={{ color: colors.textMuted, transform: scorecardListOpen ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }} />
+          </button>
+          {scorecardListOpen && (
+            <div className="max-h-52 overflow-y-auto" style={{ borderTop: `1px solid ${colors.border}`, background: colors.surface2 }}>
+              {salesSorted.map((sm) => (
+                <button key={sm.code} onClick={() => { exportSalesScorecardPDF(sm, agg, opts); setOpen(false); }}
+                  className="sm-row w-full text-left pl-11 pr-4 py-2 flex items-center justify-between gap-2">
+                  <span className="text-sm truncate">{sm.name}</span>
+                  <span className="text-xs mono shrink-0" style={{ color: colors.textMuted }}>{fmtPct(sm.ach)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function exportToExcel(agg, targets, opts) {
   const { workDays, depotName } = opts || {};
   const ws = {};
@@ -1807,6 +1925,181 @@ const TABS = [
   { key: "focus", label: "Product Focus", icon: Crosshair },
   { key: "quality", label: "Catatan Data", icon: ClipboardList },
 ];
+
+/* ============================================================================
+   KOMPONEN CETAK / EXPORT PDF
+   Dirender selalu di DOM (lihat .smapp-print-area di globalStyle) dan dipicu
+   lewat window.print() — browser sendiri yang menyediakan "Save as PDF" di
+   dialog cetaknya, jadi tidak perlu library tambahan (jsPDF/html2canvas) yang
+   biasanya menghasilkan teks buram karena dirender lewat rasterisasi canvas.
+============================================================================ */
+
+function PrintDocHeader({ title, subtitle, depotName }) {
+  const printedAt = useMemo(() => new Date().toLocaleString("id-ID", { dateStyle: "long", timeStyle: "short" }), []);
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #111827", paddingBottom: 10, marginBottom: 14 }}>
+      <div>
+        <div style={{ fontSize: 18, fontWeight: 700 }}>{title}</div>
+        <div style={{ fontSize: 11, color: "#4B5563" }}>{subtitle}</div>
+      </div>
+      <div style={{ textAlign: "right", fontSize: 10, color: "#6B7280" }}>
+        <div style={{ fontWeight: 600, color: "#111827" }}>{depotName}</div>
+        <div>Dicetak {printedAt}</div>
+      </div>
+    </div>
+  );
+}
+
+function PrintSummaryReport({ agg, targets, workDays, depotName, filters }) {
+  const periodeLabel = agg.meta.firstDate && agg.meta.lastDate
+    ? `Periode ${agg.meta.firstDate} s.d. ${agg.meta.lastDate} (${agg.meta.uniqueDays} hari transaksi)`
+    : "Belum ada data transaksi";
+  return (
+    <div className="print-page">
+      <PrintDocHeader title="Laporan Ringkasan Penjualan" subtitle={periodeLabel} depotName={depotName} />
+
+      <div className="print-avoid-break" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 16 }}>
+        {[
+          { label: "Target", value: fmtRp(agg.totals.targetValue) },
+          { label: "Realisasi", value: fmtRp(agg.totals.realisasiValue) },
+          { label: "Pencapaian", value: fmtPct(agg.totals.ach) },
+          { label: "Proyeksi Akhir Periode", value: agg.projection.projectedValue != null ? fmtRp(agg.projection.projectedValue) : "-" },
+        ].map((k) => (
+          <div key={k.label} style={{ border: "1px solid #D1D5DB", borderRadius: 8, padding: "8px 10px" }}>
+            <div style={{ fontSize: 9, color: "#6B7280", textTransform: "uppercase" }}>{k.label}</div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{k.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Pencapaian per Sales</div>
+      <table className="print-table print-avoid-break" style={{ marginBottom: 16 }}>
+        <thead><tr><th>Sales</th><th className="num">Target</th><th className="num">Realisasi</th><th className="num">Ach%</th><th className="num">AO Aktif</th></tr></thead>
+        <tbody>
+          {agg.bySales.map((s) => (
+            <tr key={s.code}>
+              <td>{s.name}</td>
+              <td className="num">{fmtRp(s.targetValue)}</td>
+              <td className="num">{fmtRp(s.realisasiValue)}</td>
+              <td className="num">{fmtPct(s.ach)}</td>
+              <td className="num">{s.realisasiAo}/{s.targetAo}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Pencapaian per Grup Produk</div>
+      <table className="print-table print-avoid-break" style={{ marginBottom: 16 }}>
+        <thead><tr><th>Grup Produk</th><th className="num">Target</th><th className="num">Realisasi</th><th className="num">Ach%</th></tr></thead>
+        <tbody>
+          {agg.byGroup.map((g) => (
+            <tr key={g.name}>
+              <td>{g.name}</td>
+              <td className="num">{fmtRp(g.targetValue)}</td>
+              <td className="num">{fmtRp(g.realisasiValue)}</td>
+              <td className="num">{fmtPct(g.ach)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {agg.focusRows.length > 0 && (
+        <>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Produk Fokus</div>
+          <table className="print-table print-avoid-break">
+            <thead><tr><th>Sales</th><th>Produk Fokus</th><th className="num">Target</th><th className="num">Realisasi</th><th className="num">%</th></tr></thead>
+            <tbody>
+              {agg.focusRows.map((f, i) => (
+                <tr key={i}>
+                  <td>{f.salesName}</td>
+                  <td>{f.name}</td>
+                  <td className="num">{fmtNum(f.target)} {f.unit}</td>
+                  <td className="num">{fmtNum(f.realisasi)} {f.unit}</td>
+                  <td className="num">{f.pct != null ? fmtPct(f.pct) : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PrintScorecard({ sm, workDays, meta, depotName }) {
+  const daysRemaining = workDays ? Math.max(0, workDays - (meta.uniqueDays || 0)) : null;
+  return (
+    <div className="print-page">
+      <PrintDocHeader title={`Scorecard Sales — ${sm.name}`} subtitle={meta.firstDate ? `Periode ${meta.firstDate} s.d. ${meta.lastDate}` : ""} depotName={depotName} />
+
+      <div className="print-avoid-break" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+        {[
+          { label: "Target Value", value: fmtRp(sm.targetValue) },
+          { label: "Realisasi Value", value: fmtRp(sm.realisasiValue) },
+          { label: "Pencapaian", value: fmtPct(sm.ach) },
+          { label: "Outlet Aktif (AO)", value: `${sm.realisasiAo} / ${sm.targetAo}` },
+          { label: "Proyeksi Akhir Periode", value: sm.projectedValue != null ? fmtRp(sm.projectedValue) : "-" },
+          { label: "Sisa Hari Kerja", value: daysRemaining != null ? `${daysRemaining} hari` : "-" },
+        ].map((k) => (
+          <div key={k.label} style={{ border: "1px solid #D1D5DB", borderRadius: 8, padding: "8px 10px" }}>
+            <div style={{ fontSize: 9, color: "#6B7280", textTransform: "uppercase" }}>{k.label}</div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{k.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Breakdown per Grup Produk</div>
+      <table className="print-table print-avoid-break" style={{ marginBottom: 16 }}>
+        <thead><tr><th>Grup Produk</th><th className="num">Target</th><th className="num">Realisasi</th><th className="num">Ach%</th></tr></thead>
+        <tbody>
+          {sm.groups.map((g) => (
+            <tr key={g.name}>
+              <td>{g.name}</td>
+              <td className="num">{fmtRp(g.targetValue)}</td>
+              <td className="num">{fmtRp(g.realisasiValue)}</td>
+              <td className="num">{g.ach != null ? fmtPct(g.ach) : "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {sm.focus.length > 0 && (
+        <>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Produk Fokus</div>
+          <table className="print-table print-avoid-break">
+            <thead><tr><th>Produk Fokus</th><th className="num">Target</th><th className="num">Realisasi</th><th className="num">%</th></tr></thead>
+            <tbody>
+              {sm.focus.map((f, i) => (
+                <tr key={i}>
+                  <td>{f.name}</td>
+                  <td className="num">{fmtNum(f.target)} {f.unit}</td>
+                  <td className="num">{fmtNum(f.realisasi)} {f.unit}</td>
+                  <td className="num">{f.pct != null ? fmtPct(f.pct) : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
+
+// printJob: null | { type: "summary" } | { type: "scorecard", codes: [salesCode, ...] }
+function PrintArea({ printJob, agg, targets, workDays, depotName, filters }) {
+  if (!printJob) return <div className="smapp-print-area" />;
+  const scorecardSales = printJob.type === "scorecard"
+    ? agg.bySales.filter((s) => printJob.codes.includes(s.code))
+    : [];
+  return (
+    <div className="smapp-print-area">
+      {printJob.type === "summary" && <PrintSummaryReport agg={agg} targets={targets} workDays={workDays} depotName={depotName} filters={filters} />}
+      {printJob.type === "scorecard" && scorecardSales.map((sm) => (
+        <PrintScorecard key={sm.code} sm={sm} workDays={workDays} meta={agg.meta} depotName={depotName} />
+      ))}
+    </div>
+  );
+}
 
 export default function SalesMonitoringApp() {
   // Dibaca sekali di render pertama (lazy initializer useState menjamin ini
@@ -1995,7 +2288,7 @@ export default function SalesMonitoringApp() {
       <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={confirmPreview} preview={pendingPreview} colors={colors} />
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
         {/* header */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
+        <div className="relative z-40 flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-2xl" style={{ background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})` }}>
               <FileSpreadsheet size={20} color="#0A1120" />
@@ -2023,11 +2316,7 @@ export default function SalesMonitoringApp() {
               style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
               <Settings size={15} /> Pengaturan
             </button>
-            <button onClick={() => exportToExcel(aggFinal, targets, { workDays, depotName })} disabled={!rawRows.length}
-              className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
-              style={{ background: colors.gold, color: "#0A1120" }}>
-              <Download size={15} /> Export Excel
-            </button>
+            <ExportMenu agg={aggFinal} targets={targets} workDays={workDays} depotName={depotName} disabled={!rawRows.length} colors={colors} />
           </div>
         </div>
 
@@ -2138,7 +2427,7 @@ export default function SalesMonitoringApp() {
           <>
             <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} />
             {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} />}
-            {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
+            {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
