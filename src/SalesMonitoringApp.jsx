@@ -10,9 +10,13 @@ import {
   Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard, UserRound,
   Boxes, Crosshair, Check, AlertTriangle, CalendarDays, Settings,
   FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus, Sun, Moon, ChevronLeft, ChevronRight, Menu, Filter, Loader2,
-  Store, Trophy, BellRing, Rocket, MapPin, ClipboardList, CheckCircle2, XCircle, FileQuestion,
+  Store, Trophy, BellRing, Rocket, MapPin, ClipboardList, CheckCircle2, XCircle, FileQuestion, Smartphone, Share,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
+import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession } from "./utils/storage.js";
+// Modul virtual dari vite-plugin-pwa — hanya ada saat plugin ini terpasang &
+// dijalankan lewat Vite (dev atau build), bukan package npm biasa.
+import { useRegisterSW } from "virtual:pwa-register/react";
 import { useCountUp } from "./hooks/useCountUp.js";
 import { KpiCard } from "./components/KpiCard.jsx";
 import { AchBadge } from "./components/AchBadge.jsx";
@@ -730,21 +734,61 @@ function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors }) 
   );
 }
 
-function DataTable({ columns, rows, initialSortKey, colors }) {
+function DataTable({ columns, rows, initialSortKey, colors, searchable, searchKeys, searchPlaceholder }) {
   const [sortKey, setSortKey] = useState(initialSortKey || columns[0].key);
   const [sortDir, setSortDir] = useState("desc");
+  const [query, setQuery] = useState("");
+
+  // Kolom yang dijadikan target pencarian: pakai searchKeys eksplisit kalau ada,
+  // kalau tidak, fallback ke semua kolom yang nilainya berupa string di baris pertama.
+  const effectiveSearchKeys = useMemo(() => {
+    if (searchKeys && searchKeys.length) return searchKeys;
+    if (!rows.length) return [];
+    return columns.map((c) => c.key).filter((k) => typeof rows[0][k] === "string");
+  }, [searchKeys, columns, rows]);
+
+  const filtered = useMemo(() => {
+    if (!searchable || !query.trim()) return rows;
+    const q = query.trim().toLowerCase();
+    return rows.filter((row) => effectiveSearchKeys.some((k) => String(row[k] ?? "").toLowerCase().includes(q)));
+  }, [rows, searchable, query, effectiveSearchKeys]);
+
   const sorted = useMemo(() => {
-    const arr = [...rows];
+    const arr = [...filtered];
     arr.sort((a, b) => {
       const va = a[sortKey], vb = b[sortKey];
       if (typeof va === "string") return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
       return sortDir === "asc" ? (va || 0) - (vb || 0) : (vb || 0) - (va || 0);
     });
     return arr;
-  }, [rows, sortKey, sortDir]);
+  }, [filtered, sortKey, sortDir]);
   const toggleSort = (k) => { if (k === sortKey) setSortDir(sortDir === "asc" ? "desc" : "asc"); else { setSortKey(k); setSortDir("desc"); } };
   return (
     <div className="sm-card overflow-hidden">
+      {searchable && (
+        <div className="px-4 pt-4 pb-1">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }} />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={searchPlaceholder || "Cari..."}
+              className="w-full pl-9 pr-8 py-2 rounded-xl text-sm outline-none"
+              style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+            />
+            {query && (
+              <button onClick={() => setQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }}>
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          {query && (
+            <div className="text-xs mt-1.5" style={{ color: colors.textMuted }}>
+              {sorted.length} hasil untuk "{query}"
+            </div>
+          )}
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -768,7 +812,9 @@ function DataTable({ columns, rows, initialSortKey, colors }) {
               </tr>
             ))}
             {sorted.length === 0 && (
-              <tr><td colSpan={columns.length} className="px-4 py-10 text-center" style={{ color: colors.textMuted }}>Belum ada data untuk filter ini</td></tr>
+              <tr><td colSpan={columns.length} className="px-4 py-10 text-center" style={{ color: colors.textMuted }}>
+                {query ? "Tidak ada hasil yang cocok dengan pencarian" : "Belum ada data untuk filter ini"}
+              </td></tr>
             )}
           </tbody>
         </table>
@@ -804,8 +850,18 @@ function DrilldownButton({ colors, onClick, label = "Outlet" }) {
 // Modal rincian outlet — dipakai dari semua halaman (Main, Sales, Product, Product Focus)
 // lewat callback onDrilldown yang sama.
 function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets, colors }) {
+  const [query, setQuery] = useState("");
+  // Reset pencarian setiap kali modal dibuka untuk konteks (sales/grup/fokus) yang baru,
+  // supaya query lama dari drilldown sebelumnya tidak nyangkut.
+  useEffect(() => { if (isOpen) setQuery(""); }, [isOpen, title]);
+
   if (!isOpen) return null;
-  const totalValue = _.sumBy(outlets, "value");
+
+  const filteredOutlets = query.trim()
+    ? outlets.filter((o) => String(o.outletName || "").toLowerCase().includes(query.trim().toLowerCase()))
+    : outlets;
+  const totalValue = _.sumBy(filteredOutlets, "value");
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
       <div className="sm-card sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
@@ -819,13 +875,34 @@ function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets, color
           </div>
           <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
         </div>
+        {outlets.length > 0 && (
+          <div className="px-5 pt-4">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }} />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Cari nama outlet..."
+                className="w-full pl-9 pr-8 py-2 rounded-xl text-sm outline-none"
+                style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+              />
+              {query && (
+                <button onClick={() => setQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }}>
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         <div className="p-5 overflow-y-auto">
           {outlets.length === 0 ? (
             <div className="text-center py-10" style={{ color: colors.textMuted }}>Tidak ada transaksi outlet untuk kombinasi filter ini.</div>
+          ) : filteredOutlets.length === 0 ? (
+            <div className="text-center py-10" style={{ color: colors.textMuted }}>Tidak ada outlet yang cocok dengan pencarian "{query}".</div>
           ) : (
             <>
               <div className="text-xs mb-3" style={{ color: colors.textMuted }}>
-                {outlets.length} outlet · total <span className="mono font-semibold" style={{ color: colors.text }}>{fmtRp(totalValue)}</span>
+                {filteredOutlets.length} outlet · total <span className="mono font-semibold" style={{ color: colors.text }}>{fmtRp(totalValue)}</span>
               </div>
               <table className="w-full text-sm">
                 <thead>
@@ -838,7 +915,7 @@ function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets, color
                   </tr>
                 </thead>
                 <tbody>
-                  {outlets.map((o, i) => (
+                  {filteredOutlets.map((o, i) => (
                     <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.border}` }}>
                       <td className="px-3 py-2">{o.outletName}</td>
                       <td className="px-3 py-2 mono text-right">{fmtRp(o.value)}</td>
@@ -1166,6 +1243,9 @@ function SalesReportPage({ agg, colors, onDrilldown }) {
         <DataTable
           colors={colors}
           initialSortKey="value"
+          searchable
+          searchKeys={["salesName", "groupName"]}
+          searchPlaceholder="Cari nama sales atau grup produk..."
           columns={[
             { key: "salesName", label: "Sales" },
             { key: "groupName", label: "Grup Produk" },
@@ -1221,6 +1301,9 @@ function ProductReportPage({ agg, colors, onDrilldown }) {
         <DataTable
           colors={colors}
           initialSortKey="realisasiValue"
+          searchable
+          searchKeys={["name"]}
+          searchPlaceholder="Cari grup produk..."
           columns={[
             { key: "name", label: "Grup Produk" },
             { key: "targetValue", label: "Target", render: (r) => <span className="mono">{fmtRp(r.targetValue)}</span> },
@@ -1286,6 +1369,9 @@ function ProductFocusReportPage({ agg, colors, onDrilldown }) {
       <DataTable
         colors={colors}
         initialSortKey="pct"
+        searchable
+        searchKeys={["salesName", "name"]}
+        searchPlaceholder="Cari nama sales atau produk fokus..."
         columns={[
           { key: "salesName", label: "Sales" },
           { key: "name", label: "Produk Fokus", render: (r) => (
@@ -1397,7 +1483,7 @@ function DataQualityPage({ notes, colors, onDrilldown }) {
   );
 }
 
-function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWorkDays, depotName, setDepotName, colors }) {
+function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWorkDays, depotName, setDepotName, onClearAll, colors }) {
   const [localTargets, setLocalTargets] = useState(targets);
   const [localWorkDays, setLocalWorkDays] = useState(workDays);
   const [localDepotName, setLocalDepotName] = useState(depotName);
@@ -1470,6 +1556,25 @@ function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWork
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="mt-8 p-4 rounded-lg" style={{ background: colors.coral + "0D", border: `1px solid ${colors.coral}33` }}>
+            <h3 className="text-sm font-semibold mb-1" style={{ color: colors.coral }}>Zona Berbahaya</h3>
+            <p className="text-xs mb-3" style={{ color: colors.textMuted }}>
+              Menghapus semua target, hari kerja, nama depo, tema, dan data upload yang tersimpan otomatis di perangkat ini. Tidak bisa dibatalkan.
+            </p>
+            <button
+              onClick={() => {
+                if (window.confirm("Yakin ingin menghapus semua data & pengaturan tersimpan di perangkat ini? Tindakan ini tidak bisa dibatalkan.")) {
+                  onClearAll?.();
+                  onClose();
+                }
+              }}
+              className="sm-btn px-3 py-2 rounded-lg text-xs font-semibold"
+              style={{ background: colors.coral + "1A", color: colors.coral, border: `1px solid ${colors.coral}4D` }}
+            >
+              Hapus Semua Data Tersimpan
+            </button>
           </div>
         </div>
         <div className="p-4 mt-auto flex justify-end gap-3" style={{ background: colors.surface2, borderTop: `1px solid ${colors.border}` }}>
@@ -1704,22 +1809,100 @@ const TABS = [
 ];
 
 export default function SalesMonitoringApp() {
+  // Dibaca sekali di render pertama (lazy initializer useState menjamin ini
+  // hanya jalan sekali, bukan setiap render) — jadi field-field di bawahnya
+  // bisa langsung memakai nilai tersimpan kalau ada, atau fallback ke default.
+  const [persistedSettings] = useState(() => loadSettings());
+
   const [rawRows, setRawRows] = useState([]);
   const [fileName, setFileName] = useState("");
   const [loading, setLoading] = useState(false);
   const [sampleLoading, setSampleLoading] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("main");
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState(persistedSettings?.theme || 'dark');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [drilldown, setDrilldown] = useState(null);
   const [pendingPreview, setPendingPreview] = useState(null);
   const [parseMeta, setParseMeta] = useState(null);
 
-  const [filters, setFilters] = useState({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
-  const [workDays, setWorkDays] = useState(WORK_DAYS_DEFAULT);
-  const [targets, setTargets] = useState(DEFAULT_TARGETS);
-  const [depotName, setDepotName] = useState("DEPO LOTIM");
+  const [filters, setFilters] = useState(persistedSettings?.filters || { salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
+  const [workDays, setWorkDays] = useState(persistedSettings?.workDays ?? WORK_DAYS_DEFAULT);
+  const [targets, setTargets] = useState(persistedSettings?.targets ?? DEFAULT_TARGETS);
+  const [depotName, setDepotName] = useState(persistedSettings?.depotName ?? "DEPO LOTIM");
+
+  // Muat data sesi terakhir (hasil upload/demo sebelumnya) dari IndexedDB saat
+  // pertama kali app dibuka. Async, jadi ditampilkan status loading singkat
+  // dulu supaya tidak "flash" ke tampilan "Belum ada data" sebelum sempat dicek.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const session = await loadSession();
+      if (!cancelled && session) {
+        setRawRows(session.rawRows || []);
+        setFileName(session.fileName || "");
+        setParseMeta(session.parseMeta || null);
+      }
+      if (!cancelled) setSessionLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Simpan otomatis setiap kali pengaturan berubah (tema, filter, target,
+  // hari kerja, nama depo) — jadi tidak perlu tombol "simpan" terpisah untuk ini,
+  // beda dengan raw data yang lebih berat dan disimpan terpisah di bawah.
+  useEffect(() => {
+    saveSettings({ theme, filters, workDays, targets, depotName });
+  }, [theme, filters, workDays, targets, depotName]);
+
+  // Simpan otomatis data transaksi ke IndexedDB tiap kali berubah (setelah upload
+  // dikonfirmasi atau data contoh dimuat). Di-skip saat kosong karena reset
+  // ditangani secara eksplisit lewat clearSession() di handleReset.
+  useEffect(() => {
+    if (rawRows.length) saveSession({ rawRows, fileName, parseMeta });
+  }, [rawRows, fileName, parseMeta]);
+
+  /* --------------------------- PWA: instal & update --------------------------- */
+
+  // registerType: 'prompt' di vite.config.js — jadi kalau ada versi baru ter-deploy,
+  // tidak langsung auto-reload (bisa bikin filter/upload yang lagi dikerjakan hilang),
+  // tapi tampilkan notifikasi dan biarkan user pilih kapan mau refresh.
+  const {
+    needRefresh: [needRefresh, setNeedRefresh],
+    offlineReady: [offlineReady, setOfflineReady],
+    updateServiceWorker,
+  } = useRegisterSW({});
+
+  const [installPromptEvent, setInstallPromptEvent] = useState(null);
+  const [showIosInstallHint, setShowIosInstallHint] = useState(false);
+
+  const isIOS = useMemo(() => /iphone|ipad|ipod/i.test(window.navigator.userAgent), []);
+  const isStandalone = useMemo(() =>
+    window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true
+  , []);
+
+  useEffect(() => {
+    // Chrome/Android/Edge menembak event ini kalau app memenuhi syarat installability
+    // (manifest valid, service worker terdaftar, dsb). Kita cegah prompt otomatis
+    // browser (preventDefault), simpan eventnya, lalu munculkan tombol custom sendiri.
+    const handler = (e) => { e.preventDefault(); setInstallPromptEvent(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstallClick = useCallback(async () => {
+    if (installPromptEvent) {
+      installPromptEvent.prompt();
+      await installPromptEvent.userChoice;
+      setInstallPromptEvent(null);
+    } else if (isIOS) {
+      // iOS Safari tidak punya beforeinstallprompt — harus manual lewat menu Share.
+      setShowIosInstallHint(true);
+    }
+  }, [installPromptEvent, isIOS]);
+
+  const canShowInstallButton = !isStandalone && (!!installPromptEvent || isIOS);
 
   const colors = useMemo(() => THEMES[theme], [theme]);
   const globalStyle = useMemo(() => createGlobalStyle(colors), [colors]);
@@ -1784,14 +1967,30 @@ export default function SalesMonitoringApp() {
     }, 300);
   }, []);
 
-  const handleReset = useCallback(() => { setRawRows([]); setFileName(""); setParseMeta(null); }, []);
+  const handleReset = useCallback(() => {
+    setRawRows([]); setFileName(""); setParseMeta(null);
+    clearSession();
+  }, []);
+
+  // Hapus TOTAL semua yang tersimpan di perangkat ini: settings (localStorage)
+  // + data sesi (IndexedDB) + reset semua state ke default pabrik.
+  const handleClearAll = useCallback(() => {
+    clearSettings();
+    clearSession();
+    setRawRows([]); setFileName(""); setParseMeta(null);
+    setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
+    setWorkDays(WORK_DAYS_DEFAULT);
+    setTargets(DEFAULT_TARGETS);
+    setDepotName("DEPO LOTIM");
+    setTheme('dark');
+  }, []);
 
   const activeIdx = TABS.findIndex((t) => t.key === activeTab);
 
   return (
     <div className="smapp min-h-screen transition-colors duration-300" style={{ background: theme === 'dark' ? `radial-gradient(1200px 600px at 10% -10%, #16233F 0%, ${colors.ink} 60%)` : colors.ink }}>
       <style>{globalStyle}</style>
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} colors={colors} />
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors} />
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
       <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={confirmPreview} preview={pendingPreview} colors={colors} />
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
@@ -1807,6 +2006,13 @@ export default function SalesMonitoringApp() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {canShowInstallButton && (
+              <button onClick={handleInstallClick}
+                className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+                style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
+                <Smartphone size={15} /> <span className="hidden sm:inline">Instal Aplikasi</span>
+              </button>
+            )}
             <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
               className="sm-btn flex items-center gap-2 px-2.5 py-2.5 rounded-xl text-sm font-semibold"
               style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
@@ -1824,6 +2030,69 @@ export default function SalesMonitoringApp() {
             </button>
           </div>
         </div>
+
+        {/* PWA: notifikasi pertama kali app siap dipakai offline */}
+        {offlineReady && !needRefresh && (
+          <div className="mb-6 sm-fadeup flex items-center justify-between gap-3 px-4 py-3 rounded-xl" style={{ background: colors.mint + "14", border: `1px solid ${colors.mint}44` }}>
+            <div className="flex items-center gap-2.5 text-sm">
+              <CheckCircle2 size={15} style={{ color: colors.mint }} />
+              <span>Aplikasi siap dipakai walau tanpa internet.</span>
+            </div>
+            <button onClick={() => setOfflineReady(false)}
+              className="sm-btn p-1.5 rounded-lg" style={{ color: colors.textMuted }}>
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* PWA: notifikasi update tersedia */}
+        {needRefresh && (
+          <div className="mb-6 sm-fadeup flex items-center justify-between gap-3 px-4 py-3 rounded-xl" style={{ background: colors.gold + "14", border: `1px solid ${colors.gold}44` }}>
+            <div className="flex items-center gap-2.5 text-sm">
+              <RefreshCw size={15} style={{ color: colors.gold }} />
+              <span>Versi baru aplikasi tersedia.</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => updateServiceWorker(true)}
+                className="sm-btn px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: colors.gold, color: "#0A1120" }}>
+                Perbarui Sekarang
+              </button>
+              <button onClick={() => setNeedRefresh(false)}
+                className="sm-btn px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${colors.border}` }}>
+                Nanti
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* PWA: instruksi manual instal untuk iOS Safari (tidak ada beforeinstallprompt) */}
+        {showIosInstallHint && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein" onClick={() => setShowIosInstallHint(false)}>
+            <div className="sm-card sm-scale-in w-full max-w-sm p-5" style={{ background: colors.surface }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl" style={{ background: colors.gold + "1A" }}><Smartphone size={16} style={{ color: colors.gold }} /></div>
+                  <div className="disp text-base font-semibold">Instal di iPhone/iPad</div>
+                </div>
+                <button onClick={() => setShowIosInstallHint(false)} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
+              </div>
+              <ol className="text-sm space-y-2.5" style={{ color: colors.text }}>
+                <li className="flex items-start gap-2.5">
+                  <span className="mono font-semibold shrink-0" style={{ color: colors.gold }}>1.</span>
+                  <span className="flex items-center gap-1.5 flex-wrap">Tap ikon <Share size={14} style={{ color: colors.gold }} /> <b>Share</b> di bar bawah Safari</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="mono font-semibold shrink-0" style={{ color: colors.gold }}>2.</span>
+                  <span>Pilih <b>"Add to Home Screen"</b></span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="mono font-semibold shrink-0" style={{ color: colors.gold }}>3.</span>
+                  <span>Tap <b>"Add"</b> di pojok kanan atas</span>
+                </li>
+              </ol>
+            </div>
+          </div>
+        )}
 
         {/* upload */}
         <div className="mb-6 sm-fadeup" style={{ animationDelay: "40ms" }}>
@@ -1852,7 +2121,12 @@ export default function SalesMonitoringApp() {
           })}
         </div>
 
-        {!rawRows.length ? (
+        {sessionLoading ? (
+          <div className="sm-card p-16 text-center sm-fadeup">
+            <Loader2 size={24} className="mx-auto mb-4 animate-spin" style={{ color: colors.textMuted }} />
+            <p className="text-sm" style={{ color: colors.textMuted }}>Memuat data sesi terakhir...</p>
+          </div>
+        ) : !rawRows.length ? (
           <div className="sm-card p-16 text-center sm-fadeup">
             <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.surface2 }}>
               <FileSpreadsheet size={24} style={{ color: colors.textMuted }} />
@@ -1872,7 +2146,7 @@ export default function SalesMonitoringApp() {
         )}
 
         <div className="text-center text-xs mt-10 pb-4" style={{ color: colors.textMuted }}>
-          Data diproses langsung di browser Anda — tidak diunggah ke server manapun.
+          Data diproses langsung di browser Anda — tidak diunggah ke server manapun. Data & pengaturan disimpan otomatis di perangkat/browser ini agar tidak hilang saat refresh.
         </div>
       </div>
     </div>
