@@ -10,10 +10,10 @@ import {
   Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard, UserRound,
   Boxes, Crosshair, Check, AlertTriangle, CalendarDays, Settings,
   FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus, Sun, Moon, ChevronLeft, ChevronRight, Menu, Filter, Loader2,
-  Store, Trophy, BellRing, Rocket, MapPin, ClipboardList, CheckCircle2, XCircle, FileQuestion, Smartphone, Share, Printer, FileText,
+  Store, Trophy, BellRing, Rocket, MapPin, ClipboardList, CheckCircle2, XCircle, FileQuestion, Smartphone, Share, Printer, FileText, History,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
-import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession } from "./utils/storage.js";
+import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory } from "./utils/storage.js";
 import { exportSummaryPDF, exportSalesScorecardPDF, exportAllScorecardsPDF } from "./utils/pdfExport.js";
 // Modul virtual dari vite-plugin-pwa — hanya ada saat plugin ini terpasang &
 // dijalankan lewat Vite (dev atau build), bukan package npm biasa.
@@ -418,6 +418,41 @@ function useDataQualityNotes(rawRows, targets, parseMeta) {
       unknownGroups: Object.values(unknownGroupMap).sort((a, b) => b.value - a.value),
     };
   }, [rawRows, targets, parseMeta]);
+}
+
+/* ============================================================================
+   RIWAYAT & PERBANDINGAN PERIODE
+   Snapshot ringan (bukan data transaksi mentah) untuk satu periode aktif —
+   dipakai sebagai pembanding di fitur "Bandingkan Periode". Disimpan lewat
+   saveHistory()/loadHistory() di utils/storage.js (localStorage).
+============================================================================ */
+function buildHistorySnapshot(agg, filters, fileName, label) {
+  return {
+    id: `${Date.now()}`,
+    label: label && label.trim() ? label.trim() : `${filters.dateFrom || "?"} — ${filters.dateTo || "?"}`,
+    savedAt: todayLocalDateStr(),
+    dateFrom: filters.dateFrom || null,
+    dateTo: filters.dateTo || null,
+    fileName,
+    totals: { targetValue: agg.totals.targetValue, realisasiValue: agg.totals.realisasiValue },
+    bySales: agg.bySales.map((s) => ({ code: s.code, name: s.name, targetValue: s.targetValue, realisasiValue: s.realisasiValue })),
+    byGroup: agg.byGroup.map((g) => ({ name: g.name, targetValue: g.targetValue, realisasiValue: g.realisasiValue })),
+  };
+}
+
+// Bandingkan totals & bySales periode aktif terhadap sebuah snapshot riwayat.
+function computeComparison(agg, snapshot) {
+  if (!snapshot) return null;
+  const nowValue = agg.totals.realisasiValue;
+  const thenValue = snapshot.totals.realisasiValue;
+  const growth = thenValue > 0 ? (nowValue - thenValue) / thenValue : null;
+  const bySales = agg.bySales.map((s) => {
+    const prev = snapshot.bySales.find((p) => p.code === s.code);
+    const prevValue = prev ? prev.realisasiValue : 0;
+    const g = prevValue > 0 ? (s.realisasiValue - prevValue) / prevValue : null;
+    return { code: s.code, name: s.name, nowValue: s.realisasiValue, prevValue, growth: g };
+  }).sort((a, b) => (b.growth ?? -Infinity) - (a.growth ?? -Infinity));
+  return { nowValue, thenValue, growth, bySales, label: snapshot.label };
 }
 
 /* ---- compact sample data generator (for "Load Sample Data") ---- */
@@ -1001,6 +1036,20 @@ function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors }) {
             </div>
           </div>
 
+          {parseMeta.sourceFiles && parseMeta.sourceFiles.length > 1 && (
+            <div className="mb-6">
+              <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>{parseMeta.sourceFiles.length} File Digabung</div>
+              <div className="space-y-1.5">
+                {parseMeta.sourceFiles.map((sf, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ background: colors.surface2 }}>
+                    <span className="truncate flex-1">{sf.name}</span>
+                    <span className="mono text-xs" style={{ color: colors.textMuted }}>{fmtNum(sf.rowCount)} baris</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="mb-6">
             <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>Rentang Tanggal Terdeteksi</div>
             <div className="text-sm font-medium">{dateStrs.length ? `${dateStrs[0]} — ${dateStrs[dateStrs.length - 1]}` : "Tidak ada tanggal valid terbaca"}</div>
@@ -1150,10 +1199,95 @@ function AlertsPanel({ alerts, colors, onDrilldown }) {
   );
 }
 
+// Kartu perbandingan periode — muncul di Main Report saat ada snapshot riwayat terpilih.
+function PeriodComparisonCard({ comparison, colors, onClear }) {
+  if (!comparison) return null;
+  const growthColor = comparison.growth === null ? colors.textMuted : comparison.growth >= 0 ? colors.mint : colors.coral;
+  return (
+    <div className="sm-card p-5 sm-fadeup mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <SectionTitle title="Bandingkan Periode" sub={`vs ${comparison.label}`} icon={History} colors={colors} />
+        <button onClick={onClear} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={14} /></button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Realisasi Sekarang</div>
+          <div className="mono text-lg font-bold">{fmtRp(comparison.nowValue)}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Periode Pembanding</div>
+          <div className="mono text-lg font-bold">{fmtRp(comparison.thenValue)}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Pertumbuhan</div>
+          <div className="mono text-lg font-bold flex items-center gap-1" style={{ color: growthColor }}>
+            {comparison.growth === null ? "-" : <>{comparison.growth >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}{fmtPct(Math.abs(comparison.growth))}</>}
+          </div>
+        </div>
+      </div>
+      <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>Pertumbuhan per Sales</div>
+      <div className="space-y-1.5 max-h-64 overflow-y-auto">
+        {comparison.bySales.map((s) => (
+          <div key={s.code} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ background: colors.surface2 }}>
+            <span className="truncate flex-1">{s.name}</span>
+            <span className="mono text-xs mr-3" style={{ color: colors.textMuted }}>{fmtRp(s.nowValue)}</span>
+            <span className="mono font-semibold" style={{ color: s.growth === null ? colors.textMuted : s.growth >= 0 ? colors.mint : colors.coral }}>
+              {s.growth === null ? "-" : `${s.growth >= 0 ? "+" : ""}${fmtPct(s.growth)}`}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Modal riwayat & perbandingan periode — simpan snapshot periode aktif, pilih salah satu
+// riwayat sebagai pembanding, atau hapus riwayat yang tidak diperlukan lagi.
+function HistoryModal({ isOpen, onClose, history, onSave, onSelect, onDelete, defaultLabel, colors }) {
+  const [label, setLabel] = useState("");
+  useEffect(() => { if (isOpen) setLabel(defaultLabel || ""); }, [isOpen, defaultLabel]);
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
+      <div className="sm-card sm-scale-in w-full max-w-xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
+        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
+          <SectionTitle title="Riwayat & Perbandingan Periode" icon={History} colors={colors} />
+          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
+        </div>
+        <div className="p-5 overflow-y-auto">
+          <div className="flex gap-2 mb-5">
+            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label periode (mis. Juli 2026 Minggu 1)"
+              className="flex-1 px-3 py-2 rounded-lg text-sm" style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
+            <button onClick={() => onSave(label)} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap" style={{ background: colors.gold, color: "#0A1120" }}>
+              Simpan Snapshot Ini
+            </button>
+          </div>
+          {history.length === 0 ? (
+            <div className="text-center py-8 text-sm" style={{ color: colors.textMuted }}>Belum ada riwayat tersimpan. Simpan periode aktif dulu untuk mulai membandingkan.</div>
+          ) : (
+            <div className="space-y-2">
+              {history.map((h) => (
+                <div key={h.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: colors.surface2 }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{h.label}</div>
+                    <div className="text-xs mono" style={{ color: colors.textMuted }}>{h.dateFrom || "?"} — {h.dateTo || "?"} · {fmtRp(h.totals.realisasiValue)}</div>
+                  </div>
+                  <button onClick={() => onSelect(h)} className="sm-btn text-xs px-3 py-1.5 rounded-lg font-medium whitespace-nowrap" style={{ background: colors.mint + "1A", color: colors.mint }}>Bandingkan</button>
+                  <button onClick={() => onDelete(h.id)} className="sm-btn p-1.5 rounded-lg" style={{ background: colors.coral + "14", color: colors.coral }}><X size={13} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ============================================================================
    PAGES
 ============================================================================ */
-function MainReportPage({ agg, workDays, colors, onDrilldown }) {
+function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison }) {
   const uniqueDaysInData = useMemo(() => new Set(agg.filteredRows.map(r => dateKey(r.date))).size, [agg.filteredRows]);
   const t = agg.totals;
   // Calculate time gone based on unique work days found in the data vs total work days in the month.
@@ -1162,6 +1296,7 @@ function MainReportPage({ agg, workDays, colors, onDrilldown }) {
     <div className="sm-fadein">
       <PaceStrip timeGonePct={timeGone} achPct={t.ach} colors={colors} />
       <AlertsPanel alerts={agg.alerts} colors={colors} onDrilldown={onDrilldown} />
+      <PeriodComparisonCard comparison={comparison} colors={colors} onClear={onClearComparison} />
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         <KpiCard label="Target Value" value={t.targetValue} isMoney icon={Target} accent={colors.blue} delay={0} colors={colors} />
         <KpiCard label="Realisasi Value" value={t.realisasiValue} isMoney icon={TrendingUp} accent={colors.mint} delay={40} colors={colors} />
@@ -1623,7 +1758,7 @@ function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWork
 function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading, sampleLoading, colors }) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef(null);
-  const handleFiles = (files) => { if (files && files[0]) onFile(files[0]); };
+  const handleFiles = (files) => { if (files && files.length) onFile(Array.from(files)); };
   return (
     <div>
       <div
@@ -1634,14 +1769,14 @@ function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading,
         className="sm-drop cursor-pointer rounded-2xl p-6 flex items-center gap-4 transition-colors"
         style={{ border: `1.5px dashed ${dragOver ? colors.gold : colors.border}`, background: dragOver ? colors.gold + "0D" : colors.surface }}
       >
-        <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+        <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
         <div className="p-3 rounded-xl" style={{ background: colors.gold + "1A" }}>
           {loading ? <RefreshCw size={20} className="sm-pulse" style={{ color: colors.gold }} /> : <Upload size={20} style={{ color: colors.gold }} />}
         </div>
         <div className="flex-1">
           <div className="text-sm font-semibold disp">{loading ? "Memproses file..." : "Upload file Excel sell-out"}</div>
           <div className="text-xs mt-0.5" style={{ color: colors.textMuted }}>
-            {hasData ? `Sumber aktif: ${fileName}` : "Tarik & lepas file di sini, atau klik untuk memilih (.xlsx)"}
+            {hasData ? `Sumber aktif: ${fileName}` : "Tarik & lepas file di sini (bisa lebih dari satu untuk digabung), atau klik untuk memilih"}
           </div>
         </div>
         {!hasData && (
@@ -2119,6 +2254,9 @@ export default function SalesMonitoringApp() {
   const [drilldown, setDrilldown] = useState(null);
   const [pendingPreview, setPendingPreview] = useState(null);
   const [parseMeta, setParseMeta] = useState(null);
+  const [history, setHistory] = useState(() => loadHistory());
+  const [comparisonSnapshot, setComparisonSnapshot] = useState(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const [filters, setFilters] = useState(persistedSettings?.filters || { salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
   const [workDays, setWorkDays] = useState(persistedSettings?.workDays ?? WORK_DAYS_DEFAULT);
@@ -2214,20 +2352,59 @@ export default function SalesMonitoringApp() {
     setDrilldown({ title, subtitle, outlets: getOutletBreakdown(aggFinal.filteredRows, predicate) });
   };
 
-  const handleFile = useCallback(async (file) => {
+  const comparison = useMemo(() => computeComparison(aggFinal, comparisonSnapshot), [aggFinal, comparisonSnapshot]);
+
+  const saveHistorySnapshot = (label) => {
+    const snap = buildHistorySnapshot(aggFinal, filters, fileName, label);
+    setHistory((prev) => {
+      const next = [snap, ...prev].slice(0, 8);
+      saveHistory(next);
+      return next;
+    });
+    setIsHistoryOpen(false);
+  };
+  const deleteHistorySnapshot = (id) => {
+    setHistory((prev) => {
+      const next = prev.filter((h) => h.id !== id);
+      saveHistory(next);
+      return next;
+    });
+    setComparisonSnapshot((cur) => (cur && cur.id === id ? null : cur));
+  };
+  const selectComparisonSnapshot = (h) => { setComparisonSnapshot(h); setIsHistoryOpen(false); };
+
+  const handleFile = useCallback(async (files) => {
+    const fileList = Array.isArray(files) ? files : [files];
     setLoading(true); setError("");
     try {
-      const { rows, parseMeta: meta } = await parseWorkbookFile(file);
-      if (!rows.length) {
+      const results = await Promise.all(fileList.map((f) => parseWorkbookFile(f)));
+      const combinedRows = results.flatMap((r) => r.rows);
+      if (!combinedRows.length) {
         setError("File terbaca tapi tidak ada baris data yang cocok. Pastikan kolom sesuai format sell-out.");
         setLoading(false);
         return;
       }
+      const detectedSet = new Set();
+      results.forEach((r) => r.parseMeta.detectedFields.forEach((f) => detectedSet.add(f)));
+      // Kolom dianggap benar-benar "tidak terdeteksi" hanya kalau tidak ada di SEMUA file
+      // yang digabung — kalau cuma sebagian file yang tidak punya kolom itu, tetap dianggap ada.
+      const missingInAll = Object.keys(ALIASES).filter((f) => results.every((r) => r.parseMeta.missingFields.includes(f)));
+      const combinedMeta = {
+        totalDataRows: _.sumBy(results, (r) => r.parseMeta.totalDataRows),
+        skippedBlankRows: _.sumBy(results, (r) => r.parseMeta.skippedBlankRows),
+        rowsWithMissingDate: _.sumBy(results, (r) => r.parseMeta.rowsWithMissingDate),
+        detectedFields: Array.from(detectedSet),
+        missingFields: missingInAll,
+        sourceFiles: results.map((r, i) => ({ name: fileList[i].name, rowCount: r.rows.length })),
+      };
+      const combinedName = fileList.length > 1
+        ? `${fileList.length} file digabung (${fileList.map((f) => f.name).join(", ")})`
+        : fileList[0].name;
       // Data belum langsung dipakai — tampilkan preview dulu, biar kesalahan format
       // (kolom tidak terbaca, tanggal kosong, dsb) ketahuan sebelum masuk ke dashboard.
-      setPendingPreview({ rows, parseMeta: meta, fileName: file.name });
+      setPendingPreview({ rows: combinedRows, parseMeta: combinedMeta, fileName: combinedName });
     } catch (e) {
-      setError("Gagal membaca file. Pastikan formatnya .xlsx/.xls yang valid.");
+      setError("Gagal membaca salah satu file. Pastikan semua format .xlsx/.xls valid.");
     } finally { setLoading(false); }
   }, []);
 
@@ -2270,12 +2447,15 @@ export default function SalesMonitoringApp() {
   const handleClearAll = useCallback(() => {
     clearSettings();
     clearSession();
+    clearHistory();
     setRawRows([]); setFileName(""); setParseMeta(null);
     setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
     setWorkDays(WORK_DAYS_DEFAULT);
     setTargets(DEFAULT_TARGETS);
     setDepotName("DEPO LOTIM");
     setTheme('dark');
+    setHistory([]);
+    setComparisonSnapshot(null);
   }, []);
 
   const activeIdx = TABS.findIndex((t) => t.key === activeTab);
@@ -2286,6 +2466,9 @@ export default function SalesMonitoringApp() {
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors} />
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
       <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={confirmPreview} preview={pendingPreview} colors={colors} />
+      <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSave={saveHistorySnapshot}
+        onSelect={selectComparisonSnapshot} onDelete={deleteHistorySnapshot}
+        defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
         {/* header */}
         <div className="relative z-40 flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
@@ -2310,6 +2493,11 @@ export default function SalesMonitoringApp() {
               className="sm-btn flex items-center gap-2 px-2.5 py-2.5 rounded-xl text-sm font-semibold"
               style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
               {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
+            <button onClick={() => setIsHistoryOpen(true)} disabled={!rawRows.length}
+              className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+              style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
+              <History size={15} /> <span className="hidden sm:inline">Riwayat</span>
             </button>
             <button onClick={() => setIsSettingsOpen(true)}
               className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
@@ -2426,7 +2614,7 @@ export default function SalesMonitoringApp() {
         ) : (
           <>
             <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} />
-            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} />}
+            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} />}
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
