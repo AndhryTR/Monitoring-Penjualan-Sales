@@ -570,6 +570,83 @@ function getOutletBreakdown(rows, predicate) {
     .map((o) => ({ ...o, invoiceCount: o.invoices.size }))
     .sort((a, b) => b.value - a.value);
 }
+
+/* ============================================================================
+   ANALISIS OUTLET — segmentasi Aktif/Berisiko/Dormant berdasarkan Recency
+   (hari sejak transaksi terakhir, relatif terhadap tanggal terakhir DI DALAM
+   data yang sedang dimuat — bukan lintas periode/riwayat).
+============================================================================ */
+
+function computeOutletAnalysis(rows, meta, thresholds) {
+  const map = {};
+  rows.forEach((r) => {
+    const key = r.outletCode || r.outletName || "UNKNOWN";
+    if (!map[key]) {
+      map[key] = {
+        outletCode: r.outletCode, outletName: r.outletName || r.outletCode || "(tanpa nama)",
+        value: 0, qty: 0, invoices: new Set(), groups: new Set(), salesNames: new Set(), lastDate: null,
+      };
+    }
+    const o = map[key];
+    o.value += r.value;
+    o.qty += effectiveKartonQty(r);
+    if (r.invoiceNo) o.invoices.add(r.invoiceNo);
+    if (r.group) o.groups.add(r.group);
+    if (r.salesName) o.salesNames.add(r.salesName);
+    if (!o.lastDate || r.date > o.lastDate) o.lastDate = r.date;
+  });
+
+  const refD = meta.lastDate ? dateStrToLocalDate(meta.lastDate) : null;
+
+  const list = Object.values(map).map((o) => {
+    const lastD = o.lastDate ? dateStrToLocalDate(o.lastDate) : null;
+    const daysSinceLastPurchase = (refD && lastD) ? Math.round((refD - lastD) / 86400000) : null;
+    let status = "unknown";
+    if (daysSinceLastPurchase !== null) {
+      if (daysSinceLastPurchase <= thresholds.activeMaxDays) status = "active";
+      else if (daysSinceLastPurchase <= thresholds.dormantMinDays) status = "at_risk";
+      else status = "dormant";
+    }
+    return {
+      outletCode: o.outletCode,
+      outletName: o.outletName,
+      value: o.value,
+      qty: o.qty,
+      invoiceCount: o.invoices.size,
+      groupCount: o.groups.size,
+      salesLabel: o.salesNames.size === 1 ? Array.from(o.salesNames)[0] : (o.salesNames.size > 1 ? `${o.salesNames.size} sales` : "-"),
+      lastDate: o.lastDate,
+      daysSinceLastPurchase,
+      status,
+    };
+  }).sort((a, b) => b.value - a.value);
+
+  return {
+    list,
+    summary: {
+      total: list.length,
+      active: list.filter((o) => o.status === "active").length,
+      atRisk: list.filter((o) => o.status === "at_risk").length,
+      dormant: list.filter((o) => o.status === "dormant").length,
+    },
+  };
+}
+
+/** Breakdown produk yang dibeli oleh 1 outlet spesifik — dipakai di modal detail outlet. */
+function getProductBreakdownForOutlet(rows, outletCode) {
+  const map = {};
+  rows.filter((r) => r.outletCode === outletCode).forEach((r) => {
+    const key = r.productCode || r.productName || "UNKNOWN";
+    if (!map[key]) map[key] = { productName: r.productName || key, group: r.group || "-", value: 0, qty: 0, invoices: new Set() };
+    map[key].value += r.value;
+    map[key].qty += effectiveKartonQty(r);
+    if (r.invoiceNo) map[key].invoices.add(r.invoiceNo);
+  });
+  return Object.values(map)
+    .map((p) => ({ ...p, invoiceCount: p.invoices.size }))
+    .sort((a, b) => b.value - a.value);
+}
+
 // - Kalau semua baris yang cocok berhasil dikonversi -> "KARTON" (satuan hasil konversi).
 // - Kalau semua baris TIDAK bisa dikonversi (tidak ada referensi KARTON di data untuk
 //   produk itu) -> pakai satuan asli transaksinya apa adanya (mis. "IKAT").
@@ -1042,8 +1119,94 @@ function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets, color
   );
 }
 
-// Modal preview sebelum data dipakai ke seluruh dashboard — menampilkan ringkasan
-// hasil baca file (jumlah baris, rentang tanggal, kolom yang terdeteksi/tidak)
+function OutletDetailModal({ isOpen, onClose, outlet, products, colors }) {
+  const [query, setQuery] = useState("");
+  useEffect(() => { if (isOpen) setQuery(""); }, [isOpen, outlet]);
+
+  if (!isOpen || !outlet) return null;
+
+  const filtered = query.trim()
+    ? products.filter((p) => p.productName.toLowerCase().includes(query.trim().toLowerCase()))
+    : products;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
+      <div className="sm-card sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
+        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-xl shrink-0" style={{ background: colors.blue + "1A" }}><Store size={16} style={{ color: colors.blue }} /></div>
+            <div className="min-w-0">
+              <div className="disp text-base font-semibold truncate">{outlet.outletName}</div>
+              <div className="text-xs" style={{ color: colors.textMuted }}>Sales: {outlet.salesLabel}</div>
+            </div>
+          </div>
+          <button onClick={onClose} className="sm-btn p-2 rounded-full shrink-0" style={{ background: colors.surface2 }}><X size={16} /></button>
+        </div>
+
+        <div className="p-5 pb-0 grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="sm-card p-3">
+            <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Total Value</div>
+            <div className="mono text-sm font-bold">{fmtRp(outlet.value)}</div>
+          </div>
+          <div className="sm-card p-3">
+            <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Frekuensi</div>
+            <div className="mono text-sm font-bold">{fmtNum(outlet.invoiceCount)}×</div>
+          </div>
+          <div className="sm-card p-3">
+            <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Terakhir Transaksi</div>
+            <div className="mono text-sm font-bold">{outlet.lastDate || "-"}</div>
+          </div>
+          <div className="sm-card p-3">
+            <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Status</div>
+            <OutletStatusBadge status={outlet.status} colors={colors} />
+          </div>
+        </div>
+
+        <div className="p-5">
+          {products.length > 0 && (
+            <div className="relative mb-3">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari produk..."
+                className="w-full pl-9 pr-3 py-2 rounded-xl text-sm outline-none"
+                style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
+            </div>
+          )}
+          <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>
+            {filtered.length} Produk Dibeli
+          </div>
+        </div>
+        <div className="px-5 pb-5 overflow-y-auto">
+          {products.length === 0 ? (
+            <div className="text-center py-10" style={{ color: colors.textMuted }}>Tidak ada data produk untuk outlet ini.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: colors.surface2 }}>
+                  <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.textMuted }}>PRODUK</th>
+                  <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.textMuted }}>GRUP</th>
+                  <th className="px-3 py-2 text-right" style={{ fontSize: 11, color: colors.textMuted }}>VALUE</th>
+                  <th className="px-3 py-2 text-center" style={{ fontSize: 11, color: colors.textMuted }}>TRANSAKSI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p, i) => (
+                  <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.border}` }}>
+                    <td className="px-3 py-2">{p.productName}</td>
+                    <td className="px-3 py-2 text-xs" style={{ color: colors.textMuted }}>{p.group}</td>
+                    <td className="px-3 py-2 mono text-right">{fmtRp(p.value)}</td>
+                    <td className="px-3 py-2 mono text-center">{p.invoiceCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // supaya kesalahan format ketahuan lebih awal, bukan setelah lihat angka aneh di dashboard.
 function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors }) {
   if (!isOpen || !preview) return null;
@@ -1623,6 +1786,121 @@ function ProductFocusReportPage({ agg, colors, onDrilldown }) {
         ]}
         rows={rows}
       />
+    </div>
+  );
+}
+
+/* ============================================================================
+   TAB: ANALISIS OUTLET
+============================================================================ */
+
+const OUTLET_STATUS_META = {
+  active: { label: "Aktif", color: "mint" },
+  at_risk: { label: "Berisiko", color: "gold" },
+  dormant: { label: "Dormant", color: "coral" },
+  unknown: { label: "-", color: "textMuted" },
+};
+
+function OutletStatusBadge({ status, colors }) {
+  const meta = OUTLET_STATUS_META[status] || OUTLET_STATUS_META.unknown;
+  const color = colors[meta.color];
+  return (
+    <span className="text-xs font-semibold inline-flex items-center px-2 py-0.5 rounded-full"
+      style={{ color, background: color + "1A", border: `1px solid ${color}44` }}>
+      {meta.label}
+    </span>
+  );
+}
+
+function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onSelectOutlet }) {
+  const { list, summary } = useMemo(
+    () => computeOutletAnalysis(agg.filteredRows, agg.meta, thresholds),
+    [agg.filteredRows, agg.meta, thresholds]
+  );
+
+  const chartData = [
+    { name: "Aktif", value: summary.active, fill: colors.mint },
+    { name: "Berisiko", value: summary.atRisk, fill: colors.gold },
+    { name: "Dormant", value: summary.dormant, fill: colors.coral },
+  ];
+
+  return (
+    <div className="sm-fadein">
+      <SectionTitle title="Analisis Outlet" sub="Segmentasi outlet berdasarkan aktivitas beli — mengikuti filter yang aktif" icon={Store} colors={colors} />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <KpiCard label="Total Outlet" value={summary.total} icon={Store} accent={colors.blue} colors={colors} />
+        <KpiCard label="Outlet Aktif" value={summary.active} icon={CheckCircle2} accent={colors.mint} colors={colors} />
+        <KpiCard label="Outlet Berisiko" value={summary.atRisk} icon={AlertTriangle} accent={colors.gold} colors={colors} />
+        <KpiCard label="Outlet Dormant" value={summary.dormant} icon={XCircle} accent={colors.coral} colors={colors} />
+      </div>
+
+      <div className="sm-card p-4 mb-6 flex flex-wrap items-center gap-4">
+        <div className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textMuted }}>
+          <Settings size={14} /> Ambang Status:
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span>Aktif ≤</span>
+          <input type="number" min={0} value={thresholds.activeMaxDays}
+            onChange={(e) => setThresholds((prev) => ({ ...prev, activeMaxDays: Math.max(0, Number(e.target.value) || 0) }))}
+            className="w-16 px-2 py-1 rounded-md mono text-sm text-center" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }} />
+          <span>hari</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span>Dormant &gt;</span>
+          <input type="number" min={0} value={thresholds.dormantMinDays}
+            onChange={(e) => setThresholds((prev) => ({ ...prev, dormantMinDays: Math.max(prev.activeMaxDays, Number(e.target.value) || 0) }))}
+            className="w-16 px-2 py-1 rounded-md mono text-sm text-center" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }} />
+          <span>hari</span>
+        </div>
+        <div className="text-xs" style={{ color: colors.textMuted }}>
+          (di antara keduanya = <b>Berisiko</b>)
+        </div>
+      </div>
+
+      {list.length === 0 ? (
+        <div className="sm-card p-16 text-center">
+          <p className="text-sm" style={{ color: colors.textMuted }}>Tidak ada data outlet untuk kombinasi filter ini.</p>
+        </div>
+      ) : (
+        <>
+          <div className="sm-card p-5 mb-6">
+            <div className="text-xs uppercase tracking-wider mb-3" style={{ color: colors.textMuted }}>Distribusi Status Outlet</div>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={chartData} layout="vertical" margin={{ left: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={colors.border} horizontal={false} />
+                <XAxis type="number" allowDecimals={false} tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" width={70} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => `${v} outlet`} />
+                <Bar dataKey="value" radius={[0, 6, 6, 0]}>
+                  {chartData.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <DataTable
+            colors={colors}
+            initialSortKey="value"
+            searchable
+            searchKeys={["outletName", "salesLabel"]}
+            searchPlaceholder="Cari nama outlet atau sales..."
+            columns={[
+              { key: "outletName", label: "Nama Outlet", render: (o) => (
+                <button onClick={() => onSelectOutlet(o)} className="text-left hover:underline" style={{ color: colors.text }}>{o.outletName}</button>
+              ) },
+              { key: "salesLabel", label: "Sales" },
+              { key: "value", label: "Total Value", render: (o) => <span className="mono">{fmtRp(o.value)}</span> },
+              { key: "invoiceCount", label: "Frekuensi", render: (o) => <span className="mono">{fmtNum(o.invoiceCount)}×</span> },
+              { key: "groupCount", label: "Grup Produk", render: (o) => <span className="mono">{o.groupCount}</span> },
+              { key: "lastDate", label: "Terakhir Transaksi", render: (o) => <span className="mono text-xs" style={{ color: colors.textMuted }}>{o.lastDate || "-"}</span> },
+              { key: "daysSinceLastPurchase", label: "Hari Sejak Terakhir", render: (o) => <span className="mono">{o.daysSinceLastPurchase ?? "-"}</span> },
+              { key: "status", label: "Status", render: (o) => <OutletStatusBadge status={o.status} colors={colors} /> },
+            ]}
+            rows={list}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -2278,6 +2556,7 @@ const TABS = [
   { key: "sales", label: "Sales Report", icon: UserRound },
   { key: "product", label: "Product Report", icon: Boxes },
   { key: "focus", label: "Product Focus", icon: Crosshair },
+  { key: "outlet", label: "Analisis Outlet", icon: Store },
   { key: "quality", label: "Catatan Data", icon: ClipboardList },
 ];
 
@@ -2572,6 +2851,14 @@ export default function SalesMonitoringApp() {
     setDrilldown({ title, subtitle, outlets: getOutletBreakdown(aggFinal.filteredRows, predicate) });
   };
 
+  const [outletThresholds, setOutletThresholds] = useState({ activeMaxDays: 14, dormantMinDays: 30 });
+  const [outletDetail, setOutletDetail] = useState(null);
+  const openOutletDetail = (outlet) => setOutletDetail(outlet);
+  const outletDetailProducts = useMemo(
+    () => outletDetail ? getProductBreakdownForOutlet(aggFinal.filteredRows, outletDetail.outletCode) : [],
+    [outletDetail, aggFinal.filteredRows]
+  );
+
   const comparison = useMemo(() => computeComparison(aggFinal, comparisonSnapshot), [aggFinal, comparisonSnapshot]);
 
   const saveHistorySnapshot = (label) => {
@@ -2687,6 +2974,7 @@ export default function SalesMonitoringApp() {
       <style>{globalStyle}</style>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors} />
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
+      <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
       <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={confirmPreview} preview={pendingPreview} colors={colors} />
       <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSave={saveHistorySnapshot}
         onSelect={selectComparisonSnapshot} onDelete={deleteHistorySnapshot}
@@ -2840,6 +3128,7 @@ export default function SalesMonitoringApp() {
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
+            {activeTab === "outlet" && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} />}
             {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
           </>
         )}
