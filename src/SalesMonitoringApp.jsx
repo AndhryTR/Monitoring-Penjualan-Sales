@@ -1172,7 +1172,7 @@ function ProjectionCard({ projection, totals, colors }) {
 function AlertsPanel({ alerts, colors, onDrilldown }) {
   const [expanded, setExpanded] = useState(false);
   if (!alerts.length) return null;
-  const visible = expanded ? alerts : alerts.slice(0, 5);
+  const visible = expanded ? alerts : alerts.slice(0, 2);
   return (
     <div className="sm-card p-5 sm-fadeup mb-6" style={{ borderColor: colors.coral + "44" }}>
       <div className="flex items-center justify-between mb-3">
