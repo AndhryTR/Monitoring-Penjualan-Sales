@@ -2968,6 +2968,7 @@ export default function SalesMonitoringApp() {
   }, []);
 
   const activeIdx = TABS.findIndex((t) => t.key === activeTab);
+  const tabPct = 100 / TABS.length;
 
   return (
     <div className="smapp min-h-screen transition-colors duration-300" style={{ background: theme === 'dark' ? `radial-gradient(1200px 600px at 10% -10%, #16233F 0%, ${colors.ink} 60%)` : colors.ink }}>
@@ -3094,7 +3095,7 @@ export default function SalesMonitoringApp() {
         {/* tabs */}
         <div className="relative flex gap-1 mb-6 p-1 rounded-2xl sm-fadeup" style={{ background: colors.surface, border: `1px solid ${colors.border}`, animationDelay: "80ms" }}>
           <div className="absolute top-1 bottom-1 rounded-xl transition-all duration-300 ease-out"
-            style={{ left: `calc(${activeIdx * 20}% + 4px)`, width: "calc(20% - 8px)", background: colors.surface2, border: `1px solid ${colors.border}` }} />
+            style={{ left: `calc(${activeIdx * tabPct}% + 4px)`, width: `calc(${tabPct}% - 8px)`, background: colors.surface2, border: `1px solid ${colors.border}` }} />
           {TABS.map((t) => {
             const Icon = t.icon;
             const isActive = t.key === activeTab;
