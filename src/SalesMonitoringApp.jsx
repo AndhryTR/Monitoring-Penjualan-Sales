@@ -1192,7 +1192,7 @@ function AlertsPanel({ alerts, colors, onDrilldown }) {
       </div>
       {alerts.length > 2 && (
         <button onClick={() => setExpanded(!expanded)} className="sm-btn text-xs font-medium mt-3" style={{ color: colors.gold }}>
-          {expanded ? "Tampilkan lebih sedikit" : `Tampilkan ${alerts.length - 5} lainnya`}
+          {expanded ? "Tampilkan lebih sedikit" : `Tampilkan ${alerts.length - 2} lainnya`}
         </button>
       )}
     </div>
