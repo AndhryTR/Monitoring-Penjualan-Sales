@@ -10,7 +10,7 @@ import {
   Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard, UserRound,
   Boxes, Crosshair, Check, AlertTriangle, CalendarDays, Settings,
   FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus, Sun, Moon, ChevronLeft, ChevronRight, Menu, Filter, Loader2,
-  Store, Trophy, BellRing, Rocket, MapPin, ClipboardList, CheckCircle2, XCircle, FileQuestion, Smartphone, Share, Printer, FileText, History,
+  Store, Trophy, BellRing, Rocket, MapPin, ClipboardList, CheckCircle2, XCircle, FileQuestion, Smartphone, Share, Printer, FileText, History, Copy,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
 import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory } from "./utils/storage.js";
@@ -334,6 +334,26 @@ function parseWorkbookFile(file) {
   });
 }
 
+// Hapus baris yang persis sama (Tanggal + No Faktur + Kode Produk + Qty + Value) —
+// biasanya muncul kalau user tidak sengaja upload file yang sama 2×, atau rentang
+// tanggal antar file yang digabung saling overlap (ekspor ulang dari sistem sumber).
+// Baris TANPA No Faktur sengaja tidak di-dedup — tanpa identitas transaksi yang jelas,
+// terlalu berisiko menghapus baris yang sebenarnya beda (mis. 2 outlet beli produk
+// sama, qty & value kebetulan sama, di hari yang sama).
+function dedupeRows(rows) {
+  const seen = new Set();
+  const result = [];
+  let duplicateCount = 0;
+  for (const r of rows) {
+    if (!r.invoiceNo) { result.push(r); continue; }
+    const key = `${r.date}|${r.invoiceNo}|${r.productCode}|${r.qty}|${r.value}`;
+    if (seen.has(key)) { duplicateCount++; continue; }
+    seen.add(key);
+    result.push(r);
+  }
+  return { rows: result, duplicateCount };
+}
+
 // Beberapa barang dijual dalam lebih dari satu satuan (mis. KARTON, KTK, PCS, CAN).
 // Setiap baris transaksi punya KONV (faktor ke satuan dasar UNITK) sendiri-sendiri —
 // termasuk baris yang satuannya KARTON. Baris KARTON itu jadi "kurs resmi" produk
@@ -410,6 +430,7 @@ function useDataQualityNotes(rawRows, targets, parseMeta) {
       totalDataRows: parseMeta?.totalDataRows || 0,
       skippedBlankRows: parseMeta?.skippedBlankRows || 0,
       rowsWithMissingDate: parseMeta?.rowsWithMissingDate || 0,
+      duplicateRowsRemoved: parseMeta?.duplicateRowsRemoved || 0,
       detectedFields: parseMeta?.detectedFields || [],
       missingFields: parseMeta?.missingFields || [],
       missingDateCount,
@@ -446,12 +467,31 @@ function computeComparison(agg, snapshot) {
   const nowValue = agg.totals.realisasiValue;
   const thenValue = snapshot.totals.realisasiValue;
   const growth = thenValue > 0 ? (nowValue - thenValue) / thenValue : null;
-  const bySales = agg.bySales.map((s) => {
-    const prev = snapshot.bySales.find((p) => p.code === s.code);
+
+  // Union kode sales dari periode sekarang DAN snapshot lama — supaya sales yang
+  // ada di riwayat tapi sudah tidak muncul di periode aktif (resign/pindah area)
+  // tetap kelihatan di perbandingan, bukan senyap begitu saja.
+  const nowByCode = new Map(agg.bySales.map((s) => [s.code, s]));
+  const prevByCode = new Map(snapshot.bySales.map((s) => [s.code, s]));
+  const allCodes = new Set([...nowByCode.keys(), ...prevByCode.keys()]);
+
+  const bySales = Array.from(allCodes).map((code) => {
+    const now = nowByCode.get(code);
+    const prev = prevByCode.get(code);
+    const nowSalesValue = now ? now.realisasiValue : 0;
     const prevValue = prev ? prev.realisasiValue : 0;
-    const g = prevValue > 0 ? (s.realisasiValue - prevValue) / prevValue : null;
-    return { code: s.code, name: s.name, nowValue: s.realisasiValue, prevValue, growth: g };
+    const g = prevValue > 0 ? (nowSalesValue - prevValue) / prevValue : null;
+    return {
+      code,
+      name: now ? now.name : prev.name,
+      nowValue: nowSalesValue,
+      prevValue,
+      growth: g,
+      isGone: !now, // ada di snapshot lama, tapi tidak ada di periode aktif sekarang
+      isNew: !prev, // ada di periode aktif sekarang, tapi belum ada waktu snapshot disimpan
+    };
   }).sort((a, b) => (b.growth ?? -Infinity) - (a.growth ?? -Infinity));
+
   return { nowValue, thenValue, growth, bySales, label: snapshot.label };
 }
 
@@ -1036,6 +1076,15 @@ function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors }) {
             </div>
           </div>
 
+          {parseMeta.duplicateRowsRemoved > 0 && (
+            <div className="mb-6 flex items-start gap-2.5 px-3.5 py-3 rounded-xl text-sm" style={{ background: colors.gold + "0D", border: `1px solid ${colors.gold}33`, color: colors.text }}>
+              <AlertTriangle size={15} className="mt-0.5 shrink-0" style={{ color: colors.gold }} />
+              <span>
+                <b>{fmtNum(parseMeta.duplicateRowsRemoved)} baris duplikat</b> terdeteksi & otomatis dihapus — baris dengan Tanggal, No Faktur, Kode Produk, Qty, dan Value yang persis sama (biasanya karena file yang sama ter-upload 2×, atau rentang tanggal antar file yang digabung saling overlap).
+              </span>
+            </div>
+          )}
+
           {parseMeta.sourceFiles && parseMeta.sourceFiles.length > 1 && (
             <div className="mb-6">
               <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>{parseMeta.sourceFiles.length} File Digabung</div>
@@ -1228,8 +1277,20 @@ function PeriodComparisonCard({ comparison, colors, onClear }) {
       <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>Pertumbuhan per Sales</div>
       <div className="space-y-1.5 max-h-64 overflow-y-auto">
         {comparison.bySales.map((s) => (
-          <div key={s.code} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ background: colors.surface2 }}>
-            <span className="truncate flex-1">{s.name}</span>
+          <div key={s.code} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ background: colors.surface2, opacity: s.isGone ? 0.6 : 1 }}>
+            <span className="truncate flex-1 flex items-center gap-2">
+              {s.name}
+              {s.isGone && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ background: colors.textMuted + "22", color: colors.textMuted }}>
+                  Tidak ada di periode ini
+                </span>
+              )}
+              {s.isNew && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ background: colors.gold + "22", color: colors.gold }}>
+                  Baru
+                </span>
+              )}
+            </span>
             <span className="mono text-xs mr-3" style={{ color: colors.textMuted }}>{fmtRp(s.nowValue)}</span>
             <span className="mono font-semibold" style={{ color: s.growth === null ? colors.textMuted : s.growth >= 0 ? colors.mint : colors.coral }}>
               {s.growth === null ? "-" : `${s.growth >= 0 ? "+" : ""}${fmtPct(s.growth)}`}
@@ -1559,15 +1620,16 @@ function ProductFocusReportPage({ agg, colors, onDrilldown }) {
 
 function DataQualityPage({ notes, colors, onDrilldown }) {
   const hasIssues = notes.missingFields.length || notes.unknownSales.length || notes.unconvertibleProducts.length ||
-    notes.unknownGroups.length || notes.skippedBlankRows > 0 || notes.rowsWithMissingDate > 0;
+    notes.unknownGroups.length || notes.skippedBlankRows > 0 || notes.rowsWithMissingDate > 0 || notes.duplicateRowsRemoved > 0;
 
   return (
     <div className="sm-fadein">
       <SectionTitle title="Catatan Data" sub="Ringkasan kualitas data dari seluruh file yang diupload (tidak terpengaruh filter)" icon={ClipboardList} colors={colors} />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         <KpiCard label="Total Baris Terbaca" value={notes.totalDataRows} icon={FileSpreadsheet} accent={colors.blue} colors={colors} />
         <KpiCard label="Baris Dilewati (Kosong)" value={notes.skippedBlankRows} icon={XCircle} accent={colors.textMuted} colors={colors} />
+        <KpiCard label="Duplikat Dihapus" value={notes.duplicateRowsRemoved} icon={Copy} accent={notes.duplicateRowsRemoved > 0 ? colors.gold : colors.textMuted} colors={colors} />
         <KpiCard label="Tanggal Tidak Terbaca" value={notes.rowsWithMissingDate} icon={CalendarDays} accent={notes.rowsWithMissingDate > 0 ? colors.coral : colors.textMuted} colors={colors} />
         <KpiCard label="Kolom Tidak Terdeteksi" value={notes.missingFields.length} icon={FileQuestion} accent={notes.missingFields.length > 0 ? colors.coral : colors.textMuted} colors={colors} />
       </div>
@@ -2378,12 +2440,13 @@ export default function SalesMonitoringApp() {
     setLoading(true); setError("");
     try {
       const results = await Promise.all(fileList.map((f) => parseWorkbookFile(f)));
-      const combinedRows = results.flatMap((r) => r.rows);
-      if (!combinedRows.length) {
+      const combinedRowsRaw = results.flatMap((r) => r.rows);
+      if (!combinedRowsRaw.length) {
         setError("File terbaca tapi tidak ada baris data yang cocok. Pastikan kolom sesuai format sell-out.");
         setLoading(false);
         return;
       }
+      const { rows: combinedRows, duplicateCount } = dedupeRows(combinedRowsRaw);
       const detectedSet = new Set();
       results.forEach((r) => r.parseMeta.detectedFields.forEach((f) => detectedSet.add(f)));
       // Kolom dianggap benar-benar "tidak terdeteksi" hanya kalau tidak ada di SEMUA file
@@ -2395,6 +2458,7 @@ export default function SalesMonitoringApp() {
         rowsWithMissingDate: _.sumBy(results, (r) => r.parseMeta.rowsWithMissingDate),
         detectedFields: Array.from(detectedSet),
         missingFields: missingInAll,
+        duplicateRowsRemoved: duplicateCount,
         sourceFiles: results.map((r, i) => ({ name: fileList[i].name, rowCount: r.rows.length })),
       };
       const combinedName = fileList.length > 1
