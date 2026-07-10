@@ -974,13 +974,13 @@ function DataTable({ columns, rows, initialSortKey, colors, searchable, searchKe
           )}
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-auto max-h-[65vh]">
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr style={{ background: colors.surface2 }}>
               {columns.map((c) => (
                 <th key={c.key} onClick={() => toggleSort(c.key)} className="px-4 py-3 text-left cursor-pointer select-none whitespace-nowrap"
-                  style={{ color: colors.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  style={{ color: colors.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", background: colors.surface2, boxShadow: `0 1px 0 ${colors.border}` }}>
                   {c.label} {sortKey === c.key && (sortDir === "asc" ? "↑" : "↓")}
                 </th>
               ))}
