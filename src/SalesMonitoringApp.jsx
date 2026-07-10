@@ -1894,7 +1894,7 @@ function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onSelectOu
               { key: "invoiceCount", label: "Frekuensi", render: (o) => <span className="mono">{fmtNum(o.invoiceCount)}×</span> },
               { key: "groupCount", label: "Grup Produk", render: (o) => <span className="mono">{o.groupCount}</span> },
               { key: "lastDate", label: "Terakhir Transaksi", render: (o) => <span className="mono text-xs" style={{ color: colors.textMuted }}>{o.lastDate || "-"}</span> },
-              { key: "daysSinceLastPurchase", label: "Hari Sejak Terakhir", render: (o) => <span className="mono">{o.daysSinceLastPurchase ?? "-"}</span> },
+              { key: "daysSinceLastPurchase", label: "Jeda", render: (o) => <span className="mono">{o.daysSinceLastPurchase ?? "-"}</span> },
               { key: "status", label: "Status", render: (o) => <OutletStatusBadge status={o.status} colors={colors} /> },
             ]}
             rows={list}
