@@ -140,17 +140,17 @@ export function exportSummaryPDF(agg, targets, opts) {
   const sortedSales = [...agg.bySales].sort((a, b) => (b.ach ?? -1) - (a.ach ?? -1));
   autoTable(doc, {
     startY: y,
-    head: [["#", "Sales", "Target", "Realisasi", "AO", "Ach%", "Deviasi"]],
+    head: [["#", "Sales", "Target", "Realisasi", "Ach%", "Deviasi", "AO"]],
     body: sortedSales.map((s, i) => [
-      i + 1, s.name, fmtRp(s.targetValue), fmtRp(s.realisasiValue), `${fmtNum(s.realisasiAo)}/${fmtNum(s.targetAo)}`, fmtPct(s.ach),
-      s.deviasiValue !== null ? fmtRp(s.deviasiValue) : "-",
+      i + 1, s.name, fmtRp(s.targetValue), fmtRp(s.realisasiValue), fmtPct(s.ach),
+      s.deviasiValue !== null ? fmtRp(s.deviasiValue) : "-", `${fmtNum(s.realisasiAo)}/${fmtNum(s.targetAo)}`,
     ]),
     theme: "grid",
     styles: { font: "helvetica", fontSize: 8, cellPadding: 2.2, textColor: COLORS.text, lineColor: COLORS.border, lineWidth: 0.1 },
     headStyles: { fillColor: COLORS.headerFill, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
-    columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "center" }, 5: { halign: "right" }, 6: { halign: "right" } },
+    columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "center" } },
     didParseCell: (data) => {
-      if (data.section === "body" && data.column.index === 5) {
+      if (data.section === "body" && data.column.index === 4) {
         const ach = sortedSales[data.row.index].ach;
         data.cell.styles.textColor = achColor(ach);
         data.cell.styles.fontStyle = "bold";
