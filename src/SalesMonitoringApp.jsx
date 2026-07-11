@@ -2657,15 +2657,23 @@ function ExportMenu({ agg, targets, workDays, depotName, disabled, colors }) {
             {menuContent}
           </div>
 
-          {/* Mobile (<768px): modal terpusat di tengah layar — supaya tidak
-              pernah overflow keluar viewport, terlepas dari posisi tombol.
-              Backdrop click menutup; konten modal berada di atas backdrop
-              sehingga interaksi dengan item menu tetap normal. */}
-          <div className="md:hidden fixed inset-0 z-50 flex items-center justify-center sm-fadein"
+          {/* Mobile (<768px): bottom sheet anchored ke bawah layar — supaya
+              tidak pernah overflow keluar viewport maupun tertutup area notch
+              / URL bar di atas. Konsisten dengan pola bottom-sheet FilterBar.
+              Tutup via klik backdrop (area gelap di luar sheet). */}
+          <div className="md:hidden fixed inset-0 z-50 flex items-end sm-fadein"
             role="dialog" aria-modal="true" aria-label="Menu Export">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
-            <div className="relative w-[calc(100vw-2rem)] max-w-sm max-h-[85vh] overflow-y-auto rounded-xl sm-scale-in"
-              style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
+            <div className="relative w-full max-h-[88vh] overflow-y-auto sm-scale-in"
+              style={{
+                background: colors.surface,
+                borderTop: `1px solid ${colors.border}`,
+                borderRadius: "16px 16px 0 0",
+                boxShadow: "0 -10px 40px rgba(0,0,0,0.3)",
+                paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
+              }}>
+              {/* Drag handle — indikator visual standar bottom-sheet iOS/Android */}
+              <div className="mx-auto my-4 w-10 h-1 rounded-full" style={{ background: colors.border }} />
               {menuContent}
             </div>
           </div>
