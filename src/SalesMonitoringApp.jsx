@@ -2597,6 +2597,51 @@ function ExportMenu({ agg, targets, workDays, depotName, disabled, colors }) {
     <div className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: colors.textMuted }}>{children}</div>
   );
 
+  // Konten menu dibuat sekali lalu dipakai di dua wadah: dropdown absolut
+  // (desktop) dan modal terpusat (mobile). Duplikasi JSX dihindari supaya
+  // kalau ada item menu baru cukup ditambah di satu tempat.
+  const menuContent = (
+    <>
+      <SectionLabel>Excel</SectionLabel>
+      <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Export ke Excel"
+        desc="Format lengkap dengan target, deviasi & produk fokus"
+        onClick={() => { exportToExcel(agg, targets, opts); setOpen(false); }} />
+
+      <div style={{ borderTop: `1px solid ${colors.border}` }} />
+      <SectionLabel>PDF</SectionLabel>
+      <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Ringkasan"
+        desc="KPI, leaderboard sales & rekap grup produk"
+        onClick={() => { exportSummaryPDF(agg, targets, opts); setOpen(false); }} />
+      <MenuItem icon={FileText} iconColor={colors.coral} label="Scorecard Semua Sales"
+        desc={`1 halaman per sales (${agg.bySales.length} sales)`}
+        onClick={() => { exportAllScorecardsPDF(agg, opts); setOpen(false); }} />
+
+      <div style={{ borderTop: `1px solid ${colors.border}` }} />
+      <button onClick={() => setScorecardListOpen((v) => !v)}
+        className="sm-row w-full text-left px-4 py-2.5 flex items-center justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <Printer size={15} className="mt-0.5 shrink-0" style={{ color: colors.gold }} />
+          <div className="min-w-0">
+            <div className="text-sm font-medium">Cetak Scorecard Individual</div>
+            <div className="text-xs" style={{ color: colors.textMuted }}>Pilih 1 sales untuk dicetak sendiri</div>
+          </div>
+        </div>
+        <ChevronDown size={13} style={{ color: colors.textMuted, transform: scorecardListOpen ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }} />
+      </button>
+      {scorecardListOpen && (
+        <div className="max-h-52 overflow-y-auto" style={{ borderTop: `1px solid ${colors.border}`, background: colors.surface2 }}>
+          {salesSorted.map((sm) => (
+            <button key={sm.code} onClick={() => { exportSalesScorecardPDF(sm, agg, opts); setOpen(false); }}
+              className="sm-row w-full text-left pl-11 pr-4 py-2 flex items-center justify-between gap-2">
+              <span className="text-sm truncate">{sm.name}</span>
+              <span className="text-xs mono shrink-0" style={{ color: colors.textMuted }}>{fmtPct(sm.ach)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen((o) => !o)} disabled={disabled}
@@ -2605,46 +2650,26 @@ function ExportMenu({ agg, targets, workDays, depotName, disabled, colors }) {
         <Download size={15} /> <span className="hidden md:inline">Export</span> <ChevronDown size={13} className="hidden md:inline" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden sm-fadein"
-          style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
-          <SectionLabel>Excel</SectionLabel>
-          <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Export ke Excel"
-            desc="Format lengkap dengan target, deviasi & produk fokus"
-            onClick={() => { exportToExcel(agg, targets, opts); setOpen(false); }} />
+        <>
+          {/* Desktop (≥768px): dropdown absolut nempel kanan tombol */}
+          <div className="hidden md:block absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden sm-fadein"
+            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
+            {menuContent}
+          </div>
 
-          <div style={{ borderTop: `1px solid ${colors.border}` }} />
-          <SectionLabel>PDF</SectionLabel>
-          <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Ringkasan"
-            desc="KPI, leaderboard sales & rekap grup produk"
-            onClick={() => { exportSummaryPDF(agg, targets, opts); setOpen(false); }} />
-          <MenuItem icon={FileText} iconColor={colors.coral} label="Scorecard Semua Sales"
-            desc={`1 halaman per sales (${agg.bySales.length} sales)`}
-            onClick={() => { exportAllScorecardsPDF(agg, opts); setOpen(false); }} />
-
-          <div style={{ borderTop: `1px solid ${colors.border}` }} />
-          <button onClick={() => setScorecardListOpen((v) => !v)}
-            className="sm-row w-full text-left px-4 py-2.5 flex items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <Printer size={15} className="mt-0.5 shrink-0" style={{ color: colors.gold }} />
-              <div className="min-w-0">
-                <div className="text-sm font-medium">Cetak Scorecard Individual</div>
-                <div className="text-xs" style={{ color: colors.textMuted }}>Pilih 1 sales untuk dicetak sendiri</div>
-              </div>
+          {/* Mobile (<768px): modal terpusat di tengah layar — supaya tidak
+              pernah overflow keluar viewport, terlepas dari posisi tombol.
+              Backdrop click menutup; konten modal berada di atas backdrop
+              sehingga interaksi dengan item menu tetap normal. */}
+          <div className="md:hidden fixed inset-0 z-50 flex items-center justify-center sm-fadein"
+            role="dialog" aria-modal="true" aria-label="Menu Export">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
+            <div className="relative w-[calc(100vw-2rem)] max-w-sm max-h-[85vh] overflow-y-auto rounded-xl sm-scale-in"
+              style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
+              {menuContent}
             </div>
-            <ChevronDown size={13} style={{ color: colors.textMuted, transform: scorecardListOpen ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }} />
-          </button>
-          {scorecardListOpen && (
-            <div className="max-h-52 overflow-y-auto" style={{ borderTop: `1px solid ${colors.border}`, background: colors.surface2 }}>
-              {salesSorted.map((sm) => (
-                <button key={sm.code} onClick={() => { exportSalesScorecardPDF(sm, agg, opts); setOpen(false); }}
-                  className="sm-row w-full text-left pl-11 pr-4 py-2 flex items-center justify-between gap-2">
-                  <span className="text-sm truncate">{sm.name}</span>
-                  <span className="text-xs mono shrink-0" style={{ color: colors.textMuted }}>{fmtPct(sm.ach)}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );
