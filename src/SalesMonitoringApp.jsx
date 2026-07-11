@@ -10,7 +10,7 @@ import {
   Upload, Download, X, ChevronDown, Search, RefreshCw, Users, Package,
   Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard, UserRound,
   Boxes, Crosshair, Check, AlertTriangle, CalendarDays, Settings,
-  FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus, Sun, Moon, ChevronLeft, ChevronRight, Menu, Filter, Loader2,
+  FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus, Sun, Moon, ChevronLeft, ChevronRight, Menu, Filter,
   Store, Trophy, BellRing, Rocket, MapPin, ClipboardList, CheckCircle2, XCircle, FileQuestion, Smartphone, Share, Printer, FileText, History, Copy, Plus,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
@@ -2445,6 +2445,34 @@ function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWork
 /* ============================================================================
    UPLOAD / EXPORT
 ============================================================================ */
+// Skeleton generik yang meniru bentuk akhir dashboard (baris KPI + kartu berisi
+// beberapa baris) — dipakai selagi menunggu proses async yang biasanya cepat
+// tapi tidak instan (baca sesi terakhir dari IndexedDB saat app pertama dibuka).
+// Shimmer terasa lebih "cepat" secara persepsi dibanding spinner polos karena
+// user sudah lihat kira-kira bentuk konten yang akan muncul.
+function DashboardSkeleton({ colors }) {
+  return (
+    <div className="sm-fadein" aria-busy="true" aria-label="Memuat data">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="sm-card p-4 animate-pulse">
+            <div className="h-3 w-16 rounded mb-3" style={{ background: colors.surface2 }} />
+            <div className="h-6 w-20 rounded" style={{ background: colors.surface2 }} />
+          </div>
+        ))}
+      </div>
+      <div className="sm-card p-5 mb-8 animate-pulse">
+        <div className="h-4 w-44 rounded mb-5" style={{ background: colors.surface2 }} />
+        <div className="space-y-2.5">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-11 rounded-xl" style={{ background: colors.surface2, opacity: 1 - i * 0.08 }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading, sampleLoading, colors }) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef(null);
@@ -3440,10 +3468,7 @@ export default function SalesMonitoringApp() {
         </div>
 
         {sessionLoading ? (
-          <div className="sm-card p-16 text-center sm-fadeup">
-            <Loader2 size={24} className="mx-auto mb-4 animate-spin" style={{ color: colors.textMuted }} />
-            <p className="text-sm" style={{ color: colors.textMuted }}>Memuat data sesi terakhir...</p>
-          </div>
+          <DashboardSkeleton colors={colors} />
         ) : !rawRows.length ? (
           <div className="sm-card p-16 text-center sm-fadeup">
             <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.surface2 }}>
