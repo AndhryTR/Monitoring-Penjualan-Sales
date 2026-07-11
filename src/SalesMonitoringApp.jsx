@@ -2605,7 +2605,7 @@ function ExportMenu({ agg, targets, workDays, depotName, disabled, colors }) {
         <Download size={15} /> <span className="hidden md:inline">Export</span> <ChevronDown size={13} className="hidden md:inline" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-80 rounded-xl overflow-hidden sm-fadein"
+        <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden sm-fadein"
           style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
           <SectionLabel>Excel</SectionLabel>
           <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Export ke Excel"
