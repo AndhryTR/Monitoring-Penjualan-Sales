@@ -23,10 +23,10 @@ import {
   useAggregates, getOutletBreakdown, computeOutletAnalysis, getProductBreakdownForOutlet, dateKey,
 } from "./utils/aggregation.js";
 import { useDataQualityNotes } from "./utils/dataQuality.js";
-import { buildHistorySnapshot, computeComparison } from "./utils/history.js";
+import { buildHistorySnapshot, computeComparison, computeMultiPeriodComparison } from "./utils/history.js";
 import { generateSampleRows } from "./utils/sampleData.js";
 import { ALIASES, FIELD_LABELS } from "./constants/aliases.js";
-import { TABS } from "./constants/tabs.js";
+import { PRIMARY_TABS, MORE_TABS } from "./constants/tabs.js";
 import { WORK_DAYS_DEFAULT, OUTLET_DEFAULT_THRESHOLDS } from "./constants/thresholds.js";
 import DEFAULT_TARGETS from "./constants/defaultTargets.json";
 // Modul virtual dari vite-plugin-pwa — hanya ada saat plugin ini terpasang &
@@ -43,6 +43,7 @@ import { SectionTitle, DrilldownButton, createChartTooltipStyle } from "./compon
 import { DashboardSkeleton } from "./components/ui/DashboardSkeleton.jsx";
 import { Leaderboard, ProjectionCard, AlertsPanel, PeriodComparisonCard } from "./components/cards/index.jsx";
 import { UploadDropzone, MobileBottomNav, MobileFab, ExportMenu } from "./components/upload/index.jsx";
+import { TrendPeriodePage } from "./components/trend/index.jsx";
 
 /* ============================================================================
    DESIGN TOKENS
@@ -381,18 +382,38 @@ function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors }) {
 // Papan peringkat sales berdasarkan ACH%, dengan proyeksi akhir bulan.
 // Modal riwayat & perbandingan periode — simpan snapshot periode aktif, pilih salah satu
 // riwayat sebagai pembanding, atau hapus riwayat yang tidak diperlukan lagi.
-function HistoryModal({ isOpen, onClose, history, onSave, onSelect, onDelete, defaultLabel, colors }) {
+// MAX_TREND_PERIODS: batas jumlah snapshot riwayat yang bisa dipilih sekaligus
+// untuk tab "Tren Periode" (di luar periode aktif) — biar tabel & chart tidak
+// kebanjiran kolom. HISTORY_MAX_ENTRIES (penyimpanan) sengaja lebih longgar (8).
+const MAX_TREND_PERIODS = 5;
+
+function HistoryModal({ isOpen, onClose, history, onSave, onApply, onDelete, defaultLabel, colors }) {
   const [label, setLabel] = useState("");
-  useEffect(() => { if (isOpen) setLabel(defaultLabel || ""); }, [isOpen, defaultLabel]);
+  const [checked, setChecked] = useState([]);
+  useEffect(() => { if (isOpen) { setLabel(defaultLabel || ""); setChecked([]); } }, [isOpen, defaultLabel]);
   if (!isOpen) return null;
+
+  const toggle = (id) => {
+    setChecked((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= MAX_TREND_PERIODS) return prev; // sudah mentok batas
+      return [...prev, id];
+    });
+  };
+
+  const atLimit = checked.length >= MAX_TREND_PERIODS;
+  const actionLabel = checked.length === 0 ? "Pilih periode dulu"
+    : checked.length === 1 ? "Bandingkan dengan Periode Aktif"
+    : `Lihat Tren ${checked.length} Periode`;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
       <div className="sm-card sm-scale-in w-full max-w-xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
         <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
-          <SectionTitle title="Riwayat & Perbandingan Periode" icon={History} colors={colors} />
+          <SectionTitle title="Riwayat & Perbandingan Periode" sub="Pilih 1 periode untuk bandingkan cepat, atau 2+ untuk lihat tren" icon={History} colors={colors} />
           <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
         </div>
-        <div className="p-5 overflow-y-auto">
+        <div className="p-5 overflow-y-auto flex-1">
           <div className="flex gap-2 mb-5">
             <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label periode (mis. Juli 2026 Minggu 1)"
               className="flex-1 px-3 py-2 rounded-lg text-sm" style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
@@ -404,18 +425,43 @@ function HistoryModal({ isOpen, onClose, history, onSave, onSelect, onDelete, de
             <div className="text-center py-8 text-sm" style={{ color: colors.textMuted }}>Belum ada riwayat tersimpan. Simpan periode aktif dulu untuk mulai membandingkan.</div>
           ) : (
             <div className="space-y-2">
-              {history.map((h) => (
-                <div key={h.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: colors.surface2 }}>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{h.label}</div>
-                    <div className="text-xs mono" style={{ color: colors.textMuted }}>{h.dateFrom || "?"} — {h.dateTo || "?"} · {fmtRp(h.totals.realisasiValue)}</div>
+              {history.map((h) => {
+                const isChecked = checked.includes(h.id);
+                const disabled = !isChecked && atLimit;
+                return (
+                  <div key={h.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: colors.surface2, opacity: disabled ? 0.5 : 1 }}>
+                    <button
+                      onClick={() => !disabled && toggle(h.id)}
+                      disabled={disabled}
+                      className="w-5 h-5 rounded flex items-center justify-center shrink-0"
+                      style={{ background: isChecked ? colors.gold : "transparent", border: `1px solid ${isChecked ? colors.gold : colors.border}` }}
+                      aria-label={`Pilih ${h.label}`}
+                    >
+                      {isChecked && <Check size={12} color="#0A1120" />}
+                    </button>
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => !disabled && toggle(h.id)}>
+                      <div className="text-sm font-medium truncate">{h.label}</div>
+                      <div className="text-xs mono" style={{ color: colors.textMuted }}>{h.dateFrom || "?"} — {h.dateTo || "?"} · {fmtRp(h.totals.realisasiValue)}</div>
+                    </div>
+                    <button onClick={() => onDelete(h.id)} className="sm-btn p-1.5 rounded-lg" style={{ background: colors.coral + "14", color: colors.coral }}><X size={13} /></button>
                   </div>
-                  <button onClick={() => onSelect(h)} className="sm-btn text-xs px-3 py-1.5 rounded-lg font-medium whitespace-nowrap" style={{ background: colors.mint + "1A", color: colors.mint }}>Bandingkan</button>
-                  <button onClick={() => onDelete(h.id)} className="sm-btn p-1.5 rounded-lg" style={{ background: colors.coral + "14", color: colors.coral }}><X size={13} /></button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
+          {atLimit && (
+            <div className="text-xs mt-3 text-center" style={{ color: colors.textMuted }}>Maksimal {MAX_TREND_PERIODS} periode sekaligus.</div>
+          )}
+        </div>
+        <div className="p-5" style={{ borderTop: `1px solid ${colors.border}` }}>
+          <button
+            onClick={() => checked.length > 0 && onApply(checked)}
+            disabled={checked.length === 0}
+            className="sm-btn w-full px-4 py-2.5 rounded-xl text-sm font-semibold"
+            style={{ background: checked.length ? colors.gold : colors.surface2, color: checked.length ? "#0A1120" : colors.textMuted }}
+          >
+            {actionLabel}
+          </button>
         </div>
       </div>
     </div>
@@ -1189,6 +1235,13 @@ export default function SalesMonitoringApp() {
   const [history, setHistory] = useState(() => loadHistory());
   const [comparisonSnapshot, setComparisonSnapshot] = useState(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  // ID snapshot riwayat yang dipilih untuk tab "Tren Periode" (2+ periode
+  // sekaligus) — beda dari comparisonSnapshot di atas yang cuma 1-vs-1 untuk
+  // card "Bandingkan Periode" di Main Report. Sengaja tidak dipersist ke
+  // localStorage: dipilih ulang tiap sesi, konsisten dengan sifatnya yang
+  // sementara/eksploratif.
+  const [trendSnapshotIds, setTrendSnapshotIds] = useState([]);
+  const [desktopMoreOpen, setDesktopMoreOpen] = useState(false);
 
   const [filters, setFilters] = useState(persistedSettings?.filters || { salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
   const [workDays, setWorkDays] = useState(persistedSettings?.workDays ?? WORK_DAYS_DEFAULT);
@@ -1294,6 +1347,31 @@ export default function SalesMonitoringApp() {
 
   const comparison = useMemo(() => computeComparison(aggFinal, comparisonSnapshot), [aggFinal, comparisonSnapshot]);
 
+  const trendSnapshots = useMemo(
+    () => history.filter((h) => trendSnapshotIds.includes(h.id)),
+    [history, trendSnapshotIds]
+  );
+  const trendComparisonData = useMemo(
+    () => trendSnapshots.length > 0 ? computeMultiPeriodComparison(aggFinal, trendSnapshots, filters, fileName) : null,
+    [aggFinal, trendSnapshots, filters, fileName]
+  );
+
+  // Dipanggil dari HistoryModal setelah user pilih 1 atau lebih snapshot.
+  // 1 dipilih → isi comparisonSnapshot (perbandingan cepat di Main Report).
+  // 2+ dipilih → isi trendSnapshotIds & pindah ke tab "Tren Periode".
+  const applyHistorySelection = useCallback((ids) => {
+    if (ids.length === 1) {
+      const h = history.find((x) => x.id === ids[0]);
+      setComparisonSnapshot(h || null);
+      setTrendSnapshotIds([]);
+    } else {
+      setTrendSnapshotIds(ids);
+      setComparisonSnapshot(null);
+      setActiveTab("trend");
+    }
+    setIsHistoryOpen(false);
+  }, [history]);
+
   const saveHistorySnapshot = (label) => {
     const snap = buildHistorySnapshot(aggFinal, filters, fileName, label);
     setHistory((prev) => {
@@ -1310,8 +1388,8 @@ export default function SalesMonitoringApp() {
       return next;
     });
     setComparisonSnapshot((cur) => (cur && cur.id === id ? null : cur));
+    setTrendSnapshotIds((cur) => cur.filter((x) => x !== id));
   };
-  const selectComparisonSnapshot = (h) => { setComparisonSnapshot(h); setIsHistoryOpen(false); };
 
   const handleFile = useCallback(async (files) => {
     const fileList = Array.isArray(files) ? files : [files];
@@ -1398,10 +1476,16 @@ export default function SalesMonitoringApp() {
     setTheme('dark');
     setHistory([]);
     setComparisonSnapshot(null);
+    setTrendSnapshotIds([]);
   }, []);
 
-  const activeIdx = TABS.findIndex((t) => t.key === activeTab);
-  const tabPct = 100 / TABS.length;
+  // Slot terakhir di tab bar desktop adalah tombol "Lainnya" (dropdown) — jadi
+  // total slot = jumlah tab primary + 1. Kalau tab aktif sedang berada di grup
+  // "more", indikator geser ke slot "Lainnya" itu, bukan hilang begitu saja.
+  const activeIsInMore = MORE_TABS.some((t) => t.key === activeTab);
+  const activeIdx = activeIsInMore ? PRIMARY_TABS.length : PRIMARY_TABS.findIndex((t) => t.key === activeTab);
+  const totalSlots = PRIMARY_TABS.length + (MORE_TABS.length > 0 ? 1 : 0);
+  const tabPct = 100 / totalSlots;
 
   return (
     <div className="smapp min-h-screen transition-colors duration-300" style={{ background: theme === 'dark' ? `radial-gradient(1200px 600px at 10% -10%, #16233F 0%, ${colors.ink} 60%)` : colors.ink }}>
@@ -1410,11 +1494,11 @@ export default function SalesMonitoringApp() {
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
       <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
       <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={confirmPreview} preview={pendingPreview} colors={colors} />
-      <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSave={saveHistorySnapshot}
-        onSelect={selectComparisonSnapshot} onDelete={deleteHistorySnapshot}
+      <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSave={saveHistorySnapshot} onApply={applyHistorySelection}
+        onDelete={deleteHistorySnapshot}
         defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
       <MobileFab onFile={handleFile} colors={colors} loading={loading} />
-      <MobileBottomNav tabs={TABS} activeTab={activeTab} onChange={setActiveTab} colors={colors} />
+      <MobileBottomNav primaryTabs={PRIMARY_TABS} moreTabs={MORE_TABS} activeTab={activeTab} onChange={setActiveTab} colors={colors} />
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 pb-28 md:pb-6">
         {/* header */}
         <div className="relative z-40 flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
@@ -1527,11 +1611,13 @@ export default function SalesMonitoringApp() {
           )}
         </div>
 
-        {/* tabs — desktop only (mobile pakai bottom nav) */}
+        {/* tabs — desktop only (mobile pakai bottom nav). Tab primary tampil
+            langsung, sisanya dikelompokkan di dropdown "Lainnya" supaya bar
+            tidak makin sesak tiap kali nambah fitur/tab baru. */}
         <div className="relative hidden md:flex gap-1 mb-6 p-1 rounded-2xl sm-fadeup" style={{ background: colors.surface, border: `1px solid ${colors.border}`, animationDelay: "80ms" }}>
           <div className="absolute top-1 bottom-1 rounded-xl transition-all duration-300 ease-out"
             style={{ left: `calc(${activeIdx * tabPct}% + 4px)`, width: `calc(${tabPct}% - 8px)`, background: colors.surface2, border: `1px solid ${colors.border}` }} />
-          {TABS.map((t) => {
+          {PRIMARY_TABS.map((t) => {
             const Icon = t.icon;
             const isActive = t.key === activeTab;
             return (
@@ -1542,6 +1628,34 @@ export default function SalesMonitoringApp() {
               </button>
             );
           })}
+          {MORE_TABS.length > 0 && (
+            <div className="relative flex-1">
+              <button onClick={() => setDesktopMoreOpen((v) => !v)}
+                className="sm-tab-btn relative z-10 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium"
+                style={{ color: activeIsInMore ? colors.gold : colors.textMuted }}>
+                <Menu size={15} /> <span>Lainnya</span>
+                <ChevronDown size={13} style={{ transform: desktopMoreOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+              </button>
+              {desktopMoreOpen && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setDesktopMoreOpen(false)} />
+                  <div className="sm-fadein absolute right-0 z-30 mt-2 w-56 rounded-xl p-1.5 shadow-2xl" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                    {MORE_TABS.map((t) => {
+                      const Icon = t.icon;
+                      const isActive = t.key === activeTab;
+                      return (
+                        <button key={t.key} onClick={() => { setActiveTab(t.key); setDesktopMoreOpen(false); }}
+                          className="sm-row w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-left"
+                          style={{ color: isActive ? colors.gold : colors.text, background: isActive ? colors.gold + "14" : "transparent" }}>
+                          <Icon size={15} /> <span>{t.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {sessionLoading ? (
@@ -1563,6 +1677,7 @@ export default function SalesMonitoringApp() {
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "outlet" && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} />}
             {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
+            {activeTab === "trend" && <TrendPeriodePage comparisonData={trendComparisonData} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} />}
           </>
         )}
 

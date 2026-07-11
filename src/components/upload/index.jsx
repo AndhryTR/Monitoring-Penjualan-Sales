@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   Upload, Download, X, ChevronDown, RefreshCw, FileSpreadsheet,
-  FileText, Printer,
+  FileText, Printer, Menu,
 } from "lucide-react";
 import { fmtPct } from "../../utils/formatters.js";
 import { exportSummaryPDF, exportSalesScorecardPDF, exportAllScorecardsPDF } from "../../utils/pdfExport.js";
@@ -61,39 +61,105 @@ export function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, l
    Keduanya menghormati iOS safe-area-inset supaya tidak tertutup home indicator.
 ============================================================================ */
 
-export function MobileBottomNav({ tabs, activeTab, onChange, colors }) {
+// primaryTabs selalu tampil sebagai ikon di bottom nav. moreTabs (kalau ada)
+// dikelompokkan jadi satu slot terakhir "Lainnya" yang membuka bottom-sheet —
+// supaya nambah tab baru di masa depan tidak bikin bottom nav makin sesak/kecil.
+export function MobileBottomNav({ primaryTabs, moreTabs, activeTab, onChange, colors }) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const activeIsInMore = moreTabs.some((t) => t.key === activeTab);
+
+  const handleSelect = (key) => { onChange(key); setMoreOpen(false); };
+
   return (
-    <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40"
-      style={{
-        background: colors.surface,
-        borderTop: `1px solid ${colors.border}`,
-        boxShadow: "0 -4px 20px rgba(0,0,0,0.18)",
-        paddingBottom: "env(safe-area-inset-bottom)",
-      }}
-    >
-      <div className="flex items-stretch justify-around">
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const isActive = t.key === activeTab;
-          return (
+    <>
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40"
+        style={{
+          background: colors.surface,
+          borderTop: `1px solid ${colors.border}`,
+          boxShadow: "0 -4px 20px rgba(0,0,0,0.18)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+      >
+        <div className="flex items-stretch justify-around">
+          {primaryTabs.map((t) => {
+            const Icon = t.icon;
+            const isActive = t.key === activeTab;
+            return (
+              <button
+                key={t.key}
+                onClick={() => handleSelect(t.key)}
+                className="flex flex-col items-center justify-center gap-0.5 py-2 px-1 flex-1 min-w-0"
+                style={{ color: isActive ? colors.gold : colors.textMuted }}
+                aria-label={t.label}
+                aria-current={isActive ? "page" : undefined}
+              >
+                <Icon size={20} style={{ strokeWidth: isActive ? 2.4 : 2 }} />
+                <span className="text-[10px] font-medium leading-tight truncate w-full text-center" style={{ maxWidth: 56 }}>
+                  {t.shortLabel}
+                </span>
+              </button>
+            );
+          })}
+          {moreTabs.length > 0 && (
             <button
-              key={t.key}
-              onClick={() => onChange(t.key)}
+              onClick={() => setMoreOpen(true)}
               className="flex flex-col items-center justify-center gap-0.5 py-2 px-1 flex-1 min-w-0"
-              style={{ color: isActive ? colors.gold : colors.textMuted }}
-              aria-label={t.label}
-              aria-current={isActive ? "page" : undefined}
+              style={{ color: activeIsInMore ? colors.gold : colors.textMuted }}
+              aria-label="Lainnya"
+              aria-current={activeIsInMore ? "page" : undefined}
             >
-              <Icon size={20} style={{ strokeWidth: isActive ? 2.4 : 2 }} />
+              <Menu size={20} style={{ strokeWidth: activeIsInMore ? 2.4 : 2 }} />
               <span className="text-[10px] font-medium leading-tight truncate w-full text-center" style={{ maxWidth: 56 }}>
-                {t.shortLabel}
+                Lainnya
               </span>
             </button>
-          );
-        })}
-      </div>
-    </nav>
+          )}
+        </div>
+      </nav>
+
+      {moreOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-50 flex items-end sm-fadein"
+          onClick={() => setMoreOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menu lainnya"
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className="relative w-full rounded-t-2xl p-4 sm-scale-in"
+            style={{
+              background: colors.surface,
+              borderTop: `1px solid ${colors.border}`,
+              borderRadius: "16px 16px 0 0",
+              boxShadow: "0 -10px 40px rgba(0,0,0,0.3)",
+              paddingBottom: "calc(16px + env(safe-area-inset-bottom))",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-3 w-10 h-1 rounded-full" style={{ background: colors.border }} />
+            <div className="grid grid-cols-3 gap-3">
+              {moreTabs.map((t) => {
+                const Icon = t.icon;
+                const isActive = t.key === activeTab;
+                return (
+                  <button
+                    key={t.key}
+                    onClick={() => handleSelect(t.key)}
+                    className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl"
+                    style={{ background: isActive ? colors.gold + "1A" : colors.surface2, color: isActive ? colors.gold : colors.text }}
+                  >
+                    <Icon size={20} />
+                    <span className="text-xs font-medium">{t.shortLabel}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
