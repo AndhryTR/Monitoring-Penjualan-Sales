@@ -10,10 +10,10 @@ import {
   Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard, UserRound,
   Boxes, Crosshair, Check, AlertTriangle, CalendarDays, Settings,
   FileSpreadsheet, ArrowUpRight, ArrowDownRight, Minus, Sun, Moon, ChevronLeft, ChevronRight, Menu, Filter, Loader2,
-  Store, Trophy, BellRing, Rocket, MapPin, ClipboardList, CheckCircle2, XCircle, FileQuestion, Smartphone, Share, Printer, FileText,
+  Store, Trophy, BellRing, Rocket, MapPin, ClipboardList, CheckCircle2, XCircle, FileQuestion, Smartphone, Share, Printer, FileText, History, Copy, Plus,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
-import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession } from "./utils/storage.js";
+import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory } from "./utils/storage.js";
 import { exportSummaryPDF, exportSalesScorecardPDF, exportAllScorecardsPDF } from "./utils/pdfExport.js";
 // Modul virtual dari vite-plugin-pwa — hanya ada saat plugin ini terpasang &
 // dijalankan lewat Vite (dev atau build), bukan package npm biasa.
@@ -334,6 +334,26 @@ function parseWorkbookFile(file) {
   });
 }
 
+// Hapus baris yang persis sama (Tanggal + No Faktur + Kode Produk + Qty + Value) —
+// biasanya muncul kalau user tidak sengaja upload file yang sama 2×, atau rentang
+// tanggal antar file yang digabung saling overlap (ekspor ulang dari sistem sumber).
+// Baris TANPA No Faktur sengaja tidak di-dedup — tanpa identitas transaksi yang jelas,
+// terlalu berisiko menghapus baris yang sebenarnya beda (mis. 2 outlet beli produk
+// sama, qty & value kebetulan sama, di hari yang sama).
+function dedupeRows(rows) {
+  const seen = new Set();
+  const result = [];
+  let duplicateCount = 0;
+  for (const r of rows) {
+    if (!r.invoiceNo) { result.push(r); continue; }
+    const key = `${r.date}|${r.invoiceNo}|${r.productCode}|${r.qty}|${r.value}`;
+    if (seen.has(key)) { duplicateCount++; continue; }
+    seen.add(key);
+    result.push(r);
+  }
+  return { rows: result, duplicateCount };
+}
+
 // Beberapa barang dijual dalam lebih dari satu satuan (mis. KARTON, KTK, PCS, CAN).
 // Setiap baris transaksi punya KONV (faktor ke satuan dasar UNITK) sendiri-sendiri —
 // termasuk baris yang satuannya KARTON. Baris KARTON itu jadi "kurs resmi" produk
@@ -410,6 +430,7 @@ function useDataQualityNotes(rawRows, targets, parseMeta) {
       totalDataRows: parseMeta?.totalDataRows || 0,
       skippedBlankRows: parseMeta?.skippedBlankRows || 0,
       rowsWithMissingDate: parseMeta?.rowsWithMissingDate || 0,
+      duplicateRowsRemoved: parseMeta?.duplicateRowsRemoved || 0,
       detectedFields: parseMeta?.detectedFields || [],
       missingFields: parseMeta?.missingFields || [],
       missingDateCount,
@@ -418,6 +439,60 @@ function useDataQualityNotes(rawRows, targets, parseMeta) {
       unknownGroups: Object.values(unknownGroupMap).sort((a, b) => b.value - a.value),
     };
   }, [rawRows, targets, parseMeta]);
+}
+
+/* ============================================================================
+   RIWAYAT & PERBANDINGAN PERIODE
+   Snapshot ringan (bukan data transaksi mentah) untuk satu periode aktif —
+   dipakai sebagai pembanding di fitur "Bandingkan Periode". Disimpan lewat
+   saveHistory()/loadHistory() di utils/storage.js (localStorage).
+============================================================================ */
+function buildHistorySnapshot(agg, filters, fileName, label) {
+  return {
+    id: `${Date.now()}`,
+    label: label && label.trim() ? label.trim() : `${filters.dateFrom || "?"} — ${filters.dateTo || "?"}`,
+    savedAt: todayLocalDateStr(),
+    dateFrom: filters.dateFrom || null,
+    dateTo: filters.dateTo || null,
+    fileName,
+    totals: { targetValue: agg.totals.targetValue, realisasiValue: agg.totals.realisasiValue },
+    bySales: agg.bySales.map((s) => ({ code: s.code, name: s.name, targetValue: s.targetValue, realisasiValue: s.realisasiValue })),
+    byGroup: agg.byGroup.map((g) => ({ name: g.name, targetValue: g.targetValue, realisasiValue: g.realisasiValue })),
+  };
+}
+
+// Bandingkan totals & bySales periode aktif terhadap sebuah snapshot riwayat.
+function computeComparison(agg, snapshot) {
+  if (!snapshot) return null;
+  const nowValue = agg.totals.realisasiValue;
+  const thenValue = snapshot.totals.realisasiValue;
+  const growth = thenValue > 0 ? (nowValue - thenValue) / thenValue : null;
+
+  // Union kode sales dari periode sekarang DAN snapshot lama — supaya sales yang
+  // ada di riwayat tapi sudah tidak muncul di periode aktif (resign/pindah area)
+  // tetap kelihatan di perbandingan, bukan senyap begitu saja.
+  const nowByCode = new Map(agg.bySales.map((s) => [s.code, s]));
+  const prevByCode = new Map(snapshot.bySales.map((s) => [s.code, s]));
+  const allCodes = new Set([...nowByCode.keys(), ...prevByCode.keys()]);
+
+  const bySales = Array.from(allCodes).map((code) => {
+    const now = nowByCode.get(code);
+    const prev = prevByCode.get(code);
+    const nowSalesValue = now ? now.realisasiValue : 0;
+    const prevValue = prev ? prev.realisasiValue : 0;
+    const g = prevValue > 0 ? (nowSalesValue - prevValue) / prevValue : null;
+    return {
+      code,
+      name: now ? now.name : prev.name,
+      nowValue: nowSalesValue,
+      prevValue,
+      growth: g,
+      isGone: !now, // ada di snapshot lama, tapi tidak ada di periode aktif sekarang
+      isNew: !prev, // ada di periode aktif sekarang, tapi belum ada waktu snapshot disimpan
+    };
+  }).sort((a, b) => (b.growth ?? -Infinity) - (a.growth ?? -Infinity));
+
+  return { nowValue, thenValue, growth, bySales, label: snapshot.label };
 }
 
 /* ---- compact sample data generator (for "Load Sample Data") ---- */
@@ -455,13 +530,22 @@ function dateKey(dateStr) { return dateStr || "unknown"; }
 function monthKey(dateStr) { return dateStr ? dateStr.slice(0, 7) : "unknown"; }
 
 function matchFocus(row, focusItem) {
-  if (focusItem.keyword === "__GROUP__") return normalizeHeader(row.group) === normalizeHeader(focusItem.name);
+  // `matchType` eksplisit (diisi lewat UI Pengaturan) diprioritaskan. Untuk data lama
+  // yang masih pakai sentinel keyword ("__GROUP__"/"GAS_EXACT") tanpa matchType,
+  // tetap dikenali otomatis supaya kompatibel.
+  const matchType = focusItem.matchType
+    || (focusItem.keyword === "__GROUP__" ? "group" : focusItem.keyword === "GAS_EXACT" ? "exact" : "contains");
+
+  if (matchType === "group") return normalizeHeader(row.group) === normalizeHeader(focusItem.name);
 
   // Catatan: field `unit` pada konfigurasi produk fokus tidak lagi dipakai untuk
   // menyaring baris — sejak kuantitas otomatis dikonversi ke setara KARTON
   // (lihat attachKartonQty/effectiveKartonQty), pencocokan cukup berdasarkan
   // nama/grup produk saja, apa pun satuan asli transaksinya.
-  if (focusItem.keyword === "GAS_EXACT") return normalizeHeader(row.productName) === "GAS";
+  if (matchType === "exact") {
+    const target = focusItem.keyword === "GAS_EXACT" ? "GAS" : focusItem.keyword;
+    return normalizeHeader(row.productName) === normalizeHeader(target);
+  }
   return normalizeHeader(row.productName).includes(normalizeHeader(focusItem.keyword));
 }
 
@@ -486,6 +570,83 @@ function getOutletBreakdown(rows, predicate) {
     .map((o) => ({ ...o, invoiceCount: o.invoices.size }))
     .sort((a, b) => b.value - a.value);
 }
+
+/* ============================================================================
+   ANALISIS OUTLET — segmentasi Aktif/Berisiko/Dormant berdasarkan Recency
+   (hari sejak transaksi terakhir, relatif terhadap tanggal terakhir DI DALAM
+   data yang sedang dimuat — bukan lintas periode/riwayat).
+============================================================================ */
+
+function computeOutletAnalysis(rows, meta, thresholds) {
+  const map = {};
+  rows.forEach((r) => {
+    const key = r.outletCode || r.outletName || "UNKNOWN";
+    if (!map[key]) {
+      map[key] = {
+        outletCode: r.outletCode, outletName: r.outletName || r.outletCode || "(tanpa nama)",
+        value: 0, qty: 0, invoices: new Set(), groups: new Set(), salesNames: new Set(), lastDate: null,
+      };
+    }
+    const o = map[key];
+    o.value += r.value;
+    o.qty += effectiveKartonQty(r);
+    if (r.invoiceNo) o.invoices.add(r.invoiceNo);
+    if (r.group) o.groups.add(r.group);
+    if (r.salesName) o.salesNames.add(r.salesName);
+    if (!o.lastDate || r.date > o.lastDate) o.lastDate = r.date;
+  });
+
+  const refD = meta.lastDate ? dateStrToLocalDate(meta.lastDate) : null;
+
+  const list = Object.values(map).map((o) => {
+    const lastD = o.lastDate ? dateStrToLocalDate(o.lastDate) : null;
+    const daysSinceLastPurchase = (refD && lastD) ? Math.round((refD - lastD) / 86400000) : null;
+    let status = "unknown";
+    if (daysSinceLastPurchase !== null) {
+      if (daysSinceLastPurchase <= thresholds.activeMaxDays) status = "active";
+      else if (daysSinceLastPurchase <= thresholds.dormantMinDays) status = "at_risk";
+      else status = "dormant";
+    }
+    return {
+      outletCode: o.outletCode,
+      outletName: o.outletName,
+      value: o.value,
+      qty: o.qty,
+      invoiceCount: o.invoices.size,
+      groupCount: o.groups.size,
+      salesLabel: o.salesNames.size === 1 ? Array.from(o.salesNames)[0] : (o.salesNames.size > 1 ? `${o.salesNames.size} sales` : "-"),
+      lastDate: o.lastDate,
+      daysSinceLastPurchase,
+      status,
+    };
+  }).sort((a, b) => b.value - a.value);
+
+  return {
+    list,
+    summary: {
+      total: list.length,
+      active: list.filter((o) => o.status === "active").length,
+      atRisk: list.filter((o) => o.status === "at_risk").length,
+      dormant: list.filter((o) => o.status === "dormant").length,
+    },
+  };
+}
+
+/** Breakdown produk yang dibeli oleh 1 outlet spesifik — dipakai di modal detail outlet. */
+function getProductBreakdownForOutlet(rows, outletCode) {
+  const map = {};
+  rows.filter((r) => r.outletCode === outletCode).forEach((r) => {
+    const key = r.productCode || r.productName || "UNKNOWN";
+    if (!map[key]) map[key] = { productName: r.productName || key, group: r.group || "-", value: 0, qty: 0, invoices: new Set() };
+    map[key].value += r.value;
+    map[key].qty += effectiveKartonQty(r);
+    if (r.invoiceNo) map[key].invoices.add(r.invoiceNo);
+  });
+  return Object.values(map)
+    .map((p) => ({ ...p, invoiceCount: p.invoices.size }))
+    .sort((a, b) => b.value - a.value);
+}
+
 // - Kalau semua baris yang cocok berhasil dikonversi -> "KARTON" (satuan hasil konversi).
 // - Kalau semua baris TIDAK bisa dikonversi (tidak ada referensi KARTON di data untuk
 //   produk itu) -> pakai satuan asli transaksinya apa adanya (mis. "IKAT").
@@ -716,7 +877,8 @@ function MultiSelect({ label, icon: Icon, options, selected, onChange, placehold
   );
 }
 
-function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors }) {
+function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors, theme }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
   const active = filters.salesCodes.length + filters.groups.length + (filters.dateFrom ? 1 : 0) + (filters.dateTo ? 1 : 0);
   const nameToCode = useMemo(() => Object.fromEntries(salesOptions.map((s) => [s.name, s.code])), [salesOptions]);
   const codeToName = useMemo(() => Object.fromEntries(salesOptions.map(s => [s.code, s.name])), [salesOptions]);
@@ -727,8 +889,22 @@ function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors }) 
     setFilters(f => ({ ...f, salesCodes: selectedCodes }));
   };
 
-  return (
-    <div className="flex flex-wrap items-center gap-3 mb-6">
+  // Tutup bottom-sheet mobile saat Escape supaya konsisten dengan pola modal lain.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e) => { if (e.key === "Escape") setMobileOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
+
+  // Perbaikan bug lama: colorScheme hardcode "dark" bikin date picker tetap dark
+  // walau tema light aktif. Sekarang dinamis mengikuti tema aktif.
+  const colorScheme = theme === "light" ? "light" : "dark";
+
+  // Konten filter yang dipakai bersama oleh tampilan desktop (inline) dan mobile (sheet).
+  // Urutan & behavior identik — beda hanya wadahnya.
+  const filterContent = (
+    <>
       <MultiSelect
         label="Sales"
         icon={Users}
@@ -743,10 +919,10 @@ function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors }) 
       <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }}>
         <CalendarDays size={14} style={{ color: colors.textMuted }} />
         <input type="date" value={filters.dateFrom || ""} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
-          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme: "dark" }} />
+          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme } } />
         <span style={{ color: colors.textMuted }}>-</span>
         <input type="date" value={filters.dateTo || ""} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
-          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme: "dark" }} />
+          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme } } />
       </div>
       {active > 0 && (
         <button onClick={() => setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" })}
@@ -754,7 +930,106 @@ function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors }) 
           <RefreshCw size={13} /> Reset ({active})
         </button>
       )}
-    </div>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile: tombol pemicu bottom-sheet */}
+      <div className="md:hidden mb-4">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="sm-btn flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold w-full"
+          style={{
+            background: colors.surface,
+            color: colors.text,
+            border: `1px solid ${active > 0 ? colors.gold + "88" : colors.border}`,
+          }}
+          aria-label="Buka filter data"
+        >
+          <Filter size={15} style={{ color: active > 0 ? colors.gold : colors.textMuted }} />
+          <span>Filter</span>
+          {active > 0 && (
+            <span
+              className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold"
+              style={{ background: colors.gold, color: "#0A1120" }}
+            >
+              {active}
+            </span>
+          )}
+          <ChevronDown size={14} style={{ color: colors.textMuted }} />
+        </button>
+      </div>
+
+      {/* Desktop: inline filter bar (flex-wrap) */}
+      <div className="hidden md:flex flex-wrap items-center gap-3 mb-6">
+        {filterContent}
+      </div>
+
+      {/* Mobile: bottom sheet */}
+      {mobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-50 flex items-end sm-fadein"
+          onClick={() => setMobileOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Filter data"
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className="relative w-full rounded-t-2xl p-5 max-h-[88vh] overflow-y-auto sm-scale-in"
+            style={{
+              background: colors.surface,
+              borderTop: `1px solid ${colors.border}`,
+              borderRadius: "16px 16px 0 0",
+              boxShadow: "0 -10px 40px rgba(0,0,0,0.3)",
+              paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drag handle — indikator visual standar bottom-sheet iOS/Android */}
+            <div className="mx-auto mb-4 w-10 h-1 rounded-full" style={{ background: colors.border }} />
+
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl" style={{ background: colors.gold + "1A" }}>
+                  <Filter size={16} style={{ color: colors.gold }} />
+                </div>
+                <div className="disp text-base font-semibold">Filter Data</div>
+                {active > 0 && (
+                  <span
+                    className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold"
+                    style={{ background: colors.gold, color: "#0A1120" }}
+                  >
+                    {active}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="sm-btn p-2 rounded-full"
+                style={{ background: colors.surface2 }}
+                aria-label="Tutup filter"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {filterContent}
+            </div>
+
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="mt-5 w-full sm-btn py-3 rounded-xl text-sm font-semibold"
+              style={{ background: colors.gold, color: "#0A1120" }}
+            >
+              Terapkan Filter
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -787,6 +1062,15 @@ function DataTable({ columns, rows, initialSortKey, colors, searchable, searchKe
     return arr;
   }, [filtered, sortKey, sortDir]);
   const toggleSort = (k) => { if (k === sortKey) setSortDir(sortDir === "asc" ? "desc" : "asc"); else { setSortKey(k); setSortDir("desc"); } };
+
+  // Untuk tampilan card mobile: kolom pertama jadi judul kartu, kolom lainnya
+  // (yang punya label non-kosong) jadi pasangan label-value di grid 2 kolom.
+  // Kolom dengan label kosong (biasanya tombol aksi seperti DrilldownButton)
+  // ditampilkan sebagai footer kartu agar tidak mengganggu layout grid.
+  const titleCol = columns.find((c) => c.label) || columns[0];
+  const dataCols = columns.filter((c) => c !== titleCol && c.label);
+  const actionCols = columns.filter((c) => !c.label);
+
   return (
     <div className="sm-card overflow-hidden">
       {searchable && (
@@ -813,13 +1097,15 @@ function DataTable({ columns, rows, initialSortKey, colors, searchable, searchKe
           )}
         </div>
       )}
-      <div className="overflow-x-auto">
+
+      {/* Desktop (≥640px): tabel klasik dengan sticky header & sort */}
+      <div className="hidden sm:block overflow-auto max-h-[65vh]">
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr style={{ background: colors.surface2 }}>
               {columns.map((c) => (
-                <th key={c.key} onClick={() => toggleSort(c.key)} className="px-4 py-3 text-left cursor-pointer select-none whitespace-nowrap"
-                  style={{ color: colors.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <th key={c.key} onClick={() => c.label && toggleSort(c.key)} className="px-4 py-3 text-left cursor-pointer select-none whitespace-nowrap"
+                  style={{ color: colors.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", background: colors.surface2, boxShadow: `0 1px 0 ${colors.border}` }}>
                   {c.label} {sortKey === c.key && (sortDir === "asc" ? "↑" : "↓")}
                 </th>
               ))}
@@ -842,6 +1128,62 @@ function DataTable({ columns, rows, initialSortKey, colors, searchable, searchKe
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile (<640px): card-stack — tiap baris jadi kartu dengan judul +
+          grid 2-kolom label-value + optional footer aksi. Menghindari horizontal
+          scroll yang menyiksa di layar sempit (mis. tabel 7-8 kolom). */}
+      <div className="sm:hidden max-h-[65vh] overflow-y-auto">
+        {sorted.length === 0 ? (
+          <div className="px-4 py-10 text-center text-sm" style={{ color: colors.textMuted }}>
+            {query ? "Tidak ada hasil yang cocok dengan pencarian" : "Belum ada data untuk filter ini"}
+          </div>
+        ) : (
+          <div>
+            {sorted.map((row, i) => (
+              <div
+                key={i}
+                className="px-4 py-3.5"
+                style={{ borderTop: i === 0 ? "none" : `1px solid ${colors.border}` }}
+              >
+                {/* Judul kartu = kolom pertama yang punya label */}
+                <div className="text-sm font-semibold mb-2" style={{ color: colors.text }}>
+                  {titleCol.render ? titleCol.render(row) : row[titleCol.key]}
+                </div>
+
+                {/* Grid 2-kolom label-value untuk kolom data sisanya */}
+                {dataCols.length > 0 && (
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    {dataCols.map((c) => (
+                      <div key={c.key} className="min-w-0">
+                        <div
+                          className="uppercase tracking-wider mb-0.5"
+                          style={{ color: colors.textMuted, fontSize: 9.5, letterSpacing: "0.04em" }}
+                        >
+                          {c.label}
+                        </div>
+                        <div className="text-sm mono truncate" style={{ color: colors.text }}>
+                          {c.render ? c.render(row) : row[c.key]}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Footer aksi (tombol drilldown, dll) — full-width di bawah */}
+                {actionCols.length > 0 && (
+                  <div className="mt-3 flex items-center gap-2">
+                    {actionCols.map((c) => (
+                      <span key={c.key}>
+                        {c.render ? c.render(row) : null}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -958,8 +1300,94 @@ function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets, color
   );
 }
 
-// Modal preview sebelum data dipakai ke seluruh dashboard — menampilkan ringkasan
-// hasil baca file (jumlah baris, rentang tanggal, kolom yang terdeteksi/tidak)
+function OutletDetailModal({ isOpen, onClose, outlet, products, colors }) {
+  const [query, setQuery] = useState("");
+  useEffect(() => { if (isOpen) setQuery(""); }, [isOpen, outlet]);
+
+  if (!isOpen || !outlet) return null;
+
+  const filtered = query.trim()
+    ? products.filter((p) => p.productName.toLowerCase().includes(query.trim().toLowerCase()))
+    : products;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
+      <div className="sm-card sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
+        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-xl shrink-0" style={{ background: colors.blue + "1A" }}><Store size={16} style={{ color: colors.blue }} /></div>
+            <div className="min-w-0">
+              <div className="disp text-base font-semibold truncate">{outlet.outletName}</div>
+              <div className="text-xs" style={{ color: colors.textMuted }}>Sales: {outlet.salesLabel}</div>
+            </div>
+          </div>
+          <button onClick={onClose} className="sm-btn p-2 rounded-full shrink-0" style={{ background: colors.surface2 }}><X size={16} /></button>
+        </div>
+
+        <div className="p-5 pb-0 grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="sm-card p-3">
+            <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Total Value</div>
+            <div className="mono text-sm font-bold">{fmtRp(outlet.value)}</div>
+          </div>
+          <div className="sm-card p-3">
+            <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Frekuensi</div>
+            <div className="mono text-sm font-bold">{fmtNum(outlet.invoiceCount)}×</div>
+          </div>
+          <div className="sm-card p-3">
+            <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Terakhir Transaksi</div>
+            <div className="mono text-sm font-bold">{outlet.lastDate || "-"}</div>
+          </div>
+          <div className="sm-card p-3">
+            <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Status</div>
+            <OutletStatusBadge status={outlet.status} colors={colors} />
+          </div>
+        </div>
+
+        <div className="p-5">
+          {products.length > 0 && (
+            <div className="relative mb-3">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari produk..."
+                className="w-full pl-9 pr-3 py-2 rounded-xl text-sm outline-none"
+                style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
+            </div>
+          )}
+          <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>
+            {filtered.length} Produk Dibeli
+          </div>
+        </div>
+        <div className="px-5 pb-5 overflow-y-auto">
+          {products.length === 0 ? (
+            <div className="text-center py-10" style={{ color: colors.textMuted }}>Tidak ada data produk untuk outlet ini.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: colors.surface2 }}>
+                  <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.textMuted }}>PRODUK</th>
+                  <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.textMuted }}>GRUP</th>
+                  <th className="px-3 py-2 text-right" style={{ fontSize: 11, color: colors.textMuted }}>VALUE</th>
+                  <th className="px-3 py-2 text-center" style={{ fontSize: 11, color: colors.textMuted }}>TRANSAKSI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p, i) => (
+                  <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.border}` }}>
+                    <td className="px-3 py-2">{p.productName}</td>
+                    <td className="px-3 py-2 text-xs" style={{ color: colors.textMuted }}>{p.group}</td>
+                    <td className="px-3 py-2 mono text-right">{fmtRp(p.value)}</td>
+                    <td className="px-3 py-2 mono text-center">{p.invoiceCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // supaya kesalahan format ketahuan lebih awal, bukan setelah lihat angka aneh di dashboard.
 function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors }) {
   if (!isOpen || !preview) return null;
@@ -1000,6 +1428,29 @@ function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors }) {
               <div className="mono text-lg font-bold">{uniqueGroups}</div>
             </div>
           </div>
+
+          {parseMeta.duplicateRowsRemoved > 0 && (
+            <div className="mb-6 flex items-start gap-2.5 px-3.5 py-3 rounded-xl text-sm" style={{ background: colors.gold + "0D", border: `1px solid ${colors.gold}33`, color: colors.text }}>
+              <AlertTriangle size={15} className="mt-0.5 shrink-0" style={{ color: colors.gold }} />
+              <span>
+                <b>{fmtNum(parseMeta.duplicateRowsRemoved)} baris duplikat</b> terdeteksi & otomatis dihapus — baris dengan Tanggal, No Faktur, Kode Produk, Qty, dan Value yang persis sama (biasanya karena file yang sama ter-upload 2×, atau rentang tanggal antar file yang digabung saling overlap).
+              </span>
+            </div>
+          )}
+
+          {parseMeta.sourceFiles && parseMeta.sourceFiles.length > 1 && (
+            <div className="mb-6">
+              <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>{parseMeta.sourceFiles.length} File Digabung</div>
+              <div className="space-y-1.5">
+                {parseMeta.sourceFiles.map((sf, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ background: colors.surface2 }}>
+                    <span className="truncate flex-1">{sf.name}</span>
+                    <span className="mono text-xs" style={{ color: colors.textMuted }}>{fmtNum(sf.rowCount)} baris</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mb-6">
             <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>Rentang Tanggal Terdeteksi</div>
@@ -1123,7 +1574,7 @@ function ProjectionCard({ projection, totals, colors }) {
 function AlertsPanel({ alerts, colors, onDrilldown }) {
   const [expanded, setExpanded] = useState(false);
   if (!alerts.length) return null;
-  const visible = expanded ? alerts : alerts.slice(0, 5);
+  const visible = expanded ? alerts : alerts.slice(0, 2);
   return (
     <div className="sm-card p-5 sm-fadeup mb-6" style={{ borderColor: colors.coral + "44" }}>
       <div className="flex items-center justify-between mb-3">
@@ -1141,11 +1592,108 @@ function AlertsPanel({ alerts, colors, onDrilldown }) {
           </div>
         ))}
       </div>
-      {alerts.length > 5 && (
+      {alerts.length > 2 && (
         <button onClick={() => setExpanded(!expanded)} className="sm-btn text-xs font-medium mt-3" style={{ color: colors.gold }}>
-          {expanded ? "Tampilkan lebih sedikit" : `Tampilkan ${alerts.length - 5} lainnya`}
+          {expanded ? "Tampilkan lebih sedikit" : `Tampilkan ${alerts.length - 2} lainnya`}
         </button>
       )}
+    </div>
+  );
+}
+
+// Kartu perbandingan periode — muncul di Main Report saat ada snapshot riwayat terpilih.
+function PeriodComparisonCard({ comparison, colors, onClear }) {
+  if (!comparison) return null;
+  const growthColor = comparison.growth === null ? colors.textMuted : comparison.growth >= 0 ? colors.mint : colors.coral;
+  return (
+    <div className="sm-card p-5 sm-fadeup mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <SectionTitle title="Bandingkan Periode" sub={`vs ${comparison.label}`} icon={History} colors={colors} />
+        <button onClick={onClear} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={14} /></button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Realisasi Sekarang</div>
+          <div className="mono text-lg font-bold">{fmtRp(comparison.nowValue)}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Periode Pembanding</div>
+          <div className="mono text-lg font-bold">{fmtRp(comparison.thenValue)}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Pertumbuhan</div>
+          <div className="mono text-lg font-bold flex items-center gap-1" style={{ color: growthColor }}>
+            {comparison.growth === null ? "-" : <>{comparison.growth >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}{fmtPct(Math.abs(comparison.growth))}</>}
+          </div>
+        </div>
+      </div>
+      <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>Pertumbuhan per Sales</div>
+      <div className="space-y-1.5 max-h-64 overflow-y-auto">
+        {comparison.bySales.map((s) => (
+          <div key={s.code} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ background: colors.surface2, opacity: s.isGone ? 0.6 : 1 }}>
+            <span className="truncate flex-1 flex items-center gap-2">
+              {s.name}
+              {s.isGone && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ background: colors.textMuted + "22", color: colors.textMuted }}>
+                  Tidak ada di periode ini
+                </span>
+              )}
+              {s.isNew && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ background: colors.gold + "22", color: colors.gold }}>
+                  Baru
+                </span>
+              )}
+            </span>
+            <span className="mono text-xs mr-3" style={{ color: colors.textMuted }}>{fmtRp(s.nowValue)}</span>
+            <span className="mono font-semibold" style={{ color: s.growth === null ? colors.textMuted : s.growth >= 0 ? colors.mint : colors.coral }}>
+              {s.growth === null ? "-" : `${s.growth >= 0 ? "+" : ""}${fmtPct(s.growth)}`}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Modal riwayat & perbandingan periode — simpan snapshot periode aktif, pilih salah satu
+// riwayat sebagai pembanding, atau hapus riwayat yang tidak diperlukan lagi.
+function HistoryModal({ isOpen, onClose, history, onSave, onSelect, onDelete, defaultLabel, colors }) {
+  const [label, setLabel] = useState("");
+  useEffect(() => { if (isOpen) setLabel(defaultLabel || ""); }, [isOpen, defaultLabel]);
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
+      <div className="sm-card sm-scale-in w-full max-w-xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
+        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
+          <SectionTitle title="Riwayat & Perbandingan Periode" icon={History} colors={colors} />
+          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
+        </div>
+        <div className="p-5 overflow-y-auto">
+          <div className="flex gap-2 mb-5">
+            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label periode (mis. Juli 2026 Minggu 1)"
+              className="flex-1 px-3 py-2 rounded-lg text-sm" style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
+            <button onClick={() => onSave(label)} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap" style={{ background: colors.gold, color: "#0A1120" }}>
+              Simpan Snapshot Ini
+            </button>
+          </div>
+          {history.length === 0 ? (
+            <div className="text-center py-8 text-sm" style={{ color: colors.textMuted }}>Belum ada riwayat tersimpan. Simpan periode aktif dulu untuk mulai membandingkan.</div>
+          ) : (
+            <div className="space-y-2">
+              {history.map((h) => (
+                <div key={h.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: colors.surface2 }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{h.label}</div>
+                    <div className="text-xs mono" style={{ color: colors.textMuted }}>{h.dateFrom || "?"} — {h.dateTo || "?"} · {fmtRp(h.totals.realisasiValue)}</div>
+                  </div>
+                  <button onClick={() => onSelect(h)} className="sm-btn text-xs px-3 py-1.5 rounded-lg font-medium whitespace-nowrap" style={{ background: colors.mint + "1A", color: colors.mint }}>Bandingkan</button>
+                  <button onClick={() => onDelete(h.id)} className="sm-btn p-1.5 rounded-lg" style={{ background: colors.coral + "14", color: colors.coral }}><X size={13} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1153,7 +1701,7 @@ function AlertsPanel({ alerts, colors, onDrilldown }) {
 /* ============================================================================
    PAGES
 ============================================================================ */
-function MainReportPage({ agg, workDays, colors, onDrilldown }) {
+function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison }) {
   const uniqueDaysInData = useMemo(() => new Set(agg.filteredRows.map(r => dateKey(r.date))).size, [agg.filteredRows]);
   const t = agg.totals;
   // Calculate time gone based on unique work days found in the data vs total work days in the month.
@@ -1162,6 +1710,7 @@ function MainReportPage({ agg, workDays, colors, onDrilldown }) {
     <div className="sm-fadein">
       <PaceStrip timeGonePct={timeGone} achPct={t.ach} colors={colors} />
       <AlertsPanel alerts={agg.alerts} colors={colors} onDrilldown={onDrilldown} />
+      <PeriodComparisonCard comparison={comparison} colors={colors} onClear={onClearComparison} />
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         <KpiCard label="Target Value" value={t.targetValue} isMoney icon={Target} accent={colors.blue} delay={0} colors={colors} />
         <KpiCard label="Realisasi Value" value={t.realisasiValue} isMoney icon={TrendingUp} accent={colors.mint} delay={40} colors={colors} />
@@ -1422,17 +1971,133 @@ function ProductFocusReportPage({ agg, colors, onDrilldown }) {
   );
 }
 
+/* ============================================================================
+   TAB: ANALISIS OUTLET
+============================================================================ */
+
+const OUTLET_STATUS_META = {
+  active: { label: "Aktif", color: "mint" },
+  at_risk: { label: "Berisiko", color: "gold" },
+  dormant: { label: "Dormant", color: "coral" },
+  unknown: { label: "-", color: "textMuted" },
+};
+
+function OutletStatusBadge({ status, colors }) {
+  const meta = OUTLET_STATUS_META[status] || OUTLET_STATUS_META.unknown;
+  const color = colors[meta.color];
+  return (
+    <span className="text-xs font-semibold inline-flex items-center px-2 py-0.5 rounded-full"
+      style={{ color, background: color + "1A", border: `1px solid ${color}44` }}>
+      {meta.label}
+    </span>
+  );
+}
+
+function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onSelectOutlet }) {
+  const { list, summary } = useMemo(
+    () => computeOutletAnalysis(agg.filteredRows, agg.meta, thresholds),
+    [agg.filteredRows, agg.meta, thresholds]
+  );
+
+  const chartData = [
+    { name: "Aktif", value: summary.active, fill: colors.mint },
+    { name: "Berisiko", value: summary.atRisk, fill: colors.gold },
+    { name: "Dormant", value: summary.dormant, fill: colors.coral },
+  ];
+
+  return (
+    <div className="sm-fadein">
+      <SectionTitle title="Analisis Outlet" sub="Segmentasi outlet berdasarkan aktivitas beli — mengikuti filter yang aktif" icon={Store} colors={colors} />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <KpiCard label="Total Outlet" value={summary.total} icon={Store} accent={colors.blue} colors={colors} />
+        <KpiCard label="Outlet Aktif" value={summary.active} icon={CheckCircle2} accent={colors.mint} colors={colors} />
+        <KpiCard label="Outlet Berisiko" value={summary.atRisk} icon={AlertTriangle} accent={colors.gold} colors={colors} />
+        <KpiCard label="Outlet Dormant" value={summary.dormant} icon={XCircle} accent={colors.coral} colors={colors} />
+      </div>
+
+      <div className="sm-card p-4 mb-6 flex flex-wrap items-center gap-4">
+        <div className="text-sm font-medium flex items-center gap-2" style={{ color: colors.textMuted }}>
+          <Settings size={14} /> Ambang Status:
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span>Aktif ≤</span>
+          <input type="number" min={0} value={thresholds.activeMaxDays}
+            onChange={(e) => setThresholds((prev) => ({ ...prev, activeMaxDays: Math.max(0, Number(e.target.value) || 0) }))}
+            className="w-16 px-2 py-1 rounded-md mono text-sm text-center" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }} />
+          <span>hari</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span>Dormant &gt;</span>
+          <input type="number" min={0} value={thresholds.dormantMinDays}
+            onChange={(e) => setThresholds((prev) => ({ ...prev, dormantMinDays: Math.max(prev.activeMaxDays, Number(e.target.value) || 0) }))}
+            className="w-16 px-2 py-1 rounded-md mono text-sm text-center" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }} />
+          <span>hari</span>
+        </div>
+        <div className="text-xs" style={{ color: colors.textMuted }}>
+          (di antara keduanya = <b>Berisiko</b>)
+        </div>
+      </div>
+
+      {list.length === 0 ? (
+        <div className="sm-card p-16 text-center">
+          <p className="text-sm" style={{ color: colors.textMuted }}>Tidak ada data outlet untuk kombinasi filter ini.</p>
+        </div>
+      ) : (
+        <>
+          <div className="sm-card p-5 mb-6">
+            <div className="text-xs uppercase tracking-wider mb-3" style={{ color: colors.textMuted }}>Distribusi Status Outlet</div>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={chartData} layout="vertical" margin={{ left: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={colors.border} horizontal={false} />
+                <XAxis type="number" allowDecimals={false} tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" width={70} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => `${v} outlet`} />
+                <Bar dataKey="value" radius={[0, 6, 6, 0]}>
+                  {chartData.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <DataTable
+            colors={colors}
+            initialSortKey="value"
+            searchable
+            searchKeys={["outletName", "salesLabel"]}
+            searchPlaceholder="Cari nama outlet atau sales..."
+            columns={[
+              { key: "outletName", label: "Nama Outlet", render: (o) => (
+                <button onClick={() => onSelectOutlet(o)} className="text-left hover:underline" style={{ color: colors.text }}>{o.outletName}</button>
+              ) },
+              { key: "salesLabel", label: "Sales" },
+              { key: "value", label: "Total Value", render: (o) => <span className="mono">{fmtRp(o.value)}</span> },
+              { key: "invoiceCount", label: "Frekuensi", render: (o) => <span className="mono">{fmtNum(o.invoiceCount)}×</span> },
+              { key: "groupCount", label: "Grup Produk", render: (o) => <span className="mono">{o.groupCount}</span> },
+              { key: "lastDate", label: "Terakhir Transaksi", render: (o) => <span className="mono text-xs" style={{ color: colors.textMuted }}>{o.lastDate || "-"}</span> },
+              { key: "daysSinceLastPurchase", label: "Jeda", render: (o) => <span className="mono">{o.daysSinceLastPurchase ?? "-"}</span> },
+              { key: "status", label: "Status", render: (o) => <OutletStatusBadge status={o.status} colors={colors} /> },
+            ]}
+            rows={list}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
 function DataQualityPage({ notes, colors, onDrilldown }) {
   const hasIssues = notes.missingFields.length || notes.unknownSales.length || notes.unconvertibleProducts.length ||
-    notes.unknownGroups.length || notes.skippedBlankRows > 0 || notes.rowsWithMissingDate > 0;
+    notes.unknownGroups.length || notes.skippedBlankRows > 0 || notes.rowsWithMissingDate > 0 || notes.duplicateRowsRemoved > 0;
 
   return (
     <div className="sm-fadein">
       <SectionTitle title="Catatan Data" sub="Ringkasan kualitas data dari seluruh file yang diupload (tidak terpengaruh filter)" icon={ClipboardList} colors={colors} />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         <KpiCard label="Total Baris Terbaca" value={notes.totalDataRows} icon={FileSpreadsheet} accent={colors.blue} colors={colors} />
         <KpiCard label="Baris Dilewati (Kosong)" value={notes.skippedBlankRows} icon={XCircle} accent={colors.textMuted} colors={colors} />
+        <KpiCard label="Duplikat Dihapus" value={notes.duplicateRowsRemoved} icon={Copy} accent={notes.duplicateRowsRemoved > 0 ? colors.gold : colors.textMuted} colors={colors} />
         <KpiCard label="Tanggal Tidak Terbaca" value={notes.rowsWithMissingDate} icon={CalendarDays} accent={notes.rowsWithMissingDate > 0 ? colors.coral : colors.textMuted} colors={colors} />
         <KpiCard label="Kolom Tidak Terdeteksi" value={notes.missingFields.length} icon={FileQuestion} accent={notes.missingFields.length > 0 ? colors.coral : colors.textMuted} colors={colors} />
       </div>
@@ -1518,6 +2183,8 @@ function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWork
   const [localTargets, setLocalTargets] = useState(targets);
   const [localWorkDays, setLocalWorkDays] = useState(workDays);
   const [localDepotName, setLocalDepotName] = useState(depotName);
+  const [expandedFocusCodes, setExpandedFocusCodes] = useState(() => new Set());
+  const [copySourceCode, setCopySourceCode] = useState({});
 
   useEffect(() => {
     if (isOpen) {
@@ -1539,12 +2206,58 @@ function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWork
     }));
   };
 
+  const toggleFocusExpand = (code) => {
+    setExpandedFocusCodes(prev => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code); else next.add(code);
+      return next;
+    });
+  };
+
+  const handleFocusChange = (salesCode, focusIdx, field, value) => {
+    setLocalTargets(prev => prev.map(t => {
+      if (t.code !== salesCode) return t;
+      const focus = t.focus.map((f, i) => i === focusIdx ? { ...f, [field]: field === "target" ? (Number(value) || 0) : value } : f);
+      return { ...t, focus };
+    }));
+  };
+
+  const handleFocusAdd = (salesCode) => {
+    setLocalTargets(prev => prev.map(t => t.code === salesCode
+      ? { ...t, focus: [...t.focus, { name: "", target: 0, keyword: "", unit: "KARTON", matchType: "contains" }] }
+      : t));
+    setExpandedFocusCodes(prev => new Set(prev).add(salesCode));
+  };
+
+  const handleFocusRemove = (salesCode, focusIdx) => {
+    setLocalTargets(prev => prev.map(t => t.code === salesCode
+      ? { ...t, focus: t.focus.filter((_, i) => i !== focusIdx) }
+      : t));
+  };
+
+  const handleFocusCopyFrom = (salesCode) => {
+    const sourceCode = copySourceCode[salesCode];
+    const source = localTargets.find(t => t.code === sourceCode);
+    if (!source || !source.focus.length) return;
+    if (!window.confirm(`Salin ${source.focus.length} produk fokus dari ${source.name}? Daftar fokus yang sudah ada di sales ini akan diganti.`)) return;
+    setLocalTargets(prev => prev.map(t => t.code === salesCode
+      ? { ...t, focus: source.focus.map(f => ({ ...f })) }
+      : t));
+    setExpandedFocusCodes(prev => new Set(prev).add(salesCode));
+  };
+
   const handleSave = () => {
     setTargets(localTargets);
     setWorkDays(localWorkDays);
     setDepotName(localDepotName);
     onClose();
   };
+
+  const MATCH_TYPE_OPTIONS = [
+    { value: "contains", label: "Mengandung kata kunci" },
+    { value: "group", label: "Sama persis Grup Produk" },
+    { value: "exact", label: "Sama persis nama produk" },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
@@ -1570,7 +2283,10 @@ function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWork
           </div>
           <h3 className="text-base font-semibold disp mb-3">Target Sales</h3>
           <div className="space-y-3">
-            {localTargets.map(t => (
+            {localTargets.map(t => {
+              const isExpanded = expandedFocusCodes.has(t.code);
+              const otherSales = localTargets.filter(o => o.code !== t.code && o.focus.length > 0);
+              return (
               <div key={t.code} className="p-3 rounded-lg" style={{ background: colors.surface2 }}>
                 <p className="font-semibold text-sm mb-2">{t.name}</p>
                 <div className="grid grid-cols-2 gap-3">
@@ -1585,8 +2301,106 @@ function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWork
                       className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: colors.ink, border: `1px solid ${colors.border}` }} />
                   </div>
                 </div>
+
+                <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${colors.border}` }}>
+                  <button onClick={() => toggleFocusExpand(t.code)} className="sm-btn w-full flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <Crosshair size={14} style={{ color: colors.violet }} />
+                      Produk Fokus <span style={{ color: colors.textMuted }}>({t.focus.length})</span>
+                    </span>
+                    <ChevronDown size={14} style={{ color: colors.textMuted, transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+                  </button>
+
+                  {isExpanded && (
+                    <div className="mt-3 space-y-2">
+                      {otherSales.length > 0 && (
+                        <div className="flex items-center gap-2 mb-3">
+                          <select value={copySourceCode[t.code] || ""} onChange={e => setCopySourceCode(prev => ({ ...prev, [t.code]: e.target.value }))}
+                            className="flex-1 px-2.5 py-1.5 rounded-md text-xs" style={{ background: colors.ink, border: `1px solid ${colors.border}`, color: colors.text }}>
+                            <option value="">Salin dari sales lain...</option>
+                            {otherSales.map(o => <option key={o.code} value={o.code}>{o.name} ({o.focus.length} produk)</option>)}
+                          </select>
+                          <button onClick={() => handleFocusCopyFrom(t.code)} disabled={!copySourceCode[t.code]}
+                            className="sm-btn px-3 py-1.5 rounded-md text-xs font-semibold disabled:opacity-40"
+                            style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+                            Salin
+                          </button>
+                        </div>
+                      )}
+
+                      {t.focus.length === 0 && (
+                        <p className="text-xs text-center py-3" style={{ color: colors.textMuted }}>Belum ada produk fokus untuk sales ini.</p>
+                      )}
+
+                      {t.focus.map((f, i) => {
+                        const matchType = f.matchType || (f.keyword === "__GROUP__" ? "group" : f.keyword === "GAS_EXACT" ? "exact" : "contains");
+                        return (
+                          <div key={i} className="p-2.5 rounded-lg relative" style={{ background: colors.ink, border: `1px solid ${colors.border}` }}>
+                            <button onClick={() => handleFocusRemove(t.code, i)} title="Hapus produk fokus ini"
+                              className="sm-btn absolute top-2 right-2 p-1 rounded-md" style={{ color: colors.coral }}>
+                              <X size={12} />
+                            </button>
+                            <div className="grid grid-cols-2 gap-2 mb-2 pr-6">
+                              <div>
+                                <label className="block text-[10px] mb-0.5" style={{ color: colors.textMuted }}>Nama Produk</label>
+                                <input value={f.name} onChange={e => handleFocusChange(t.code, i, 'name', e.target.value)}
+                                  placeholder="mis. FISH CAKE"
+                                  className="w-full px-2 py-1.5 rounded text-xs" style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] mb-0.5" style={{ color: colors.textMuted }}>Tipe Pencocokan</label>
+                                <select value={matchType} onChange={e => handleFocusChange(t.code, i, 'matchType', e.target.value)}
+                                  className="w-full px-2 py-1.5 rounded text-xs" style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}>
+                                  {MATCH_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                </select>
+                              </div>
+                            </div>
+
+                            {matchType === "group" ? (
+                              <p className="text-[10px] mb-2" style={{ color: colors.textMuted }}>
+                                Akan dicocokkan ke baris dengan Grup Produk = <b>{f.name || "(isi Nama Produk di atas)"}</b>
+                              </p>
+                            ) : (
+                              <div className="mb-2">
+                                <label className="block text-[10px] mb-0.5" style={{ color: colors.textMuted }}>
+                                  Kata Kunci {matchType === "exact" ? "(harus sama persis dengan nama produk)" : "(dicari di dalam nama produk)"}
+                                </label>
+                                <input value={f.keyword} onChange={e => handleFocusChange(t.code, i, 'keyword', e.target.value)}
+                                  placeholder="mis. FISH"
+                                  className="w-full px-2 py-1.5 rounded text-xs mono" style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
+                                {!f.keyword && (
+                                  <p className="text-[10px] mt-0.5" style={{ color: colors.coral }}>Wajib diisi — kalau kosong, akan cocok ke SEMUA produk.</p>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[10px] mb-0.5" style={{ color: colors.textMuted }}>Target</label>
+                                <input type="number" value={f.target} onChange={e => handleFocusChange(t.code, i, 'target', e.target.value)}
+                                  className="w-full px-2 py-1.5 rounded text-xs mono" style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] mb-0.5" style={{ color: colors.textMuted }}>Satuan</label>
+                                <input value={f.unit} onChange={e => handleFocusChange(t.code, i, 'unit', e.target.value)}
+                                  placeholder="KARTON"
+                                  className="w-full px-2 py-1.5 rounded text-xs" style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      <button onClick={() => handleFocusAdd(t.code)}
+                        className="sm-btn w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold"
+                        style={{ background: colors.violet + "14", color: colors.violet, border: `1px dashed ${colors.violet}66` }}>
+                        <Plus size={13} /> Tambah Produk Fokus
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            ))}
+            );})}
           </div>
 
           <div className="mt-8 p-4 rounded-lg" style={{ background: colors.coral + "0D", border: `1px solid ${colors.coral}33` }}>
@@ -1623,7 +2437,7 @@ function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWork
 function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading, sampleLoading, colors }) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef(null);
-  const handleFiles = (files) => { if (files && files[0]) onFile(files[0]); };
+  const handleFiles = (files) => { if (files && files.length) onFile(Array.from(files)); };
   return (
     <div>
       <div
@@ -1634,14 +2448,14 @@ function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading,
         className="sm-drop cursor-pointer rounded-2xl p-6 flex items-center gap-4 transition-colors"
         style={{ border: `1.5px dashed ${dragOver ? colors.gold : colors.border}`, background: dragOver ? colors.gold + "0D" : colors.surface }}
       >
-        <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+        <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
         <div className="p-3 rounded-xl" style={{ background: colors.gold + "1A" }}>
           {loading ? <RefreshCw size={20} className="sm-pulse" style={{ color: colors.gold }} /> : <Upload size={20} style={{ color: colors.gold }} />}
         </div>
         <div className="flex-1">
           <div className="text-sm font-semibold disp">{loading ? "Memproses file..." : "Upload file Excel sell-out"}</div>
           <div className="text-xs mt-0.5" style={{ color: colors.textMuted }}>
-            {hasData ? `Sumber aktif: ${fileName}` : "Tarik & lepas file di sini, atau klik untuk memilih (.xlsx)"}
+            {hasData ? `Sumber aktif: ${fileName}` : "Tarik & lepas file di sini (bisa lebih dari satu untuk digabung), atau klik untuk memilih"}
           </div>
         </div>
         {!hasData && (
@@ -1661,6 +2475,84 @@ function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading,
         )}
       </div>
     </div>
+  );
+}
+
+/* ============================================================================
+   MOBILE NAVIGATION (H6)
+   - MobileBottomNav: bottom tab bar untuk mobile (md:hidden), menggantikan
+     top tab bar yang disembunyikan di mobile. Ikon + label pendek vertikal.
+   - MobileFab: tombol apung "Upload" di pojok kanan bawah (di atas bottom nav),
+     memberi akses cepat ke upload tanpa harus scroll ke atas.
+   Keduanya menghormati iOS safe-area-inset supaya tidak tertutup home indicator.
+============================================================================ */
+function MobileBottomNav({ tabs, activeTab, onChange, colors }) {
+  return (
+    <nav
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40"
+      style={{
+        background: colors.surface,
+        borderTop: `1px solid ${colors.border}`,
+        boxShadow: "0 -4px 20px rgba(0,0,0,0.18)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
+    >
+      <div className="flex items-stretch justify-around">
+        {tabs.map((t) => {
+          const Icon = t.icon;
+          const isActive = t.key === activeTab;
+          return (
+            <button
+              key={t.key}
+              onClick={() => onChange(t.key)}
+              className="flex flex-col items-center justify-center gap-0.5 py-2 px-1 flex-1 min-w-0"
+              style={{ color: isActive ? colors.gold : colors.textMuted }}
+              aria-label={t.label}
+              aria-current={isActive ? "page" : undefined}
+            >
+              <Icon size={20} style={{ strokeWidth: isActive ? 2.4 : 2 }} />
+              <span className="text-[10px] font-medium leading-tight truncate w-full text-center" style={{ maxWidth: 56 }}>
+                {t.shortLabel}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+function MobileFab({ onFile, colors, loading }) {
+  const inputRef = useRef(null);
+  const handleFiles = (files) => {
+    if (files && files.length) onFile(Array.from(files));
+    // Reset value supaya file yang sama bisa dipilih lagi setelahnya
+    if (inputRef.current) inputRef.current.value = "";
+  };
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        multiple
+        className="hidden"
+        onChange={(e) => handleFiles(e.target.files)}
+      />
+      <button
+        onClick={() => inputRef.current && inputRef.current.click()}
+        className="md:hidden fixed right-4 z-40 sm-btn flex items-center justify-center w-14 h-14 rounded-full"
+        style={{
+          bottom: "calc(76px + env(safe-area-inset-bottom))",
+          background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})`,
+          color: "#0A1120",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+        }}
+        aria-label="Upload file Excel sell-out"
+      >
+        {loading ? <RefreshCw size={22} className="sm-pulse" /> : <Upload size={22} />}
+      </button>
+    </>
   );
 }
 
@@ -1708,9 +2600,9 @@ function ExportMenu({ agg, targets, workDays, depotName, disabled, colors }) {
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen((o) => !o)} disabled={disabled}
-        className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+        className="sm-btn flex items-center gap-2 px-2.5 md:px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
         style={{ background: colors.gold, color: "#0A1120" }}>
-        <Download size={15} /> Export <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+        <Download size={15} /> <span className="hidden md:inline">Export</span> <ChevronDown size={13} className="hidden md:inline" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && (
         <div className="absolute right-0 mt-2 w-80 rounded-xl overflow-hidden sm-fadein"
@@ -1919,11 +2811,12 @@ function exportToExcel(agg, targets, opts) {
    APP SHELL
 ============================================================================ */
 const TABS = [
-  { key: "main", label: "Main Report", icon: LayoutDashboard },
-  { key: "sales", label: "Sales Report", icon: UserRound },
-  { key: "product", label: "Product Report", icon: Boxes },
-  { key: "focus", label: "Product Focus", icon: Crosshair },
-  { key: "quality", label: "Catatan Data", icon: ClipboardList },
+  { key: "main",    label: "Main Report",     shortLabel: "Main",    icon: LayoutDashboard },
+  { key: "sales",   label: "Sales Report",    shortLabel: "Sales",   icon: UserRound },
+  { key: "product", label: "Product Report",  shortLabel: "Produk",  icon: Boxes },
+  { key: "focus",   label: "Product Focus",   shortLabel: "Fokus",   icon: Crosshair },
+  { key: "outlet",  label: "Analisis Outlet", shortLabel: "Outlet",  icon: Store },
+  { key: "quality", label: "Catatan Data",    shortLabel: "Catatan", icon: ClipboardList },
 ];
 
 /* ============================================================================
@@ -2119,6 +3012,9 @@ export default function SalesMonitoringApp() {
   const [drilldown, setDrilldown] = useState(null);
   const [pendingPreview, setPendingPreview] = useState(null);
   const [parseMeta, setParseMeta] = useState(null);
+  const [history, setHistory] = useState(() => loadHistory());
+  const [comparisonSnapshot, setComparisonSnapshot] = useState(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const [filters, setFilters] = useState(persistedSettings?.filters || { salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
   const [workDays, setWorkDays] = useState(persistedSettings?.workDays ?? WORK_DAYS_DEFAULT);
@@ -2214,20 +3110,69 @@ export default function SalesMonitoringApp() {
     setDrilldown({ title, subtitle, outlets: getOutletBreakdown(aggFinal.filteredRows, predicate) });
   };
 
-  const handleFile = useCallback(async (file) => {
+  const [outletThresholds, setOutletThresholds] = useState({ activeMaxDays: 14, dormantMinDays: 30 });
+  const [outletDetail, setOutletDetail] = useState(null);
+  const openOutletDetail = (outlet) => setOutletDetail(outlet);
+  const outletDetailProducts = useMemo(
+    () => outletDetail ? getProductBreakdownForOutlet(aggFinal.filteredRows, outletDetail.outletCode) : [],
+    [outletDetail, aggFinal.filteredRows]
+  );
+
+  const comparison = useMemo(() => computeComparison(aggFinal, comparisonSnapshot), [aggFinal, comparisonSnapshot]);
+
+  const saveHistorySnapshot = (label) => {
+    const snap = buildHistorySnapshot(aggFinal, filters, fileName, label);
+    setHistory((prev) => {
+      const next = [snap, ...prev].slice(0, 8);
+      saveHistory(next);
+      return next;
+    });
+    setIsHistoryOpen(false);
+  };
+  const deleteHistorySnapshot = (id) => {
+    setHistory((prev) => {
+      const next = prev.filter((h) => h.id !== id);
+      saveHistory(next);
+      return next;
+    });
+    setComparisonSnapshot((cur) => (cur && cur.id === id ? null : cur));
+  };
+  const selectComparisonSnapshot = (h) => { setComparisonSnapshot(h); setIsHistoryOpen(false); };
+
+  const handleFile = useCallback(async (files) => {
+    const fileList = Array.isArray(files) ? files : [files];
     setLoading(true); setError("");
     try {
-      const { rows, parseMeta: meta } = await parseWorkbookFile(file);
-      if (!rows.length) {
+      const results = await Promise.all(fileList.map((f) => parseWorkbookFile(f)));
+      const combinedRowsRaw = results.flatMap((r) => r.rows);
+      if (!combinedRowsRaw.length) {
         setError("File terbaca tapi tidak ada baris data yang cocok. Pastikan kolom sesuai format sell-out.");
         setLoading(false);
         return;
       }
+      const { rows: combinedRows, duplicateCount } = dedupeRows(combinedRowsRaw);
+      const detectedSet = new Set();
+      results.forEach((r) => r.parseMeta.detectedFields.forEach((f) => detectedSet.add(f)));
+      // Kolom dianggap benar-benar "tidak terdeteksi" hanya kalau tidak ada di SEMUA file
+      // yang digabung — kalau cuma sebagian file yang tidak punya kolom itu, tetap dianggap ada.
+      const missingInAll = Object.keys(ALIASES).filter((f) => results.every((r) => r.parseMeta.missingFields.includes(f)));
+      const combinedMeta = {
+        totalDataRows: _.sumBy(results, (r) => r.parseMeta.totalDataRows),
+        skippedBlankRows: _.sumBy(results, (r) => r.parseMeta.skippedBlankRows),
+        rowsWithMissingDate: _.sumBy(results, (r) => r.parseMeta.rowsWithMissingDate),
+        detectedFields: Array.from(detectedSet),
+        missingFields: missingInAll,
+        duplicateRowsRemoved: duplicateCount,
+        sourceFiles: results.map((r, i) => ({ name: fileList[i].name, rowCount: r.rows.length })),
+      };
+      const combinedName = fileList.length > 1
+        ? `${fileList.length} file digabung (${fileList.map((f) => f.name).join(", ")})`
+        : fileList[0].name;
       // Data belum langsung dipakai — tampilkan preview dulu, biar kesalahan format
       // (kolom tidak terbaca, tanggal kosong, dsb) ketahuan sebelum masuk ke dashboard.
-      setPendingPreview({ rows, parseMeta: meta, fileName: file.name });
+      setPendingPreview({ rows: combinedRows, parseMeta: combinedMeta, fileName: combinedName });
     } catch (e) {
-      setError("Gagal membaca file. Pastikan formatnya .xlsx/.xls yang valid.");
+      setError("Gagal membaca salah satu file. Pastikan semua format .xlsx/.xls valid.");
     } finally { setLoading(false); }
   }, []);
 
@@ -2270,23 +3215,33 @@ export default function SalesMonitoringApp() {
   const handleClearAll = useCallback(() => {
     clearSettings();
     clearSession();
+    clearHistory();
     setRawRows([]); setFileName(""); setParseMeta(null);
     setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
     setWorkDays(WORK_DAYS_DEFAULT);
     setTargets(DEFAULT_TARGETS);
     setDepotName("DEPO LOTIM");
     setTheme('dark');
+    setHistory([]);
+    setComparisonSnapshot(null);
   }, []);
 
   const activeIdx = TABS.findIndex((t) => t.key === activeTab);
+  const tabPct = 100 / TABS.length;
 
   return (
     <div className="smapp min-h-screen transition-colors duration-300" style={{ background: theme === 'dark' ? `radial-gradient(1200px 600px at 10% -10%, #16233F 0%, ${colors.ink} 60%)` : colors.ink }}>
       <style>{globalStyle}</style>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors} />
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
+      <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
       <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={confirmPreview} preview={pendingPreview} colors={colors} />
-      <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
+      <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSave={saveHistorySnapshot}
+        onSelect={selectComparisonSnapshot} onDelete={deleteHistorySnapshot}
+        defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
+      <MobileFab onFile={handleFile} colors={colors} loading={loading} />
+      <MobileBottomNav tabs={TABS} activeTab={activeTab} onChange={setActiveTab} colors={colors} />
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 pb-28 md:pb-6">
         {/* header */}
         <div className="relative z-40 flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
           <div className="flex items-center gap-3">
@@ -2311,10 +3266,15 @@ export default function SalesMonitoringApp() {
               style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
               {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
             </button>
-            <button onClick={() => setIsSettingsOpen(true)}
-              className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+            <button onClick={() => setIsHistoryOpen(true)} disabled={!rawRows.length}
+              className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
               style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
-              <Settings size={15} /> Pengaturan
+              <History size={15} /> <span className="hidden sm:inline">Riwayat</span>
+            </button>
+            <button onClick={() => setIsSettingsOpen(true)}
+              className="sm-btn flex items-center gap-2 px-2.5 md:px-4 py-2.5 rounded-xl text-sm font-semibold"
+              style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
+              <Settings size={15} /> <span className="hidden md:inline">Pengaturan</span>
             </button>
             <ExportMenu agg={aggFinal} targets={targets} workDays={workDays} depotName={depotName} disabled={!rawRows.length} colors={colors} />
           </div>
@@ -2393,10 +3353,10 @@ export default function SalesMonitoringApp() {
           )}
         </div>
 
-        {/* tabs */}
-        <div className="relative flex gap-1 mb-6 p-1 rounded-2xl sm-fadeup" style={{ background: colors.surface, border: `1px solid ${colors.border}`, animationDelay: "80ms" }}>
+        {/* tabs — desktop only (mobile pakai bottom nav) */}
+        <div className="relative hidden md:flex gap-1 mb-6 p-1 rounded-2xl sm-fadeup" style={{ background: colors.surface, border: `1px solid ${colors.border}`, animationDelay: "80ms" }}>
           <div className="absolute top-1 bottom-1 rounded-xl transition-all duration-300 ease-out"
-            style={{ left: `calc(${activeIdx * 20}% + 4px)`, width: "calc(20% - 8px)", background: colors.surface2, border: `1px solid ${colors.border}` }} />
+            style={{ left: `calc(${activeIdx * tabPct}% + 4px)`, width: `calc(${tabPct}% - 8px)`, background: colors.surface2, border: `1px solid ${colors.border}` }} />
           {TABS.map((t) => {
             const Icon = t.icon;
             const isActive = t.key === activeTab;
@@ -2404,7 +3364,7 @@ export default function SalesMonitoringApp() {
               <button key={t.key} onClick={() => setActiveTab(t.key)}
                 className="sm-tab-btn relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium"
                 style={{ color: isActive ? colors.gold : colors.textMuted }}>
-                <Icon size={15} /> <span className="hidden sm:inline">{t.label}</span>
+                <Icon size={15} /> <span>{t.label}</span>
               </button>
             );
           })}
@@ -2425,11 +3385,12 @@ export default function SalesMonitoringApp() {
           </div>
         ) : (
           <>
-            <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} />
-            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} />}
+            <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} theme={theme} />
+            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} />}
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
+            {activeTab === "outlet" && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} />}
             {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
           </>
         )}

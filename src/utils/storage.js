@@ -28,6 +28,10 @@ const SESSION_VERSION = 1;
 
 /* ---------------------------- Settings (localStorage) --------------------------- */
 
+const HISTORY_KEY = "smapp:history:v1";
+const HISTORY_VERSION = 1;
+const HISTORY_MAX_ENTRIES = 8;
+
 export function saveSettings(settings) {
   try {
     const payload = JSON.stringify({ _v: SETTINGS_VERSION, ...settings });
@@ -58,6 +62,46 @@ export function loadSettings() {
 export function clearSettings() {
   try {
     window.localStorage.removeItem(SETTINGS_KEY);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* ---------------------- Riwayat snapshot periode (localStorage) ---------------------- *
+ * Ringan: cuma menyimpan ANGKA HASIL AGREGASI per periode (target/realisasi per
+ * sales & grup), BUKAN data transaksi mentah — jadi walau riwayatnya menumpuk,
+ * ukurannya tetap kecil dan aman disimpan di localStorage (beda dengan data
+ * sesi yang disimpan di IndexedDB karena bisa ribuan baris).
+ */
+
+export function saveHistory(history) {
+  try {
+    const trimmed = (history || []).slice(0, HISTORY_MAX_ENTRIES);
+    window.localStorage.setItem(HISTORY_KEY, JSON.stringify({ _v: HISTORY_VERSION, entries: trimmed }));
+    return true;
+  } catch (e) {
+    console.warn("Gagal menyimpan riwayat periode:", e);
+    return false;
+  }
+}
+
+export function loadHistory() {
+  try {
+    const raw = window.localStorage.getItem(HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.entries)) return [];
+    return parsed.entries;
+  } catch (e) {
+    console.warn("Gagal membaca riwayat periode:", e);
+    return [];
+  }
+}
+
+export function clearHistory() {
+  try {
+    window.localStorage.removeItem(HISTORY_KEY);
     return true;
   } catch (e) {
     return false;
