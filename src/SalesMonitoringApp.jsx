@@ -877,7 +877,8 @@ function MultiSelect({ label, icon: Icon, options, selected, onChange, placehold
   );
 }
 
-function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors }) {
+function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors, theme }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
   const active = filters.salesCodes.length + filters.groups.length + (filters.dateFrom ? 1 : 0) + (filters.dateTo ? 1 : 0);
   const nameToCode = useMemo(() => Object.fromEntries(salesOptions.map((s) => [s.name, s.code])), [salesOptions]);
   const codeToName = useMemo(() => Object.fromEntries(salesOptions.map(s => [s.code, s.name])), [salesOptions]);
@@ -888,8 +889,22 @@ function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors }) 
     setFilters(f => ({ ...f, salesCodes: selectedCodes }));
   };
 
-  return (
-    <div className="flex flex-wrap items-center gap-3 mb-6">
+  // Tutup bottom-sheet mobile saat Escape supaya konsisten dengan pola modal lain.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e) => { if (e.key === "Escape") setMobileOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
+
+  // Perbaikan bug lama: colorScheme hardcode "dark" bikin date picker tetap dark
+  // walau tema light aktif. Sekarang dinamis mengikuti tema aktif.
+  const colorScheme = theme === "light" ? "light" : "dark";
+
+  // Konten filter yang dipakai bersama oleh tampilan desktop (inline) dan mobile (sheet).
+  // Urutan & behavior identik — beda hanya wadahnya.
+  const filterContent = (
+    <>
       <MultiSelect
         label="Sales"
         icon={Users}
@@ -904,10 +919,10 @@ function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors }) 
       <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }}>
         <CalendarDays size={14} style={{ color: colors.textMuted }} />
         <input type="date" value={filters.dateFrom || ""} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
-          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme: "dark" }} />
+          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme } } />
         <span style={{ color: colors.textMuted }}>-</span>
         <input type="date" value={filters.dateTo || ""} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
-          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme: "dark" }} />
+          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme } } />
       </div>
       {active > 0 && (
         <button onClick={() => setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" })}
@@ -915,7 +930,106 @@ function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors }) 
           <RefreshCw size={13} /> Reset ({active})
         </button>
       )}
-    </div>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile: tombol pemicu bottom-sheet */}
+      <div className="md:hidden mb-4">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="sm-btn flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold w-full"
+          style={{
+            background: colors.surface,
+            color: colors.text,
+            border: `1px solid ${active > 0 ? colors.gold + "88" : colors.border}`,
+          }}
+          aria-label="Buka filter data"
+        >
+          <Filter size={15} style={{ color: active > 0 ? colors.gold : colors.textMuted }} />
+          <span>Filter</span>
+          {active > 0 && (
+            <span
+              className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold"
+              style={{ background: colors.gold, color: "#0A1120" }}
+            >
+              {active}
+            </span>
+          )}
+          <ChevronDown size={14} style={{ color: colors.textMuted }} />
+        </button>
+      </div>
+
+      {/* Desktop: inline filter bar (flex-wrap) */}
+      <div className="hidden md:flex flex-wrap items-center gap-3 mb-6">
+        {filterContent}
+      </div>
+
+      {/* Mobile: bottom sheet */}
+      {mobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-50 flex items-end sm-fadein"
+          onClick={() => setMobileOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Filter data"
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className="relative w-full rounded-t-2xl p-5 max-h-[88vh] overflow-y-auto sm-scale-in"
+            style={{
+              background: colors.surface,
+              borderTop: `1px solid ${colors.border}`,
+              borderRadius: "16px 16px 0 0",
+              boxShadow: "0 -10px 40px rgba(0,0,0,0.3)",
+              paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drag handle — indikator visual standar bottom-sheet iOS/Android */}
+            <div className="mx-auto mb-4 w-10 h-1 rounded-full" style={{ background: colors.border }} />
+
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl" style={{ background: colors.gold + "1A" }}>
+                  <Filter size={16} style={{ color: colors.gold }} />
+                </div>
+                <div className="disp text-base font-semibold">Filter Data</div>
+                {active > 0 && (
+                  <span
+                    className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold"
+                    style={{ background: colors.gold, color: "#0A1120" }}
+                  >
+                    {active}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="sm-btn p-2 rounded-full"
+                style={{ background: colors.surface2 }}
+                aria-label="Tutup filter"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {filterContent}
+            </div>
+
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="mt-5 w-full sm-btn py-3 rounded-xl text-sm font-semibold"
+              style={{ background: colors.gold, color: "#0A1120" }}
+            >
+              Terapkan Filter
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -948,6 +1062,15 @@ function DataTable({ columns, rows, initialSortKey, colors, searchable, searchKe
     return arr;
   }, [filtered, sortKey, sortDir]);
   const toggleSort = (k) => { if (k === sortKey) setSortDir(sortDir === "asc" ? "desc" : "asc"); else { setSortKey(k); setSortDir("desc"); } };
+
+  // Untuk tampilan card mobile: kolom pertama jadi judul kartu, kolom lainnya
+  // (yang punya label non-kosong) jadi pasangan label-value di grid 2 kolom.
+  // Kolom dengan label kosong (biasanya tombol aksi seperti DrilldownButton)
+  // ditampilkan sebagai footer kartu agar tidak mengganggu layout grid.
+  const titleCol = columns.find((c) => c.label) || columns[0];
+  const dataCols = columns.filter((c) => c !== titleCol && c.label);
+  const actionCols = columns.filter((c) => !c.label);
+
   return (
     <div className="sm-card overflow-hidden">
       {searchable && (
@@ -974,12 +1097,14 @@ function DataTable({ columns, rows, initialSortKey, colors, searchable, searchKe
           )}
         </div>
       )}
-      <div className="overflow-auto max-h-[65vh]">
+
+      {/* Desktop (≥640px): tabel klasik dengan sticky header & sort */}
+      <div className="hidden sm:block overflow-auto max-h-[65vh]">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">
             <tr style={{ background: colors.surface2 }}>
               {columns.map((c) => (
-                <th key={c.key} onClick={() => toggleSort(c.key)} className="px-4 py-3 text-left cursor-pointer select-none whitespace-nowrap"
+                <th key={c.key} onClick={() => c.label && toggleSort(c.key)} className="px-4 py-3 text-left cursor-pointer select-none whitespace-nowrap"
                   style={{ color: colors.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", background: colors.surface2, boxShadow: `0 1px 0 ${colors.border}` }}>
                   {c.label} {sortKey === c.key && (sortDir === "asc" ? "↑" : "↓")}
                 </th>
@@ -1003,6 +1128,62 @@ function DataTable({ columns, rows, initialSortKey, colors, searchable, searchKe
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile (<640px): card-stack — tiap baris jadi kartu dengan judul +
+          grid 2-kolom label-value + optional footer aksi. Menghindari horizontal
+          scroll yang menyiksa di layar sempit (mis. tabel 7-8 kolom). */}
+      <div className="sm:hidden max-h-[65vh] overflow-y-auto">
+        {sorted.length === 0 ? (
+          <div className="px-4 py-10 text-center text-sm" style={{ color: colors.textMuted }}>
+            {query ? "Tidak ada hasil yang cocok dengan pencarian" : "Belum ada data untuk filter ini"}
+          </div>
+        ) : (
+          <div>
+            {sorted.map((row, i) => (
+              <div
+                key={i}
+                className="px-4 py-3.5"
+                style={{ borderTop: i === 0 ? "none" : `1px solid ${colors.border}` }}
+              >
+                {/* Judul kartu = kolom pertama yang punya label */}
+                <div className="text-sm font-semibold mb-2" style={{ color: colors.text }}>
+                  {titleCol.render ? titleCol.render(row) : row[titleCol.key]}
+                </div>
+
+                {/* Grid 2-kolom label-value untuk kolom data sisanya */}
+                {dataCols.length > 0 && (
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    {dataCols.map((c) => (
+                      <div key={c.key} className="min-w-0">
+                        <div
+                          className="uppercase tracking-wider mb-0.5"
+                          style={{ color: colors.textMuted, fontSize: 9.5, letterSpacing: "0.04em" }}
+                        >
+                          {c.label}
+                        </div>
+                        <div className="text-sm mono truncate" style={{ color: colors.text }}>
+                          {c.render ? c.render(row) : row[c.key]}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Footer aksi (tombol drilldown, dll) — full-width di bawah */}
+                {actionCols.length > 0 && (
+                  <div className="mt-3 flex items-center gap-2">
+                    {actionCols.map((c) => (
+                      <span key={c.key}>
+                        {c.render ? c.render(row) : null}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2297,6 +2478,84 @@ function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading,
   );
 }
 
+/* ============================================================================
+   MOBILE NAVIGATION (H6)
+   - MobileBottomNav: bottom tab bar untuk mobile (md:hidden), menggantikan
+     top tab bar yang disembunyikan di mobile. Ikon + label pendek vertikal.
+   - MobileFab: tombol apung "Upload" di pojok kanan bawah (di atas bottom nav),
+     memberi akses cepat ke upload tanpa harus scroll ke atas.
+   Keduanya menghormati iOS safe-area-inset supaya tidak tertutup home indicator.
+============================================================================ */
+function MobileBottomNav({ tabs, activeTab, onChange, colors }) {
+  return (
+    <nav
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40"
+      style={{
+        background: colors.surface,
+        borderTop: `1px solid ${colors.border}`,
+        boxShadow: "0 -4px 20px rgba(0,0,0,0.18)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
+    >
+      <div className="flex items-stretch justify-around">
+        {tabs.map((t) => {
+          const Icon = t.icon;
+          const isActive = t.key === activeTab;
+          return (
+            <button
+              key={t.key}
+              onClick={() => onChange(t.key)}
+              className="flex flex-col items-center justify-center gap-0.5 py-2 px-1 flex-1 min-w-0"
+              style={{ color: isActive ? colors.gold : colors.textMuted }}
+              aria-label={t.label}
+              aria-current={isActive ? "page" : undefined}
+            >
+              <Icon size={20} style={{ strokeWidth: isActive ? 2.4 : 2 }} />
+              <span className="text-[10px] font-medium leading-tight truncate w-full text-center" style={{ maxWidth: 56 }}>
+                {t.shortLabel}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+function MobileFab({ onFile, colors, loading }) {
+  const inputRef = useRef(null);
+  const handleFiles = (files) => {
+    if (files && files.length) onFile(Array.from(files));
+    // Reset value supaya file yang sama bisa dipilih lagi setelahnya
+    if (inputRef.current) inputRef.current.value = "";
+  };
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        multiple
+        className="hidden"
+        onChange={(e) => handleFiles(e.target.files)}
+      />
+      <button
+        onClick={() => inputRef.current && inputRef.current.click()}
+        className="md:hidden fixed right-4 z-40 sm-btn flex items-center justify-center w-14 h-14 rounded-full"
+        style={{
+          bottom: "calc(76px + env(safe-area-inset-bottom))",
+          background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})`,
+          color: "#0A1120",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+        }}
+        aria-label="Upload file Excel sell-out"
+      >
+        {loading ? <RefreshCw size={22} className="sm-pulse" /> : <Upload size={22} />}
+      </button>
+    </>
+  );
+}
+
 const XL_NUMFMT_MONEY = '_(* #,##0_);_(* \\(#,##0\\);_(* "-"??_);_(@_)';
 const XL_NUMFMT_INT = "#,##0";
 const XL_NUMFMT_PCT = "0.00%";
@@ -2341,9 +2600,9 @@ function ExportMenu({ agg, targets, workDays, depotName, disabled, colors }) {
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen((o) => !o)} disabled={disabled}
-        className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+        className="sm-btn flex items-center gap-2 px-2.5 md:px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
         style={{ background: colors.gold, color: "#0A1120" }}>
-        <Download size={15} /> Export <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+        <Download size={15} /> <span className="hidden md:inline">Export</span> <ChevronDown size={13} className="hidden md:inline" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && (
         <div className="absolute right-0 mt-2 w-80 rounded-xl overflow-hidden sm-fadein"
@@ -2552,12 +2811,12 @@ function exportToExcel(agg, targets, opts) {
    APP SHELL
 ============================================================================ */
 const TABS = [
-  { key: "main", label: "Main Report", icon: LayoutDashboard },
-  { key: "sales", label: "Sales Report", icon: UserRound },
-  { key: "product", label: "Product Report", icon: Boxes },
-  { key: "focus", label: "Product Focus", icon: Crosshair },
-  { key: "outlet", label: "Analisis Outlet", icon: Store },
-  { key: "quality", label: "Catatan Data", icon: ClipboardList },
+  { key: "main",    label: "Main Report",     shortLabel: "Main",    icon: LayoutDashboard },
+  { key: "sales",   label: "Sales Report",    shortLabel: "Sales",   icon: UserRound },
+  { key: "product", label: "Product Report",  shortLabel: "Produk",  icon: Boxes },
+  { key: "focus",   label: "Product Focus",   shortLabel: "Fokus",   icon: Crosshair },
+  { key: "outlet",  label: "Analisis Outlet", shortLabel: "Outlet",  icon: Store },
+  { key: "quality", label: "Catatan Data",    shortLabel: "Catatan", icon: ClipboardList },
 ];
 
 /* ============================================================================
@@ -2980,7 +3239,9 @@ export default function SalesMonitoringApp() {
       <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSave={saveHistorySnapshot}
         onSelect={selectComparisonSnapshot} onDelete={deleteHistorySnapshot}
         defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
-      <div className="max-w-7xl mx-auto px-4 md:px-8 py-6">
+      <MobileFab onFile={handleFile} colors={colors} loading={loading} />
+      <MobileBottomNav tabs={TABS} activeTab={activeTab} onChange={setActiveTab} colors={colors} />
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 pb-28 md:pb-6">
         {/* header */}
         <div className="relative z-40 flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
           <div className="flex items-center gap-3">
@@ -3011,9 +3272,9 @@ export default function SalesMonitoringApp() {
               <History size={15} /> <span className="hidden sm:inline">Riwayat</span>
             </button>
             <button onClick={() => setIsSettingsOpen(true)}
-              className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+              className="sm-btn flex items-center gap-2 px-2.5 md:px-4 py-2.5 rounded-xl text-sm font-semibold"
               style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
-              <Settings size={15} /> Pengaturan
+              <Settings size={15} /> <span className="hidden md:inline">Pengaturan</span>
             </button>
             <ExportMenu agg={aggFinal} targets={targets} workDays={workDays} depotName={depotName} disabled={!rawRows.length} colors={colors} />
           </div>
@@ -3092,8 +3353,8 @@ export default function SalesMonitoringApp() {
           )}
         </div>
 
-        {/* tabs */}
-        <div className="relative flex gap-1 mb-6 p-1 rounded-2xl sm-fadeup" style={{ background: colors.surface, border: `1px solid ${colors.border}`, animationDelay: "80ms" }}>
+        {/* tabs — desktop only (mobile pakai bottom nav) */}
+        <div className="relative hidden md:flex gap-1 mb-6 p-1 rounded-2xl sm-fadeup" style={{ background: colors.surface, border: `1px solid ${colors.border}`, animationDelay: "80ms" }}>
           <div className="absolute top-1 bottom-1 rounded-xl transition-all duration-300 ease-out"
             style={{ left: `calc(${activeIdx * tabPct}% + 4px)`, width: `calc(${tabPct}% - 8px)`, background: colors.surface2, border: `1px solid ${colors.border}` }} />
           {TABS.map((t) => {
@@ -3103,7 +3364,7 @@ export default function SalesMonitoringApp() {
               <button key={t.key} onClick={() => setActiveTab(t.key)}
                 className="sm-tab-btn relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium"
                 style={{ color: isActive ? colors.gold : colors.textMuted }}>
-                <Icon size={15} /> <span className="hidden sm:inline">{t.label}</span>
+                <Icon size={15} /> <span>{t.label}</span>
               </button>
             );
           })}
@@ -3124,7 +3385,7 @@ export default function SalesMonitoringApp() {
           </div>
         ) : (
           <>
-            <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} />
+            <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} theme={theme} />
             {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} />}
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
