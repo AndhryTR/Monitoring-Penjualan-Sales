@@ -615,7 +615,8 @@ function computeOutletAnalysis(rows, meta, thresholds) {
       qty: o.qty,
       invoiceCount: o.invoices.size,
       groupCount: o.groups.size,
-      salesLabel: o.salesNames.size === 1 ? Array.from(o.salesNames)[0] : (o.salesNames.size > 1 ? `${o.salesNames.size} sales` : "-"),
+      salesNames: Array.from(o.salesNames).sort(),
+      salesLabel: Array.from(o.salesNames).sort().join(", ") || "-",
       lastDate: o.lastDate,
       daysSinceLastPurchase,
       status,
@@ -2071,7 +2072,16 @@ function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onSelectOu
               { key: "outletName", label: "Nama Outlet", render: (o) => (
                 <button onClick={() => onSelectOutlet(o)} className="text-left hover:underline" style={{ color: colors.text }}>{o.outletName}</button>
               ) },
-              { key: "salesLabel", label: "Sales" },
+              { key: "salesLabel", label: "Sales", render: (o) => (
+                <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full sm:max-w-[220px]" title={o.salesLabel}>
+                  <span className="truncate">{o.salesLabel}</span>
+                  {o.salesNames.length > 1 && (
+                    <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: colors.gold + "1A", color: colors.gold }}>
+                      {o.salesNames.length}
+                    </span>
+                  )}
+                </span>
+              ) },
               { key: "value", label: "Total Value", render: (o) => <span className="mono">{fmtRp(o.value)}</span> },
               { key: "invoiceCount", label: "Frekuensi", render: (o) => <span className="mono">{fmtNum(o.invoiceCount)}×</span> },
               { key: "groupCount", label: "Grup Produk", render: (o) => <span className="mono">{o.groupCount}</span> },
