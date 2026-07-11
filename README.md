@@ -57,8 +57,44 @@ Aplikasi ini bisa diinstal seperti app native dan dipakai tanpa internet (setela
 ├── postcss.config.js
 ├── vercel.json
 └── src/
-    ├── main.jsx
-    ├── App.jsx
-    ├── index.css
-    └── SalesMonitoringApp.jsx   ← komponen utama dashboard
+    ├── main.jsx                          # Entry point React
+    ├── App.jsx                           # Wrapper → SalesMonitoringApp
+    ├── index.css                         # Tailwind directives
+    ├── SalesMonitoringApp.jsx            # Shell: header, tab routing, modal orchestration, PWA
+    │
+    ├── constants/
+    │   ├── colors.js                     # Theme tokens (dark/light)
+    │   ├── aliases.js                    # Column alias untuk parsing Excel
+    │   ├── tabs.js                       # Definisi 6 tab dashboard
+    │   ├── thresholds.js                 # Konstanta numerik (WORK_DAYS_DEFAULT, ACH_TIERS, dll)
+    │   └── defaultTargets.json           # Data target per sales (JSON, mudah diedit non-dev)
+    │
+    ├── utils/
+    │   ├── formatters.js                 # fmtRp, fmtNum, fmtPct
+    │   ├── storage.js                    # localStorage (settings/history) + IndexedDB (session)
+    │   ├── pdfExport.js                  # Export PDF: laporan ringkasan + scorecard per sales
+    │   ├── excelParse.js                 # Parse Excel/CSV, dedupe, konversi satuan KARTON
+    │   ├── excelExport.js                # Export Excel dengan style (warna, merge, numFmt)
+    │   ├── aggregation.js                # useAggregates hook + outlet breakdown + analysis
+    │   ├── history.js                    # Snapshot & perbandingan periode
+    │   ├── sampleData.js                 # Generator data demo
+    │   └── dataQuality.js                # Analisis kualitas data (unknown sales, duplikat, dll)
+    │
+    ├── hooks/
+    │   └── useCountUp.js                 # Animasi angka KPI (count-up cubic ease-out)
+    │
+    └── components/
+        ├── KpiCard.jsx                   # Kartu KPI dengan animasi count-up
+        ├── PaceStrip.jsx                 # Bar pace: ACH vs time-gone
+        ├── AchBadge.jsx                  # Badge pencapaian (warna berdasarkan tier)
+        ├── ui/
+        │   ├── MultiSelect.jsx           # Dropdown multi-select dengan search
+        │   ├── FilterBar.jsx             # Bar filter (desktop inline + mobile bottom-sheet)
+        │   ├── DataTable.jsx             # Tabel sortable + card-stack mobile
+        │   ├── DashboardSkeleton.jsx     # Skeleton loading
+        │   └── index.jsx                 # SectionTitle, DrilldownButton, ChartTooltipStyle
+        ├── cards/
+        │   └── index.jsx                 # Leaderboard, ProjectionCard, AlertsPanel, PeriodComparisonCard
+        └── upload/
+            └── index.jsx                 # UploadDropzone, MobileBottomNav, MobileFab, ExportMenu
 ```
