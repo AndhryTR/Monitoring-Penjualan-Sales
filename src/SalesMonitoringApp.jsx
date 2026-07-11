@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import * as XLSX from "xlsx-js-style";
 import _ from "lodash";
 import {
@@ -2567,10 +2568,24 @@ function ExportMenu({ agg, targets, workDays, depotName, disabled, colors }) {
   const [open, setOpen] = useState(false);
   const [scorecardListOpen, setScorecardListOpen] = useState(false);
   const ref = useRef(null);
+  // Ref terpisah untuk bottom-sheet mobile — sheet di-render via Portal ke
+  // document.body (lihat createPortal di bawah) supaya position:fixed bekerja
+  // relative ke viewport, bukan relative ke header yang ber-transform akibat
+  // animation sm-fadeup (transform pada ancestor membuatnya menjadi containing
+  // block untuk fixed descendant — bug klasik CSS).
+  const sheetRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
-    const onClickOutside = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    // Jangan tutup kalau klik terjadi di dalam tombol/container ExportMenu
+    // (ref) atau di dalam bottom-sheet mobile (sheetRef) yang sudah di-portal
+    // ke body. Tanpa pengecekan sheetRef, klik pada item sheet akan langsung
+    // menutup sheet sebelum onClick item sempat di-fire.
+    const onClickOutside = (e) => {
+      if (ref.current && ref.current.contains(e.target)) return;
+      if (sheetRef.current && sheetRef.current.contains(e.target)) return;
+      setOpen(false);
+    };
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [open]);
@@ -2660,23 +2675,34 @@ function ExportMenu({ agg, targets, workDays, depotName, disabled, colors }) {
           {/* Mobile (<768px): bottom sheet anchored ke bawah layar — supaya
               tidak pernah overflow keluar viewport maupun tertutup area notch
               / URL bar di atas. Konsisten dengan pola bottom-sheet FilterBar.
-              Tutup via klik backdrop (area gelap di luar sheet). */}
-          <div className="md:hidden fixed inset-0 z-50 flex items-end sm-fadein"
-            role="dialog" aria-modal="true" aria-label="Menu Export">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
-            <div className="relative w-full max-h-[88vh] overflow-y-auto sm-scale-in"
-              style={{
-                background: colors.surface,
-                borderTop: `1px solid ${colors.border}`,
-                borderRadius: "16px 16px 0 0",
-                boxShadow: "0 -10px 40px rgba(0,0,0,0.3)",
-                paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
-              }}>
-              {/* Drag handle — indikator visual standar bottom-sheet iOS/Android */}
-              <div className="mx-auto my-4 w-10 h-1 rounded-full" style={{ background: colors.border }} />
-              {menuContent}
-            </div>
-          </div>
+              Tutup via klik backdrop (area gelap di luar sheet).
+
+              Di-render via Portal ke document.body — BUKAN sebagai anak dari
+              header. Header punya class sm-fadeup yang animation-nya meninggalkan
+              transform: translateY(0) permanen, dan transform pada ancestor
+              membuatnya menjadi containing block untuk position:fixed. Akibatnya,
+              bottom-sheet yang ditulis langsung sebagai anak header akan
+              terbatas pada area header (sekitar 141px tinggi) alih-alih full
+              viewport. Portal ke body memintas constraint ini. */}
+          {createPortal(
+            <div ref={sheetRef} className="md:hidden fixed inset-0 z-50 flex items-end sm-fadein"
+              role="dialog" aria-modal="true" aria-label="Menu Export">
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
+              <div className="relative w-full max-h-[88vh] overflow-y-auto sm-scale-in"
+                style={{
+                  background: colors.surface,
+                  borderTop: `1px solid ${colors.border}`,
+                  borderRadius: "16px 16px 0 0",
+                  boxShadow: "0 -10px 40px rgba(0,0,0,0.3)",
+                  paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
+                }}>
+                {/* Drag handle — indikator visual standar bottom-sheet iOS/Android */}
+                <div className="mx-auto my-4 w-10 h-1 rounded-full" style={{ background: colors.border }} />
+                {menuContent}
+              </div>
+            </div>,
+            document.body
+          )}
         </>
       )}
     </div>
