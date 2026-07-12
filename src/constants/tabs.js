@@ -17,9 +17,9 @@ export const TABS = [
   { key: "product",      label: "Product Report",  shortLabel: "Produk",    icon: Boxes,           group: "primary" },
   { key: "focus",        label: "Product Focus",   shortLabel: "Fokus",     icon: Crosshair,       group: "primary" },
   { key: "outlet",       label: "Analisis Outlet", shortLabel: "Outlet",    icon: Store,           group: "more" },
-  { key: "trend",        label: "Tren Periode",    shortLabel: "Tren",      icon: TrendingUp,      group: "more" },
   { key: "transactions", label: "Transaksi",       shortLabel: "Transaksi", icon: Receipt,         group: "more" },
   { key: "quality",      label: "Catatan Data",    shortLabel: "Catatan",   icon: ClipboardList,   group: "more" },
+  { key: "trend",        label: "Tren Periode",    shortLabel: "Tren",      icon: TrendingUp,      group: "more" },
 ];
 
 export const PRIMARY_TABS = TABS.filter((t) => t.group === "primary");

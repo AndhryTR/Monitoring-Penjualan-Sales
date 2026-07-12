@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
-import { Search, X } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Search, X, ChevronDown } from "lucide-react";
+import { fmtNum } from "../../utils/formatters.js";
 
 /* ============================================================================
    DATATABLE
@@ -8,10 +9,22 @@ import { Search, X } from "lucide-react";
    baris jadi kartu dengan kolom pertama sebagai judul, kolom data sisanya
    dalam grid 2-kolom label-value, dan kolom aksi sebagai footer.
 ============================================================================ */
-export function DataTable({ columns, rows, initialSortKey, colors, searchable, searchKeys, searchPlaceholder }) {
+export function DataTable({ columns, rows, initialSortKey, colors, searchable, searchKeys, searchPlaceholder, pageSize }) {
   const [sortKey, setSortKey] = useState(initialSortKey || columns[0].key);
   const [sortDir, setSortDir] = useState("desc");
   const [query, setQuery] = useState("");
+  // visibleCount HANYA relevan kalau pageSize diberikan (mis. tabel transaksi
+  // dengan ribuan baris). Kalau tidak diberikan, semua baris hasil search+sort
+  // ditampilkan sekaligus (perilaku lama, tetap dipakai di 8+ tempat lain).
+  const [visibleCount, setVisibleCount] = useState(pageSize || Infinity);
+
+  // Reset ke halaman pertama setiap kali dataset SUMBER berubah (mis. filter
+  // global/lokal berubah) atau query pencarian berubah — supaya user tidak
+  // "stuck" melihat baris ke-1500 dari hasil filter baru yang cuma 200 baris.
+  // Sengaja TIDAK reset saat ganti sortKey/sortDir: re-sort tetap beroperasi
+  // di atas SELURUH data (bukan cuma yang sudah termuat), jadi user boleh
+  // ganti urutan tanpa kehilangan progres "sudah muat berapa banyak".
+  useEffect(() => { setVisibleCount(pageSize || Infinity); }, [rows, query, pageSize]);
 
   // Kolom yang dijadikan target pencarian: pakai searchKeys eksplisit kalau ada,
   // kalau tidak, fallback ke semua kolom yang nilainya berupa string di baris pertama.
@@ -37,6 +50,15 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
     return arr;
   }, [filtered, sortKey, sortDir]);
   const toggleSort = (k) => { if (k === sortKey) setSortDir(sortDir === "asc" ? "desc" : "asc"); else { setSortKey(k); setSortDir("desc"); } };
+
+  // Slice HANYA di sini — setelah search & sort selesai jalan di atas SELURUH
+  // `sorted`. Ini titik krusial fix bug sebelumnya: dulu pemotongan baris
+  // (incremental load) terjadi SEBELUM data masuk ke DataTable, jadi search &
+  // sort cuma bekerja di window yang sudah "dimuat", bukan di seluruh hasil
+  // filter — user bisa salah baca data (mis. sort by Value cuma mengurutkan
+  // 500 baris pertama, bukan top-value dari semua transaksi).
+  const visibleRows = pageSize ? sorted.slice(0, visibleCount) : sorted;
+  const hasMore = Boolean(pageSize) && sorted.length > visibleCount;
 
   // Untuk tampilan card mobile: kolom pertama jadi judul kartu, kolom lainnya
   // (yang punya label non-kosong) jadi pasangan label-value di grid 2 kolom.
@@ -87,7 +109,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
             </tr>
           </thead>
           <tbody>
-            {sorted.map((row, i) => (
+            {visibleRows.map((row, i) => (
               <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.border}` }}>
                 {columns.map((c) => (
                   <td key={c.key} className="px-4 py-3 whitespace-nowrap">
@@ -115,7 +137,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
           </div>
         ) : (
           <div>
-            {sorted.map((row, i) => (
+            {visibleRows.map((row, i) => (
               <div
                 key={i}
                 className="px-4 py-3.5"
@@ -160,6 +182,21 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
           </div>
         )}
       </div>
+
+      {hasMore && (
+        <div className="text-center py-4 px-4" style={{ borderTop: `1px solid ${colors.border}` }}>
+          <button
+            onClick={() => setVisibleCount((c) => c + pageSize)}
+            className="sm-btn inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+            style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}
+          >
+            <ChevronDown size={14} /> Muat lebih banyak ({fmtNum(sorted.length - visibleCount)} baris tersisa)
+          </button>
+          <div className="text-xs mt-2" style={{ color: colors.textMuted }}>
+            Menampilkan {fmtNum(visibleCount)} dari {fmtNum(sorted.length)} baris
+          </div>
+        </div>
+      )}
     </div>
   );
 }
