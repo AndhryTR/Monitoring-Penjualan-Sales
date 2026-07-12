@@ -41,6 +41,7 @@ import { ProductReportPage } from "./pages/ProductReportPage.jsx";
 import { ProductFocusReportPage } from "./pages/ProductFocusReportPage.jsx";
 import { OutletAnalysisPage } from "./pages/OutletAnalysisPage.jsx";
 import { DataQualityPage } from "./pages/DataQualityPage.jsx";
+import { TransactionsPage } from "./pages/TransactionsPage.jsx";
 import { OutletDrilldownModal } from "./components/modals/OutletDrilldownModal.jsx";
 import { OutletDetailModal } from "./components/modals/OutletDetailModal.jsx";
 import { DataPreviewModal } from "./components/modals/DataPreviewModal.jsx";
@@ -555,6 +556,7 @@ export default function SalesMonitoringApp() {
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "outlet" && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} />}
+            {activeTab === "transactions" && <TransactionsPage agg={aggFinal} colors={colors} onOutletDrilldown={openOutletDetail} />}
             {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "trend" && <TrendPeriodePage comparisonData={trendComparisonData} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} />}
           </>
