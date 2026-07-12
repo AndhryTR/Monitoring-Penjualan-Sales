@@ -17,6 +17,11 @@ export const ALERT_MIN_DAYS = 3;
  *  Lebih dari ini, entry paling lama di-drop (FIFO). */
 export const HISTORY_MAX_ENTRIES = 8;
 
+/** Batas jumlah snapshot riwayat yang bisa dipilih sekaligus untuk tab
+ *  "Tren Periode" (di luar periode aktif) — biar tabel & chart tidak
+ *  kebanjiran kolom. HISTORY_MAX_ENTRIES (penyimpanan) sengaja lebih longgar. */
+export const MAX_TREND_PERIODS = 5;
+
 /** Threshold default untuk segmentasi outlet di tab "Analisis Outlet".
  *  activeMaxDays = berapa hari sejak transaksi terakhir masih dianggap aktif.
  *  dormantMinDays = di atas ini dianggap dormant. Antara activeMaxDays dan

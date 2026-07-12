@@ -292,7 +292,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
   );
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative z-20" ref={ref}>
       <button onClick={() => setOpen((o) => !o)} disabled={disabled}
         className="sm-btn flex items-center gap-2 px-2.5 md:px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
         style={{ background: colors.gold, color: "#0A1120" }}>
@@ -301,7 +301,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
       {open && (
         <>
           
-          <div className="hidden md:block absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden sm-fadein"
+          <div className="hidden md:block absolute right-0 z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden sm-fadein"
             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
             {menuContent}
           </div>
