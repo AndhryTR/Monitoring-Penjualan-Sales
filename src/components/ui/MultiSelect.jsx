@@ -18,7 +18,7 @@ export function MultiSelect({ label, icon: Icon, options, selected, onChange, pl
   const filtered = options.filter((o) => o.toLowerCase().includes(q.toLowerCase()));
   const toggle = (o) => onChange(selected.includes(o) ? selected.filter((x) => x !== o) : [...selected, o]);
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative z-20" ref={ref}>
       <button onClick={() => setOpen(!open)} className="sm-btn flex items-center gap-2 px-3 py-2 rounded-xl text-sm"
         style={{ background: colors.surface2, border: `1px solid ${selected.length ? colors.gold + "88" : colors.border}` }}>
         <Icon size={14} style={{ color: colors.textMuted }} />
@@ -26,7 +26,7 @@ export function MultiSelect({ label, icon: Icon, options, selected, onChange, pl
         <ChevronDown size={14} style={{ color: colors.textMuted, transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && (
-        <div className="sm-fadein absolute z-20 mt-2 w-64 rounded-xl p-2 shadow-2xl" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
+        <div className="sm-fadein absolute z-30 mt-2 w-64 rounded-xl p-2 shadow-2xl" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
           <div className="flex items-center gap-2 px-2 py-1.5 mb-1 rounded-lg" style={{ background: colors.surface2 }}>
             <Search size={13} style={{ color: colors.textMuted }} />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder || "Cari..."}
