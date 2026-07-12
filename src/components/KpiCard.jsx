@@ -27,7 +27,7 @@ export function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct,
           sangat sempit) — dipotong dengan "…", tidak pernah tumpah keluar box.
           title= memberi tooltip native browser (hover desktop / tap-hold mobile)
           supaya user tetap bisa lihat angka lengkap kalau terpotong. */}
-      <div className={`disp ${sizeClass} font-bold mono overflow-hidden text-ellipsis whitespace-nowrap`} title={displayText}>
+      <div className={`disp ${sizeClass} font-bold mono`} title={displayText}>
         {displayText}
       </div>
       {sub && <div className="text-xs mt-1.5" style={{ color: colors.textMuted }}>{sub}</div>}
