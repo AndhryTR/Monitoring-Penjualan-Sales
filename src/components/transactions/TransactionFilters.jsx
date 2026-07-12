@@ -164,7 +164,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
 
       {/* Desktop: inline panel */}
       {open && (
-        <div className="hidden md:block sm-card p-5 mt-3 sm-fadein">
+        <div className="relative z-20 hidden md:block sm-card p-5 mt-3 sm-fadein">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 items-start">
             <div>
               <label className="block text-xs mb-1.5" style={{ color: colors.textMuted }}>Outlet</label>
