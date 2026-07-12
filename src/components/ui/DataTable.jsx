@@ -9,7 +9,7 @@ import { fmtNum } from "../../utils/formatters.js";
    baris jadi kartu dengan kolom pertama sebagai judul, kolom data sisanya
    dalam grid 2-kolom label-value, dan kolom aksi sebagai footer.
 ============================================================================ */
-export function DataTable({ columns, rows, initialSortKey, colors, searchable, searchKeys, searchPlaceholder, pageSize }) {
+export function DataTable({ columns, rows, initialSortKey, colors, searchable, searchKeys, searchPlaceholder, pageSize, mobileTitleKey, mobileSubtitleKey, mobileCornerKey }) {
   const [sortKey, setSortKey] = useState(initialSortKey || columns[0].key);
   const [sortDir, setSortDir] = useState("desc");
   const [query, setQuery] = useState("");
@@ -60,13 +60,31 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
   const visibleRows = pageSize ? sorted.slice(0, visibleCount) : sorted;
   const hasMore = Boolean(pageSize) && sorted.length > visibleCount;
 
-  // Untuk tampilan card mobile: kolom pertama jadi judul kartu, kolom lainnya
-  // (yang punya label non-kosong) jadi pasangan label-value di grid 2 kolom.
-  // Kolom dengan label kosong (biasanya tombol aksi seperti DrilldownButton)
-  // ditampilkan sebagai footer kartu agar tidak mengganggu layout grid.
-  const titleCol = columns.find((c) => c.label) || columns[0];
-  const dataCols = columns.filter((c) => c !== titleCol && c.label);
+  // Untuk tampilan card mobile: default-nya kolom pertama yang punya label jadi
+  // judul kartu (perilaku lama, tetap dipakai di 8+ tempat lain). Kalau
+  // mobileTitleKey diberikan (mis. tabel Transaksi), judul dipilih eksplisit —
+  // penting karena kolom pertama tidak selalu paling informatif untuk di-scan
+  // (mis. "Tanggal" kurang berguna sebagai judul dibanding "Outlet"/"Produk").
+  const titleCol = mobileTitleKey ? columns.find((c) => c.key === mobileTitleKey) : (columns.find((c) => c.label) || columns[0]);
+  const subtitleCol = mobileSubtitleKey ? columns.find((c) => c.key === mobileSubtitleKey) : null;
+  const cornerCol = mobileCornerKey ? columns.find((c) => c.key === mobileCornerKey) : null;
+  const dataCols = columns.filter((c) => c !== titleCol && c !== subtitleCol && c !== cornerCol && c.label);
   const actionCols = columns.filter((c) => !c.label);
+
+  // Judul/subjudul/pojok kartu SENGAJA tidak selalu memanggil c.render(row) —
+  // beberapa render kolom (mis. outletName) punya styling khusus tabel desktop
+  // (truncate + max-w piksel tetap) yang kalau dipakai apa adanya di kartu
+  // mobile (lebar penuh) malah bikin teks terpotong tanpa alasan jelas.
+  // - Kalau kolom ini dipilih via mobileTitleKey/subtitleKey/cornerKey (eksplisit),
+  //   tampilkan NILAI MENTAH saja (tanpa constraint desktop).
+  // - Kalau tidak (perilaku lama/default, cuma titleCol yang bisa begini),
+  //   tetap panggil render seperti biasa demi backward-compat.
+  const mobileCellValue = (col, row, isExplicit) => {
+    if (!col) return null;
+    if (!isExplicit && col.render) return col.render(row);
+    const v = row[col.key];
+    return v === undefined || v === null || v === "" ? "-" : v;
+  };
 
   return (
     <div className="sm-card overflow-hidden">
@@ -143,10 +161,26 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
                 className="px-4 py-3.5"
                 style={{ borderTop: i === 0 ? "none" : `1px solid ${colors.border}` }}
               >
-                {/* Judul kartu = kolom pertama yang punya label */}
-                <div className="text-sm font-semibold mb-2" style={{ color: colors.text }}>
-                  {titleCol.render ? titleCol.render(row) : row[titleCol.key]}
+                {/* Judul kartu: default = kolom pertama yang punya label; kalau
+                    mobileTitleKey diisi, pakai kolom itu (nilai mentah, tanpa
+                    styling khusus tabel desktop). Pojok kanan opsional (mis.
+                    tanggal) untuk konteks cepat tanpa jadi judul utama. */}
+                <div className="flex items-start justify-between gap-2 mb-0.5">
+                  <div className="text-sm font-semibold truncate" style={{ color: colors.text }}>
+                    {mobileCellValue(titleCol, row, Boolean(mobileTitleKey))}
+                  </div>
+                  {cornerCol && (
+                    <div className="shrink-0 text-xs mono" style={{ color: colors.textMuted }}>
+                      {mobileCellValue(cornerCol, row, true)}
+                    </div>
+                  )}
                 </div>
+                {subtitleCol && (
+                  <div className="text-xs mb-2 truncate" style={{ color: colors.textMuted }}>
+                    {mobileCellValue(subtitleCol, row, true)}
+                  </div>
+                )}
+                {!subtitleCol && <div className="mb-1" />}
 
                 {/* Grid 2-kolom label-value untuk kolom data sisanya */}
                 {dataCols.length > 0 && (
