@@ -20,7 +20,7 @@ import { AlertsPanel, ProjectionCard, PeriodComparisonCard } from "../components
    TAB: MAIN REPORT
    Pace strip + alerts + comparison + 6 KPI + proyeksi + 2 chart + tabel sales.
 ============================================================================ */
-export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison }) {
+export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison, projectionMethod, onProjectionMethodChange }) {
   const uniqueDaysInData = useMemo(() => new Set(agg.filteredRows.map(r => dateKey(r.date))).size, [agg.filteredRows]);
   const t = agg.totals;
   // Calculate time gone based on unique work days found in the data vs total work days in the month.
@@ -39,7 +39,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
         <KpiCard label="Target AO" value={t.targetAo} icon={Boxes} accent={colors.textMuted} delay={200} colors={colors} />
       </div>
 
-      <ProjectionCard projection={agg.projection} totals={t} colors={colors} />
+      <ProjectionCard projection={agg.projection} totals={t} colors={colors} method={projectionMethod} onMethodChange={onProjectionMethodChange} />
 
       <div className="grid lg:grid-cols-2 gap-6 mb-8">
         <div className="sm-card p-5 sm-fadeup">
