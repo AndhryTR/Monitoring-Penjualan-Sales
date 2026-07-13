@@ -43,25 +43,96 @@ export function Leaderboard({ rows, colors, onDrilldown, onExportScorecard }) {
   );
 }
 
-// Kartu proyeksi akhir bulan — ekstrapolasi linear dari rata-rata realisasi harian saat ini.
-export function ProjectionCard({ projection, totals, colors }) {
-  const onTrack = projection.projectedAch !== null ? projection.projectedAch >= 1 : null;
+const PROJECTION_METHODS = [
+  { key: "linear", label: "Linear" },
+  { key: "trend7", label: "Tren 7 Hari" },
+  { key: "weekday", label: "Weekday/Weekend" },
+];
+
+// Resolusi metode terpilih jadi bentuk seragam { dailyRateNode, projectedValue,
+// projectedAch, note } supaya JSX di bawah tidak perlu tahu detail tiap metode.
+// Fallback ke Linear kalau data metode yang dipilih belum cukup (mis. <3 hari data).
+function resolveProjection(method, projection) {
+  if (method === "trend7") {
+    const t = projection.methods?.trend7;
+    if (t) {
+      return {
+        dailyRateNode: fmtRp(t.dailyRate),
+        projectedValue: t.projectedValue, projectedAch: t.projectedAch,
+        note: `Rata-rata terbobot ${t.windowDays} hari transaksi terakhir (hari lebih baru berbobot lebih besar).`,
+      };
+    }
+    return { ...resolveProjection("linear", projection), note: "Data belum cukup (min. 3 hari) untuk Tren 7 Hari — memakai Linear." };
+  }
+  if (method === "weekday") {
+    const w = projection.methods?.weekday;
+    if (w && w.projectedValue !== null) {
+      return {
+        dailyRateNode: (
+          <span>
+            <span style={{ fontSize: "0.75em" }}>Weekday </span>{fmtRp(w.weekdayRate)}
+            <span className="mx-1" style={{ color: "inherit", opacity: 0.4 }}>/</span>
+            <span style={{ fontSize: "0.75em" }}>Weekend </span>{fmtRp(w.weekendRate)}
+          </span>
+        ),
+        projectedValue: w.projectedValue, projectedAch: w.projectedAch,
+        note: `Sisa ${w.remainingWeekdays} hari kerja + ${w.remainingWeekends} weekend sampai akhir periode.${w.weekendIsEstimated ? " Belum ada data weekend — dipakai rata-rata keseluruhan sebagai estimasi." : ""}`,
+      };
+    }
+    return { ...resolveProjection("linear", projection), note: "Data/tanggal belum cukup untuk Weekday/Weekend — memakai Linear." };
+  }
+  // linear (default)
+  return { dailyRateNode: fmtRp(projection.dailyRate), projectedValue: projection.projectedValue, projectedAch: projection.projectedAch, note: null };
+}
+
+// Kartu proyeksi akhir bulan. 3 metode: Linear (ekstrapolasi rata-rata harian
+// datar), Tren 7 Hari (weighted, lebih responsif ke percepatan/perlambatan),
+// dan Weekday/Weekend (proyeksi berbasis tanggal kalender sungguhan, dipisah
+// rata-rata hari kerja vs weekend). Pilihan method dikontrol dari parent
+// (persist ke localStorage) supaya diingat lintas sesi.
+export function ProjectionCard({ projection, totals, colors, method = "linear", onMethodChange }) {
+  const active = resolveProjection(method, projection);
+  const onTrack = active.projectedAch !== null ? active.projectedAch >= 1 : null;
+  const availability = {
+    linear: true,
+    trend7: Boolean(projection.methods?.trend7),
+    weekday: Boolean(projection.methods?.weekday && projection.methods.weekday.projectedValue !== null),
+  };
+
   return (
     <div className="sm-card p-5 sm-fadeup mb-6">
-      <SectionTitle title="Proyeksi Akhir Bulan" sub="Ekstrapolasi linear dari rata-rata realisasi harian saat ini" icon={Rocket} colors={colors} />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-1">
+        <SectionTitle title="Proyeksi Akhir Bulan" sub={active.note || "Ekstrapolasi linear dari rata-rata realisasi harian saat ini"} icon={Rocket} colors={colors} />
+        <div className="flex p-1 rounded-xl shrink-0" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }}>
+          {PROJECTION_METHODS.map((m) => {
+            const disabled = !availability[m.key];
+            const isActive = method === m.key;
+            return (
+              <button key={m.key}
+                onClick={() => !disabled && onMethodChange && onMethodChange(m.key)}
+                disabled={disabled}
+                title={disabled ? "Data belum cukup untuk metode ini" : undefined}
+                className="sm-tab-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ background: isActive ? colors.surface : "transparent", color: isActive ? colors.gold : colors.textMuted }}>
+                {m.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
         <div>
           <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Rata-rata / Hari</div>
-          <div className="mono text-lg font-bold">{fmtRp(projection.dailyRate)}</div>
+          <div className="mono text-lg font-bold">{active.dailyRateNode}</div>
         </div>
         <div>
           <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Proyeksi Akhir Bulan</div>
-          <div className="mono text-lg font-bold">{fmtRp(projection.projectedValue)}</div>
+          <div className="mono text-lg font-bold">{fmtRp(active.projectedValue)}</div>
         </div>
         <div>
           <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Proyeksi ACH%</div>
           <div className="mono text-lg font-bold" style={{ color: onTrack === null ? colors.text : onTrack ? colors.mint : colors.coral }}>
-            {fmtPct(projection.projectedAch)}
+            {fmtPct(active.projectedAch)}
           </div>
         </div>
         <div>
