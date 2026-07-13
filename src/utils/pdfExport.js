@@ -307,3 +307,122 @@ export function exportAllScorecardsPDF(agg, opts) {
   drawFooterOnAllPages(doc);
   doc.save(`Scorecard-Semua-Sales-${(opts?.depotName || "Depo").replace(/\s+/g, "-")}-${agg.meta.lastDate || "export"}.pdf`);
 }
+
+/* --------------------------------------------------------------------------
+   3) LAPORAN PERBANDINGAN SALES (per grup + per sales + hari terakhir)
+   Dipakai lewat filter grup produk yang sudah ada di FilterBar (mis. filter
+   ke "Enesis" + "Enesis NF") — laporan ini otomatis cuma berisi data grup
+   yang sedang difilter, karena `agg` yang diterima sudah hasil filter global.
+   3 section digabung jadi 1 dokumen (bukan 1 halaman per sales seperti
+   scorecard): rekap per grup, rekap per sales (total periode), dan
+   pencapaian hari TERAKHIR (tanggal transaksi terakhir dalam data, bukan
+   tanggal sistem — supaya selalu ada isinya walau upload tidak sampai hari ini).
+-------------------------------------------------------------------------- */
+
+function drawSectionTitle(doc, text, y) {
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10.5);
+  doc.setTextColor(...COLORS.text);
+  doc.text(text, 14, y);
+  return y + 4;
+}
+
+export function exportSalesGroupComparisonPDF(agg, opts) {
+  const { depotName } = opts || {};
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  const periodLabel = `${formatDateID(agg.meta.firstDate)} — ${formatDateID(agg.meta.lastDate)}`;
+  const groupLabel = agg.byGroup.length ? agg.byGroup.map((g) => g.name).join(", ") : "Semua Grup";
+  let y = drawHeader(doc, {
+    depotName,
+    title: "LAPORAN PERBANDINGAN PENCAPAIAN SALES",
+    subtitle: `Grup: ${groupLabel}  ·  ${periodLabel}`,
+  });
+
+  // ---- Section 1: Rekap per Grup Produk ----
+  y = drawSectionTitle(doc, "Rekap per Grup Produk", y);
+  const sortedGroups = [...agg.byGroup].sort((a, b) => b.realisasiValue - a.realisasiValue);
+  autoTable(doc, {
+    startY: y,
+    head: [["Grup Produk", "Target", "Realisasi", "Ach%"]],
+    body: sortedGroups.map((g) => [g.name, fmtRp(g.targetValue), fmtRp(g.realisasiValue), fmtPct(g.ach)]),
+    theme: "grid",
+    styles: { font: "helvetica", fontSize: 8, cellPadding: 2.2, textColor: COLORS.text, lineColor: COLORS.border, lineWidth: 0.1 },
+    headStyles: { fillColor: COLORS.headerFill, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+    columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" } },
+    didParseCell: (data) => {
+      if (data.section === "body" && data.column.index === 3) {
+        data.cell.styles.textColor = achColor(sortedGroups[data.row.index].ach);
+        data.cell.styles.fontStyle = "bold";
+      }
+    },
+  });
+  y = doc.lastAutoTable.finalY + 8;
+
+  // ---- Section 2: Rekap per Sales — Total Periode ----
+  if (y > 230) { doc.addPage(); y = 20; }
+  y = drawSectionTitle(doc, "Rekap per Sales — Total Periode", y);
+  const sortedSales = [...agg.bySales].sort((a, b) => (b.ach ?? -1) - (a.ach ?? -1));
+  autoTable(doc, {
+    startY: y,
+    head: [["#", "Sales", "Target", "Realisasi", "Ach%", "Deviasi"]],
+    body: sortedSales.map((s, i) => [
+      i + 1, s.name, fmtRp(s.targetValue), fmtRp(s.realisasiValue), fmtPct(s.ach),
+      s.deviasiValue !== null ? fmtRp(s.deviasiValue) : "-",
+    ]),
+    theme: "grid",
+    styles: { font: "helvetica", fontSize: 8, cellPadding: 2.2, textColor: COLORS.text, lineColor: COLORS.border, lineWidth: 0.1 },
+    headStyles: { fillColor: COLORS.headerFill, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+    columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" } },
+    didParseCell: (data) => {
+      if (data.section === "body" && data.column.index === 4) {
+        data.cell.styles.textColor = achColor(sortedSales[data.row.index].ach);
+        data.cell.styles.fontStyle = "bold";
+      }
+    },
+  });
+  y = doc.lastAutoTable.finalY + 8;
+
+  // ---- Section 3: Pencapaian Hari Terakhir per Sales ----
+  // "Hari terakhir" = tanggal transaksi TERAKHIR dalam data yang sedang
+  // difilter (agg.meta.lastDate), BUKAN tanggal sistem hari ini — supaya
+  // laporan tetap terisi walau upload belum sampai hari kalender sekarang.
+  const lastDateRows = agg.meta.lastDate ? agg.filteredRows.filter((r) => r.date === agg.meta.lastDate) : [];
+  const lastDayMap = {};
+  lastDateRows.forEach((r) => {
+    const key = r.salesCode || r.salesName || "UNKNOWN";
+    if (!lastDayMap[key]) lastDayMap[key] = { name: r.salesName || "(tanpa nama)", value: 0, outlets: new Set() };
+    lastDayMap[key].value += r.value;
+    if (r.outletCode) lastDayMap[key].outlets.add(r.outletCode);
+  });
+  const lastDaySales = Object.values(lastDayMap)
+    .map((s) => ({ name: s.name, value: s.value, ao: s.outlets.size }))
+    .sort((a, b) => b.value - a.value);
+
+  if (y > 230) { doc.addPage(); y = 20; }
+  y = drawSectionTitle(doc, `Pencapaian Hari Terakhir — ${formatDateID(agg.meta.lastDate)}`, y);
+  if (lastDaySales.length === 0) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...COLORS.textMuted);
+    doc.text("Tidak ada transaksi pada tanggal ini untuk grup yang difilter.", 14, y + 4);
+  } else {
+    autoTable(doc, {
+      startY: y,
+      head: [["Sales", "Realisasi", "AO (Outlet Bertransaksi)"]],
+      body: lastDaySales.map((s) => [s.name, fmtRp(s.value), fmtNum(s.ao)]),
+      theme: "grid",
+      styles: { font: "helvetica", fontSize: 8, cellPadding: 2.2, textColor: COLORS.text, lineColor: COLORS.border, lineWidth: 0.1 },
+      headStyles: { fillColor: COLORS.headerFill, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+      columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
+      foot: [["TOTAL", fmtRp(lastDaySales.reduce((sum, s) => sum + s.value, 0)), fmtNum(new Set(lastDateRows.map((r) => r.salesCode + "|" + r.outletCode)).size)]],
+      footStyles: { fillColor: [245, 245, 245], textColor: COLORS.text, fontStyle: "bold", fontSize: 8 },
+    });
+  }
+
+  drawFooterOnAllPages(doc);
+  const groupSlug = agg.byGroup.length ? agg.byGroup.map((g) => g.name).join("-").replace(/\s+/g, "") : "SemuaGrup";
+  doc.save(`Laporan-Perbandingan-Sales-${groupSlug}-${agg.meta.lastDate || "export"}.pdf`);
+}
