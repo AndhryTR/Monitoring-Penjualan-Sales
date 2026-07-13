@@ -16,6 +16,102 @@ import { ALERT_MIN_DAYS } from "../constants/thresholds.js";
 export function dateKey(dateStr) { return dateStr || "unknown"; }
 export function monthKey(dateStr) { return dateStr ? dateStr.slice(0, 7) : "unknown"; }
 
+/* ----------------------------------------------------------------------------
+   PROYEKSI NON-LINEAR — helper pure function.
+   Metode "linear" (dailyRate rata-rata semua hari × workDays) tetap jadi
+   default/fallback dan TIDAK diubah di sini — field projection.projectedValue
+   dkk tetap berarti hasil linear (backward-compat untuk pdfExport.js dll).
+   Fungsi-fungsi di bawah ini menghitung 2 metode ALTERNATIF sebagai data
+   tambahan (projection.methods.trend7 / projection.methods.weekday).
+---------------------------------------------------------------------------- */
+
+// true kalau dateStr ("YYYY-MM-DD") jatuh di Sabtu/Minggu.
+function isWeekendDate(dateStr) {
+  const d = dateStrToLocalDate(dateStr);
+  if (!d) return false;
+  const day = d.getDay(); // 0 = Minggu, 6 = Sabtu
+  return day === 0 || day === 6;
+}
+
+// Tanggal terakhir kalender bulan dari sebuah dateStr "YYYY-MM-DD".
+function endOfMonthDateStr(dateStr) {
+  const d = dateStrToLocalDate(dateStr);
+  if (!d) return null;
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0); // hari ke-0 bulan depan = hari terakhir bulan ini
+  const mm = String(last.getMonth() + 1).padStart(2, "0");
+  const dd = String(last.getDate()).padStart(2, "0");
+  return `${last.getFullYear()}-${mm}-${dd}`;
+}
+
+// Metode "Tren 7 Hari Terakhir": rata-rata TERBOBOT dari maksimal 7 hari
+// transaksi TERAKHIR (bukan 7 hari kalender — hari tanpa transaksi sama
+// sekali tidak masuk array `daily`, konsisten dengan cara linear menghitung
+// "uniqueDays"). Hari lebih baru dapat bobot lebih besar (1..N).
+// Minimal 3 hari data supaya tidak terlalu noisy; kalau kurang, return null
+// (pemanggil fallback ke linear).
+export function computeTrend7Projection(daily, workDays, totalTargetValue) {
+  if (!daily || daily.length < 3) return null;
+  const window = daily.slice(-7); // maks 7 hari terakhir, bisa kurang kalau data belum sebanyak itu
+  const n = window.length;
+  let weightedSum = 0, weightTotal = 0;
+  window.forEach((d, i) => {
+    const w = i + 1; // 1..n, hari paling baru (index terakhir) dapat bobot terbesar
+    weightedSum += d.value * w;
+    weightTotal += w;
+  });
+  const dailyRate = weightTotal ? weightedSum / weightTotal : 0;
+  const projectedValue = workDays ? dailyRate * workDays : null;
+  return {
+    dailyRate,
+    projectedValue,
+    projectedAch: (projectedValue !== null && totalTargetValue) ? projectedValue / totalTargetValue : null,
+    windowDays: n,
+  };
+}
+
+// Metode "Pola Hari Kerja vs Weekend": rata-rata harian DIPISAH weekday vs
+// weekend dari data yang sudah ada, lalu diproyeksikan berdasarkan TANGGAL
+// KALENDER sungguhan yang tersisa (bukan angka workDays manual) — dihitung dari
+// hari setelah data terakhir sampai dateTo (kalau filter diisi) atau akhir
+// bulan kalender dari tanggal data terakhir (fallback).
+export function computeWeekdayProjection(daily, totalTargetValue, meta, filters) {
+  if (!daily || daily.length < 3 || !meta.lastDate) return null;
+
+  const weekdayDays = daily.filter((d) => !isWeekendDate(d.date));
+  const weekendDays = daily.filter((d) => isWeekendDate(d.date));
+  const weekdayRate = weekdayDays.length ? sumBy(weekdayDays, "value") / weekdayDays.length : 0;
+  // Fallback kalau belum ada data weekend sama sekali (mis. baru masuk minggu
+  // pertama): pakai rata-rata keseluruhan sebagai estimasi weekend, supaya
+  // tidak menghasilkan proyeksi 0 untuk weekend yang belum pernah terjadi.
+  const overallRate = daily.length ? sumBy(daily, "value") / daily.length : 0;
+  const weekendRate = weekendDays.length ? sumBy(weekendDays, "value") / weekendDays.length : overallRate;
+  const weekendIsEstimated = weekendDays.length === 0;
+
+  const periodEnd = filters.dateTo || endOfMonthDateStr(meta.lastDate);
+  if (!periodEnd || periodEnd <= meta.lastDate) {
+    return { weekdayRate, weekendRate, weekendIsEstimated, remainingWeekdays: 0, remainingWeekends: 0, projectedValue: null, projectedAch: null };
+  }
+
+  // Hitung sisa tanggal kalender (lastDate+1 .. periodEnd), klasifikasi weekday/weekend.
+  let remainingWeekdays = 0, remainingWeekends = 0;
+  let cursor = dateStrToLocalDate(meta.lastDate);
+  cursor.setDate(cursor.getDate() + 1);
+  const end = dateStrToLocalDate(periodEnd);
+  while (cursor <= end) {
+    const day = cursor.getDay();
+    if (day === 0 || day === 6) remainingWeekends += 1; else remainingWeekdays += 1;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  const totalRealisasiSoFar = sumBy(daily, "value");
+  const projectedValue = totalRealisasiSoFar + weekdayRate * remainingWeekdays + weekendRate * remainingWeekends;
+  return {
+    weekdayRate, weekendRate, weekendIsEstimated, remainingWeekdays, remainingWeekends,
+    projectedValue,
+    projectedAch: totalTargetValue ? projectedValue / totalTargetValue : null,
+  };
+}
+
 export function matchFocus(row, focusItem) {
   // `matchType` eksplisit (diisi lewat UI Pengaturan) diprioritaskan. Untuk data lama
   // yang masih pakai sentinel keyword ("__GROUP__"/"GAS_EXACT") tanpa matchType,
@@ -288,6 +384,12 @@ export function useAggregates(rows, targets, filters, workDays) {
       projectedValue,
       projectedAch: (projectedValue !== null && totalTargetValue) ? projectedValue / totalTargetValue : null,
       daysRemaining: workDays ? Math.max(0, workDays - meta.uniqueDays) : null,
+      // Metode alternatif (non-linear) — null kalau data belum cukup untuk
+      // metode tsb; komponen UI fallback ke linear di atas kalau null.
+      methods: {
+        trend7: computeTrend7Projection(daily, workDays, totalTargetValue),
+        weekday: computeWeekdayProjection(daily, totalTargetValue, meta, filters),
+      },
     };
     bySales.forEach((sm) => {
       const smDailyRate = meta.uniqueDays > 0 ? sm.realisasiValue / meta.uniqueDays : 0;
