@@ -1,297 +1,365 @@
-// Vite-specific: load worker as URL so it's bundled & served same-origin.
-// Critical for PWA offline support (CDN worker would break offline).
-// Catatan: import ini hanya mengembalikan string URL (beberapa byte), BUKAN
-// kode worker — aman untuk di-import secara statik tanpa memperbesar chunk.
-import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import html2canvas from "html2canvas";
+import { fmtRp, fmtNum, fmtPct } from "./formatters.js";
+import { dateStrToLocalDate, todayLocalDateStr } from "./excelParse.js";
 
 /* ============================================================================
-   IMAGE EXPORT UTILITIES
-   Dua jalur konversi → gambar:
+   IMAGE EXPORT
+   Karena jsPDF dan xlsx-js-style tidak bisa menghasilkan gambar langsung,
+   pendekatan di sini: bangun ulang laporan yang sama sebagai HTML biasa
+   (warna & struktur meniru template PDF/Excel yang sudah ada), render ke
+   elemen tersembunyi di luar layar, lalu "difoto" pakai html2canvas jadi
+   PNG/JPEG.
 
-   1) PDF → PNG/JPG  (pdfjs-dist)
-      - Dipakai untuk semua laporan yang sudah jadi PDF (Summary, Scorecard,
-        Perbandingan Sales). Hasil gambar = persis PDF, tidak ada duplikasi
-        template.
-      - Multi-halaman: return array of { dataUrl, width, height }.
-
-   2) HTML element → PNG/JPG  (html2canvas)
-      - Dipakai untuk "Excel sebagai Gambar" — Excel tidak punya canvas
-        bawaan, jadi kita render HTML twin lalu capture.
-
-   Output strategy (auto):
-   - 1 halaman → 1 file gambar
-   - 2 halaman → 1 file gambar panjang (stitching vertikal)
-   - 3+ halaman → N file gambar (download berurutan dengan delay)
-
-   ─── CODE-SPLITTING NOTE ────────────────────────────────────────────────────
-   pdfjs-dist (~1MB) dan html2canvas (~200KB) di-import SECARA DINAMIS di dalam
-   fungsi pemakainya, BUKAN di top-level. Alasannya: jika di-import statik,
-   keduanya tergabung ke chunk utama (index-*.js) yang jadi >2MB dan melebihi
-   limit precache Workbox default 2 MiB → PWA build gagal.
-
-   Dengan dynamic import, Vite otomatis memisah keduanya ke chunk terpisah
-   (chunks/pdfjs-dist-*.js dan chunks/html2canvas-*.js) yang di-load on-demand
-   HANYA saat user klik tombol "Export ke Gambar". Pengguna yang tidak pernah
-   pakai fitur gambar tidak perlu download library ini sama sekali.
+   PENTING — warna di file ini SENGAJA DIDUPLIKASI (bukan di-import) dari
+   pdfExport.js dan excelExport.js, supaya perubahan di sini tidak berisiko
+   mengubah perilaku 2 fitur export yang sudah berjalan. Kalau warna/struktur
+   template PDF atau Excel diubah di masa depan, sesuaikan juga manual di sini.
 ============================================================================ */
 
-// Lazy-load pdfjs-dist — cache promise supaya modul hanya di-load sekali
-let _pdfjsLibPromise = null;
-async function getPdfjs() {
-  if (!_pdfjsLibPromise) {
-    _pdfjsLibPromise = import("pdfjs-dist").then((lib) => {
-      // Set worker URL sekali saat library pertama kali di-load
-      lib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
-      return lib;
+// ---- Warna khusus mirror "Laporan Perbandingan Sales" (PDF) ----
+const PDF_COLORS = {
+  headerFill: "#111827",
+  goldTint: "#F9EBDA",
+  gold: "#D97706",
+  text: "#111827",
+  textMuted: "#6B7280",
+  border: "#E5E7EB",
+  mint: "#059669",
+  coral: "#DC2626",
+};
+
+// Mirror PERSIS dari achColor() di pdfExport.js — PDF laporan ini TIDAK pakai
+// gradien background (itu cuma fitur Excel), cuma warna TEKS 3-tingkat.
+// Jangan pakai achGradientColor (di bawah) untuk mirror PDF — beda template.
+function pdfAchTextColor(ach) {
+  if (ach === null || ach === undefined) return PDF_COLORS.textMuted;
+  if (ach >= 1) return PDF_COLORS.mint;
+  if (ach >= 0.8) return PDF_COLORS.gold;
+  return PDF_COLORS.coral;
+}
+
+// ---- Warna khusus mirror "Export ke Excel" ----
+const XL_COLORS_HTML = {
+  headerCyan: "#6DD9FF",
+  headerPurple: "#7030A0",
+  mint: "#4BFF9C",
+  yellowTier: "#FFFF00",
+  gold: "#FFC000",
+  navy: "#002060",
+  border: "#D9D9D9",
+};
+const XL_TIER_FILL_HTML = { mint: XL_COLORS_HTML.mint, amber: XL_COLORS_HTML.yellowTier, violet: XL_COLORS_HTML.gold };
+
+// Gradien pencapaian — duplikat persis dari excelExport.js (lihat komentar di sana).
+const ACH_GRADIENT_STOPS = [
+  { pct: 0, rgb: [248, 105, 107] },
+  { pct: 0.7, rgb: [255, 235, 132] },
+  { pct: 1.0, rgb: [99, 190, 123] },
+];
+function achGradientColor(pct) {
+  if (pct === null || pct === undefined || Number.isNaN(pct)) return null;
+  const p = Math.max(0, pct);
+  const stops = ACH_GRADIENT_STOPS;
+  let lo = stops[0], hi = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (p >= stops[i].pct && p <= stops[i + 1].pct) { lo = stops[i]; hi = stops[i + 1]; break; }
+    if (p > stops[stops.length - 1].pct) { lo = stops[stops.length - 1]; hi = stops[stops.length - 1]; }
+  }
+  const range = hi.pct - lo.pct;
+  const t = range > 0 ? Math.min(1, Math.max(0, (p - lo.pct) / range)) : 1;
+  const hex = (n) => Math.round(n).toString(16).padStart(2, "0").toUpperCase();
+  const r = lo.rgb[0] + (hi.rgb[0] - lo.rgb[0]) * t;
+  const g = lo.rgb[1] + (hi.rgb[1] - lo.rgb[1]) * t;
+  const b = lo.rgb[2] + (hi.rgb[2] - lo.rgb[2]) * t;
+  return `#${hex(r)}${hex(g)}${hex(b)}`;
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/* ----------------------------------------------------------------------------
+   Fungsi generik: render HTML string di elemen tersembunyi, screenshot pakai
+   html2canvas, download sebagai PNG/JPEG. `scale: 2` supaya teks tetap tajam
+   walau di-zoom (setara retina/HiDPI).
+---------------------------------------------------------------------------- */
+export async function exportHtmlAsImage(html, filenameBase, format = "png") {
+  const container = document.createElement("div");
+  container.style.position = "absolute";
+  container.style.left = "-99999px";
+  container.style.top = "0";
+  container.style.background = "#ffffff";
+  container.style.width = "fit-content";
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  try {
+    const canvas = await html2canvas(container, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+    const mime = format === "jpeg" ? "image/jpeg" : "image/png";
+    const dataUrl = canvas.toDataURL(mime, format === "jpeg" ? 0.92 : undefined);
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `${filenameBase}.${format === "jpeg" ? "jpg" : "png"}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } finally {
+    document.body.removeChild(container);
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   1) MIRROR "Laporan Perbandingan Sales" (PDF) sebagai HTML
+---------------------------------------------------------------------------- */
+function formatDateIDHtml(dateStr) {
+  if (!dateStr) return "-";
+  const MONTHS_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (!y) return "-";
+  return `${d} ${MONTHS_ID[m - 1]} ${y}`;
+}
+
+function pdfTd(content, { bg, color, bold, align = "left", fontSize = 11 } = {}) {
+  const style = [
+    "padding:5px 8px", `text-align:${align}`, `font-size:${fontSize}px`,
+    "font-family:Helvetica,Arial,sans-serif", bold ? "font-weight:bold" : "font-weight:normal",
+    `color:${color || PDF_COLORS.text}`, bg ? `background:${bg}` : "",
+    `border:1px solid ${PDF_COLORS.border}`, "white-space:nowrap",
+  ].filter(Boolean).join(";");
+  return `<td style="${style}">${esc(content)}</td>`;
+}
+function pdfTh(content, { align = "center" } = {}) {
+  return `<th style="padding:5px 8px;text-align:${align};font-size:11px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;color:#fff;background:${PDF_COLORS.headerFill};border:1px solid ${PDF_COLORS.border};white-space:nowrap;">${esc(content)}</th>`;
+}
+
+function buildSalesRowHtml(cols, achIndex = -1) {
+  // cols = array of {content, align, fontSize} — semua di-highlight gold tint +
+  // bold (baris "sales"). Kolom ach (kalau ada, achIndex) teksnya JUGA diwarnai
+  // 3-tingkat — persis seperti didParseCell di PDF asli yang menerapkan
+  // textColor=achColor(...) ke SEMUA baris (sales maupun grup), bukan cuma grup.
+  return `<tr>${cols.map((c, i) => pdfTd(c.content, { bg: PDF_COLORS.goldTint, bold: true, align: c.align, fontSize: c.fontSize, color: i === achIndex ? c.achColor : undefined })).join("")}</tr>`;
+}
+function buildGroupRowHtml(cols, achIndex) {
+  // cols = array of {content, align} — baris "grup" polos, kolom ach (kalau ada)
+  // diwarnai TEKS 3-tingkat (mint/gold/coral), BUKAN background gradien —
+  // sesuai template PDF asli (achColor), beda dengan template Excel.
+  return `<tr>${cols.map((c, i) => pdfTd(c.content, { align: c.align, bold: i === achIndex, color: i === achIndex ? c.achColor : undefined })).join("")}</tr>`;
+}
+
+export function buildSalesGroupComparisonHTML(agg, opts) {
+  const { depotName } = opts || {};
+  const periodLabel = `${formatDateIDHtml(agg.meta.firstDate)} — ${formatDateIDHtml(agg.meta.lastDate)}`;
+  const groupLabel = agg.byGroup.length ? agg.byGroup.map((g) => g.name).join(", ") : "Semua Grup";
+  const sortedGroups = [...agg.byGroup].sort((a, b) => b.realisasiValue - a.realisasiValue);
+  const sortedSales = [...agg.bySales].sort((a, b) => (b.ach ?? -1) - (a.ach ?? -1));
+  const lastDateRows = agg.meta.lastDate ? agg.filteredRows.filter((r) => r.date === agg.meta.lastDate) : [];
+
+  const wrap = "font-family:Helvetica,Arial,sans-serif;width:820px;padding:24px;background:#fff;";
+  let html = `<div style="${wrap}">`;
+  html += `<div style="font-size:16px;font-weight:bold;color:${PDF_COLORS.text};">${esc(depotName || "DEPO")}</div>`;
+  html += `<div style="font-size:13px;font-weight:bold;color:${PDF_COLORS.text};margin-top:4px;">LAPORAN PERBANDINGAN PENCAPAIAN SALES</div>`;
+  html += `<div style="font-size:10px;color:${PDF_COLORS.textMuted};margin-bottom:14px;">Grup: ${esc(groupLabel)} &nbsp;·&nbsp; ${esc(periodLabel)}</div>`;
+
+  // Section 1
+  html += `<div style="font-size:11px;font-weight:bold;color:${PDF_COLORS.text};margin:10px 0 4px;">Rekap per Grup Produk</div>`;
+  html += `<table style="border-collapse:collapse;width:100%;margin-bottom:14px;"><thead><tr>${pdfTh("Grup Produk", { align: "left" })}${pdfTh("Target")}${pdfTh("Realisasi")}${pdfTh("Ach%")}</tr></thead><tbody>`;
+  sortedGroups.forEach((g) => {
+    html += `<tr>${pdfTd(g.name)}${pdfTd(fmtRp(g.targetValue), { align: "right" })}${pdfTd(fmtRp(g.realisasiValue), { align: "right" })}${pdfTd(fmtPct(g.ach), { align: "right", bold: true, color: pdfAchTextColor(g.ach) })}</tr>`;
+  });
+  html += `</tbody></table>`;
+
+  // Section 2
+  html += `<div style="font-size:11px;font-weight:bold;color:${PDF_COLORS.text};margin:10px 0 4px;">Rekap per Sales — Total Periode</div>`;
+  html += `<table style="border-collapse:collapse;width:100%;margin-bottom:14px;"><thead><tr>${pdfTh("#")}${pdfTh("Nama", { align: "left" })}${pdfTh("Target")}${pdfTh("Realisasi")}${pdfTh("Ach%")}${pdfTh("Deviasi")}${pdfTh("AO")}</tr></thead><tbody>`;
+  sortedSales.forEach((s, idx) => {
+    html += buildSalesRowHtml([
+      { content: idx + 1, align: "center" }, { content: s.name, align: "left" },
+      { content: fmtRp(s.targetValue), align: "right" }, { content: fmtRp(s.realisasiValue), align: "right" },
+      { content: fmtPct(s.ach), align: "right", achColor: pdfAchTextColor(s.ach) }, { content: s.deviasiValue !== null ? fmtRp(s.deviasiValue) : "-", align: "right" },
+      { content: fmtNum(s.realisasiAo), align: "right" },
+    ], 4);
+    s.groups.forEach((g) => {
+      html += buildGroupRowHtml([
+        { content: "", align: "center" }, { content: g.name, align: "left" },
+        { content: fmtRp(g.targetValue), align: "right" }, { content: fmtRp(g.realisasiValue), align: "right" },
+        { content: fmtPct(g.ach), align: "right", achColor: pdfAchTextColor(g.ach) },
+        { content: g.deviasiValue !== null ? fmtRp(g.deviasiValue) : "-", align: "right" },
+        { content: fmtNum(g.realisasiAo), align: "right" },
+      ], 4);
     });
-  }
-  return _pdfjsLibPromise;
-}
+  });
+  html += `</tbody></table>`;
 
-// Lazy-load html2canvas — sama, cache promise
-let _html2canvasPromise = null;
-async function getHtml2canvas() {
-  if (!_html2canvasPromise) {
-    _html2canvasPromise = import("html2canvas").then((m) => m.default || m);
-  }
-  return _html2canvasPromise;
-}
-
-/**
- * Konversi jsPDF doc → array of image data URLs (1 per halaman).
- *
- * @param {jsPDF} doc — instance jsPDF yang sudah di-render
- * @param {Object} opts
- * @param {number} opts.scale — 1 | 2 | 3 (default 2 untuk retina/print)
- * @param {"png"|"jpeg"} opts.format — default "png"
- * @param {number} opts.quality — 0..1 untuk jpeg (default 0.92)
- * @returns {Promise<Array<{dataUrl: string, width: number, height: number}>>}
- */
-export async function pdfDocToImages(doc, opts = {}) {
-  const scale = opts.scale || 2;
-  const format = opts.format === "jpeg" ? "jpeg" : "png";
-  const quality = opts.quality || 0.92;
-
-  // Lazy-load pdfjs-dist (chunk terpisah, baru di-load saat fungsi ini dipanggil)
-  const pdfjsLib = await getPdfjs();
-
-  // jsPDF → ArrayBuffer → pdf.js load
-  const blob = doc.output("blob");
-  const arrayBuffer = await blob.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-  const images = [];
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale });
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    const ctx = canvas.getContext("2d");
-
-    // PDF bisa punya transparan — isi putih dulu supaya JPG tidak hitam
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    await page.render({ canvasContext: ctx, viewport }).promise;
-
-    images.push({
-      dataUrl: canvas.toDataURL(`image/${format}`, quality),
-      width: canvas.width,
-      height: canvas.height,
+  // Section 3
+  html += `<div style="font-size:11px;font-weight:bold;color:${PDF_COLORS.text};margin:10px 0 4px;">Pencapaian Hari Terakhir — ${esc(formatDateIDHtml(agg.meta.lastDate))}</div>`;
+  if (lastDateRows.length === 0) {
+    html += `<div style="font-size:10px;color:${PDF_COLORS.textMuted};">Tidak ada transaksi pada tanggal ini untuk grup yang difilter.</div>`;
+  } else {
+    html += `<table style="border-collapse:collapse;width:100%;"><thead><tr>${pdfTh("#")}${pdfTh("Nama", { align: "left" })}${pdfTh("Realisasi")}${pdfTh("AO")}</tr></thead><tbody>`;
+    sortedSales.forEach((s, idx) => {
+      const salesLastRows = lastDateRows.filter((r) => r.salesCode === s.code);
+      const realAoToday = new Set(salesLastRows.map((r) => r.outletCode)).size;
+      const salesLastValue = salesLastRows.reduce((sum, r) => sum + r.value, 0);
+      html += buildSalesRowHtml([
+        { content: idx + 1, align: "center" }, { content: s.name, align: "left" },
+        { content: salesLastRows.length ? fmtRp(salesLastValue) : "-", align: "right" },
+        { content: salesLastRows.length ? fmtNum(realAoToday) : "-", align: "right" },
+      ]);
+      if (salesLastRows.length === 0) return;
+      s.groups.forEach((g) => {
+        const grs = salesLastRows.filter((r) => r.group === g.name);
+        if (grs.length === 0) return;
+        html += buildGroupRowHtml([
+          { content: "", align: "center" }, { content: g.name, align: "left" },
+          { content: fmtRp(grs.reduce((sum, r) => sum + r.value, 0)), align: "right" },
+          { content: fmtNum(new Set(grs.map((r) => r.outletCode)).size), align: "right" },
+        ], -1);
+      });
     });
+    html += `</tbody></table>`;
   }
-  return images;
+
+  html += `</div>`;
+  return html;
 }
 
-/**
- * Capture HTML element → array berisi 1 image (html2canvas tidak paginate).
- *
- * @param {HTMLElement} element
- * @param {Object} opts
- * @param {number} opts.scale — default 2
- * @param {"png"|"jpeg"} opts.format — default "png"
- * @param {number} opts.quality — default 0.92
- * @param {string} opts.backgroundColor — default "#FFFFFF"
- * @returns {Promise<Array<{dataUrl: string, width: number, height: number}>>}
- */
-export async function htmlToImages(element, opts = {}) {
-  const scale = opts.scale || 2;
-  const format = opts.format === "jpeg" ? "jpeg" : "png";
-  const quality = opts.quality || 0.92;
-  const backgroundColor = opts.backgroundColor || "#FFFFFF";
+/* ----------------------------------------------------------------------------
+   2) MIRROR "Export ke Excel" sebagai HTML
+   Info block (BULAN/HARI KERJA/dst) dirender sebagai blok kecil terpisah di
+   atas tabel utama — sama datanya dengan Excel, tapi tidak dipaksa masuk ke
+   grid 14-kolom yang sama persis (tidak perlu untuk kebutuhan screenshot).
+---------------------------------------------------------------------------- */
+function xlTd(content, { bg, color, bold, align = "left", colSpan, rowSpan, italic } = {}) {
+  const style = [
+    "padding:4px 7px", `text-align:${align}`, "font-size:10.5px", "font-family:Calibri,Arial,sans-serif",
+    bold ? "font-weight:bold" : "font-weight:normal", italic ? "font-style:italic" : "",
+    `color:${color || "#111827"}`, bg ? `background:${bg}` : "",
+    `border:1px solid ${XL_COLORS_HTML.border}`, "white-space:nowrap",
+  ].filter(Boolean).join(";");
+  const attrs = `${colSpan ? ` colspan="${colSpan}"` : ""}${rowSpan ? ` rowspan="${rowSpan}"` : ""}`;
+  return `<td style="${style}"${attrs}>${esc(content)}</td>`;
+}
 
-  // Lazy-load html2canvas (chunk terpisah, baru di-load saat fungsi ini dipanggil)
-  const html2canvas = await getHtml2canvas();
+export function buildExcelReportHTML(agg, targets, opts) {
+  const { workDays, depotName } = opts || {};
+  const firstDateObj = dateStrToLocalDate(agg.meta.firstDate) || new Date();
+  const lastDateObj = dateStrToLocalDate(agg.meta.lastDate) || new Date();
+  const sdHariIni = agg.meta.uniqueDays;
+  const sisaHk = Math.max(0, (workDays || 0) - sdHariIni);
+  const timeGone = workDays ? sdHariIni / workDays : 0;
+  const MONTHS_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+  const fmtMonYY = (d) => `${MONTHS_ID[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`;
+  const fmtDMonYY = (d) => `${d.getDate()}-${MONTHS_ID[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`;
 
-  const canvas = await html2canvas(element, {
-    scale,
-    backgroundColor,
-    useCORS: true,
-    logging: false,
-    windowWidth: element.scrollWidth,
-    windowHeight: element.scrollHeight,
+  const wrap = "font-family:Calibri,Arial,sans-serif;width:fit-content;padding:20px;background:#fff;";
+  let html = `<div style="${wrap}">`;
+
+  // Info block
+  html += `<table style="border-collapse:collapse;margin-bottom:10px;"><tbody>`;
+  html += `<tr>${xlTd("BULAN", { bold: true })}${xlTd(fmtMonYY(firstDateObj))}<td style="border:none;padding:0 24px;"></td>${xlTd(depotName || "DEPO LOTIM", { bold: true, align: "center" })}<td style="border:none;padding:0 24px;"></td>${xlTd(fmtDMonYY(lastDateObj), { bold: true, align: "right" })}</tr>`;
+  html += `<tr>${xlTd("HARI KERJA", { bold: true })}${xlTd(fmtNum(workDays || 0), { bold: true })}</tr>`;
+  html += `<tr>${xlTd("SD HARI INI", { bold: true })}${xlTd(fmtNum(sdHariIni), { bold: true })}</tr>`;
+  html += `<tr>${xlTd("SISA HK", { bold: true })}${xlTd(fmtNum(sisaHk), { bold: true })}</tr>`;
+  html += `<tr>${xlTd("TIME GONE", { bold: true })}${xlTd(fmtPct(timeGone), { bold: true, bg: XL_COLORS_HTML.gold })}</tr>`;
+  html += `</tbody></table>`;
+
+  // Header baris 1 & 2
+  html += `<table style="border-collapse:collapse;"><thead>`;
+  html += `<tr>`;
+  html += `<th rowspan="2" style="padding:4px 7px;background:${XL_COLORS_HTML.headerCyan};border:1px solid ${XL_COLORS_HTML.border};font-size:10.5px;">NO</th>`;
+  html += `<th rowspan="2" style="padding:4px 7px;background:${XL_COLORS_HTML.headerCyan};border:1px solid ${XL_COLORS_HTML.border};font-size:10.5px;">SALESMAN</th>`;
+  ["TARGET", "REALISASI", "ACH", "DEVIASI"].forEach((label) => {
+    html += `<th colspan="2" style="padding:4px 7px;background:${XL_COLORS_HTML.headerCyan};border:1px solid ${XL_COLORS_HTML.border};font-size:10.5px;">${label}</th>`;
+  });
+  html += `<th colspan="4" style="padding:4px 7px;background:${XL_COLORS_HTML.headerPurple};color:#fff;border:1px solid ${XL_COLORS_HTML.border};font-size:10.5px;">PRODUK FOKUS</th>`;
+  html += `</tr><tr>`;
+  ["VALUE", "AO", "VALUE", "AO", "VALUE", "AO", "VALUE", "AO"].forEach((label) => {
+    html += `<th style="padding:4px 7px;background:${XL_COLORS_HTML.headerCyan};border:1px solid ${XL_COLORS_HTML.border};font-size:10.5px;">${label}</th>`;
+  });
+  ["NAMA", "TARGET", "REALISASI", "%"].forEach((label) => {
+    html += `<th style="padding:4px 7px;background:${XL_COLORS_HTML.headerPurple};color:#fff;border:1px solid ${XL_COLORS_HTML.border};font-size:10.5px;">${label}</th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  // Data per sales
+  const totalTargetV = [], totalTargetAo = [], totalRealV = [], totalRealAo = [];
+  agg.bySales.forEach((sm, idx) => {
+    const fill = XL_TIER_FILL_HTML[sm.tier] || XL_COLORS_HTML.yellowTier;
+    const maxSub = Math.max(sm.groups.length, sm.focus.length);
+
+    html += `<tr>`;
+    html += `<td rowspan="${maxSub + 1}" style="padding:4px 7px;text-align:center;font-weight:bold;border:1px solid ${XL_COLORS_HTML.border};font-size:10.5px;">${idx + 1}</td>`;
+    html += xlTd(sm.name, { bold: true, bg: fill });
+    html += xlTd(fmtRp(sm.targetValue), { bg: fill, align: "right" });
+    html += xlTd(fmtNum(sm.targetAo), { bg: fill, align: "center" });
+    html += xlTd(fmtRp(sm.realisasiValue), { bg: fill, align: "right" });
+    html += xlTd(fmtNum(sm.realisasiAo), { bg: fill, align: "center" });
+    html += xlTd(sm.targetValue ? fmtPct(sm.ach) : "-", { bold: true, align: "center", bg: sm.targetValue ? achGradientColor(sm.ach) : undefined });
+    html += xlTd(sm.targetAo ? fmtPct(sm.achAo) : "-", { bold: true, align: "center", bg: sm.targetAo ? achGradientColor(sm.achAo) : undefined });
+    html += xlTd(sm.targetValue ? fmtRp(sm.deviasiValue) : "0", { bg: XL_COLORS_HTML.yellowTier, align: "right" });
+    html += xlTd(sm.targetAo ? fmtNum(sm.deviasiAo) : "0", { bg: XL_COLORS_HTML.yellowTier, align: "center" });
+    if (sm.focus.length) {
+      html += `<td colspan="4" style="padding:4px 7px;text-align:center;font-weight:bold;background:${XL_COLORS_HTML.headerPurple};color:#fff;border:1px solid ${XL_COLORS_HTML.border};font-size:10.5px;">${esc(sm.name)}</td>`;
+    } else {
+      html += `<td colspan="4" style="padding:4px 7px;font-size:9px;background:${fill};border:1px solid ${XL_COLORS_HTML.border};">*PRODUK FOKUS DALAM SATUAN KARTON</td>`;
+    }
+    html += `</tr>`;
+
+    totalTargetV.push(sm.targetValue); totalTargetAo.push(sm.targetAo);
+    totalRealV.push(sm.realisasiValue); totalRealAo.push(sm.realisasiAo);
+
+    for (let i = 0; i < maxSub; i++) {
+      html += `<tr>`;
+      if (i < sm.groups.length) {
+        const g = sm.groups[i];
+        html += xlTd(g.name);
+        html += xlTd(fmtRp(g.targetValue), { align: "right" });
+        html += xlTd(fmtNum(g.targetAo), { bg: fill, align: "center" });
+        html += xlTd(fmtRp(g.realisasiValue), { align: "right" });
+        html += xlTd(fmtNum(g.realisasiAo), { align: "center" });
+        html += xlTd(g.targetValue ? fmtPct(g.ach) : "-", { bold: true, align: "center", bg: g.targetValue ? achGradientColor(g.ach) : undefined });
+        html += xlTd(g.targetAo ? fmtPct(g.achAo) : "-", { bold: true, align: "center", bg: g.targetAo ? achGradientColor(g.achAo) : undefined });
+        html += xlTd(fmtRp(g.deviasiValue), { bg: XL_COLORS_HTML.yellowTier, align: "right" });
+        html += xlTd(fmtNum(g.deviasiAo), { bg: XL_COLORS_HTML.yellowTier, align: "center" });
+      } else {
+        for (let c = 0; c < 8; c++) html += xlTd("");
+      }
+      if (i < sm.focus.length) {
+        const f = sm.focus[i];
+        html += xlTd(f.hasUnconvertible ? `${f.name} *` : f.name);
+        html += xlTd(fmtNum(f.target), { align: "center" });
+        html += xlTd(fmtNum(f.realisasi), { align: "center" });
+        html += xlTd(f.target ? fmtPct(f.pct) : fmtPct(0), { bold: true, align: "center", bg: f.target ? achGradientColor(f.pct) : undefined });
+      } else {
+        for (let c = 0; c < 4; c++) html += xlTd("");
+      }
+      html += `</tr>`;
+    }
   });
 
-  return [{
-    dataUrl: canvas.toDataURL(`image/${format}`, quality),
-    width: canvas.width,
-    height: canvas.height,
-  }];
-}
+  // TOTAL
+  const sum = (arr) => arr.reduce((a, b) => a + (b || 0), 0);
+  const tTargetV = sum(totalTargetV), tTargetAo = sum(totalTargetAo);
+  const tRealV = sum(totalRealV), tRealAo = sum(totalRealAo);
+  const navyCell = (content, align = "right") => `<td style="padding:4px 7px;text-align:${align};font-weight:bold;background:${XL_COLORS_HTML.navy};color:#fff;border:1px solid ${XL_COLORS_HTML.border};font-size:10.5px;">${esc(content)}</td>`;
+  html += `<tr>`;
+  html += navyCell("", "center");
+  html += navyCell("TOTAL", "left");
+  html += navyCell(fmtRp(tTargetV));
+  html += navyCell(fmtNum(tTargetAo), "center");
+  html += navyCell(fmtRp(tRealV));
+  html += navyCell(fmtNum(tRealAo), "center");
+  html += xlTd(tTargetV ? fmtPct(tRealV / tTargetV) : "-", { bold: true, align: "center", bg: tTargetV ? achGradientColor(tRealV / tTargetV) : undefined });
+  html += xlTd(tTargetAo ? fmtPct(tRealAo / tTargetAo) : "-", { bold: true, align: "center", bg: tTargetAo ? achGradientColor(tRealAo / tTargetAo) : undefined });
+  html += navyCell(fmtRp(tTargetV - tRealV));
+  html += navyCell(fmtNum(tTargetAo - tRealAo), "center");
+  for (let c = 0; c < 4; c++) html += navyCell("", "center");
+  html += `</tr></tbody></table>`;
 
-/**
- * Stitch beberapa gambar jadi 1 canvas panjang vertikal.
- * Dipakai untuk merging multi-page PDF jadi 1 file gambar (kasus 2 halaman).
- *
- * @param {Array<{dataUrl, width, height}>} images
- * @param {Object} opts — { format, quality, gap } (gap default 0)
- * @returns {Promise<{dataUrl: string, width: number, height: number}>}
- */
-export async function stitchImagesVertically(images, opts = {}) {
-  const format = opts.format === "jpeg" ? "jpeg" : "png";
-  const quality = opts.quality || 0.92;
-  const gap = opts.gap || 0;
-
-  // Load semua gambar sebagai HTMLImageElement
-  const loaded = await Promise.all(images.map((img) => new Promise((resolve, reject) => {
-    const i = new Image();
-    i.onload = () => resolve({ img: i, width: img.width, height: img.height });
-    i.onerror = reject;
-    i.src = img.dataUrl;
-  })));
-
-  const maxWidth = Math.max(...loaded.map((l) => l.width));
-  const totalHeight = loaded.reduce((sum, l) => sum + l.height, 0) + gap * (loaded.length - 1);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = maxWidth;
-  canvas.height = totalHeight;
-  const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  let y = 0;
-  for (const { img, width, height } of loaded) {
-    // Center horizontally jika lebarnya beda
-    const x = Math.floor((maxWidth - width) / 2);
-    ctx.drawImage(img, x, y, width, height);
-    y += height + gap;
+  const anyUnconvertible = agg.bySales.some((sm) => sm.focus.some((f) => f.hasUnconvertible));
+  if (anyUnconvertible) {
+    html += `<div style="font-size:9px;color:${PDF_COLORS.textMuted};margin-top:8px;">* Sebagian transaksi produk ini tidak bisa dikonversi ke satuan karton (tidak ada baris satuan KARTON untuk produk tsb di data mentah) — angka realisasi memakai satuan asli.</div>`;
   }
 
-  return {
-    dataUrl: canvas.toDataURL(`image/${format}`, quality),
-    width: canvas.width,
-    height: canvas.height,
-  };
-}
-
-/**
- * Trigger download 1 file gambar dari data URL.
- */
-export function downloadImage(dataUrl, filename) {
-  const a = document.createElement("a");
-  a.href = dataUrl;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-
-/**
- * Trigger download N file gambar berurutan dengan delay antar download
- * supaya browser tidak memblokir (kebijakan multi-download).
- *
- * @param {Array<{dataUrl}>} images
- * @param {string} baseFilename — tanpa ekstensi
- * @param {string} ext — "png" atau "jpg"
- */
-export async function downloadImagesSequential(images, baseFilename, ext) {
-  for (let i = 0; i < images.length; i++) {
-    const filename = images.length === 1
-      ? `${baseFilename}.${ext}`
-      : `${baseFilename}-hal${i + 1}.${ext}`;
-    downloadImage(images[i].dataUrl, filename);
-    // Delay 400ms antar download — cukup untuk Chrome/Firefox/Safari tidak block
-    if (i < images.length - 1) {
-      await new Promise((r) => setTimeout(r, 400));
-    }
-  }
-}
-
-/**
- * Strategy output otomatis berdasarkan jumlah halaman:
- * - 1 halaman → 1 file langsung
- * - 2 halaman → 1 file panjang (stitching vertikal)
- * - 3+ halaman → N file terpisah (sequential download)
- *
- * @param {Array<{dataUrl, width, height}>} images
- * @param {string} baseFilename — tanpa ekstensi
- * @param {"png"|"jpeg"} format
- */
-export async function downloadImagesSmart(images, baseFilename, format) {
-  const ext = format === "jpeg" ? "jpg" : "png";
-
-  if (images.length === 1) {
-    downloadImage(images[0].dataUrl, `${baseFilename}.${ext}`);
-    return;
-  }
-
-  if (images.length === 2) {
-    const stitched = await stitchImagesVertically(images, { format });
-    downloadImage(stitched.dataUrl, `${baseFilename}.${ext}`);
-    return;
-  }
-
-  // 3+ halaman
-  await downloadImagesSequential(images, baseFilename, ext);
-}
-
-/* ============================================================================
-   HELPER: Render React component ke DOM tersembunyi lalu capture.
-   Dipakai untuk "Excel sebagai Gambar" — kita render ExcelReportHtml
-   ke div off-screen, capture pakai html2canvas, lalu cleanup.
-============================================================================ */
-
-import { createRoot } from "react-dom/client";
-
-/**
- * Render React element ke container off-screen, tunggu settle, lalu capture.
- *
- * @param {React.ReactElement} element — element React yang akan dirender
- * @param {Object} captureOpts — opsi untuk htmlToImages (scale, format, quality)
- * @returns {Promise<Array<{dataUrl, width, height}>>}
- */
-export async function renderAndCapture(element, captureOpts = {}) {
-  // 1. Buat container off-screen. Pakai position:fixed + left:-99999px BUKAN
-  //    display:none — html2canvas tidak bisa mengukur layout dari element
-  //    display:none. Kita butuh layout sungguhan.
-  const container = document.createElement("div");
-  container.style.cssText = "position:fixed; left:-99999px; top:0; z-index:-1;";
-  document.body.appendChild(container);
-
-  try {
-    // 2. Render React ke container
-    const root = createRoot(container);
-    await new Promise((resolve) => {
-      root.render(element);
-      // Beri waktu untuk layout + font load. 2 frame cukup untuk React commit.
-      requestAnimationFrame(() => requestAnimationFrame(resolve));
-    });
-
-    // 3. Tunggu font & gambar selesai load (html2canvas bisa tangkap teks
-    //    dengan font salah kalau belum loaded)
-    if (document.fonts && document.fonts.ready) {
-      await document.fonts.ready;
-    }
-    // Beri sedikit delay tambahan untuk safety
-    await new Promise((r) => setTimeout(r, 50));
-
-    // 4. Capture
-    const images = await htmlToImages(container, captureOpts);
-    return images;
-  } finally {
-    // 5. Cleanup — pastikan container dihapus walau capture gagal
-    container.remove();
-  }
+  html += `</div>`;
+  return html;
 }
