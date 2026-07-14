@@ -380,12 +380,12 @@ export function exportSalesGroupComparisonPDF(agg, opts) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(...COLORS.textMuted);
-    doc.text(`Target Rp ${fmtNum(s.targetValue)}  ·  Realisasi Rp ${fmtNum(s.realisasiValue)}  ·  Ach ${fmtPct(s.ach)}`, 14, y + 8.5);
+    doc.text(`Target Rp ${fmtNum(s.targetValue)}  ·  Realisasi Rp ${fmtNum(s.realisasiValue)}  ·  Ach ${fmtPct(s.ach)}  ·  AO Real: ${fmtNum(s.realisasiAo)} outlet`, 14, y + 8.5);
     y += 11;
 
     autoTable(doc, {
       startY: y,
-      head: [["Grup Barang", "Target", "Realisasi", "Ach%", "Deviasi", "AO"]],
+      head: [["Grup Barang", "Target", "Realisasi", "Ach%", "Deviasi", "AO (per grup)"]],
       body: s.groups.map((g) => [
         g.name, fmtRp(g.targetValue), fmtRp(g.realisasiValue), fmtPct(g.ach),
         g.deviasiValue !== null ? fmtRp(g.deviasiValue) : "-", fmtNum(g.realisasiAo),
@@ -425,6 +425,9 @@ export function exportSalesGroupComparisonPDF(agg, opts) {
   } else {
     sortedSales.forEach((s, idx) => {
       const salesLastRows = lastDateRows.filter((r) => r.salesCode === s.code);
+      // AO Real hari ini: outlet unik LINTAS GRUP untuk sales ini (bukan sum
+      // per grup) — konsisten dengan cara `s.realisasiAo` dihitung di Section 2.
+      const realAoToday = new Set(salesLastRows.map((r) => r.outletCode)).size;
       // Breakdown per grup KHUSUS hari terakhir — dihitung fresh dari raw rows
       // (bukan dari s.groups yang itu totalnya 1 periode penuh).
       const lastDayGroups = s.groups.map((g) => {
@@ -437,20 +440,25 @@ export function exportSalesGroupComparisonPDF(agg, opts) {
       doc.setFontSize(9);
       doc.setTextColor(...COLORS.text);
       doc.text(`${idx + 1}. ${s.name}`, 14, y + 4);
-      y += 7;
 
       if (salesLastRows.length === 0) {
         doc.setFont("helvetica", "italic");
         doc.setFontSize(7.5);
         doc.setTextColor(...COLORS.textMuted);
-        doc.text("Tidak ada transaksi pada tanggal ini.", 16, y + 2);
-        y += 7;
+        doc.text("Tidak ada transaksi pada tanggal ini.", 14, y + 8.5);
+        y += 13;
         return;
       }
 
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...COLORS.textMuted);
+      doc.text(`AO Real: ${fmtNum(realAoToday)} outlet`, 14, y + 8.5);
+      y += 11;
+
       autoTable(doc, {
         startY: y,
-        head: [["Grup Barang", "Realisasi", "AO"]],
+        head: [["Grup Barang", "Realisasi", "AO (per grup)"]],
         body: lastDayGroups.map((g) => [g.name, fmtRp(g.value), fmtNum(g.ao)]),
         theme: "grid",
         styles: { font: "helvetica", fontSize: 7.5, cellPadding: 1.8, textColor: COLORS.text, lineColor: COLORS.border, lineWidth: 0.1 },
