@@ -1,13 +1,8 @@
-import * as pdfjsLib from "pdfjs-dist";
 // Vite-specific: load worker as URL so it's bundled & served same-origin.
 // Critical for PWA offline support (CDN worker would break offline).
+// Catatan: import ini hanya mengembalikan string URL (beberapa byte), BUKAN
+// kode worker — aman untuk di-import secara statik tanpa memperbesar chunk.
 import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import html2canvas from "html2canvas";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Configure pdf.js worker (once per module load)
-// ─────────────────────────────────────────────────────────────────────────────
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 /* ============================================================================
    IMAGE EXPORT UTILITIES
@@ -27,7 +22,40 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
    - 1 halaman → 1 file gambar
    - 2 halaman → 1 file gambar panjang (stitching vertikal)
    - 3+ halaman → N file gambar (download berurutan dengan delay)
+
+   ─── CODE-SPLITTING NOTE ────────────────────────────────────────────────────
+   pdfjs-dist (~1MB) dan html2canvas (~200KB) di-import SECARA DINAMIS di dalam
+   fungsi pemakainya, BUKAN di top-level. Alasannya: jika di-import statik,
+   keduanya tergabung ke chunk utama (index-*.js) yang jadi >2MB dan melebihi
+   limit precache Workbox default 2 MiB → PWA build gagal.
+
+   Dengan dynamic import, Vite otomatis memisah keduanya ke chunk terpisah
+   (chunks/pdfjs-dist-*.js dan chunks/html2canvas-*.js) yang di-load on-demand
+   HANYA saat user klik tombol "Export ke Gambar". Pengguna yang tidak pernah
+   pakai fitur gambar tidak perlu download library ini sama sekali.
 ============================================================================ */
+
+// Lazy-load pdfjs-dist — cache promise supaya modul hanya di-load sekali
+let _pdfjsLibPromise = null;
+async function getPdfjs() {
+  if (!_pdfjsLibPromise) {
+    _pdfjsLibPromise = import("pdfjs-dist").then((lib) => {
+      // Set worker URL sekali saat library pertama kali di-load
+      lib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+      return lib;
+    });
+  }
+  return _pdfjsLibPromise;
+}
+
+// Lazy-load html2canvas — sama, cache promise
+let _html2canvasPromise = null;
+async function getHtml2canvas() {
+  if (!_html2canvasPromise) {
+    _html2canvasPromise = import("html2canvas").then((m) => m.default || m);
+  }
+  return _html2canvasPromise;
+}
 
 /**
  * Konversi jsPDF doc → array of image data URLs (1 per halaman).
@@ -43,6 +71,9 @@ export async function pdfDocToImages(doc, opts = {}) {
   const scale = opts.scale || 2;
   const format = opts.format === "jpeg" ? "jpeg" : "png";
   const quality = opts.quality || 0.92;
+
+  // Lazy-load pdfjs-dist (chunk terpisah, baru di-load saat fungsi ini dipanggil)
+  const pdfjsLib = await getPdfjs();
 
   // jsPDF → ArrayBuffer → pdf.js load
   const blob = doc.output("blob");
@@ -89,6 +120,9 @@ export async function htmlToImages(element, opts = {}) {
   const format = opts.format === "jpeg" ? "jpeg" : "png";
   const quality = opts.quality || 0.92;
   const backgroundColor = opts.backgroundColor || "#FFFFFF";
+
+  // Lazy-load html2canvas (chunk terpisah, baru di-load saat fungsi ini dipanggil)
+  const html2canvas = await getHtml2canvas();
 
   const canvas = await html2canvas(element, {
     scale,
