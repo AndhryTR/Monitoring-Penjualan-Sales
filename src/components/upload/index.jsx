@@ -1,12 +1,15 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
+import jsPDF from "jspdf";
 import {
   Upload, Download, X, ChevronDown, RefreshCw, FileSpreadsheet,
-  FileText, Printer, Menu,
+  FileText, Printer, Menu, Image as ImageIcon, Loader2,
 } from "lucide-react";
 import { fmtPct } from "../../utils/formatters.js";
 import { exportSummaryPDF, exportSalesScorecardPDF, exportAllScorecardsPDF, exportSalesGroupComparisonPDF } from "../../utils/pdfExport.js";
 import { exportToExcel } from "../../utils/excelExport.js";
+import { pdfDocToImages, htmlToImages, downloadImagesSmart, renderAndCapture } from "../../utils/imageExport.js";
+import { ExcelReportHtml } from "../export/ExcelReportHtml.jsx";
 
 export function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading, sampleLoading, colors }) {
   const [dragOver, setDragOver] = useState(false);
@@ -201,6 +204,14 @@ export function MobileFab({ onFile, colors, loading }) {
 export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors }) {
   const [open, setOpen] = useState(false);
   const [scorecardListOpen, setScorecardListOpen] = useState(false);
+  const [imageFmt, setImageFmt] = useState(() => {
+    // Persist preferensi format gambar ke localStorage supaya tidak hilang
+    // saat refresh. Default PNG (lossless, ada transparan).
+    try { return localStorage.getItem("smapp:imagefmt") || "png"; }
+    catch { return "png"; }
+  });
+  const [busy, setBusy] = useState(false);          // loading state saat konversi gambar
+  const [busyLabel, setBusyLabel] = useState("");   // label yg sedang diproses
   const ref = useRef(null);
   // Ref terpisah untuk bottom-sheet mobile -- sheet di-render via Portal ke
   // document.body (lihat createPortal di bawah) supaya position:fixed bekerja
@@ -231,9 +242,92 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
   const opts = { workDays, depotName };
   const salesSorted = useMemo(() => [...agg.bySales].sort((a, b) => a.name.localeCompare(b.name)), [agg.bySales]);
 
-  const MenuItem = ({ icon: Icon, iconColor, label, desc, onClick }) => (
-    <button onClick={onClick}
-      className="sm-row w-full text-left px-4 py-2.5 flex items-start gap-3">
+  const setImageFmtPersist = (fmt) => {
+    setImageFmt(fmt);
+    try { localStorage.setItem("smapp:imagefmt", fmt); } catch { /* ignore */ }
+  };
+
+  /* ────────────────────────────────────────────────────────────────────────
+     HANDLER: Export PDF reports sebagai gambar
+     Strategi: generate PDF seperti biasa via fungsi existing, lalu konversi
+     PDF → gambar via pdfjs-dist. Template 100% identik dengan PDF.
+  ──────────────────────────────────────────────────────────────────────── */
+  const handlePdfToImage = async (label, pdfFn, baseFilename) => {
+    if (busy) return;
+    setBusy(true);
+    setBusyLabel(label);
+    setOpen(false);
+    try {
+      // 1. Generate PDF — pakai jsPDF instance yang sama dengan PDF export,
+      //    tapi jangan doc.save() (kita tangkap instance-nya).
+      //    Trick: monkey-patch jsPDF.save agar return doc instead of trigger download.
+      //    Lebih clean: panggil fungsi yang mengembalikan doc.
+      //    Tapi karena pdfFn existing langsung save, kita buat wrapper.
+      const doc = await pdfFn();
+      // 2. Konversi ke gambar
+      const images = await pdfDocToImages(doc, { scale: 2, format: imageFmt });
+      // 3. Download dengan strategi auto (1=1file, 2=stitch, 3+=N file)
+      await downloadImagesSmart(images, baseFilename, imageFmt);
+    } catch (e) {
+      console.error("Gagal export gambar:", e);
+      alert(`Gagal membuat gambar: ${e.message || e}`);
+    } finally {
+      setBusy(false);
+      setBusyLabel("");
+    }
+  };
+
+  /* ────────────────────────────────────────────────────────────────────────
+     HANDLER: Export Excel sebagai gambar
+     Strategi: render ExcelReportHtml ke div off-screen, capture via
+     html2canvas, lalu cleanup. Template direplikasi persis di komponen
+     ExcelReportHtml.
+  ──────────────────────────────────────────────────────────────────────── */
+  const handleExcelToImage = async () => {
+    if (busy) return;
+    setBusy(true);
+    setBusyLabel("Excel sebagai Gambar");
+    setOpen(false);
+    try {
+      const images = await renderAndCapture(
+        <ExcelReportHtml agg={agg} targets={targets} opts={opts} />,
+        { scale: 2, format: imageFmt }
+      );
+      const baseFilename = `Laporan-Sales-Gambar-${new Date().toISOString().slice(0, 10)}`;
+      await downloadImagesSmart(images, baseFilename, imageFmt);
+    } catch (e) {
+      console.error("Gagal export Excel ke gambar:", e);
+      alert(`Gagal membuat gambar: ${e.message || e}`);
+    } finally {
+      setBusy(false);
+      setBusyLabel("");
+    }
+  };
+
+  /* ─── Wrapper: panggil PDF export function tapi return doc instead of save ───
+     Fungsi PDF existing (exportSummaryPDF, dll) langsung memanggil doc.save()
+     di akhir. Untuk konversi ke gambar, kita butuh doc-nya. Pendekatan:
+     monkey-patch jsPDF.prototype.save sementara agar no-op & return doc. */
+  const withDocCapture = (pdfFn) => {
+    return async () => {
+      // Simpan original save
+      const origSave = jsPDF.prototype.save;
+      let captured = null;
+      jsPDF.prototype.save = function () { captured = this; return this; };
+      try {
+        pdfFn();
+        // Fungsi PDF sync (bukan async), jadi captured sudah terisi
+        return captured;
+      } finally {
+        jsPDF.prototype.restore = origSave;
+        jsPDF.prototype.save = origSave;
+      }
+    };
+  };
+
+  const MenuItem = ({ icon: Icon, iconColor, label, desc, onClick, disabled: itemDisabled }) => (
+    <button onClick={onClick} disabled={itemDisabled}
+      className="sm-row w-full text-left px-4 py-2.5 flex items-start gap-3 disabled:opacity-40">
       <Icon size={15} className="mt-0.5 shrink-0" style={{ color: iconColor }} />
       <div className="min-w-0">
         <div className="text-sm font-medium">{label}</div>
@@ -242,8 +336,30 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
     </button>
   );
 
-  const SectionLabel = ({ children }) => (
-    <div className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: colors.textMuted }}>{children}</div>
+  const SectionLabel = ({ children, right }) => (
+    <div className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider flex items-center justify-between" style={{ color: colors.textMuted }}>
+      <span>{children}</span>
+      {right}
+    </div>
+  );
+
+  // Format toggle untuk section Gambar — PNG / JPG
+  const FormatToggle = (
+    <div className="flex p-0.5 rounded-md" style={{ background: colors.surface2 }}>
+      {["png", "jpeg"].map((fmt) => {
+        const isActive = imageFmt === fmt;
+        return (
+          <button key={fmt} onClick={(e) => { e.stopPropagation(); setImageFmtPersist(fmt); }}
+            className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider transition-colors"
+            style={{
+              background: isActive ? colors.gold : "transparent",
+              color: isActive ? "#0A1120" : colors.textMuted,
+            }}>
+            {fmt === "jpeg" ? "JPG" : "PNG"}
+          </button>
+        );
+      })}
+    </div>
   );
 
   // Konten menu dibuat sekali lalu dipakai di dua wadah: dropdown absolut
@@ -291,17 +407,54 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
           ))}
         </div>
       )}
+
+      {/* ───── SECTION GAMBAR (BARU) ─────
+          Toggle format PNG/JPG di pojok kanan section label. Default PNG.
+          Semua item di section ini memicu konversi async — tombol disable
+          saat busy, dan trigger button utama menampilkan spinner. */}
+      <div style={{ borderTop: `1px solid ${colors.border}` }} />
+      <SectionLabel right={FormatToggle}>Gambar</SectionLabel>
+      <MenuItem icon={ImageIcon} iconColor={colors.blue} label="Laporan Ringkasan"
+        desc={`PNG/JPG · KPI, leaderboard & rekap grup (${imageFmt === "jpeg" ? "JPG" : "PNG"} 2x)`}
+        disabled={busy}
+        onClick={() => handlePdfToImage(
+          "Laporan Ringkasan",
+          withDocCapture(() => exportSummaryPDF(agg, targets, opts)),
+          `Laporan-Ringkasan-${(depotName || "Depo").replace(/\s+/g, "-")}`
+        )} />
+      <MenuItem icon={ImageIcon} iconColor={colors.blue} label="Scorecard Semua Sales"
+        desc={`PNG/JPG · 1 gambar per sales (auto-stitch kalau 2 hal) (${imageFmt === "jpeg" ? "JPG" : "PNG"} 2x)`}
+        disabled={busy}
+        onClick={() => handlePdfToImage(
+          "Scorecard Semua Sales",
+          withDocCapture(() => exportAllScorecardsPDF(agg, opts)),
+          `Scorecard-Semua-Sales-${(depotName || "Depo").replace(/\s+/g, "-")}`
+        )} />
+      <MenuItem icon={ImageIcon} iconColor={colors.blue} label="Laporan Perbandingan Sales"
+        desc={`PNG/JPG · Rekap per grup, per sales & hari terakhir (${imageFmt === "jpeg" ? "JPG" : "PNG"} 2x)`}
+        disabled={busy}
+        onClick={() => handlePdfToImage(
+          "Laporan Perbandingan Sales",
+          withDocCapture(() => exportSalesGroupComparisonPDF(agg, opts)),
+          `Laporan-Perbandingan-Sales-${(depotName || "Depo").replace(/\s+/g, "-")}`
+        )} />
+      <MenuItem icon={ImageIcon} iconColor={colors.violet} label="Excel sebagai Gambar"
+        desc="Template Excel identik (warna, merge, ACH gradient) — format gambar"
+        disabled={busy}
+        onClick={handleExcelToImage} />
     </>
   );
 
   return (
     <div className="relative z-20" ref={ref}>
-      <button onClick={() => setOpen((o) => !o)} disabled={disabled}
+      <button onClick={() => setOpen((o) => !o)} disabled={disabled || busy}
         className="sm-btn flex items-center gap-2 px-2.5 md:px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
         style={{ background: colors.gold, color: "#0A1120" }}>
-        <Download size={15} /> <span className="hidden md:inline">Export</span> <ChevronDown size={13} className="hidden md:inline" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+        {busy
+          ? <><Loader2 size={15} className="animate-spin" /> <span className="hidden md:inline">{busyLabel}…</span></>
+          : <><Download size={15} /> <span className="hidden md:inline">Export</span> <ChevronDown size={13} className="hidden md:inline" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} /></>}
       </button>
-      {open && (
+      {open && !busy && (
         <>
           
           <div className="hidden md:block absolute right-0 z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden sm-fadein"
@@ -334,3 +487,4 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
     </div>
   );
 }
+
