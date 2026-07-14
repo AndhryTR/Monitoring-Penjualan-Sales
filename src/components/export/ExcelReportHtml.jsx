@@ -63,8 +63,11 @@ function achGradientColor(pct) {
 
 // Lebar kolom dalam px — konversi dari char width di excelExport.js
 // Excel default: 1 char ≈ 7px at Calibri 10pt
-const COL_WIDTHS_CHAR = [4, 22, 15, 8, 15, 8, 10, 8, 15, 8, 22, 10, 11, 9];
-const COL_WIDTHS_PX = COL_WIDTHS_CHAR.map((w) => Math.max(28, w * 7 + 6));
+// Catatan: kolom SALESMAN (idx 1) dan PRODUK FOKUS NAMA (idx 10) sengaja dilebarkan
+// dari konversi naif supaya nama panjang (mis. "BUDI KARYAWAN") tidak terpotong.
+// Walau teks sudah wrap, lebar lebih lega = lebih sedikit baris per cell = lebih rapi.
+const COL_WIDTHS_CHAR = [4, 28, 16, 8, 16, 8, 11, 8, 16, 8, 28, 11, 12, 10];
+const COL_WIDTHS_PX = COL_WIDTHS_CHAR.map((w) => Math.max(32, w * 7 + 6));
 
 const TOTAL_WIDTH_PX = COL_WIDTHS_PX.reduce((a, b) => a + b, 0);
 
@@ -145,13 +148,24 @@ export function ExcelReportHtml({ agg, targets, opts }) {
   }, [agg, targets, workDays]);
 
   // Inline style helpers
+  // Catatan: tableLayout:"fixed" di <table> memaksa kolom menghormati width
+  // yang ditetapkan. Tanpa whiteSpace:"normal" + wordBreak:"break-word",
+  // teks panjang (mis. "BUDI KARYAWAN" atau "TAIKO CHIPS 10 X 10") akan
+  // terpotong di ujung sel karena browser default truncate.
+  // Dengan wrapping, teks turun ke baris baru — tinggi baris auto-adjust.
   const cellBase = {
-    padding: "3px 4px",
+    padding: "5px 6px",
     border: `0.5pt solid ${XL_COLORS.border}`,
     fontFamily: "Calibri, Arial, sans-serif",
     fontSize: "10pt",
     color: XL_COLORS.text,
     verticalAlign: "middle",
+    whiteSpace: "normal",        // izinkan text wrap ke baris baru
+    wordBreak: "break-word",     // pecah kata panjang jika perlu
+    overflowWrap: "break-word",  // fallback untuk browser lama
+    lineHeight: "1.25",          // spacing antar baris dalam sel multi-line
+    WebkitFontSmoothing: "antialiased",
+    MozOsxFontSmoothing: "grayscale",
   };
   const cellRight = { ...cellBase, textAlign: "right" };
   const cellCenter = { ...cellBase, textAlign: "center" };
@@ -162,11 +176,14 @@ export function ExcelReportHtml({ agg, targets, opts }) {
       style={{
         width: `${TOTAL_WIDTH_PX}px`,
         background: "#FFFFFF",
-        padding: "12px",
+        padding: "16px",
         fontFamily: "Calibri, Arial, sans-serif",
         fontSize: "10pt",
         color: XL_COLORS.text,
         boxSizing: "content-box",
+        WebkitFontSmoothing: "antialiased",
+        MozOsxFontSmoothing: "grayscale",
+        textRendering: "optimizeLegibility",
       }}
     >
       <table
