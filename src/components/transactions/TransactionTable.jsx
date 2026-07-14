@@ -71,6 +71,9 @@ export function TransactionTable({ rows, colors, onOutletDrilldown }) {
       searchable
       searchKeys={["date", "salesName", "outletName", "productName", "invoiceNo"]}
       searchPlaceholder="Cari tanggal, sales, outlet, produk, atau no invoice..."
+      mobileTitleKey="outletName"
+      mobileSubtitleKey="productName"
+      mobileCornerKey="date"
     />
   );
 }

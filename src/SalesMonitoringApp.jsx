@@ -127,6 +127,10 @@ export default function SalesMonitoringApp() {
   const [workDays, setWorkDays] = useState(persistedSettings?.workDays ?? WORK_DAYS_DEFAULT);
   const [targets, setTargets] = useState(persistedSettings?.targets ?? DEFAULT_TARGETS);
   const [depotName, setDepotName] = useState(persistedSettings?.depotName ?? "DEPO LOTIM");
+  // Metode proyeksi terpilih di ProjectionCard (linear/trend7/weekday) —
+  // disimpan lintas sesi seperti pengaturan lain, konsisten dengan preferensi
+  // user yang sifatnya "cara pandang data", bukan data itu sendiri.
+  const [projectionMethod, setProjectionMethod] = useState(persistedSettings?.projectionMethod ?? "linear");
 
   // Muat data sesi terakhir (hasil upload/demo sebelumnya) dari IndexedDB saat
   // pertama kali app dibuka. Async, jadi ditampilkan status loading singkat
@@ -149,8 +153,8 @@ export default function SalesMonitoringApp() {
   // hari kerja, nama depo) — jadi tidak perlu tombol "simpan" terpisah untuk ini,
   // beda dengan raw data yang lebih berat dan disimpan terpisah di bawah.
   useEffect(() => {
-    saveSettings({ theme, filters, workDays, targets, depotName });
-  }, [theme, filters, workDays, targets, depotName]);
+    saveSettings({ theme, filters, workDays, targets, depotName, projectionMethod });
+  }, [theme, filters, workDays, targets, depotName, projectionMethod]);
 
   // Simpan otomatis data transaksi ke IndexedDB tiap kali berubah (setelah upload
   // dikonfirmasi atau data contoh dimuat). Di-skip saat kosong karena reset
@@ -551,7 +555,7 @@ export default function SalesMonitoringApp() {
         ) : (
           <>
             <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} theme={theme} />
-            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} />}
+            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} />}
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}

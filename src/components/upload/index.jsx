@@ -5,7 +5,7 @@ import {
   FileText, Printer, Menu,
 } from "lucide-react";
 import { fmtPct } from "../../utils/formatters.js";
-import { exportSummaryPDF, exportSalesScorecardPDF, exportAllScorecardsPDF } from "../../utils/pdfExport.js";
+import { exportSummaryPDF, exportSalesScorecardPDF, exportAllScorecardsPDF, exportSalesGroupComparisonPDF } from "../../utils/pdfExport.js";
 import { exportToExcel } from "../../utils/excelExport.js";
 
 export function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading, sampleLoading, colors }) {
@@ -264,6 +264,9 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
       <MenuItem icon={FileText} iconColor={colors.coral} label="Scorecard Semua Sales"
         desc={`1 halaman per sales (${agg.bySales.length} sales)`}
         onClick={() => { exportAllScorecardsPDF(agg, opts); setOpen(false); }} />
+      <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Perbandingan Sales"
+        desc="Rekap per grup, per sales & hari terakhir — 1 dokumen gabungan"
+        onClick={() => { exportSalesGroupComparisonPDF(agg, opts); setOpen(false); }} />
 
       <div style={{ borderTop: `1px solid ${colors.border}` }} />
       <button onClick={() => setScorecardListOpen((v) => !v)}
