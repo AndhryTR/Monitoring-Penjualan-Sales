@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import jsPDF from "jspdf";
 import {
   Upload, Download, X, ChevronDown, RefreshCw, FileSpreadsheet,
   FileText, Printer, Menu, Image as ImageIcon, Loader2,
 } from "lucide-react";
 import { fmtPct } from "../../utils/formatters.js";
-import { exportSummaryPDF, exportSalesScorecardPDF, exportAllScorecardsPDF, exportSalesGroupComparisonPDF } from "../../utils/pdfExport.js";
+import {
+  exportSummaryPDF, exportSalesScorecardPDF, exportAllScorecardsPDF, exportSalesGroupComparisonPDF,
+  buildSummaryDoc, buildScorecardDoc, buildAllScorecardsDoc, buildSalesGroupComparisonDoc,
+} from "../../utils/pdfExport.js";
 import { exportToExcel } from "../../utils/excelExport.js";
 import { pdfDocToImages, htmlToImages, downloadImagesSmart, renderAndCapture } from "../../utils/imageExport.js";
 import { ExcelReportHtml } from "../export/ExcelReportHtml.jsx";
@@ -249,21 +251,23 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
 
   /* ────────────────────────────────────────────────────────────────────────
      HANDLER: Export PDF reports sebagai gambar
-     Strategi: generate PDF seperti biasa via fungsi existing, lalu konversi
-     PDF → gambar via pdfjs-dist. Template 100% identik dengan PDF.
+     Strategi: panggil build*Doc() yang return jsPDF instance (tanpa save),
+     lalu konversi PDF → gambar via pdfjs-dist. Template 100% identik dengan
+     PDF karena fungsi build*Doc adalah isi refactored dari export*PDF.
+
+     Sebelumnya kita pakai monkey-patch jsPDF.prototype.save untuk tangkap
+     instance, tapi ternyata tidak reliable di jsPDF modern (save method
+     tidak ter-override via prototype). Refaktor pdfExport.js supaya expose
+     fungsi build*Doc adalah solusi yang clean & reliable.
   ──────────────────────────────────────────────────────────────────────── */
-  const handlePdfToImage = async (label, pdfFn, baseFilename) => {
+  const handlePdfToImage = async (label, buildDocFn, baseFilename) => {
     if (busy) return;
     setBusy(true);
     setBusyLabel(label);
     setOpen(false);
     try {
-      // 1. Generate PDF — pakai jsPDF instance yang sama dengan PDF export,
-      //    tapi jangan doc.save() (kita tangkap instance-nya).
-      //    Trick: monkey-patch jsPDF.save agar return doc instead of trigger download.
-      //    Lebih clean: panggil fungsi yang mengembalikan doc.
-      //    Tapi karena pdfFn existing langsung save, kita buat wrapper.
-      const doc = await pdfFn();
+      // 1. Build jsPDF instance (sama persis dengan yang di-save ke PDF)
+      const doc = buildDocFn();
       // 2. Konversi ke gambar
       const images = await pdfDocToImages(doc, { scale: 2, format: imageFmt });
       // 3. Download dengan strategi auto (1=1file, 2=stitch, 3+=N file)
@@ -302,27 +306,6 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
       setBusy(false);
       setBusyLabel("");
     }
-  };
-
-  /* ─── Wrapper: panggil PDF export function tapi return doc instead of save ───
-     Fungsi PDF existing (exportSummaryPDF, dll) langsung memanggil doc.save()
-     di akhir. Untuk konversi ke gambar, kita butuh doc-nya. Pendekatan:
-     monkey-patch jsPDF.prototype.save sementara agar no-op & return doc. */
-  const withDocCapture = (pdfFn) => {
-    return async () => {
-      // Simpan original save
-      const origSave = jsPDF.prototype.save;
-      let captured = null;
-      jsPDF.prototype.save = function () { captured = this; return this; };
-      try {
-        pdfFn();
-        // Fungsi PDF sync (bukan async), jadi captured sudah terisi
-        return captured;
-      } finally {
-        jsPDF.prototype.restore = origSave;
-        jsPDF.prototype.save = origSave;
-      }
-    };
   };
 
   const MenuItem = ({ icon: Icon, iconColor, label, desc, onClick, disabled: itemDisabled }) => (
@@ -419,7 +402,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
         disabled={busy}
         onClick={() => handlePdfToImage(
           "Laporan Ringkasan",
-          withDocCapture(() => exportSummaryPDF(agg, targets, opts)),
+          () => buildSummaryDoc(agg, targets, opts),
           `Laporan-Ringkasan-${(depotName || "Depo").replace(/\s+/g, "-")}`
         )} />
       <MenuItem icon={ImageIcon} iconColor={colors.blue} label="Scorecard Semua Sales"
@@ -427,7 +410,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
         disabled={busy}
         onClick={() => handlePdfToImage(
           "Scorecard Semua Sales",
-          withDocCapture(() => exportAllScorecardsPDF(agg, opts)),
+          () => buildAllScorecardsDoc(agg, opts),
           `Scorecard-Semua-Sales-${(depotName || "Depo").replace(/\s+/g, "-")}`
         )} />
       <MenuItem icon={ImageIcon} iconColor={colors.blue} label="Laporan Perbandingan Sales"
@@ -435,7 +418,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
         disabled={busy}
         onClick={() => handlePdfToImage(
           "Laporan Perbandingan Sales",
-          withDocCapture(() => exportSalesGroupComparisonPDF(agg, opts)),
+          () => buildSalesGroupComparisonDoc(agg, opts),
           `Laporan-Perbandingan-Sales-${(depotName || "Depo").replace(/\s+/g, "-")}`
         )} />
       <MenuItem icon={ImageIcon} iconColor={colors.violet} label="Excel sebagai Gambar"
