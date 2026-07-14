@@ -16,6 +16,7 @@ import { fmtRp, fmtNum, fmtPct } from "./formatters.js";
 const COLORS = {
   ink: [10, 17, 32],
   gold: [217, 119, 6],
+  goldTint: [249, 235, 218], // gold @ ~15% opacity di atas putih — buat highlight baris sales di tabel gabungan
   coral: [220, 38, 38],
   mint: [5, 150, 105],
   textMuted: [107, 114, 128],
@@ -363,55 +364,62 @@ export function exportSalesGroupComparisonPDF(agg, opts) {
   y = doc.lastAutoTable.finalY + 8;
 
   // ---- Section 2: Rekap per Sales — Total Periode ----
-  // Bertingkat: nama sales sebagai sub-judul, lalu tabel per grup barang milik
-  // sales itu (data ini SUDAH dihitung di aggregation.js sebagai `s.groups`,
-  // jadi di sini tinggal dirender, tidak perlu hitung ulang dari raw rows).
+  // SATU tabel gabungan (bukan tabel terpisah per sales): baris sales jadi
+  // "header" bervisual (tint gold, bold) diikuti baris grup polos di bawahnya,
+  // berulang untuk tiap sales, tanpa jarak/putus antar-blok. rowMeta paralel
+  // dipakai di didParseCell untuk tahu baris mana yang perlu di-highlight.
   if (y > 250) { doc.addPage(); y = 20; }
   y = drawSectionTitle(doc, "Rekap per Sales — Total Periode", y);
   const sortedSales = [...agg.bySales].sort((a, b) => (b.ach ?? -1) - (a.ach ?? -1));
 
+  const section2Body = [];
+  const section2Meta = []; // { type: "sales" | "group", ach }
   sortedSales.forEach((s, idx) => {
-    // Sub-judul sales: cek muat tidak sebelum tabelnya (min. ~20mm untuk judul + 1 baris tabel)
-    if (y > 265) { doc.addPage(); y = 20; }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(...COLORS.text);
-    doc.text(`${idx + 1}. ${s.name}`, 14, y + 4);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(...COLORS.textMuted);
-    doc.text(`Target Rp ${fmtNum(s.targetValue)}  ·  Realisasi Rp ${fmtNum(s.realisasiValue)}  ·  Ach ${fmtPct(s.ach)}  ·  AO Real: ${fmtNum(s.realisasiAo)} outlet`, 14, y + 8.5);
-    y += 11;
-
-    autoTable(doc, {
-      startY: y,
-      head: [["Grup Barang", "Target", "Realisasi", "Ach%", "Deviasi", "AO (per grup)"]],
-      body: s.groups.map((g) => [
-        g.name, fmtRp(g.targetValue), fmtRp(g.realisasiValue), fmtPct(g.ach),
+    section2Body.push([
+      idx + 1, s.name, fmtRp(s.targetValue), fmtRp(s.realisasiValue), fmtPct(s.ach),
+      s.deviasiValue !== null ? fmtRp(s.deviasiValue) : "-", fmtNum(s.realisasiAo),
+    ]);
+    section2Meta.push({ type: "sales", ach: s.ach });
+    s.groups.forEach((g) => {
+      section2Body.push([
+        "", g.name, fmtRp(g.targetValue), fmtRp(g.realisasiValue), fmtPct(g.ach),
         g.deviasiValue !== null ? fmtRp(g.deviasiValue) : "-", fmtNum(g.realisasiAo),
-      ]),
-      theme: "grid",
-      styles: { font: "helvetica", fontSize: 7.5, cellPadding: 1.8, textColor: COLORS.text, lineColor: COLORS.border, lineWidth: 0.1 },
-      headStyles: { fillColor: [230, 230, 230], textColor: COLORS.text, fontStyle: "bold", fontSize: 7.5 },
-      columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" } },
-      margin: { left: 14, right: 14 },
-      didParseCell: (data) => {
-        if (data.section === "body" && data.column.index === 3) {
-          data.cell.styles.textColor = achColor(s.groups[data.row.index].ach);
-          data.cell.styles.fontStyle = "bold";
-        }
-      },
+      ]);
+      section2Meta.push({ type: "group", ach: g.ach });
     });
-    y = doc.lastAutoTable.finalY + 6;
   });
+
+  autoTable(doc, {
+    startY: y,
+    head: [["#", "Nama", "Target", "Realisasi", "Ach%", "Deviasi", "AO"]],
+    body: section2Body,
+    theme: "grid",
+    styles: { font: "helvetica", fontSize: 7.5, cellPadding: 1.8, textColor: COLORS.text, lineColor: COLORS.border, lineWidth: 0.1 },
+    headStyles: { fillColor: COLORS.headerFill, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7.5 },
+    columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" } },
+    margin: { left: 14, right: 14 },
+    didParseCell: (data) => {
+      if (data.section !== "body") return;
+      const meta = section2Meta[data.row.index];
+      if (meta.type === "sales") {
+        data.cell.styles.fillColor = COLORS.goldTint;
+        data.cell.styles.fontStyle = "bold";
+      }
+      if (data.column.index === 4) {
+        data.cell.styles.textColor = achColor(meta.ach);
+        data.cell.styles.fontStyle = "bold";
+      }
+    },
+  });
+  y = doc.lastAutoTable.finalY + 8;
 
   // ---- Section 3: Pencapaian Hari Terakhir per Sales ----
   // "Hari terakhir" = tanggal transaksi TERAKHIR dalam data yang sedang
   // difilter (agg.meta.lastDate), BUKAN tanggal sistem hari ini — supaya
   // laporan tetap terisi walau upload belum sampai hari kalender sekarang.
-  // Struktur sama seperti Section 2 (bertingkat per sales > per grup), tapi
-  // cuma Realisasi + AO (tidak ada Target/Ach%/Deviasi — app ini tidak
-  // punya konsep target harian, cuma target bulanan).
+  // Struktur sama seperti Section 2 (1 tabel gabungan, baris sales di-highlight,
+  // baris grup polos di bawahnya), tapi cuma Realisasi + AO (tidak ada
+  // Target/Ach%/Deviasi — app ini tidak punya konsep target harian).
   const lastDateRows = agg.meta.lastDate ? agg.filteredRows.filter((r) => r.date === agg.meta.lastDate) : [];
 
   if (y > 250) { doc.addPage(); y = 20; }
@@ -423,50 +431,46 @@ export function exportSalesGroupComparisonPDF(agg, opts) {
     doc.setTextColor(...COLORS.textMuted);
     doc.text("Tidak ada transaksi pada tanggal ini untuk grup yang difilter.", 14, y + 4);
   } else {
+    const section3Body = [];
+    const section3Meta = []; // { type: "sales" | "group" }
     sortedSales.forEach((s, idx) => {
       const salesLastRows = lastDateRows.filter((r) => r.salesCode === s.code);
       // AO Real hari ini: outlet unik LINTAS GRUP untuk sales ini (bukan sum
       // per grup) — konsisten dengan cara `s.realisasiAo` dihitung di Section 2.
       const realAoToday = new Set(salesLastRows.map((r) => r.outletCode)).size;
+      const salesLastValue = sumBy(salesLastRows, "value");
+
+      section3Body.push([idx + 1, s.name, salesLastRows.length ? fmtRp(salesLastValue) : "-", salesLastRows.length ? fmtNum(realAoToday) : "-"]);
+      section3Meta.push({ type: "sales" });
+
+      if (salesLastRows.length === 0) return; // tidak transaksi hari ini — tanpa baris grup di bawahnya
+
       // Breakdown per grup KHUSUS hari terakhir — dihitung fresh dari raw rows
       // (bukan dari s.groups yang itu totalnya 1 periode penuh).
-      const lastDayGroups = s.groups.map((g) => {
+      s.groups.forEach((g) => {
         const grs = salesLastRows.filter((r) => r.group === g.name);
-        return { name: g.name, value: sumBy(grs, "value"), ao: new Set(grs.map((r) => r.outletCode)).size };
+        if (grs.length === 0) return; // grup ini tidak ada transaksi hari itu — skip biar ringkas
+        section3Body.push(["", g.name, fmtRp(sumBy(grs, "value")), fmtNum(new Set(grs.map((r) => r.outletCode)).size)]);
+        section3Meta.push({ type: "group" });
       });
+    });
 
-      if (y > 265) { doc.addPage(); y = 20; }
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(...COLORS.text);
-      doc.text(`${idx + 1}. ${s.name}`, 14, y + 4);
-
-      if (salesLastRows.length === 0) {
-        doc.setFont("helvetica", "italic");
-        doc.setFontSize(7.5);
-        doc.setTextColor(...COLORS.textMuted);
-        doc.text("Tidak ada transaksi pada tanggal ini.", 14, y + 8.5);
-        y += 13;
-        return;
-      }
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7.5);
-      doc.setTextColor(...COLORS.textMuted);
-      doc.text(`AO Real: ${fmtNum(realAoToday)} outlet`, 14, y + 8.5);
-      y += 11;
-
-      autoTable(doc, {
-        startY: y,
-        head: [["Grup Barang", "Realisasi", "AO (per grup)"]],
-        body: lastDayGroups.map((g) => [g.name, fmtRp(g.value), fmtNum(g.ao)]),
-        theme: "grid",
-        styles: { font: "helvetica", fontSize: 7.5, cellPadding: 1.8, textColor: COLORS.text, lineColor: COLORS.border, lineWidth: 0.1 },
-        headStyles: { fillColor: [230, 230, 230], textColor: COLORS.text, fontStyle: "bold", fontSize: 7.5 },
-        columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
-        margin: { left: 14, right: 14 },
-      });
-      y = doc.lastAutoTable.finalY + 6;
+    autoTable(doc, {
+      startY: y,
+      head: [["#", "Nama", "Realisasi", "AO"]],
+      body: section3Body,
+      theme: "grid",
+      styles: { font: "helvetica", fontSize: 7.5, cellPadding: 1.8, textColor: COLORS.text, lineColor: COLORS.border, lineWidth: 0.1 },
+      headStyles: { fillColor: COLORS.headerFill, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7.5 },
+      columnStyles: { 0: { cellWidth: 8, halign: "center" }, 2: { halign: "right" }, 3: { halign: "right" } },
+      margin: { left: 14, right: 14 },
+      didParseCell: (data) => {
+        if (data.section !== "body") return;
+        if (section3Meta[data.row.index].type === "sales") {
+          data.cell.styles.fillColor = COLORS.goldTint;
+          data.cell.styles.fontStyle = "bold";
+        }
+      },
     });
   }
 
