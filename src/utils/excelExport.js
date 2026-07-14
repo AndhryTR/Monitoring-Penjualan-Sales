@@ -18,6 +18,35 @@ export const XL_NUMFMT_PCT1 = "0.0%";
 export const XL_COLORS = { headerCyan: "6DD9FF", headerPurple: "7030A0", mint: "4BFF9C", yellowTier: "FFFF00", gold: "FFC000", navy: "002060" };
 export const XL_TIER_FILL = { mint: XL_COLORS.mint, amber: XL_COLORS.yellowTier, violet: XL_COLORS.gold };
 
+// Titik warna gradien pencapaian: 0% merah -> 70% kuning -> 100%+ hijau,
+// selaras dengan ACH_TIERS yang dipakai di UI live app (70% = waspada,
+// 100% = target tercapai). Interpolasi RGB linear di antara titik-titik ini,
+// bukan lompat diskrit — jadi 85% akan terlihat warna transisi kuning-hijau.
+const ACH_GRADIENT_STOPS = [
+  { pct: 0, rgb: [248, 105, 107] },   // merah pastel
+  { pct: 0.7, rgb: [255, 235, 132] }, // kuning pastel
+  { pct: 1.0, rgb: [99, 190, 123] },  // hijau pastel
+];
+
+function achGradientColor(pct) {
+  if (pct === null || pct === undefined || Number.isNaN(pct)) return null;
+  const p = Math.max(0, pct); // klem batas bawah di 0% (ach negatif tidak masuk akal)
+  const stops = ACH_GRADIENT_STOPS;
+  // Cari 2 titik yang mengapit `p` (kalau p >= titik terakhir, dianggap solid hijau)
+  let lo = stops[0], hi = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (p >= stops[i].pct && p <= stops[i + 1].pct) { lo = stops[i]; hi = stops[i + 1]; break; }
+    if (p > stops[stops.length - 1].pct) { lo = stops[stops.length - 1]; hi = stops[stops.length - 1]; }
+  }
+  const range = hi.pct - lo.pct;
+  const t = range > 0 ? Math.min(1, Math.max(0, (p - lo.pct) / range)) : 1;
+  const hex = (n) => Math.round(n).toString(16).padStart(2, "0").toUpperCase();
+  const r = lo.rgb[0] + (hi.rgb[0] - lo.rgb[0]) * t;
+  const g = lo.rgb[1] + (hi.rgb[1] - lo.rgb[1]) * t;
+  const b = lo.rgb[2] + (hi.rgb[2] - lo.rgb[2]) * t;
+  return `${hex(r)}${hex(g)}${hex(b)}`;
+}
+
 export function exportToExcel(agg, targets, opts) {
   const { workDays, depotName } = opts || {};
   const ws = {};
@@ -97,8 +126,8 @@ export function exportToExcel(agg, targets, opts) {
     setCell(r, 4, sm.targetAo, { fill, numFmt: XL_NUMFMT_INT, align: "center" });
     setCell(r, 5, sm.realisasiValue, { fill, numFmt: XL_NUMFMT_MONEY });
     setCell(r, 6, sm.realisasiAo, { fill, numFmt: XL_NUMFMT_INT, align: "center" });
-    setCell(r, 7, sm.targetValue ? sm.ach : "-", { bold: true, numFmt: sm.targetValue ? XL_NUMFMT_PCT : undefined, align: "center" });
-    setCell(r, 8, sm.targetAo ? sm.achAo : "-", { bold: true, numFmt: sm.targetAo ? XL_NUMFMT_PCT : undefined, align: "center" });
+    setCell(r, 7, sm.targetValue ? sm.ach : "-", { bold: true, fill: sm.targetValue ? achGradientColor(sm.ach) : undefined, numFmt: sm.targetValue ? XL_NUMFMT_PCT : undefined, align: "center" });
+    setCell(r, 8, sm.targetAo ? sm.achAo : "-", { bold: true, fill: sm.targetAo ? achGradientColor(sm.achAo) : undefined, numFmt: sm.targetAo ? XL_NUMFMT_PCT : undefined, align: "center" });
     setCell(r, 9, sm.targetValue ? sm.deviasiValue : 0, { fill: XL_COLORS.yellowTier, numFmt: XL_NUMFMT_MONEY });
     setCell(r, 10, sm.targetAo ? sm.deviasiAo : 0, { fill: XL_COLORS.yellowTier, numFmt: XL_NUMFMT_INT, align: "center" });
     if (sm.focus.length) {
@@ -121,8 +150,8 @@ export function exportToExcel(agg, targets, opts) {
         setCell(r, 4, g.targetAo, { fill, numFmt: XL_NUMFMT_INT, align: "center" });
         setCell(r, 5, g.realisasiValue, { numFmt: XL_NUMFMT_MONEY });
         setCell(r, 6, g.realisasiAo, { numFmt: XL_NUMFMT_INT, align: "center" });
-        setCell(r, 7, g.targetValue ? g.ach : "-", { bold: true, numFmt: g.targetValue ? XL_NUMFMT_PCT : undefined, align: "center" });
-        setCell(r, 8, g.targetAo ? g.achAo : "-", { bold: true, numFmt: g.targetAo ? XL_NUMFMT_PCT : undefined, align: "center" });
+        setCell(r, 7, g.targetValue ? g.ach : "-", { bold: true, fill: g.targetValue ? achGradientColor(g.ach) : undefined, numFmt: g.targetValue ? XL_NUMFMT_PCT : undefined, align: "center" });
+        setCell(r, 8, g.targetAo ? g.achAo : "-", { bold: true, fill: g.targetAo ? achGradientColor(g.achAo) : undefined, numFmt: g.targetAo ? XL_NUMFMT_PCT : undefined, align: "center" });
         setCell(r, 9, g.deviasiValue, { fill: XL_COLORS.yellowTier, numFmt: XL_NUMFMT_MONEY });
         setCell(r, 10, g.deviasiAo, { fill: XL_COLORS.yellowTier, numFmt: XL_NUMFMT_INT, align: "center" });
       } else {
@@ -133,7 +162,7 @@ export function exportToExcel(agg, targets, opts) {
         setCell(r, 11, f.hasUnconvertible ? `${f.name} *` : f.name, { align: "left" });
         setCell(r, 12, f.target, { numFmt: XL_NUMFMT_INT, align: "center" });
         setCell(r, 13, f.realisasi, { numFmt: XL_NUMFMT_INT, align: "center" });
-        setCell(r, 14, f.target ? f.pct : 0, { bold: true, fill: XL_COLORS.gold, numFmt: XL_NUMFMT_PCT1, align: "center" });
+        setCell(r, 14, f.target ? f.pct : 0, { bold: true, fill: f.target ? achGradientColor(f.pct) : undefined, numFmt: XL_NUMFMT_PCT1, align: "center" });
       } else {
         blank(r, [11, 12, 13, 14]);
       }
@@ -153,8 +182,8 @@ export function exportToExcel(agg, targets, opts) {
   setCell(r, 4, tTargetAo, { bold: true, fill: XL_COLORS.navy, color: "FFFFFF", numFmt: XL_NUMFMT_INT, align: "center" });
   setCell(r, 5, tRealV, { bold: true, fill: XL_COLORS.navy, color: "FFFFFF", numFmt: XL_NUMFMT_MONEY });
   setCell(r, 6, tRealAo, { bold: true, fill: XL_COLORS.navy, color: "FFFFFF", numFmt: XL_NUMFMT_INT, align: "center" });
-  setCell(r, 7, tTargetV ? tRealV / tTargetV : "-", { bold: true, numFmt: tTargetV ? XL_NUMFMT_PCT : undefined, align: "center" });
-  setCell(r, 8, tTargetAo ? tRealAo / tTargetAo : "-", { bold: true, numFmt: tTargetAo ? XL_NUMFMT_PCT : undefined, align: "center" });
+  setCell(r, 7, tTargetV ? tRealV / tTargetV : "-", { bold: true, fill: tTargetV ? achGradientColor(tRealV / tTargetV) : undefined, numFmt: tTargetV ? XL_NUMFMT_PCT : undefined, align: "center" });
+  setCell(r, 8, tTargetAo ? tRealAo / tTargetAo : "-", { bold: true, fill: tTargetAo ? achGradientColor(tRealAo / tTargetAo) : undefined, numFmt: tTargetAo ? XL_NUMFMT_PCT : undefined, align: "center" });
   setCell(r, 9, tTargetV - tRealV, { bold: true, fill: XL_COLORS.navy, color: "FFFFFF", numFmt: XL_NUMFMT_MONEY });
   setCell(r, 10, tTargetAo - tRealAo, { bold: true, fill: XL_COLORS.navy, color: "FFFFFF", numFmt: XL_NUMFMT_INT, align: "center" });
   blank(r, [11, 12, 13, 14]);
