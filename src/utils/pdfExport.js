@@ -114,7 +114,7 @@ function drawKpiBox(doc, x, y, w, h, label, value, accentColor) {
    1) LAPORAN RINGKASAN
 -------------------------------------------------------------------------- */
 
-export function exportSummaryPDF(agg, targets, opts) {
+export function buildSummaryDoc(agg, targets, opts) {
   const { workDays, depotName } = opts || {};
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -187,6 +187,12 @@ export function exportSummaryPDF(agg, targets, opts) {
   });
 
   drawFooterOnAllPages(doc);
+  return doc;
+}
+
+export function exportSummaryPDF(agg, targets, opts) {
+  const { depotName } = opts || {};
+  const doc = buildSummaryDoc(agg, targets, opts);
   doc.save(`Laporan-Ringkasan-${(depotName || "Depo").replace(/\s+/g, "-")}-${agg.meta.lastDate || "export"}.pdf`);
 }
 
@@ -290,16 +296,21 @@ function drawScorecardPage(doc, salesRow, agg, opts, rank, totalSales) {
   }
 }
 
-export function exportSalesScorecardPDF(salesRow, agg, opts) {
+export function buildScorecardDoc(salesRow, agg, opts) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const sortedSales = [...agg.bySales].sort((a, b) => (b.ach ?? -1) - (a.ach ?? -1));
   const rank = sortedSales.findIndex((s) => s.code === salesRow.code) + 1;
   drawScorecardPage(doc, salesRow, agg, opts, rank || 1, agg.bySales.length);
   drawFooterOnAllPages(doc);
+  return doc;
+}
+
+export function exportSalesScorecardPDF(salesRow, agg, opts) {
+  const doc = buildScorecardDoc(salesRow, agg, opts);
   doc.save(`Scorecard-${salesRow.name.replace(/\s+/g, "-")}-${agg.meta.lastDate || "export"}.pdf`);
 }
 
-export function exportAllScorecardsPDF(agg, opts) {
+export function buildAllScorecardsDoc(agg, opts) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const sortedSales = [...agg.bySales].sort((a, b) => (b.ach ?? -1) - (a.ach ?? -1));
   sortedSales.forEach((salesRow, idx) => {
@@ -307,6 +318,11 @@ export function exportAllScorecardsPDF(agg, opts) {
     drawScorecardPage(doc, salesRow, agg, opts, idx + 1, sortedSales.length);
   });
   drawFooterOnAllPages(doc);
+  return doc;
+}
+
+export function exportAllScorecardsPDF(agg, opts) {
+  const doc = buildAllScorecardsDoc(agg, opts);
   doc.save(`Scorecard-Semua-Sales-${(opts?.depotName || "Depo").replace(/\s+/g, "-")}-${agg.meta.lastDate || "export"}.pdf`);
 }
 
@@ -329,7 +345,7 @@ function drawSectionTitle(doc, text, y) {
   return y + 4;
 }
 
-export function exportSalesGroupComparisonPDF(agg, opts) {
+export function buildSalesGroupComparisonDoc(agg, opts) {
   const { depotName } = opts || {};
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -475,6 +491,11 @@ export function exportSalesGroupComparisonPDF(agg, opts) {
   }
 
   drawFooterOnAllPages(doc);
+  return doc;
+}
+
+export function exportSalesGroupComparisonPDF(agg, opts) {
+  const doc = buildSalesGroupComparisonDoc(agg, opts);
   const groupSlug = agg.byGroup.length ? agg.byGroup.map((g) => g.name).join("-").replace(/\s+/g, "") : "SemuaGrup";
   doc.save(`Laporan-Perbandingan-Sales-${groupSlug}-${agg.meta.lastDate || "export"}.pdf`);
 }
