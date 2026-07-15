@@ -16,7 +16,7 @@ import {
   parseWorkbookFile, dedupeRows,
 } from "./utils/excelParse.js";
 import {
-  useAggregates, getOutletBreakdown, computeOutletAnalysis, getProductBreakdownForOutlet,
+  useAggregates, computeAggregates, detectMonths, getOutletBreakdown, computeOutletAnalysis, getProductBreakdownForOutlet,
 } from "./utils/aggregation.js";
 import { useDataQualityNotes } from "./utils/dataQuality.js";
 import { buildHistorySnapshot, computeComparison, computeMultiPeriodComparison } from "./utils/history.js";
@@ -239,6 +239,36 @@ export default function SalesMonitoringApp() {
     () => trendSnapshots.length > 0 ? computeMultiPeriodComparison(aggFinal, trendSnapshots, filters, fileName) : null,
     [aggFinal, trendSnapshots, filters, fileName]
   );
+
+  // ---- Auto-perbandingan per-bulan (Tren Periode) ----
+  // Kalau data yang di-UPLOAD (rawRows, bukan cuma yang sedang tampil setelah
+  // filter tanggal) mencakup >= 2 bulan kalender berbeda, otomatis hitung
+  // agregat penuh PER BULAN dan tampilkan sebagai perbandingan di Tren Periode
+  // — tanpa perlu simpan snapshot manual dulu. Manual (trendSnapshots di atas)
+  // tetap diprioritaskan kalau user pernah pilih lewat modal Riwayat.
+  const detectedMonths = useMemo(() => detectMonths(rawRows), [rawRows]);
+
+  const autoTrendComparisonData = useMemo(() => {
+    if (detectedMonths.length < 2) return null;
+    // Filter sales/grup tetap dihormati, tapi dateFrom/dateTo dipaksa ke
+    // batas bulan masing-masing — mengabaikan filter tanggal global yang
+    // mungkin sedang aktif di tab lain (deteksi ini soal DATA YANG DI-UPLOAD,
+    // bukan soal apa yang sedang difilter di layar sekarang).
+    const monthlyAggs = detectedMonths.map((m) =>
+      computeAggregates(rawRows, targets, { salesCodes: filters.salesCodes, groups: filters.groups, dateFrom: m.dateFrom, dateTo: m.dateTo }, workDays)
+    );
+    const latest = detectedMonths[detectedMonths.length - 1];
+    const latestAgg = monthlyAggs[monthlyAggs.length - 1];
+    const earlierSnapshots = detectedMonths.slice(0, -1).map((m, i) =>
+      buildHistorySnapshot(monthlyAggs[i], { dateFrom: m.dateFrom, dateTo: m.dateTo }, fileName, m.label)
+    );
+    return computeMultiPeriodComparison(latestAgg, earlierSnapshots, { dateFrom: latest.dateFrom, dateTo: latest.dateTo }, fileName);
+  }, [detectedMonths, rawRows, targets, filters.salesCodes, filters.groups, workDays, fileName]);
+
+  // Manual (lewat modal Riwayat) selalu menang kalau pernah dipilih; kalau
+  // belum, fallback ke auto-deteksi bulan (bisa null kalau cuma 1 bulan).
+  const isAutoTrend = trendSnapshotIds.length === 0 && !!autoTrendComparisonData;
+  const finalTrendComparisonData = trendSnapshotIds.length > 0 ? trendComparisonData : autoTrendComparisonData;
 
   // Dipanggil dari HistoryModal setelah user pilih 1 atau lebih snapshot.
   // 1 dipilih → isi comparisonSnapshot (perbandingan cepat di Main Report).
@@ -580,7 +610,7 @@ export default function SalesMonitoringApp() {
             {activeTab === "outlet" && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} />}
             {activeTab === "transactions" && <TransactionsPage agg={aggFinal} colors={colors} onOutletDrilldown={openOutletDetail} />}
             {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
-            {activeTab === "trend" && <TrendPeriodePage comparisonData={trendComparisonData} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} />}
+            {activeTab === "trend" && <TrendPeriodePage comparisonData={finalTrendComparisonData} isAutoTrend={isAutoTrend} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} />}
           </>
         )}
 
