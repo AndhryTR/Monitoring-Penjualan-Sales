@@ -275,6 +275,23 @@ export default function SalesMonitoringApp() {
     setTrendSnapshotIds((cur) => cur.filter((x) => x !== id));
   };
 
+  // Dipanggil dari SettingsModal saat import file backup — GABUNGKAN snapshot
+  // dari file dengan riwayat yang sudah ada di device ini (bukan menimpa total),
+  // supaya import dari device lain tidak menghapus riwayat lokal yang belum
+  // sempat di-backup. Kalau ada id yang sama persis, versi dari file yang menang.
+  const importHistoryMerge = (importedHistory) => {
+    setHistory((prev) => {
+      const byId = new Map(prev.map((h) => [h.id, h]));
+      (importedHistory || []).forEach((h) => byId.set(h.id, h));
+      const next = Array.from(byId.values())
+        .sort((a, b) => (b.dateFrom || b.savedAt || "").localeCompare(a.dateFrom || a.savedAt || ""))
+        .slice(0, 8); // konsisten dengan batas di saveHistorySnapshot
+      saveHistory(next);
+      return next;
+    });
+  };
+
+
   const handleFile = useCallback(async (files) => {
     const fileList = Array.isArray(files) ? files : [files];
     setLoading(true); setError("");
@@ -374,7 +391,8 @@ export default function SalesMonitoringApp() {
   return (
     <div className="smapp min-h-screen transition-colors duration-300" style={{ background: theme === 'dark' ? `radial-gradient(1200px 600px at 10% -10%, #16233F 0%, ${colors.ink} 60%)` : colors.ink }}>
       <style>{globalStyle}</style>
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors} />
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors}
+        theme={theme} setTheme={setTheme} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge} />
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
       <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
       <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={confirmPreview} preview={pendingPreview} colors={colors} />
@@ -391,7 +409,7 @@ export default function SalesMonitoringApp() {
               <FileSpreadsheet size={20} color="#0A1120" />
             </div>
             <div>
-              <h1 className="disp text-xl font-bold">Monitoring Penjualan</h1>
+              <h1 className="disp text-xl font-bold">Monitoring Penjualan<b className="text-xs" style={{ color: colors.textMuted }}> by</b><b className="disp text-xl font-bold" style={{ color: colors.coral }}> Andri.S</b></h1>
               <p className="text-xs" style={{ color: colors.textMuted }}>Dashboard pencapaian sales, produk & produk fokus</p>
             </div>
           </div>
