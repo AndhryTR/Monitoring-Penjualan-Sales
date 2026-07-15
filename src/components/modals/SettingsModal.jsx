@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
-import { Settings, X, Crosshair, ChevronDown, Plus } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Settings, X, Crosshair, ChevronDown, Plus, Download, Upload } from "lucide-react";
 import { SectionTitle } from "../ui/index.jsx";
+import { buildBackupPayload, downloadBackupFile, parseBackupFile } from "../../utils/backupExport.js";
 
 /* ============================================================================
    SETTINGS MODAL
@@ -11,12 +12,15 @@ import { SectionTitle } from "../ui/index.jsx";
    State lokal (localTargets, localWorkDays, localDepotName) di-sync dari props
    saat modal dibuka, lalu di-commit ke parent state saat "Simpan Perubahan".
 ============================================================================ */
-export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWorkDays, depotName, setDepotName, onClearAll, colors }) {
+export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWorkDays, depotName, setDepotName, onClearAll, colors,
+  theme, setTheme, filters, setFilters, projectionMethod, setProjectionMethod, history, onImportHistory }) {
   const [localTargets, setLocalTargets] = useState(targets);
   const [localWorkDays, setLocalWorkDays] = useState(workDays);
   const [localDepotName, setLocalDepotName] = useState(depotName);
   const [expandedFocusCodes, setExpandedFocusCodes] = useState(() => new Set());
   const [copySourceCode, setCopySourceCode] = useState({});
+  const [importError, setImportError] = useState("");
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -83,6 +87,52 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
     setWorkDays(localWorkDays);
     setDepotName(localDepotName);
     onClose();
+  };
+
+  // Export: pakai state LOKAL (localTargets/localWorkDays/localDepotName) —
+  // supaya kalau user lagi edit sesuatu di modal ini sebelum export, yang
+  // ter-backup adalah versi yang sedang dia lihat, bukan versi lama yang
+  // belum "Simpan Perubahan".
+  const handleExportBackup = () => {
+    const payload = buildBackupPayload({
+      theme, filters, workDays: localWorkDays, targets: localTargets, depotName: localDepotName,
+      projectionMethod, history,
+    });
+    downloadBackupFile(payload);
+  };
+
+  // Import: Target/Hari Kerja/Nama Depo diterapkan langsung ke state lokal
+  // MODAL INI (supaya langsung kelihatan di form) sekaligus ke state utama
+  // (supaya tidak hilang kalau user tutup modal tanpa klik "Simpan Perubahan"
+  // lagi). Tema/Filter/Metode Proyeksi diterapkan langsung (tidak ada tahap
+  // "staging" untuk itu di modal ini). Riwayat DIGABUNG (bukan menimpa) lewat
+  // onImportHistory, lihat komentar di importHistoryMerge (SalesMonitoringApp.jsx).
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // reset input, supaya file yang sama bisa dipilih lagi kalau perlu diulang
+    if (!file) return;
+    setImportError("");
+    try {
+      const parsed = await parseBackupFile(file);
+      const s = parsed.settings || {};
+      const historyCount = (parsed.history || []).length;
+      const ok = window.confirm(
+        `Impor akan MENGGANTI Target, Hari Kerja, Nama Depo, Tema, Filter & Metode Proyeksi dengan isi file ini, dan MENGGABUNGKAN ${historyCount} riwayat snapshot dari file ke riwayat yang sudah ada di device ini. Lanjutkan?`
+      );
+      if (!ok) return;
+
+      if (s.targets) { setLocalTargets(s.targets); setTargets(s.targets); }
+      if (s.workDays !== undefined) { setLocalWorkDays(s.workDays); setWorkDays(s.workDays); }
+      if (s.depotName !== undefined) { setLocalDepotName(s.depotName); setDepotName(s.depotName); }
+      if (s.theme) setTheme?.(s.theme);
+      if (s.filters) setFilters?.(s.filters);
+      if (s.projectionMethod) setProjectionMethod?.(s.projectionMethod);
+      if (parsed.history?.length) onImportHistory?.(parsed.history);
+
+      window.alert("Impor berhasil diterapkan.");
+    } catch (err) {
+      setImportError(err.message || "Gagal mengimpor file.");
+    }
   };
 
   const MATCH_TYPE_OPTIONS = [
@@ -235,7 +285,28 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
             );})}
           </div>
 
-          <div className="mt-8 p-4 rounded-lg" style={{ background: colors.coral + "0D", border: `1px solid ${colors.coral}33` }}>
+          <div className="mt-8 p-4 rounded-lg" style={{ background: colors.mint + "0D", border: `1px solid ${colors.mint}33` }}>
+            <h3 className="text-sm font-semibold mb-1" style={{ color: colors.mint }}>Backup & Restore</h3>
+            <p className="text-xs mb-3" style={{ color: colors.textMuted }}>
+              Export Target, Hari Kerja, Nama Depo, Tema, Filter, Metode Proyeksi, dan Riwayat Snapshot jadi 1 file — untuk backup atau pindah ke device/browser lain. Tidak termasuk data transaksi mentah yang sedang di-upload.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={handleExportBackup}
+                className="sm-btn inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold"
+                style={{ background: colors.mint + "1A", color: colors.mint, border: `1px solid ${colors.mint}4D` }}>
+                <Download size={13} /> Export ke File
+              </button>
+              <button onClick={() => fileInputRef.current?.click()}
+                className="sm-btn inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold"
+                style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
+                <Upload size={13} /> Import dari File
+              </button>
+              <input ref={fileInputRef} type="file" accept="application/json,.json" onChange={handleImportFile} className="hidden" />
+            </div>
+            {importError && <p className="text-xs mt-2" style={{ color: colors.coral }}>{importError}</p>}
+          </div>
+
+          <div className="mt-4 p-4 rounded-lg" style={{ background: colors.coral + "0D", border: `1px solid ${colors.coral}33` }}>
             <h3 className="text-sm font-semibold mb-1" style={{ color: colors.coral }}>Zona Berbahaya</h3>
             <p className="text-xs mb-3" style={{ color: colors.textMuted }}>
               Menghapus semua target, hari kerja, nama depo, tema, dan data upload yang tersimpan otomatis di perangkat ini. Tidak bisa dibatalkan.
