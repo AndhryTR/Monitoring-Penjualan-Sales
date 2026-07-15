@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from "recharts";
-import { TrendingUp, ArrowUpRight, ArrowDownRight, History, Users, Wallet } from "lucide-react";
+import { TrendingUp, ArrowUpRight, ArrowDownRight, History, Users, Wallet, Sparkles } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
 import { SectionTitle, createChartTooltipStyle } from "../ui/index.jsx";
 import { MultiSelect } from "../ui/MultiSelect.jsx";
@@ -39,7 +39,7 @@ function GrowthTag({ growth, colors }) {
    (periode aktif + snapshot riwayat terpilih). Beda dengan PeriodComparisonCard
    (Main Report) yang cuma 1 vs 1 — ini untuk melihat tren beberapa bulan.
 ============================================================================ */
-export function TrendPeriodePage({ comparisonData, colors, onOpenPeriodPicker, selectedCount }) {
+export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPeriodPicker, selectedCount }) {
   const [metric, setMetric] = useState("value"); // "value" | "ao"
 
   const allSalesNames = useMemo(
@@ -94,6 +94,14 @@ export function TrendPeriodePage({ comparisonData, colors, onOpenPeriodPicker, s
 
   return (
     <div className="sm-fadein">
+      {isAutoTrend && (
+        <div className="sm-card p-3 mb-4 flex items-center gap-2.5" style={{ background: colors.gold + "0D", border: `1px solid ${colors.gold}33` }}>
+          <Sparkles size={15} style={{ color: colors.gold, flexShrink: 0 }} />
+          <p className="text-xs" style={{ color: colors.text }}>
+            Menampilkan <b>{periods.length} bulan terdeteksi otomatis</b> dari data yang di-upload — tidak perlu simpan snapshot manual. Mau pilih periode sendiri? Klik "Pilih Manual" di kanan.
+          </p>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <SectionTitle title="Tren Periode" sub={`Membandingkan ${periods.length} periode · Value & AO per sales`} icon={TrendingUp} colors={colors} />
         <div className="flex items-center gap-2">
@@ -111,7 +119,7 @@ export function TrendPeriodePage({ comparisonData, colors, onOpenPeriodPicker, s
           </div>
           <button onClick={onOpenPeriodPicker} className="sm-btn inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
             style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}>
-            <History size={13} /> Ubah Periode ({selectedCount})
+            <History size={13} /> {isAutoTrend ? "Pilih Manual" : `Ubah Periode (${selectedCount})`}
           </button>
         </div>
       </div>

@@ -16,6 +16,25 @@ import { ALERT_MIN_DAYS } from "../constants/thresholds.js";
 export function dateKey(dateStr) { return dateStr || "unknown"; }
 export function monthKey(dateStr) { return dateStr ? dateStr.slice(0, 7) : "unknown"; }
 
+const MONTHS_ID_FULL = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+// Deteksi bulan-bulan kalender berbeda yang ada di `rows` (dipakai untuk
+// auto-perbandingan per-bulan di Tren Periode saat data upload mencakup
+// >1 bulan). Return terurut kronologis (lama -> baru), tiap entri berisi
+// batas tanggal awal/akhir bulan itu (bukan cuma tanggal yang ADA datanya —
+// dateFrom = tanggal 1 bulan itu, supaya konsisten dengan cara periode
+// "sebulan penuh" biasanya didefinisikan di app ini).
+export function detectMonths(rows) {
+  const keys = new Set();
+  rows.forEach((r) => { if (r.date) keys.add(monthKey(r.date)); });
+  return Array.from(keys).sort().map((key) => {
+    const [y, m] = key.split("-");
+    const dateFrom = `${key}-01`;
+    const dateTo = endOfMonthDateStr(dateFrom);
+    return { key, dateFrom, dateTo, label: `${MONTHS_ID_FULL[Number(m) - 1]} ${y}` };
+  });
+}
+
 /* ----------------------------------------------------------------------------
    PROYEKSI NON-LINEAR — helper pure function.
    Metode "linear" (dailyRate rata-rata semua hari × workDays) tetap jadi
@@ -248,8 +267,11 @@ export function resolveFocusUnit(rows) {
   return "Campuran";
 }
 
-export function useAggregates(rows, targets, filters, workDays) {
-  return useMemo(() => {
+// Fungsi murni (bukan hook) — bisa dipanggil berkali-kali dalam loop biasa,
+// misalnya untuk menghitung agregat PER BULAN saat auto-deteksi multi-bulan
+// di Tren Periode (lihat SalesMonitoringApp.jsx). `useAggregates` di bawah
+// cuma pembungkus tipis untuk pemakaian normal di komponen (via useMemo).
+export function computeAggregates(rows, targets, filters, workDays) {
     const inRange = (dateStr) => {
       if (!filters.dateFrom && !filters.dateTo) return true;
       if (!dateStr) return false;
@@ -418,5 +440,8 @@ export function useAggregates(rows, targets, filters, workDays) {
         realisasiAo: totalRealisasiAo, ach: overallAch,
         deviasiValue: totalTargetValue ? totalTargetValue - totalRealisasiValue : null },
     };
-  }, [rows, targets, filters, workDays]);
+}
+
+export function useAggregates(rows, targets, filters, workDays) {
+  return useMemo(() => computeAggregates(rows, targets, filters, workDays), [rows, targets, filters, workDays]);
 }

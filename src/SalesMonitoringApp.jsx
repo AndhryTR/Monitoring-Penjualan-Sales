@@ -16,7 +16,7 @@ import {
   parseWorkbookFile, dedupeRows,
 } from "./utils/excelParse.js";
 import {
-  useAggregates, getOutletBreakdown, computeOutletAnalysis, getProductBreakdownForOutlet,
+  useAggregates, computeAggregates, detectMonths, getOutletBreakdown, computeOutletAnalysis, getProductBreakdownForOutlet,
 } from "./utils/aggregation.js";
 import { useDataQualityNotes } from "./utils/dataQuality.js";
 import { buildHistorySnapshot, computeComparison, computeMultiPeriodComparison } from "./utils/history.js";
@@ -240,6 +240,36 @@ export default function SalesMonitoringApp() {
     [aggFinal, trendSnapshots, filters, fileName]
   );
 
+  // ---- Auto-perbandingan per-bulan (Tren Periode) ----
+  // Kalau data yang di-UPLOAD (rawRows, bukan cuma yang sedang tampil setelah
+  // filter tanggal) mencakup >= 2 bulan kalender berbeda, otomatis hitung
+  // agregat penuh PER BULAN dan tampilkan sebagai perbandingan di Tren Periode
+  // — tanpa perlu simpan snapshot manual dulu. Manual (trendSnapshots di atas)
+  // tetap diprioritaskan kalau user pernah pilih lewat modal Riwayat.
+  const detectedMonths = useMemo(() => detectMonths(rawRows), [rawRows]);
+
+  const autoTrendComparisonData = useMemo(() => {
+    if (detectedMonths.length < 2) return null;
+    // Filter sales/grup tetap dihormati, tapi dateFrom/dateTo dipaksa ke
+    // batas bulan masing-masing — mengabaikan filter tanggal global yang
+    // mungkin sedang aktif di tab lain (deteksi ini soal DATA YANG DI-UPLOAD,
+    // bukan soal apa yang sedang difilter di layar sekarang).
+    const monthlyAggs = detectedMonths.map((m) =>
+      computeAggregates(rawRows, targets, { salesCodes: filters.salesCodes, groups: filters.groups, dateFrom: m.dateFrom, dateTo: m.dateTo }, workDays)
+    );
+    const latest = detectedMonths[detectedMonths.length - 1];
+    const latestAgg = monthlyAggs[monthlyAggs.length - 1];
+    const earlierSnapshots = detectedMonths.slice(0, -1).map((m, i) =>
+      buildHistorySnapshot(monthlyAggs[i], { dateFrom: m.dateFrom, dateTo: m.dateTo }, fileName, m.label)
+    );
+    return computeMultiPeriodComparison(latestAgg, earlierSnapshots, { dateFrom: latest.dateFrom, dateTo: latest.dateTo }, fileName);
+  }, [detectedMonths, rawRows, targets, filters.salesCodes, filters.groups, workDays, fileName]);
+
+  // Manual (lewat modal Riwayat) selalu menang kalau pernah dipilih; kalau
+  // belum, fallback ke auto-deteksi bulan (bisa null kalau cuma 1 bulan).
+  const isAutoTrend = trendSnapshotIds.length === 0 && !!autoTrendComparisonData;
+  const finalTrendComparisonData = trendSnapshotIds.length > 0 ? trendComparisonData : autoTrendComparisonData;
+
   // Dipanggil dari HistoryModal setelah user pilih 1 atau lebih snapshot.
   // 1 dipilih → isi comparisonSnapshot (perbandingan cepat di Main Report).
   // 2+ dipilih → isi trendSnapshotIds & pindah ke tab "Tren Periode".
@@ -274,6 +304,23 @@ export default function SalesMonitoringApp() {
     setComparisonSnapshot((cur) => (cur && cur.id === id ? null : cur));
     setTrendSnapshotIds((cur) => cur.filter((x) => x !== id));
   };
+
+  // Dipanggil dari SettingsModal saat import file backup — GABUNGKAN snapshot
+  // dari file dengan riwayat yang sudah ada di device ini (bukan menimpa total),
+  // supaya import dari device lain tidak menghapus riwayat lokal yang belum
+  // sempat di-backup. Kalau ada id yang sama persis, versi dari file yang menang.
+  const importHistoryMerge = (importedHistory) => {
+    setHistory((prev) => {
+      const byId = new Map(prev.map((h) => [h.id, h]));
+      (importedHistory || []).forEach((h) => byId.set(h.id, h));
+      const next = Array.from(byId.values())
+        .sort((a, b) => (b.dateFrom || b.savedAt || "").localeCompare(a.dateFrom || a.savedAt || ""))
+        .slice(0, 8); // konsisten dengan batas di saveHistorySnapshot
+      saveHistory(next);
+      return next;
+    });
+  };
+
 
   const handleFile = useCallback(async (files) => {
     const fileList = Array.isArray(files) ? files : [files];
@@ -374,7 +421,8 @@ export default function SalesMonitoringApp() {
   return (
     <div className="smapp min-h-screen transition-colors duration-300" style={{ background: theme === 'dark' ? `radial-gradient(1200px 600px at 10% -10%, #16233F 0%, ${colors.ink} 60%)` : colors.ink }}>
       <style>{globalStyle}</style>
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors} />
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors}
+        theme={theme} setTheme={setTheme} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge} />
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
       <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
       <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={confirmPreview} preview={pendingPreview} colors={colors} />
@@ -562,7 +610,7 @@ export default function SalesMonitoringApp() {
             {activeTab === "outlet" && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} />}
             {activeTab === "transactions" && <TransactionsPage agg={aggFinal} colors={colors} onOutletDrilldown={openOutletDetail} />}
             {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
-            {activeTab === "trend" && <TrendPeriodePage comparisonData={trendComparisonData} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} />}
+            {activeTab === "trend" && <TrendPeriodePage comparisonData={finalTrendComparisonData} isAutoTrend={isAutoTrend} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} />}
           </>
         )}
 

@@ -83,6 +83,14 @@ Aplikasi ini bisa diinstal seperti app native dan dipakai tanpa internet (setela
     ├── hooks/
     │   └── useCountUp.js                 # Animasi angka KPI (count-up cubic ease-out)
     │
+    ├── pages/
+    │   ├── MainReportPage.jsx            # Tab Main Report (pace, KPI, chart, tabel sales)
+    │   ├── SalesReportPage.jsx           # Tab Sales Report (leaderboard, chart, tabel Sales×Grup)
+    │   ├── ProductReportPage.jsx         # Tab Product Report (chart & tabel per grup produk)
+    │   ├── ProductFocusReportPage.jsx    # Tab Product Focus (grid kartu progress + tabel)
+    │   ├── OutletAnalysisPage.jsx        # Tab Outlet Analysis + OutletStatusBadge + OUTLET_STATUS_META
+    │   └── DataQualityPage.jsx           # Tab Catatan Data (kualitas data)
+    │
     └── components/
         ├── KpiCard.jsx                   # Kartu KPI dengan animasi count-up
         ├── PaceStrip.jsx                 # Bar pace: ACH vs time-gone
@@ -95,6 +103,14 @@ Aplikasi ini bisa diinstal seperti app native dan dipakai tanpa internet (setela
         │   └── index.jsx                 # SectionTitle, DrilldownButton, ChartTooltipStyle
         ├── cards/
         │   └── index.jsx                 # Leaderboard, ProjectionCard, AlertsPanel, PeriodComparisonCard
+        ├── modals/
+        │   ├── OutletDrilldownModal.jsx  # Modal daftar outlet untuk drill-down
+        │   ├── OutletDetailModal.jsx     # Modal detail 1 outlet + breakdown produk
+        │   ├── DataPreviewModal.jsx      # Modal preview data sebelum konfirmasi upload
+        │   ├── HistoryModal.jsx          # Modal riwayat & perbandingan multi-periode
+        │   └── SettingsModal.jsx         # Editor target sales + produk fokus + zona berbahaya
+        ├── trend/
+        │   └── index.jsx                 # TrendPeriodePage (multi-period comparison)
         └── upload/
             └── index.jsx                 # UploadDropzone, MobileBottomNav, MobileFab, ExportMenu
 ```
