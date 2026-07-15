@@ -67,7 +67,6 @@ export default defineConfig({
         // kalau suatu hari ada import statik tidak sengaja, rollup tetap
         // memisahkannya ke chunk sendiri.
         manualChunks: {
-          'pdfjs-dist': ['pdfjs-dist'],
           'html2canvas': ['html2canvas'],
         },
       },
