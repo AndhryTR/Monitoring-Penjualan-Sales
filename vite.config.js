@@ -30,6 +30,11 @@ export default defineConfig({
         // Precache semua asset hasil build (JS/CSS/HTML) — inilah yang bikin
         // app shell tetap bisa dibuka tanpa internet setelah pernah diakses.
         globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
+        // Naikkan limit precache dari default 2 MiB ke 5 MiB.
+        // pdfjs-dist (chunk terpisah hasil dynamic import) bisa 1-2 MB per chunk;
+        // tanpa kenaikan ini, chunk akan di-skip dari precache → fitur "Export
+        // ke Gambar" tidak akan jalan offline walau app shell sudah ter-cache.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         runtimeCaching: [
           {
             // Font Google Fonts di-load dari CDN eksternal saat runtime — cache
@@ -51,4 +56,21 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    // Default Vite 500 KB — kita naikkan karena dynamic import chunks pdfjs &
+    // html2canvas wajar 1-2 MB. Warning ini hanya cosmetic, tidak break build.
+    chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      output: {
+        // Force dependency berat ke chunk terpisah supaya tidak menumpuk di
+        // main chunk. Ini backup untuk dynamic import di imageExport.js —
+        // kalau suatu hari ada import statik tidak sengaja, rollup tetap
+        // memisahkannya ke chunk sendiri.
+        manualChunks: {
+          'pdfjs-dist': ['pdfjs-dist'],
+          'html2canvas': ['html2canvas'],
+        },
+      },
+    },
+  },
 })
