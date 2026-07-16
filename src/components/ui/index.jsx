@@ -7,7 +7,7 @@ import { Store } from "lucide-react";
 export function SectionTitle({ title, sub, icon: Icon, colors }) {
   return (
     <div className="flex items-center gap-3 mb-4">
-      {Icon && <div className="p-2 rounded-xl" style={{ background: colors.gold + "1A" }}><Icon size={16} style={{ color: colors.gold }} /></div>}
+      {Icon && <div className="p-2 rounded-xl" style={{ background: colors.gold + "1A", border: `1px solid ${colors.gold}22` }}><Icon size={16} style={{ color: colors.gold }} /></div>}
       <div>
         <h2 className="disp text-lg font-semibold">{title}</h2>
         {sub && <p className="text-xs" style={{ color: colors.textMuted }}>{sub}</p>}

@@ -1,11 +1,8 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import sumBy from "lodash/sumBy";
 import {
-  Upload, Download, X, RefreshCw,
-  Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard,
-  ArrowUpRight, ArrowDownRight, Minus, Sun, Moon, ChevronLeft, ChevronRight, Filter,
-  Smartphone, Share, Printer, FileText, History, Settings,
+  X, RefreshCw, Sun, Moon,
+  Smartphone, Share, History, Settings,
   FileSpreadsheet, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
@@ -29,7 +26,6 @@ import DEFAULT_TARGETS from "./constants/defaultTargets.json";
 // Modul virtual dari vite-plugin-pwa — hanya ada saat plugin ini terpasang &
 // dijalankan lewat Vite (dev atau build), bukan package npm biasa.
 import { useRegisterSW } from "virtual:pwa-register/react";
-import { useCountUp } from "./hooks/useCountUp.js";
 import { KpiCard } from "./components/KpiCard.jsx";
 import { PaceStrip } from "./components/PaceStrip.jsx";
 import { FilterBar } from "./components/ui/FilterBar.jsx";
@@ -60,12 +56,30 @@ import { THEMES } from "./constants/colors.js";
 const createGlobalStyle = (colors) => `
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
 * { box-sizing: border-box; }
-.smapp { font-family: 'Inter', sans-serif; color: ${colors.text}; background: ${colors.ink}; }
-.smapp .disp { font-family: 'Space Grotesk', sans-serif; }
-.smapp .mono { font-family: 'JetBrains Mono', monospace; }
+.smapp { font-family: 'Inter', sans-serif; color: ${colors.text}; background: ${colors.ink}; line-height: 1.55; font-feature-settings: 'cv02','cv03','cv04','cv11'; }
+/* .disp = headline/section title (Space Grotesk). Di-tighten supaya tidak
+   terasa longgar di ukuran besar, text-wrap:balance supaya headline tidak
+   menyisakan satu kata orphan di baris terakhir. */
+.smapp .disp { font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.02em; }
+.smapp h1, .smapp h2, .smapp h3 { text-wrap: balance; }
+/* .mono = angka data (JetBrains Mono). tabular-nums supaya kolom Rp/angka di
+   tabel & KPI sejajar sempurna, 'zero' agar angka 0 bertanda slash (konvensi
+   data finansial — memudahkan beda 0 vs O dan hindari kesalahan baca). */
+.smapp .mono { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; font-feature-settings: 'zero' 1; }
 .smapp *::-webkit-scrollbar { height: 8px; width: 8px; }
 .smapp *::-webkit-scrollbar-thumb { background: ${colors.border}; border-radius: 4px; border: 2px solid ${colors.ink}; }
 .smapp *::-webkit-scrollbar-track { background: transparent; }
+/* GRAIN OVERLAY (lihat SKILL.md: "Grain and noise overlays"): lapisan noise
+   SVG inline tipis banget (opacity ~0.018) supaya background flat terasa
+   punya tekstur, bukan "sterile". mix-blend-mode:overlay supaya bekerja di
+   dark & light. pointer-events:none agar tidak ganggu klik. */
+.smapp::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  opacity: 0.018; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* Konten utama harus di atas grain overlay (z-index:1). */
+.smapp > * { position: relative; z-index: 1; }
 @keyframes smFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes smFadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes smPulse { 0%,100% { opacity:1 } 50% { opacity:.55 } }
@@ -75,16 +89,22 @@ const createGlobalStyle = (colors) => `
 .sm-fadein { animation: smFadeIn .3s ease both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
 .sm-pulse { animation: smPulse 1.8s ease-in-out infinite; }
 .sm-shimmer { background: linear-gradient(90deg, ${colors.surface2} 0%, ${colors.border} 50%, ${colors.surface2} 100%); background-size: 800px 100%; animation: smShimmer 1.4s linear infinite; }
-.sm-card { background: ${colors.surface}; border-radius: 16px; transition: transform .25s ease, box-shadow .25s ease, background .3s ease; box-shadow: 6px 6px 12px ${colors.shadow1}, -6px -6px 12px ${colors.shadow2}; }
-.sm-card:hover { transform: translateY(-2px); box-shadow: 8px 8px 16px ${colors.shadow1}, -8px -8px 16px ${colors.shadow2}; }
+/* BORDER-RADIUS SCALE (lihat SKILL.md: "Vary the radius"):
+   container/card = 16px, button = 12px (xl), inner = 8px (lg), pill = 9999px.
+   Neumorphic shadow ditinted ke navy/slate (colors.shadow1/2), bukan hitam. */
+.sm-card { background: ${colors.surface}; border-radius: 16px; transition: transform .25s ease, box-shadow .25s ease, background .3s ease; box-shadow: 5px 5px 12px ${colors.shadow1}, -5px -5px 12px ${colors.shadow2}; }
+/* Hover di-dashboard harus halus profesional (translateY -1px), bukan playful -2px. */
+.sm-card:hover { transform: translateY(-1px); box-shadow: 6px 6px 14px ${colors.shadow1}, -6px -6px 14px ${colors.shadow2}; }
 .sm-tab-btn { position: relative; transition: color .2s ease; }
 .sm-chip { transition: all .18s ease; }
 .sm-chip:hover { transform: translateY(-1px); }
 .sm-row { transition: background .15s ease; }
 .sm-row:hover { background: ${colors.surface2}; }
 .sm-btn { transition: transform .2s ease, box-shadow .2s ease, background .2s ease; box-shadow: 4px 4px 8px ${colors.shadow1}, -4px -4px 8px ${colors.shadow2}; }
-.sm-btn:hover { transform: translateY(-2px); box-shadow: 6px 6px 10px ${colors.shadow1}, -6px -6px 10px ${colors.shadow2}; }
+.sm-btn:hover { transform: translateY(-1px); box-shadow: 5px 5px 10px ${colors.shadow1}, -5px -5px 10px ${colors.shadow2}; }
 .sm-btn:active { transform: translateY(0); box-shadow: inset 3px 3px 6px ${colors.shadowInset1}, inset -3px -3px 6px ${colors.shadowInset2}; }
+/* Input focus: border + ring halus mengikuti accent gold, transisi mulus (bukan instant). */
+.smapp input:focus, .smapp select:focus, .smapp textarea:focus { outline: none; border-color: ${colors.gold} !important; box-shadow: 0 0 0 3px ${colors.gold}22; transition: border-color .2s ease, box-shadow .2s ease; }
 .sm-progress-fill { transition: width 1s cubic-bezier(.16,1,.3,1); }
 .sm-drop { transition: border-color .2s ease, background .2s ease; }
 .sm-scale-in { animation: smFadeUp .5s cubic-bezier(.16,1,.3,1) both; }
@@ -433,7 +453,7 @@ export default function SalesMonitoringApp() {
         {/* header */}
         <div className="relative z-40 flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl" style={{ background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})` }}>
+            <div className="p-2.5 rounded-2xl" style={{ background: `linear-gradient(135deg, ${colors.gold}, #FF9B3D, ${colors.coral})` }}>
               <FileSpreadsheet size={20} color="#0A1120" />
             </div>
             <div>

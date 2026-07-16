@@ -113,7 +113,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
               background: colors.surface,
               borderTop: `1px solid ${colors.border}`,
               borderRadius: "16px 16px 0 0",
-              boxShadow: "0 -10px 40px rgba(0,0,0,0.3)",
+              boxShadow: colors.sheetShadow,
               paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
             }}
             onClick={(e) => e.stopPropagation()}

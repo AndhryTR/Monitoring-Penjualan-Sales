@@ -22,7 +22,7 @@ export function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct,
           <Icon size={14} style={{ color: accent }} />
         </div>
       </div>
-      <div className={`disp ${sizeClass} font-bold mono`}>
+      <div className={`${sizeClass} font-bold mono`} style={{ letterSpacing: "-0.01em" }}>
         {displayText}
       </div>
       {sub && <div className="text-xs mt-1.5" style={{ color: colors.textMuted }}>{sub}</div>}
