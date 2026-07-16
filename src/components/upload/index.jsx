@@ -2,11 +2,12 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   Upload, Download, X, ChevronDown, RefreshCw, FileSpreadsheet,
-  FileText, Printer, Menu,
+  FileText, Printer, Menu, Image as ImageIcon,
 } from "lucide-react";
 import { fmtPct } from "../../utils/formatters.js";
 import { exportSummaryPDF, exportSalesScorecardPDF, exportAllScorecardsPDF, exportSalesGroupComparisonPDF } from "../../utils/pdfExport.js";
 import { exportToExcel } from "../../utils/excelExport.js";
+import { exportHtmlAsImage, buildSalesGroupComparisonHTML, buildExcelReportHTML } from "../../utils/imageExport.js";
 
 export function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading, sampleLoading, colors }) {
   const [dragOver, setDragOver] = useState(false);
@@ -201,6 +202,12 @@ export function MobileFab({ onFile, colors, loading }) {
 export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors }) {
   const [open, setOpen] = useState(false);
   const [scorecardListOpen, setScorecardListOpen] = useState(false);
+  // Item "Gambar" mana yang lagi expand pilihan format (PNG/JPEG) — null kalau
+  // tidak ada yang expand. imageBusy: nama item yang sedang diproses
+  // html2canvas (proses async, bisa beberapa detik untuk tabel besar), dipakai
+  // buat kasih feedback "Memproses..." supaya user tidak klik berkali-kali.
+  const [imageFormatFor, setImageFormatFor] = useState(null);
+  const [imageBusy, setImageBusy] = useState(null);
   const ref = useRef(null);
   // Ref terpisah untuk bottom-sheet mobile -- sheet di-render via Portal ke
   // document.body (lihat createPortal di bawah) supaya position:fixed bekerja
@@ -226,7 +233,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
 
   // Ditutup lagi tiap kali menu utama ditutup/dibuka ulang, supaya tidak
   // "nyangkut" kebuka pas dropdown dipakai lagi lain waktu.
-  useEffect(() => { if (!open) setScorecardListOpen(false); }, [open]);
+  useEffect(() => { if (!open) { setScorecardListOpen(false); setImageFormatFor(null); } }, [open]);
 
   const opts = { workDays, depotName };
   const salesSorted = useMemo(() => [...agg.bySales].sort((a, b) => a.name.localeCompare(b.name)), [agg.bySales]);
@@ -244,6 +251,48 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
 
   const SectionLabel = ({ children }) => (
     <div className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: colors.textMuted }}>{children}</div>
+  );
+
+  const handleImageExport = async (key, buildFn, filenameBase, format) => {
+    setImageBusy(key);
+    try {
+      const html = buildFn();
+      await exportHtmlAsImage(html, filenameBase, format);
+    } finally {
+      setImageBusy(null);
+      setImageFormatFor(null);
+      setOpen(false);
+    }
+  };
+
+  // Item menu "Gambar" yang expand jadi 2 tombol format (PNG/JPEG) saat diklik
+  // — bukan langsung download, supaya user pilih formatnya dulu tiap export.
+  const ImageMenuItem = ({ itemKey, label, desc, buildFn, filenameBase }) => (
+    <>
+      <button onClick={() => setImageFormatFor((v) => (v === itemKey ? null : itemKey))}
+        className="sm-row w-full text-left px-4 py-2.5 flex items-center justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <ImageIcon size={15} className="mt-0.5 shrink-0" style={{ color: colors.blue || colors.gold }} />
+          <div className="min-w-0">
+            <div className="text-sm font-medium">{label}</div>
+            <div className="text-xs" style={{ color: colors.textMuted }}>{desc}</div>
+          </div>
+        </div>
+        <ChevronDown size={13} style={{ color: colors.textMuted, transform: imageFormatFor === itemKey ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }} />
+      </button>
+      {imageFormatFor === itemKey && (
+        <div className="flex gap-2 px-4 pb-3 pl-11">
+          {["png", "jpeg"].map((fmt) => (
+            <button key={fmt} disabled={imageBusy === itemKey}
+              onClick={() => handleImageExport(itemKey, buildFn, filenameBase, fmt)}
+              className="sm-btn px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+              style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}>
+              {imageBusy === itemKey ? "Memproses..." : fmt.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
   );
 
   // Konten menu dibuat sekali lalu dipakai di dua wadah: dropdown absolut
@@ -267,6 +316,13 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
       <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Perbandingan Sales"
         desc="Rekap per grup, per sales & hari terakhir — 1 dokumen gabungan"
         onClick={() => { exportSalesGroupComparisonPDF(agg, opts); setOpen(false); }} />
+
+      <div style={{ borderTop: `1px solid ${colors.border}` }} />
+      <SectionLabel>Gambar</SectionLabel>
+      <ImageMenuItem itemKey="excel" label="Export ke Excel" desc="Tampilan sama seperti file Excel, jadi 1 gambar"
+        buildFn={() => buildExcelReportHTML(agg, targets, opts)} filenameBase={`Laporan_Sales_Gambar_${agg.meta.lastDate || "export"}`} />
+      <ImageMenuItem itemKey="comparison" label="Laporan Perbandingan Sales" desc="Tampilan sama seperti PDF, jadi 1 gambar"
+        buildFn={() => buildSalesGroupComparisonHTML(agg, opts)} filenameBase={`Laporan_Perbandingan_Sales_Gambar_${agg.meta.lastDate || "export"}`} />
 
       <div style={{ borderTop: `1px solid ${colors.border}` }} />
       <button onClick={() => setScorecardListOpen((v) => !v)}

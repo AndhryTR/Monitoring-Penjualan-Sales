@@ -12,7 +12,7 @@ export function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct,
   // layar — soalnya masalahnya murni angka besar (mis. "Rp 123.456.789" untuk
   // value 9+ digit) yang lebih lebar dari card di grid sempit (lg:grid-cols-6),
   // bukan soal ukuran layar. Tanpa ini, angka >8 digit bisa tumpah keluar box.
-  const sizeClass = displayText.length > 13 ? "text-lg" : displayText.length > 11 ? "text-xl" : "text-2xl";
+  const sizeClass = displayText.length > 13 ? "text-lg" : displayText.length > 8 ? "text-xl" : "text-2xl";
 
   return (
     <div className="sm-card sm-fadeup p-5 min-w-0" style={{ animationDelay: `${delay}ms` }}>

@@ -2,9 +2,9 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { createPortal } from "react-dom";
 import sumBy from "lodash/sumBy";
 import {
-  Upload, Download, X, ChevronDown, RefreshCw,
+  Upload, Download, X, RefreshCw,
   Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard,
-  ArrowUpRight, ArrowDownRight, Minus, Sun, Moon, ChevronLeft, ChevronRight, Menu, Filter,
+  ArrowUpRight, ArrowDownRight, Minus, Sun, Moon, ChevronLeft, ChevronRight, Filter,
   Smartphone, Share, Printer, FileText, History, Settings,
   FileSpreadsheet, AlertTriangle, CheckCircle2,
 } from "lucide-react";
@@ -23,6 +23,7 @@ import { buildHistorySnapshot, computeComparison, computeMultiPeriodComparison }
 import { generateSampleRows } from "./utils/sampleData.js";
 import { ALIASES } from "./constants/aliases.js";
 import { PRIMARY_TABS, MORE_TABS } from "./constants/tabs.js";
+import { Sidebar } from "./components/layout/Sidebar.jsx";
 import { WORK_DAYS_DEFAULT, OUTLET_DEFAULT_THRESHOLDS } from "./constants/thresholds.js";
 import DEFAULT_TARGETS from "./constants/defaultTargets.json";
 // Modul virtual dari vite-plugin-pwa — hanya ada saat plugin ini terpasang &
@@ -108,6 +109,8 @@ export default function SalesMonitoringApp() {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("main");
   const [theme, setTheme] = useState(persistedSettings?.theme || 'dark');
+  // Status collapse sidebar desktop — diingat lintas sesi sama seperti tema.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(persistedSettings?.sidebarCollapsed ?? false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [drilldown, setDrilldown] = useState(null);
   const [pendingPreview, setPendingPreview] = useState(null);
@@ -121,7 +124,6 @@ export default function SalesMonitoringApp() {
   // localStorage: dipilih ulang tiap sesi, konsisten dengan sifatnya yang
   // sementara/eksploratif.
   const [trendSnapshotIds, setTrendSnapshotIds] = useState([]);
-  const [desktopMoreOpen, setDesktopMoreOpen] = useState(false);
 
   const [filters, setFilters] = useState(persistedSettings?.filters || { salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
   const [workDays, setWorkDays] = useState(persistedSettings?.workDays ?? WORK_DAYS_DEFAULT);
@@ -153,8 +155,8 @@ export default function SalesMonitoringApp() {
   // hari kerja, nama depo) — jadi tidak perlu tombol "simpan" terpisah untuk ini,
   // beda dengan raw data yang lebih berat dan disimpan terpisah di bawah.
   useEffect(() => {
-    saveSettings({ theme, filters, workDays, targets, depotName, projectionMethod });
-  }, [theme, filters, workDays, targets, depotName, projectionMethod]);
+    saveSettings({ theme, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed });
+  }, [theme, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed]);
 
   // Simpan otomatis data transaksi ke IndexedDB tiap kali berubah (setelah upload
   // dikonfirmasi atau data contoh dimuat). Di-skip saat kosong karena reset
@@ -410,14 +412,6 @@ export default function SalesMonitoringApp() {
     setTrendSnapshotIds([]);
   }, []);
 
-  // Slot terakhir di tab bar desktop adalah tombol "Lainnya" (dropdown) — jadi
-  // total slot = jumlah tab primary + 1. Kalau tab aktif sedang berada di grup
-  // "more", indikator geser ke slot "Lainnya" itu, bukan hilang begitu saja.
-  const activeIsInMore = MORE_TABS.some((t) => t.key === activeTab);
-  const activeIdx = activeIsInMore ? PRIMARY_TABS.length : PRIMARY_TABS.findIndex((t) => t.key === activeTab);
-  const totalSlots = PRIMARY_TABS.length + (MORE_TABS.length > 0 ? 1 : 0);
-  const tabPct = 100 / totalSlots;
-
   return (
     <div className="smapp min-h-screen transition-colors duration-300" style={{ background: theme === 'dark' ? `radial-gradient(1200px 600px at 10% -10%, #16233F 0%, ${colors.ink} 60%)` : colors.ink }}>
       <style>{globalStyle}</style>
@@ -431,6 +425,10 @@ export default function SalesMonitoringApp() {
         defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
       <MobileFab onFile={handleFile} colors={colors} loading={loading} />
       <MobileBottomNav primaryTabs={PRIMARY_TABS} moreTabs={MORE_TABS} activeTab={activeTab} onChange={setActiveTab} colors={colors} />
+      <div className="flex items-start">
+        <Sidebar activeTab={activeTab} onChangeTab={setActiveTab} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+          onOpenHistory={() => setIsHistoryOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} historyDisabled={!rawRows.length} colors={colors} />
+        <div className="flex-1 min-w-0">
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 pb-28 md:pb-6">
         {/* header */}
         <div className="relative z-40 flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
@@ -439,7 +437,7 @@ export default function SalesMonitoringApp() {
               <FileSpreadsheet size={20} color="#0A1120" />
             </div>
             <div>
-              <h1 className="disp text-xl font-bold">Monitoring Penjualan</h1>
+              <h1 className="disp text-xl font-bold">Monitoring Penjualan<b className="text-xs" style={{ color: colors.textMuted }}> by</b><b className="disp text-xl font-bold" style={{ color: colors.coral }}> Andri.S</b></h1>
               <p className="text-xs" style={{ color: colors.textMuted }}>Dashboard pencapaian sales, produk & produk fokus</p>
             </div>
           </div>
@@ -456,15 +454,18 @@ export default function SalesMonitoringApp() {
               style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
               {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
             </button>
+            {/* Riwayat & Pengaturan: desktop sekarang lewat Sidebar (section
+                Tools), jadi tombol ini disembunyikan mulai breakpoint md.
+                Mobile tetap butuh ini karena tidak punya Sidebar sama sekali. */}
             <button onClick={() => setIsHistoryOpen(true)} disabled={!rawRows.length}
-              className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+              className="sm-btn flex md:hidden items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
               style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
               <History size={15} /> <span className="hidden sm:inline">Riwayat</span>
             </button>
             <button onClick={() => setIsSettingsOpen(true)}
-              className="sm-btn flex items-center gap-2 px-2.5 md:px-4 py-2.5 rounded-xl text-sm font-semibold"
+              className="sm-btn flex md:hidden items-center gap-2 px-2.5 py-2.5 rounded-xl text-sm font-semibold"
               style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
-              <Settings size={15} /> <span className="hidden md:inline">Pengaturan</span>
+              <Settings size={15} />
             </button>
             <ExportMenu agg={aggFinal} targets={targets} workDays={workDays} depotName={depotName} disabled={!rawRows.length} colors={colors} />
           </div>
@@ -543,52 +544,8 @@ export default function SalesMonitoringApp() {
           )}
         </div>
 
-        {/* tabs — desktop only (mobile pakai bottom nav). Tab primary tampil
-            langsung, sisanya dikelompokkan di dropdown "Lainnya" supaya bar
-            tidak makin sesak tiap kali nambah fitur/tab baru. */}
-        <div className="relative z-20 hidden md:flex gap-1 mb-6 p-1 rounded-2xl sm-fadeup" style={{ background: colors.surface, border: `1px solid ${colors.border}`, animationDelay: "80ms" }}>
-          <div className="absolute top-1 bottom-1 rounded-xl transition-all duration-300 ease-out"
-            style={{ left: `calc(${activeIdx * tabPct}% + 4px)`, width: `calc(${tabPct}% - 8px)`, background: colors.surface2, border: `1px solid ${colors.border}` }} />
-          {PRIMARY_TABS.map((t) => {
-            const Icon = t.icon;
-            const isActive = t.key === activeTab;
-            return (
-              <button key={t.key} onClick={() => setActiveTab(t.key)}
-                className="sm-tab-btn relative z-10 flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium"
-                style={{ color: isActive ? colors.gold : colors.textMuted }}>
-                <Icon size={15} /> <span>{t.label}</span>
-              </button>
-            );
-          })}
-          {MORE_TABS.length > 0 && (
-            <div className="relative flex-1">
-              <button onClick={() => setDesktopMoreOpen((v) => !v)}
-                className="sm-tab-btn relative z-10 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium"
-                style={{ color: activeIsInMore ? colors.gold : colors.textMuted }}>
-                <Menu size={15} /> <span>Lainnya</span>
-                <ChevronDown size={13} style={{ transform: desktopMoreOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
-              </button>
-              {desktopMoreOpen && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={() => setDesktopMoreOpen(false)} />
-                  <div className="sm-fadein absolute right-0 z-40 mt-2 w-56 rounded-xl p-1.5 shadow-2xl" style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
-                    {MORE_TABS.map((t) => {
-                      const Icon = t.icon;
-                      const isActive = t.key === activeTab;
-                      return (
-                        <button key={t.key} onClick={() => { setActiveTab(t.key); setDesktopMoreOpen(false); }}
-                          className="sm-row w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-left"
-                          style={{ color: isActive ? colors.gold : colors.text, background: isActive ? colors.gold + "14" : "transparent" }}>
-                          <Icon size={15} /> <span>{t.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
+        {/* tabs — desktop sekarang pakai Sidebar kiri (lihat root return),
+            bukan tab bar horizontal lagi. Mobile tetap MobileBottomNav. */}
 
         {sessionLoading ? (
           <DashboardSkeleton colors={colors} />
@@ -616,6 +573,8 @@ export default function SalesMonitoringApp() {
 
         <div className="text-center text-xs mt-10 pb-4" style={{ color: colors.textMuted }}>
           Data diproses langsung di browser Anda — tidak diunggah ke server manapun. Data & pengaturan disimpan otomatis di perangkat/browser ini agar tidak hilang saat refresh.
+        </div>
+      </div>
         </div>
       </div>
     </div>

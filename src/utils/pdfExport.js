@@ -79,7 +79,7 @@ function drawFooterOnAllPages(doc) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(...COLORS.textMuted);
-    doc.text(`Dibuat otomatis oleh Monitoring Penjualan by AndriTR — ${formatGeneratedAt()}`, 14, pageHeight - 8);
+    doc.text(`Dibuat otomatis oleh Monitoring Penjualan — ${formatGeneratedAt()}`, 14, pageHeight - 8);
     doc.text(`Halaman ${i} / ${pageCount}`, pageWidth - 14, pageHeight - 8, { align: "right" });
   }
 }
