@@ -1,11 +1,8 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import sumBy from "lodash/sumBy";
 import {
-  Upload, Download, X, RefreshCw,
-  Target, TrendingUp, TrendingDown, Sparkles, LayoutDashboard,
-  ArrowUpRight, ArrowDownRight, Minus, Sun, Moon, ChevronLeft, ChevronRight, Filter,
-  Smartphone, Share, Printer, FileText, History, Settings,
+  X, RefreshCw, Sun, Moon,
+  Smartphone, Share, History, Settings,
   FileSpreadsheet, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
@@ -29,7 +26,6 @@ import DEFAULT_TARGETS from "./constants/defaultTargets.json";
 // Modul virtual dari vite-plugin-pwa — hanya ada saat plugin ini terpasang &
 // dijalankan lewat Vite (dev atau build), bukan package npm biasa.
 import { useRegisterSW } from "virtual:pwa-register/react";
-import { useCountUp } from "./hooks/useCountUp.js";
 import { KpiCard } from "./components/KpiCard.jsx";
 import { PaceStrip } from "./components/PaceStrip.jsx";
 import { FilterBar } from "./components/ui/FilterBar.jsx";
