@@ -30,6 +30,11 @@ export default defineConfig({
         // Precache semua asset hasil build (JS/CSS/HTML) — inilah yang bikin
         // app shell tetap bisa dibuka tanpa internet setelah pernah diakses.
         globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
+        // Default workbox 2 MiB — bundle kita (jspdf+html2canvas+xlsx+recharts
+        // digabung) bisa lebih besar dari itu. Dinaikkan ke 5 MiB supaya masih
+        // ada headroom untuk pertumbuhan ke depan tanpa perlu diubah lagi tiap
+        // nambah fitur/dependency baru.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         runtimeCaching: [
           {
             // Font Google Fonts di-load dari CDN eksternal saat runtime — cache
@@ -51,4 +56,21 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        // Pisah library besar jadi chunk masing-masing (bukan 1 bundle raksasa)
+        // — ini yang bikin warning "chunk > 500kB" muncul sebelumnya. Bonus:
+        // browser bisa cache chunk vendor terpisah dari kode aplikasi sendiri,
+        // jadi update fitur app tidak perlu re-download seluruh library besar.
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-charts': ['recharts'],
+          'vendor-pdf': ['jspdf', 'jspdf-autotable', 'html2canvas'],
+          'vendor-excel': ['xlsx-js-style'],
+          'vendor-icons': ['lucide-react'],
+        },
+      },
+    },
+  },
 })
