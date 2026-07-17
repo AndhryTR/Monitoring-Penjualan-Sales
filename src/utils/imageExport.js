@@ -1,6 +1,6 @@
 import html2canvas from "html2canvas";
 import { fmtRp, fmtNum, fmtPct } from "./formatters.js";
-import { dateStrToLocalDate, todayLocalDateStr } from "./excelParse.js";
+import { dateStrToLocalDate } from "./excelParse.js";
 
 /* ============================================================================
    IMAGE EXPORT
