@@ -78,8 +78,14 @@ const createGlobalStyle = (colors) => `
   opacity: 0.018; mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
-/* Konten utama harus di atas grain overlay (z-index:1). */
-.smapp > * { position: relative; z-index: 1; }
+/* Konten utama harus di atas grain overlay (z-index:0) — TAPI cuma wrapper
+   konten utama (.smapp-content di bawah), BUKAN semua anak .smapp secara
+   membabi buta. Modal/nav yang pakai position:fixed (SettingsModal,
+   OutletDrilldownModal, MobileBottomNav, dll) sudah punya z-index sendiri
+   yang jauh lebih tinggi (40-50) dari grain overlay ini (0), jadi otomatis
+   sudah di atas tanpa perlu "dipromosikan" — kalau ikut dikasih
+   position:relative di sini, position:fixed mereka malah ketimpa/rusak. */
+.smapp-content { position: relative; z-index: 1; }
 @keyframes smFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes smFadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes smPulse { 0%,100% { opacity:1 } 50% { opacity:.55 } }
@@ -445,7 +451,7 @@ export default function SalesMonitoringApp() {
         defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
       <MobileFab onFile={handleFile} colors={colors} loading={loading} />
       <MobileBottomNav primaryTabs={PRIMARY_TABS} moreTabs={MORE_TABS} activeTab={activeTab} onChange={setActiveTab} colors={colors} />
-      <div className="flex items-start">
+      <div className="smapp-content flex items-start">
         <Sidebar activeTab={activeTab} onChangeTab={setActiveTab} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
           onOpenHistory={() => setIsHistoryOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} historyDisabled={!rawRows.length} colors={colors} />
         <div className="flex-1 min-w-0">
