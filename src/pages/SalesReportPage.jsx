@@ -2,24 +2,47 @@ import { useMemo } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
-import { UserRound, Boxes } from "lucide-react";
+import { UserRound, Boxes, CalendarClock } from "lucide-react";
 import { fmtRp, fmtNum } from "../utils/formatters.js";
 import { exportSalesScorecardPDF } from "../utils/pdfExport.js";
-import { AchBadge } from "../components/AchBadge.jsx";
+import { getLastDaySalesMap } from "../utils/aggregation.js";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
 import { Leaderboard } from "../components/cards/index.jsx";
+import { AchBadge } from "../components/AchBadge.jsx";
 
 /* ============================================================================
    TAB: SALES REPORT
    Leaderboard + bar chart vertical per sales + tabel detail per Sales × Grup.
 ============================================================================ */
+const MONTHS_ID_SHORT = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+function formatDateIDShort(dateStr) {
+  if (!dateStr) return "-";
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (!y || !m || !d) return dateStr;
+  return `${d} ${MONTHS_ID_SHORT[m - 1]} ${y}`;
+}
+
 export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName }) {
   const rows = agg.bySales;
   const handleExportScorecard = (salesRow) => exportSalesScorecardPDF(salesRow, agg, { workDays, depotName });
   const groupRows = useMemo(() => rows.flatMap((sm) => sm.groups.map((g) => ({
     salesName: sm.name, groupName: g.name, value: g.realisasiValue, predicate: g.predicate,
   }))), [rows]);
+
+  // Perbandingan pencapaian TOTAL periode vs HARI TERAKHIR per sales.
+  // "Hari terakhir" = tanggal transaksi terakhir dalam data yang sedang
+  // difilter (agg.meta.lastDate), bukan tanggal sistem hari ini.
+  const lastDaySalesMap = useMemo(() => getLastDaySalesMap(agg.filteredRows, agg.meta.lastDate), [agg.filteredRows, agg.meta.lastDate]);
+  const totalVsLastDayRows = useMemo(() => rows.map((sm) => {
+    const ld = lastDaySalesMap[sm.code] || { valueLastDay: 0, aoLastDay: 0 };
+    return {
+      code: sm.code, salesName: sm.name,
+      totalValue: sm.realisasiValue, totalAo: sm.realisasiAo, totalAch: sm.ach,
+      lastDayValue: ld.valueLastDay, lastDayAo: ld.aoLastDay,
+      predicate: sm.predicate,
+    };
+  }), [rows, lastDaySalesMap]);
 
   // Custom Tooltip untuk menyesuaikan warna teks dengan warna bar
   const CustomTooltip = ({ active, payload, label }) => {
@@ -41,6 +64,33 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
   return (
     <div className="sm-fadein">
       <Leaderboard rows={rows} colors={colors} onDrilldown={onDrilldown} onExportScorecard={handleExportScorecard} />
+
+      <div className="mt-8 mb-8">
+        <SectionTitle
+          title="Total Periode vs Hari Terakhir"
+          sub={agg.meta.lastDate ? `Pencapaian & AO total dibandingkan hari terakhir (${formatDateIDShort(agg.meta.lastDate)})` : "Belum ada data"}
+          icon={CalendarClock}
+          colors={colors}
+        />
+        <DataTable
+          colors={colors}
+          initialSortKey="totalValue"
+          searchable
+          searchKeys={["salesName"]}
+          searchPlaceholder="Cari nama sales..."
+          mobileTitleKey="salesName"
+          columns={[
+            { key: "salesName", label: "Sales" },
+            { key: "totalValue", label: "Realisasi Total", render: (r) => <span className="mono">{fmtRp(r.totalValue)}</span> },
+            { key: "totalAo", label: "AO Total", render: (r) => <span className="mono">{fmtNum(r.totalAo)}</span> },
+            { key: "totalAch", label: "ACH% Total", render: (r) => <AchBadge ach={r.totalAch} colors={colors} /> },
+            { key: "lastDayValue", label: "Realisasi H-Terakhir", render: (r) => <span className="mono">{fmtRp(r.lastDayValue)}</span> },
+            { key: "lastDayAo", label: "AO H-Terakhir", render: (r) => <span className="mono">{fmtNum(r.lastDayAo)}</span> },
+            { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(r.salesName, "Semua outlet", r.predicate)} /> },
+          ]}
+          rows={totalVsLastDayRows}
+        />
+      </div>
 
       <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} />
       <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
