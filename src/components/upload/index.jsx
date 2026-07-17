@@ -78,7 +78,7 @@ export function MobileBottomNav({ primaryTabs, moreTabs, activeTab, onChange, co
         style={{
           background: colors.surface,
           borderTop: `1px solid ${colors.border}`,
-          boxShadow: colors.elev1,
+          boxShadow: "0 -4px 20px rgba(0,0,0,0.18)",
           paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
@@ -128,13 +128,13 @@ export function MobileBottomNav({ primaryTabs, moreTabs, activeTab, onChange, co
           aria-label="Menu lainnya"
         >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-            <div
+          <div
             className="relative w-full rounded-t-2xl p-4 sm-scale-in"
             style={{
               background: colors.surface,
               borderTop: `1px solid ${colors.border}`,
               borderRadius: "16px 16px 0 0",
-              boxShadow: colors.sheetShadow,
+              boxShadow: "0 -10px 40px rgba(0,0,0,0.3)",
               paddingBottom: "calc(16px + env(safe-area-inset-bottom))",
             }}
             onClick={(e) => e.stopPropagation()}
@@ -186,9 +186,9 @@ export function MobileFab({ onFile, colors, loading }) {
         className="md:hidden fixed right-4 z-40 sm-btn flex items-center justify-center w-14 h-14 rounded-full"
         style={{
           bottom: "calc(76px + env(safe-area-inset-bottom))",
-          background: `linear-gradient(135deg, ${colors.gold}, #FF9B3D, ${colors.coral})`,
+          background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})`,
           color: "#0A1120",
-          boxShadow: colors.floatShadow,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
         }}
         aria-label="Upload file Excel sell-out"
       >
@@ -361,7 +361,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
         <>
           
           <div className="hidden md:block absolute right-0 z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden sm-fadein"
-            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.dropdownShadow }}>
+            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
             {menuContent}
           </div>
 
@@ -375,7 +375,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
                   background: colors.surface,
                   borderTop: `1px solid ${colors.border}`,
                   borderRadius: "16px 16px 0 0",
-                  boxShadow: colors.sheetShadow,
+                  boxShadow: "0 -10px 40px rgba(0,0,0,0.3)",
                   paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
                 }}>
                 

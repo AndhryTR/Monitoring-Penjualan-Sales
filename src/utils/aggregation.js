@@ -151,6 +151,27 @@ export function matchFocus(row, focusItem) {
   return normalizeHeader(row.productName).includes(normalizeHeader(focusItem.keyword));
 }
 
+// Realisasi + AO per sales KHUSUS tanggal terakhir dalam data yang difilter
+// (agg.meta.lastDate) — dipakai untuk membandingkan pencapaian TOTAL periode
+// vs pencapaian HARI TERAKHIR per sales. AO dihitung sebagai outlet unik
+// LINTAS GRUP untuk sales itu pada tanggal tsb, konsisten dengan cara
+// `realisasiAo` dihitung di computeAggregates dan dengan Section 3 di
+// pdfExport.js (exportSummaryPDF). Tidak ada ACH% di sini — app ini tidak
+// punya konsep target harian, jadi cuma angka mentah (Realisasi & AO).
+export function getLastDaySalesMap(filteredRows, lastDate) {
+  const map = {};
+  if (!lastDate) return map;
+  filteredRows.forEach((r) => {
+    if (r.date !== lastDate) return;
+    if (!map[r.salesCode]) map[r.salesCode] = { value: 0, outlets: new Set() };
+    map[r.salesCode].value += r.value;
+    if (r.outletCode) map[r.salesCode].outlets.add(r.outletCode);
+  });
+  const result = {};
+  Object.entries(map).forEach(([code, v]) => { result[code] = { valueLastDay: v.value, aoLastDay: v.outlets.size }; });
+  return result;
+}
+
 // Rincian per outlet untuk fitur drill-down — menerima kumpulan baris (biasanya
 // agg.filteredRows) dan sebuah predicate (fungsi filter tambahan: per sales, per
 // grup, atau per produk fokus), lalu kelompokkan berdasarkan outlet.

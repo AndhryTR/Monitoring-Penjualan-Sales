@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, AreaChart, Area,
-  XAxis, YAxis, CartesianGrid, Tooltip, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
 import {
   Target, TrendingUp, TrendingDown, Sparkles, Users, Boxes,

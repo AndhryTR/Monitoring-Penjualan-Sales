@@ -332,8 +332,6 @@ function drawSectionTitle(doc, text, y) {
 export function exportSalesGroupComparisonPDF(agg, opts) {
   const { depotName } = opts || {};
   const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
 
   const periodLabel = `${formatDateID(agg.meta.firstDate)} — ${formatDateID(agg.meta.lastDate)}`;
   const groupLabel = agg.byGroup.length ? agg.byGroup.map((g) => g.name).join(", ") : "Semua Grup";

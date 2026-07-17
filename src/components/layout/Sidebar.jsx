@@ -31,7 +31,7 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
     >
       {/* Logo/brand kecil di atas sidebar — cuma ikon saat collapsed */}
       <div className="flex items-center gap-2.5 px-4 py-5 shrink-0 overflow-hidden">
-        <div className="p-2 rounded-xl shrink-0" style={{ background: `linear-gradient(135deg, ${colors.gold}, #FF9B3D, ${colors.coral})` }}>
+        <div className="p-2 rounded-xl shrink-0" style={{ background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})` }}>
           <FileSpreadsheet size={16} color="#0A1120" />
         </div>
         {!collapsed && (

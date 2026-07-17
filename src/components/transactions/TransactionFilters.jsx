@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { ChevronDown, Filter, X, Store } from "lucide-react";
 import { MultiSelect } from "../ui/MultiSelect.jsx";
 import { getOutletOptions, getUnitOptions } from "../../utils/transactions.js";

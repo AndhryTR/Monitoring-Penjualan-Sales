@@ -1,7 +1,6 @@
 import React from "react";
 import { useCountUp } from "../hooks/useCountUp";
 import { fmtRp, fmtNum } from "../utils/formatters";
-import { THEMES } from "../constants/colors";
 
 export function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct, delay = 0, colors }) {
   const numeric = isPct ? (value || 0) * 100 : (value || 0);
@@ -22,7 +21,7 @@ export function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct,
           <Icon size={14} style={{ color: accent }} />
         </div>
       </div>
-      <div className={`${sizeClass} font-bold mono`} style={{ letterSpacing: "-0.01em" }}>
+      <div className={`disp ${sizeClass} font-bold mono`}>
         {displayText}
       </div>
       {sub && <div className="text-xs mt-1.5" style={{ color: colors.textMuted }}>{sub}</div>}

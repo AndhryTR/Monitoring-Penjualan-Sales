@@ -3,7 +3,7 @@ import {
   Trophy, Rocket, BellRing, History, AlertTriangle, X, ArrowUpRight,
   ArrowDownRight, FileText,
 } from "lucide-react";
-import { fmtRp, fmtPct, fmtNum } from "../../utils/formatters.js";
+import { fmtRp, fmtPct } from "../../utils/formatters.js";
 import { AchBadge } from "../AchBadge.jsx";
 import { SectionTitle, DrilldownButton } from "../ui/index.jsx";
 
@@ -90,7 +90,7 @@ function resolveProjection(method, projection) {
 // dan Weekday/Weekend (proyeksi berbasis tanggal kalender sungguhan, dipisah
 // rata-rata hari kerja vs weekend). Pilihan method dikontrol dari parent
 // (persist ke localStorage) supaya diingat lintas sesi.
-export function ProjectionCard({ projection, totals, colors, method = "linear", onMethodChange }) {
+export function ProjectionCard({ projection, colors, method = "linear", onMethodChange }) {
   const active = resolveProjection(method, projection);
   const onTrack = active.projectedAch !== null ? active.projectedAch >= 1 : null;
   const availability = {
