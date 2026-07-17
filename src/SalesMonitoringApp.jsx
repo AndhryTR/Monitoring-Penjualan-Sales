@@ -5,15 +5,12 @@ import {
   Smartphone, Share, History, Settings,
   FileSpreadsheet, AlertTriangle, CheckCircle2,
 } from "lucide-react";
-import { fmtRp, fmtNum, fmtPct } from "./utils/formatters.js";
 import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory } from "./utils/storage.js";
-import { exportSummaryPDF, exportSalesScorecardPDF, exportAllScorecardsPDF } from "./utils/pdfExport.js";
-import { exportToExcel } from "./utils/excelExport.js";
 import {
   parseWorkbookFile, dedupeRows,
 } from "./utils/excelParse.js";
 import {
-  useAggregates, computeAggregates, detectMonths, getOutletBreakdown, computeOutletAnalysis, getProductBreakdownForOutlet,
+  useAggregates, computeAggregates, detectMonths, getOutletBreakdown, getProductBreakdownForOutlet,
 } from "./utils/aggregation.js";
 import { useDataQualityNotes } from "./utils/dataQuality.js";
 import { buildHistorySnapshot, computeComparison, computeMultiPeriodComparison } from "./utils/history.js";
@@ -21,13 +18,11 @@ import { generateSampleRows } from "./utils/sampleData.js";
 import { ALIASES } from "./constants/aliases.js";
 import { PRIMARY_TABS, MORE_TABS } from "./constants/tabs.js";
 import { Sidebar } from "./components/layout/Sidebar.jsx";
-import { WORK_DAYS_DEFAULT, OUTLET_DEFAULT_THRESHOLDS } from "./constants/thresholds.js";
+import { WORK_DAYS_DEFAULT } from "./constants/thresholds.js";
 import DEFAULT_TARGETS from "./constants/defaultTargets.json";
 // Modul virtual dari vite-plugin-pwa — hanya ada saat plugin ini terpasang &
 // dijalankan lewat Vite (dev atau build), bukan package npm biasa.
 import { useRegisterSW } from "virtual:pwa-register/react";
-import { KpiCard } from "./components/KpiCard.jsx";
-import { PaceStrip } from "./components/PaceStrip.jsx";
 import { FilterBar } from "./components/ui/FilterBar.jsx";
 import { DashboardSkeleton } from "./components/ui/DashboardSkeleton.jsx";
 import { UploadDropzone, MobileBottomNav, MobileFab, ExportMenu } from "./components/upload/index.jsx";
