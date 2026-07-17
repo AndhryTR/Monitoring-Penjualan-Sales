@@ -43,6 +43,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
       predicate: sm.predicate,
     };
   }), [rows, lastDaySalesMap]);
+  const lastDateLabel = agg.meta.lastDate ? formatDateIDShort(agg.meta.lastDate) : "Hari Terakhir";
 
   // Custom Tooltip untuk menyesuaikan warna teks dengan warna bar
   const CustomTooltip = ({ active, payload, label }) => {
@@ -68,7 +69,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
       <div className="mt-8 mb-8">
         <SectionTitle
           title="Total Periode vs Hari Terakhir"
-          sub={agg.meta.lastDate ? `Pencapaian & AO total dibandingkan hari terakhir (${formatDateIDShort(agg.meta.lastDate)})` : "Belum ada data"}
+          sub="Pencapaian & AO total dibandingkan hari terakhir per sales"
           icon={CalendarClock}
           colors={colors}
         />
@@ -84,8 +85,8 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
             { key: "totalValue", label: "Realisasi Total", render: (r) => <span className="mono">{fmtRp(r.totalValue)}</span> },
             { key: "totalAo", label: "AO Total", render: (r) => <span className="mono">{fmtNum(r.totalAo)}</span> },
             { key: "totalAch", label: "ACH% Total", render: (r) => <AchBadge ach={r.totalAch} colors={colors} /> },
-            { key: "lastDayValue", label: "Realisasi H-Terakhir", render: (r) => <span className="mono">{fmtRp(r.lastDayValue)}</span> },
-            { key: "lastDayAo", label: "AO H-Terakhir", render: (r) => <span className="mono">{fmtNum(r.lastDayAo)}</span> },
+            { key: "lastDayValue", label: `Realisasi (${lastDateLabel})`, render: (r) => <span className="mono">{fmtRp(r.lastDayValue)}</span> },
+            { key: "lastDayAo", label: `AO (${lastDateLabel})`, render: (r) => <span className="mono">{fmtNum(r.lastDayAo)}</span> },
             { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(r.salesName, "Semua outlet", r.predicate)} /> },
           ]}
           rows={totalVsLastDayRows}
