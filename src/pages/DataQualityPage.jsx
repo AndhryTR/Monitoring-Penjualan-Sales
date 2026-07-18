@@ -6,7 +6,7 @@ import { fmtRp, fmtNum } from "../utils/formatters.js";
 import { FIELD_LABELS } from "../constants/aliases.js";
 import { KpiCard } from "../components/KpiCard.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
-import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
+import { DrilldownButton, CollapsibleSection } from "../components/ui/index.jsx";
 
 /* ============================================================================
    TAB: CATATAN DATA
@@ -20,27 +20,26 @@ export function DataQualityPage({ notes, colors, onDrilldown }) {
 
   return (
     <div className="sm-fadein">
-      <SectionTitle title="Catatan Data" sub="Ringkasan kualitas data dari seluruh file yang diupload (tidak terpengaruh filter)" icon={ClipboardList} colors={colors} />
-
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-        <KpiCard label="Total Baris Terbaca" value={notes.totalDataRows} icon={FileSpreadsheet} accent={colors.blue} colors={colors} />
-        <KpiCard label="Baris Dilewati (Kosong)" value={notes.skippedBlankRows} icon={XCircle} accent={colors.textMuted} colors={colors} />
-        <KpiCard label="Duplikat Dihapus" value={notes.duplicateRowsRemoved} icon={Copy} accent={notes.duplicateRowsRemoved > 0 ? colors.gold : colors.textMuted} colors={colors} />
-        <KpiCard label="Tanggal Tidak Terbaca" value={notes.rowsWithMissingDate} icon={CalendarDays} accent={notes.rowsWithMissingDate > 0 ? colors.coral : colors.textMuted} colors={colors} />
-        <KpiCard label="Kolom Tidak Terdeteksi" value={notes.missingFields.length} icon={FileQuestion} accent={notes.missingFields.length > 0 ? colors.coral : colors.textMuted} colors={colors} />
-      </div>
-
-      {!hasIssues && (
-        <div className="sm-card p-8 text-center mb-6">
-          <CheckCircle2 size={28} className="mx-auto mb-2" style={{ color: colors.mint }} />
-          <div className="font-semibold mb-1">Tidak ada masalah kualitas data terdeteksi</div>
-          <p className="text-sm" style={{ color: colors.textMuted }}>Semua kolom terbaca dan cocok dengan konfigurasi Target saat ini.</p>
+      <CollapsibleSection id="dataQuality.main" title="Catatan Data" sub="Ringkasan kualitas data dari seluruh file yang diupload (tidak terpengaruh filter)" icon={ClipboardList} colors={colors} className="mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+          <KpiCard label="Total Baris Terbaca" value={notes.totalDataRows} icon={FileSpreadsheet} accent={colors.blue} colors={colors} />
+          <KpiCard label="Baris Dilewati (Kosong)" value={notes.skippedBlankRows} icon={XCircle} accent={colors.textMuted} colors={colors} />
+          <KpiCard label="Duplikat Dihapus" value={notes.duplicateRowsRemoved} icon={Copy} accent={notes.duplicateRowsRemoved > 0 ? colors.gold : colors.textMuted} colors={colors} />
+          <KpiCard label="Tanggal Tidak Terbaca" value={notes.rowsWithMissingDate} icon={CalendarDays} accent={notes.rowsWithMissingDate > 0 ? colors.coral : colors.textMuted} colors={colors} />
+          <KpiCard label="Kolom Tidak Terdeteksi" value={notes.missingFields.length} icon={FileQuestion} accent={notes.missingFields.length > 0 ? colors.coral : colors.textMuted} colors={colors} />
         </div>
-      )}
+
+        {!hasIssues && (
+          <div className="sm-card p-8 text-center">
+            <CheckCircle2 size={28} className="mx-auto mb-2" style={{ color: colors.mint }} />
+            <div className="font-semibold mb-1">Tidak ada masalah kualitas data terdeteksi</div>
+            <p className="text-sm" style={{ color: colors.textMuted }}>Semua kolom terbaca dan cocok dengan konfigurasi Target saat ini.</p>
+          </div>
+        )}
+      </CollapsibleSection>
 
       {notes.missingFields.length > 0 && (
-        <div className="sm-card p-5 mb-6">
-          <SectionTitle title="Kolom Tidak Terdeteksi" sub="Nama kolom di file tidak cocok dengan alias yang dikenali aplikasi" icon={FileQuestion} colors={colors} />
+        <CollapsibleSection id="dataQuality.kolomTidakTerdeteksi" title="Kolom Tidak Terdeteksi" sub="Nama kolom di file tidak cocok dengan alias yang dikenali aplikasi" icon={FileQuestion} colors={colors} className="mb-8">
           <div className="flex flex-wrap gap-2">
             {notes.missingFields.map((f) => (
               <span key={f} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ background: colors.coral + "1A", color: colors.coral }}>
@@ -48,12 +47,11 @@ export function DataQualityPage({ notes, colors, onDrilldown }) {
               </span>
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
       )}
 
       {notes.unknownSales.length > 0 && (
-        <div className="mb-8">
-          <SectionTitle title="Kode Sales Tidak Dikenali" sub="Ada di data, tapi tidak cocok dengan konfigurasi Target — transaksinya tidak ikut dihitung di dashboard manapun" icon={Users} colors={colors} />
+        <CollapsibleSection id="dataQuality.kodeSalesTidakDikenali" title="Kode Sales Tidak Dikenali" sub="Ada di data, tapi tidak cocok dengan konfigurasi Target — transaksinya tidak ikut dihitung di dashboard manapun" icon={Users} colors={colors} className="mb-8">
           <DataTable
             colors={colors}
             initialSortKey="value"
@@ -66,12 +64,11 @@ export function DataQualityPage({ notes, colors, onDrilldown }) {
             ]}
             rows={notes.unknownSales}
           />
-        </div>
+        </CollapsibleSection>
       )}
 
       {notes.unknownGroups.length > 0 && (
-        <div className="mb-8">
-          <SectionTitle title="Grup Produk Tidak Dikenali" sub="Ada di data untuk sales tsb, tapi tidak ada di daftar grup produk sales itu pada konfigurasi Target" icon={Package} colors={colors} />
+        <CollapsibleSection id="dataQuality.grupTidakDikenali" title="Grup Produk Tidak Dikenali" sub="Ada di data untuk sales tsb, tapi tidak ada di daftar grup produk sales itu pada konfigurasi Target" icon={Package} colors={colors} className="mb-8">
           <DataTable
             colors={colors}
             initialSortKey="value"
@@ -84,12 +81,11 @@ export function DataQualityPage({ notes, colors, onDrilldown }) {
             ]}
             rows={notes.unknownGroups}
           />
-        </div>
+        </CollapsibleSection>
       )}
 
       {notes.unconvertibleProducts.length > 0 && (
-        <div className="mb-8">
-          <SectionTitle title="Produk Tidak Bisa Dikonversi ke KARTON" sub="Tidak ada baris bersatuan KARTON untuk produk ini di data, jadi angkanya memakai satuan asli" icon={AlertTriangle} colors={colors} />
+        <CollapsibleSection id="dataQuality.produkTidakBisaDikonversi" title="Produk Tidak Bisa Dikonversi ke KARTON" sub="Tidak ada baris bersatuan KARTON untuk produk ini di data, jadi angkanya memakai satuan asli" icon={AlertTriangle} colors={colors} className="mb-8">
           <DataTable
             colors={colors}
             initialSortKey="rowCount"
@@ -101,7 +97,7 @@ export function DataQualityPage({ notes, colors, onDrilldown }) {
             ]}
             rows={notes.unconvertibleProducts}
           />
-        </div>
+        </CollapsibleSection>
       )}
     </div>
   );

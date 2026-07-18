@@ -4,7 +4,7 @@ import {
 } from "recharts";
 import { TrendingUp, ArrowUpRight, ArrowDownRight, History, Users, Wallet, Sparkles } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
-import { SectionTitle, createChartTooltipStyle } from "../ui/index.jsx";
+import { SectionTitle, createChartTooltipStyle, CollapsibleSection } from "../ui/index.jsx";
 import { MultiSelect } from "../ui/MultiSelect.jsx";
 
 const LINE_COLOR_KEYS = ["gold", "mint", "violet", "blue", "coral"];
@@ -148,68 +148,74 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
 
       {/* Chart tren per sales */}
       <div className="sm-card p-5 sm-fadeup mb-6">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <SectionTitle title={`Tren ${metric === "value" ? "Value" : "AO"} per Sales`} sub="Pilih sales yang ingin ditampilkan" icon={TrendingUp} colors={colors} />
-          <MultiSelect label="Sales" icon={Users} options={allSalesNames} selected={effectiveSelectedNames} onChange={setSelectedNames} placeholder="Cari sales..." colors={colors} />
-        </div>
-        <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
-            <XAxis dataKey="label" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
-            <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false}
-              tickFormatter={(v) => metric === "value" ? compactAxisValue(v) : fmtNum(v)} width={56} />
-            <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => metric === "value" ? fmtRp(v) : fmtNum(v)} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            {effectiveSelectedNames.map((name, i) => (
-              <Line key={name} type="monotone" dataKey={name} stroke={colors[LINE_COLOR_KEYS[i % LINE_COLOR_KEYS.length]]}
-                strokeWidth={2} dot={{ r: 3 }} connectNulls />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
+        <CollapsibleSection
+          id="trend.chart"
+          title={`Tren ${metric === "value" ? "Value" : "AO"} per Sales`}
+          sub="Pilih sales yang ingin ditampilkan"
+          icon={TrendingUp}
+          colors={colors}
+          actions={<MultiSelect label="Sales" icon={Users} options={allSalesNames} selected={effectiveSelectedNames} onChange={setSelectedNames} placeholder="Cari sales..." colors={colors} />}
+        >
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
+              <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false}
+                tickFormatter={(v) => metric === "value" ? compactAxisValue(v) : fmtNum(v)} width={56} />
+              <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => metric === "value" ? fmtRp(v) : fmtNum(v)} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              {effectiveSelectedNames.map((name, i) => (
+                <Line key={name} type="monotone" dataKey={name} stroke={colors[LINE_COLOR_KEYS[i % LINE_COLOR_KEYS.length]]}
+                  strokeWidth={2} dot={{ r: 3 }} connectNulls />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </CollapsibleSection>
       </div>
 
       {/* Tabel detail per sales */}
       <div className="sm-card p-5 sm-fadeup mb-8">
-        <SectionTitle title={`Detail ${metric === "value" ? "Value" : "AO"} per Sales`} sub="Kolom terakhir = periode aktif · pertumbuhan dihitung antar 2 titik data terakhir yang tersedia" icon={Users} colors={colors} />
-        <div className="overflow-x-auto -mx-1">
-          <table className="w-full text-sm border-separate" style={{ borderSpacing: 0 }}>
-            <thead>
-              <tr>
-                <th className="text-left px-3 py-2 sticky left-0 z-10" style={{ background: colors.surface, color: colors.textMuted, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Sales</th>
-                {periods.map((p) => (
-                  <th key={p.id} className="text-right px-3 py-2 whitespace-nowrap" style={{ color: p.isCurrent ? colors.gold : colors.textMuted, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>
-                    {p.label}
-                  </th>
-                ))}
-                <th className="text-right px-3 py-2 whitespace-nowrap" style={{ color: colors.textMuted, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Growth</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bySales.map((s) => (
-                <tr key={s.code} className="sm-row">
-                  <td className="px-3 py-2 sticky left-0 z-10 truncate max-w-[160px]" style={{ background: colors.surface }}>{s.name}</td>
-                  {s.series.map((pt) => (
-                    <td key={pt.periodId} className="text-right px-3 py-2 whitespace-nowrap">
-                      {pt.missing ? (
-                        <span className="text-xs" style={{ color: colors.textMuted }}>-</span>
-                      ) : (
-                        <div>
-                          <div className="mono">{metric === "value" ? fmtRp(pt.value) : fmtNum(pt.ao)}</div>
-                          <div className="text-[10px] mono" style={{ color: (() => { const a = metric === "value" ? pt.ach : pt.achAo; return a === null ? colors.textMuted : a >= 1 ? colors.mint : colors.coral; })() }}>
-                            {fmtPct(metric === "value" ? pt.ach : pt.achAo)}
-                          </div>
-                        </div>
-                      )}
-                    </td>
+        <CollapsibleSection id="trend.detailTabel" title={`Detail ${metric === "value" ? "Value" : "AO"} per Sales`} sub="Kolom terakhir = periode aktif · pertumbuhan dihitung antar 2 titik data terakhir yang tersedia" icon={Users} colors={colors}>
+          <div className="overflow-x-auto -mx-1">
+            <table className="w-full text-sm border-separate" style={{ borderSpacing: 0 }}>
+              <thead>
+                <tr>
+                  <th className="text-left px-3 py-2 sticky left-0 z-10" style={{ background: colors.surface, color: colors.textMuted, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Sales</th>
+                  {periods.map((p) => (
+                    <th key={p.id} className="text-right px-3 py-2 whitespace-nowrap" style={{ color: p.isCurrent ? colors.gold : colors.textMuted, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>
+                      {p.label}
+                    </th>
                   ))}
-                  <td className="text-right px-3 py-2 whitespace-nowrap">
-                    <GrowthTag growth={metric === "value" ? s.growthValue : s.growthAo} colors={colors} />
-                  </td>
+                  <th className="text-right px-3 py-2 whitespace-nowrap" style={{ color: colors.textMuted, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Growth</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {bySales.map((s) => (
+                  <tr key={s.code} className="sm-row">
+                    <td className="px-3 py-2 sticky left-0 z-10 truncate max-w-[160px]" style={{ background: colors.surface }}>{s.name}</td>
+                    {s.series.map((pt) => (
+                      <td key={pt.periodId} className="text-right px-3 py-2 whitespace-nowrap">
+                        {pt.missing ? (
+                          <span className="text-xs" style={{ color: colors.textMuted }}>-</span>
+                        ) : (
+                          <div>
+                            <div className="mono">{metric === "value" ? fmtRp(pt.value) : fmtNum(pt.ao)}</div>
+                            <div className="text-[10px] mono" style={{ color: (() => { const a = metric === "value" ? pt.ach : pt.achAo; return a === null ? colors.textMuted : a >= 1 ? colors.mint : colors.coral; })() }}>
+                              {fmtPct(metric === "value" ? pt.ach : pt.achAo)}
+                            </div>
+                          </div>
+                        )}
+                      </td>
+                    ))}
+                    <td className="text-right px-3 py-2 whitespace-nowrap">
+                      <GrowthTag growth={metric === "value" ? s.growthValue : s.growthAo} colors={colors} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CollapsibleSection>
       </div>
     </div>
   );

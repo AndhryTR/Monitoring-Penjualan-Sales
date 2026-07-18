@@ -108,6 +108,38 @@ export function clearHistory() {
   }
 }
 
+/* ------------------- Status ciut/buka section (localStorage) ------------------- *
+ * Satu blob JSON kecil: { [sectionId]: true } — key hanya ada kalau section itu
+ * SEDANG DICIUTKAN (collapsed). Section yang tidak ada di map = default terbuka.
+ * Dipakai oleh hooks/useCollapsedSection.js supaya status ciut/buka tiap
+ * section (tabel, leaderboard, chart, dll) diingat lintas sesi.
+ */
+
+const COLLAPSED_SECTIONS_KEY = "smapp:collapsedSections:v1";
+
+export function saveCollapsedSections(map) {
+  try {
+    window.localStorage.setItem(COLLAPSED_SECTIONS_KEY, JSON.stringify(map || {}));
+    return true;
+  } catch (e) {
+    console.warn("Gagal menyimpan status ciut/buka section:", e);
+    return false;
+  }
+}
+
+export function loadCollapsedSections() {
+  try {
+    const raw = window.localStorage.getItem(COLLAPSED_SECTIONS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed;
+  } catch (e) {
+    console.warn("Gagal membaca status ciut/buka section:", e);
+    return {};
+  }
+}
+
 /* ---------------------------- Session data (IndexedDB) --------------------------- */
 
 function openDB() {

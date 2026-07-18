@@ -7,7 +7,7 @@ import { fmtRp, fmtNum } from "../utils/formatters.js";
 import { exportSalesScorecardPDF } from "../utils/pdfExport.js";
 import { getLastDaySalesMap } from "../utils/aggregation.js";
 import { DataTable } from "../components/ui/DataTable.jsx";
-import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
+import { DrilldownButton, CollapsibleSection } from "../components/ui/index.jsx";
 import { Leaderboard } from "../components/cards/index.jsx";
 import { AchBadge } from "../components/AchBadge.jsx";
 
@@ -43,6 +43,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
       predicate: sm.predicate,
     };
   }), [rows, lastDaySalesMap]);
+  const lastDateLabel = agg.meta.lastDate ? formatDateIDShort(agg.meta.lastDate) : "Hari Terakhir";
 
   // Custom Tooltip untuk menyesuaikan warna teks dengan warna bar
   const CustomTooltip = ({ active, payload, label }) => {
@@ -65,13 +66,14 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
     <div className="sm-fadein">
       <Leaderboard rows={rows} colors={colors} onDrilldown={onDrilldown} onExportScorecard={handleExportScorecard} />
 
-      <div className="mt-8 mb-8">
-        <SectionTitle
-          title="Total Periode vs Hari Terakhir"
-          sub={agg.meta.lastDate ? `Pencapaian & AO total dibandingkan hari terakhir (${formatDateIDShort(agg.meta.lastDate)})` : "Belum ada data"}
-          icon={CalendarClock}
-          colors={colors}
-        />
+      <CollapsibleSection
+        id="salesReport.totalVsLastDay"
+        title="Total Periode vs Hari Terakhir"
+        sub="Pencapaian & AO total dibandingkan hari terakhir per sales"
+        icon={CalendarClock}
+        colors={colors}
+        className="mt-8 mb-8"
+      >
         <DataTable
           colors={colors}
           initialSortKey="totalValue"
@@ -84,29 +86,29 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
             { key: "totalValue", label: "Realisasi Total", render: (r) => <span className="mono">{fmtRp(r.totalValue)}</span> },
             { key: "totalAo", label: "AO Total", render: (r) => <span className="mono">{fmtNum(r.totalAo)}</span> },
             { key: "totalAch", label: "ACH% Total", render: (r) => <AchBadge ach={r.totalAch} colors={colors} /> },
-            { key: "lastDayValue", label: "Realisasi H-Terakhir", render: (r) => <span className="mono">{fmtRp(r.lastDayValue)}</span> },
-            { key: "lastDayAo", label: "AO H-Terakhir", render: (r) => <span className="mono">{fmtNum(r.lastDayAo)}</span> },
+            { key: "lastDayValue", label: `Realisasi (${lastDateLabel})`, render: (r) => <span className="mono">{fmtRp(r.lastDayValue)}</span> },
+            { key: "lastDayAo", label: `AO (${lastDateLabel})`, render: (r) => <span className="mono">{fmtNum(r.lastDayAo)}</span> },
             { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(r.salesName, "Semua outlet", r.predicate)} /> },
           ]}
           rows={totalVsLastDayRows}
         />
-      </div>
+      </CollapsibleSection>
 
-      <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} />
-      <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
-        <BarChart data={rows} layout="vertical" margin={{ left: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={colors.border} horizontal={false} />
-          <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
-          <YAxis type="category" dataKey="name" width={160} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: colors.surface2 }} />
-          <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
-            {rows.map((r, i) => <Cell key={i} fill={r.ach >= 1 ? colors.mint : r.ach >= 0.7 ? colors.gold : colors.coral} />)}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+      <CollapsibleSection id="salesReport.performaPerSales" title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} className="mb-8">
+        <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
+          <BarChart data={rows} layout="vertical" margin={{ left: 10 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.border} horizontal={false} />
+            <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
+            <YAxis type="category" dataKey="name" width={160} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: colors.surface2 }} />
+            <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
+              {rows.map((r, i) => <Cell key={i} fill={r.ach >= 1 ? colors.mint : r.ach >= 0.7 ? colors.gold : colors.coral} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </CollapsibleSection>
 
-      <div className="mt-8">
-        <SectionTitle title="Detail per Sales × Grup Produk" icon={Boxes} colors={colors} />
+      <CollapsibleSection id="salesReport.detailSalesGrup" title="Detail per Sales × Grup Produk" icon={Boxes} colors={colors}>
         <DataTable
           colors={colors}
           initialSortKey="value"
@@ -121,7 +123,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
           ]}
           rows={groupRows}
         />
-      </div>
+      </CollapsibleSection>
     </div>
   );
 }
