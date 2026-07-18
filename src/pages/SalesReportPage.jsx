@@ -66,33 +66,6 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
     <div className="sm-fadein">
       <Leaderboard rows={rows} colors={colors} onDrilldown={onDrilldown} onExportScorecard={handleExportScorecard} />
 
-      <div className="mt-8 mb-8">
-        <SectionTitle
-          title="Total Periode vs Hari Terakhir"
-          sub="Pencapaian & AO total dibandingkan hari terakhir per sales"
-          icon={CalendarClock}
-          colors={colors}
-        />
-        <DataTable
-          colors={colors}
-          initialSortKey="totalValue"
-          searchable
-          searchKeys={["salesName"]}
-          searchPlaceholder="Cari nama sales..."
-          mobileTitleKey="salesName"
-          columns={[
-            { key: "salesName", label: "Sales" },
-            { key: "totalValue", label: "Realisasi Total", render: (r) => <span className="mono">{fmtRp(r.totalValue)}</span> },
-            { key: "totalAo", label: "AO Total", render: (r) => <span className="mono">{fmtNum(r.totalAo)}</span> },
-            { key: "totalAch", label: "ACH% Total", render: (r) => <AchBadge ach={r.totalAch} colors={colors} /> },
-            { key: "lastDayValue", label: `Realisasi (${lastDateLabel})`, render: (r) => <span className="mono">{fmtRp(r.lastDayValue)}</span> },
-            { key: "lastDayAo", label: `AO (${lastDateLabel})`, render: (r) => <span className="mono">{fmtNum(r.lastDayAo)}</span> },
-            { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(r.salesName, "Semua outlet", r.predicate)} /> },
-          ]}
-          rows={totalVsLastDayRows}
-        />
-      </div>
-
       <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} />
       <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
         <BarChart data={rows} layout="vertical" margin={{ left: 10 }}>
@@ -121,6 +94,33 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
             { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(`${r.salesName} — ${r.groupName}`, "Outlet", r.predicate)} /> },
           ]}
           rows={groupRows}
+        />
+      </div>
+
+      <div className="mt-8 mb-8">
+        <SectionTitle
+          title="Total Periode vs Hari Terakhir"
+          sub="Pencapaian & AO total dibandingkan hari terakhir per sales"
+          icon={CalendarClock}
+          colors={colors}
+        />
+        <DataTable
+          colors={colors}
+          initialSortKey="totalValue"
+          searchable
+          searchKeys={["salesName"]}
+          searchPlaceholder="Cari nama sales..."
+          mobileTitleKey="salesName"
+          columns={[
+            { key: "salesName", label: "Sales" },
+            { key: "totalValue", label: "Realisasi Total", render: (r) => <span className="mono">{fmtRp(r.totalValue)}</span> },
+            { key: "totalAo", label: "AO Total", render: (r) => <span className="mono">{fmtNum(r.totalAo)}</span> },
+            { key: "totalAch", label: "ACH% Total", render: (r) => <AchBadge ach={r.totalAch} colors={colors} /> },
+            { key: "lastDayValue", label: `Realisasi (${lastDateLabel})`, render: (r) => <span className="mono">{fmtRp(r.lastDayValue)}</span> },
+            { key: "lastDayAo", label: `AO (${lastDateLabel})`, render: (r) => <span className="mono">{fmtNum(r.lastDayAo)}</span> },
+            { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(r.salesName, "Semua outlet", r.predicate)} /> },
+          ]}
+          rows={totalVsLastDayRows}
         />
       </div>
     </div>
