@@ -57,15 +57,19 @@ const createGlobalStyle = (colors) => `
 .smapp *::-webkit-scrollbar { height: 8px; width: 8px; }
 .smapp *::-webkit-scrollbar-thumb { background: ${colors.border}; border-radius: 4px; border: 2px solid ${colors.ink}; }
 .smapp *::-webkit-scrollbar-track { background: transparent; }
-/* --- Aurora mesh background (Fase 1) --- */
+/* --- Aurora mesh background (Fase 4 — final spec, 5 blobs) --- */
 .sm-mesh { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-.sm-mesh .blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .55; will-change: transform; }
-.sm-mesh .blob-blue { width: 620px; height: 620px; top: -160px; left: -120px; background: ${colors.blobBlue}; animation: smBlobA 34s ease-in-out infinite; }
-.sm-mesh .blob-violet { width: 560px; height: 560px; top: 30%; right: -180px; background: ${colors.blobViolet}; animation: smBlobB 40s ease-in-out infinite; }
-.sm-mesh .blob-rose { width: 480px; height: 480px; bottom: -180px; left: 25%; background: ${colors.blobRose}; animation: smBlobC 46s ease-in-out infinite; }
-@keyframes smBlobA { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(60px,40px) scale(1.08); } }
-@keyframes smBlobB { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-50px,60px) scale(1.05); } }
-@keyframes smBlobC { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(40px,-50px) scale(1.1); } }
+.sm-mesh .blob { position: absolute; border-radius: 50%; filter: blur(80px); will-change: transform; }
+.sm-mesh .blob-1 { top: -12%; left: -10%; animation: smBlobA 28s cubic-bezier(.4,0,.2,1) infinite; }
+.sm-mesh .blob-2 { top: 22%; right: -14%; animation: smBlobB 34s cubic-bezier(.4,0,.2,1) infinite; }
+.sm-mesh .blob-3 { bottom: -14%; left: 12%; animation: smBlobC 31s cubic-bezier(.4,0,.2,1) infinite; }
+.sm-mesh .blob-4 { bottom: -10%; right: 8%; animation: smBlobD 26s cubic-bezier(.4,0,.2,1) infinite; }
+.sm-mesh .blob-5 { top: 38%; left: 38%; animation: smBlobE 33s cubic-bezier(.4,0,.2,1) infinite; }
+@keyframes smBlobA { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(6%,4%) scale(1.08); } }
+@keyframes smBlobB { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-5%,6%) scale(1.05); } }
+@keyframes smBlobC { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(4%,-5%) scale(1.1); } }
+@keyframes smBlobD { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-4%,-4%) scale(1.06); } }
+@keyframes smBlobE { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(5%,5%) scale(1.04); } }
 @keyframes smFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes smFadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes smPulse { 0%,100% { opacity:1 } 50% { opacity:.55 } }
@@ -76,13 +80,13 @@ const createGlobalStyle = (colors) => `
 .sm-fadein { animation: smFadeIn .3s ease both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
 .sm-pulse { animation: smPulse 1.8s ease-in-out infinite; }
 .sm-shimmer { background: linear-gradient(90deg, ${colors.surface2} 0%, ${colors.border} 50%, ${colors.surface2} 100%); background-size: 800px 100%; animation: smShimmer 1.4s linear infinite; }
-.sm-card { background: ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; border-radius: 16px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); transition: transform .25s ease, box-shadow .25s ease, background .3s ease, border-color .3s ease; box-shadow: 0 8px 32px rgba(0,0,0,.25), inset 0 1px 0 ${colors.glassHighlight}; }
-.sm-card:hover { transform: translateY(-2px); background: ${colors.glassFillStrong}; box-shadow: 0 12px 40px rgba(0,0,0,.3), inset 0 1px 0 ${colors.glassHighlight}; }
+.sm-card { background: ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; border-radius: 16px; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); transition: transform .25s ease, box-shadow .25s ease, background .3s ease, border-color .3s ease, backdrop-filter .3s ease; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
+.sm-card:hover { transform: translateY(-2px); background: ${colors.glassFillStrong}; border-color: ${colors.glassBorderElevated}; backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
 .sm-glow-wrap { position: relative; }
 .sm-glow-wrap .sm-glow { position: absolute; inset: -18px; border-radius: 26px; filter: blur(28px); opacity: .32; z-index: -1; pointer-events: none; transition: opacity .3s ease; }
 .sm-glow-wrap:hover .sm-glow { opacity: .48; }
-.sm-sidebar-glass { background: ${colors.glassFill}; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid ${colors.glassBorder}; box-shadow: 0 8px 32px rgba(0,0,0,.25), inset 0 1px 0 ${colors.glassHighlight}; }
-.sm-modal-glass { background: ${colors.glassFillStrong} !important; backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px); }
+.sm-sidebar-glass { background: ${colors.glassFill}; backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); border: 1px solid ${colors.glassBorder}; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
+.sm-modal-glass { background: ${colors.modalBg} !important; border: 1px solid ${colors.modalBorder} !important; backdrop-filter: blur(40px) !important; -webkit-backdrop-filter: blur(40px) !important; }
 .sm-tab-btn { position: relative; transition: color .2s ease; }
 .sm-chip { transition: all .18s ease; }
 .sm-chip:hover { transform: translateY(-1px); }
@@ -422,9 +426,13 @@ export default function SalesMonitoringApp() {
     <div className="smapp min-h-screen transition-colors duration-300">
       <style>{globalStyle}</style>
       <div className="sm-mesh" aria-hidden="true">
-        <div className="blob blob-blue" />
-        <div className="blob blob-violet" />
-        <div className="blob blob-rose" />
+        {colors.blobs.map((b, i) => (
+          <div
+            key={i}
+            className={`blob blob-${i + 1}`}
+            style={{ width: b.size, height: b.size, background: `rgba(${b.rgb},${b.opacity})` }}
+          />
+        ))}
       </div>
       <div className="relative" style={{ zIndex: 1 }}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors}
