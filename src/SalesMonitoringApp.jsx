@@ -76,8 +76,12 @@ const createGlobalStyle = (colors) => `
 .sm-fadein { animation: smFadeIn .3s ease both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
 .sm-pulse { animation: smPulse 1.8s ease-in-out infinite; }
 .sm-shimmer { background: linear-gradient(90deg, ${colors.surface2} 0%, ${colors.border} 50%, ${colors.surface2} 100%); background-size: 800px 100%; animation: smShimmer 1.4s linear infinite; }
-.sm-card { background: ${colors.surface}; border-radius: 16px; transition: transform .25s ease, box-shadow .25s ease, background .3s ease; box-shadow: 6px 6px 12px ${colors.shadow1}, -6px -6px 12px ${colors.shadow2}; }
-.sm-card:hover { transform: translateY(-2px); box-shadow: 8px 8px 16px ${colors.shadow1}, -8px -8px 16px ${colors.shadow2}; }
+.sm-card { background: ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; border-radius: 16px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); transition: transform .25s ease, box-shadow .25s ease, background .3s ease, border-color .3s ease; box-shadow: 0 8px 32px rgba(0,0,0,.25), inset 0 1px 0 ${colors.glassHighlight}; }
+.sm-card:hover { transform: translateY(-2px); background: ${colors.glassFillStrong}; box-shadow: 0 12px 40px rgba(0,0,0,.3), inset 0 1px 0 ${colors.glassHighlight}; }
+.sm-glow-wrap { position: relative; }
+.sm-glow-wrap .sm-glow { position: absolute; inset: -18px; border-radius: 26px; filter: blur(28px); opacity: .32; z-index: -1; pointer-events: none; transition: opacity .3s ease; }
+.sm-glow-wrap:hover .sm-glow { opacity: .48; }
+.sm-sidebar-glass { background: ${colors.glassFill}; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid ${colors.glassBorder}; box-shadow: 0 8px 32px rgba(0,0,0,.25), inset 0 1px 0 ${colors.glassHighlight}; }
 .sm-tab-btn { position: relative; transition: color .2s ease; }
 .sm-chip { transition: all .18s ease; }
 .sm-chip:hover { transform: translateY(-1px); }
