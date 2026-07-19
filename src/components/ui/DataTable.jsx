@@ -97,7 +97,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
               onChange={(e) => setQuery(e.target.value)}
               placeholder={searchPlaceholder || "Cari..."}
               className="w-full pl-9 pr-8 py-2 rounded-xl text-sm outline-none"
-              style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+              style={{ background: colors.glassFill, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: `1px solid ${colors.glassBorder}`, color: colors.text }}
             />
             {query && (
               <button onClick={() => setQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }}>
@@ -117,10 +117,10 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
       <div className="hidden sm:block overflow-auto max-h-[65vh]">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">
-            <tr style={{ background: colors.surface2 }}>
+            <tr style={{ background: colors.glassFillStrong, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
               {columns.map((c) => (
                 <th key={c.key} onClick={() => c.label && toggleSort(c.key)} className="px-4 py-3 text-left cursor-pointer select-none whitespace-nowrap"
-                  style={{ color: colors.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", background: colors.surface2, boxShadow: `0 1px 0 ${colors.border}` }}>
+                  style={{ color: colors.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", background: colors.glassFillStrong, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: `0 1px 0 ${colors.glassBorderElevated}` }}>
                   {c.label} {sortKey === c.key && (sortDir === "asc" ? "↑" : "↓")}
                 </th>
               ))}
@@ -128,7 +128,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
           </thead>
           <tbody>
             {visibleRows.map((row, i) => (
-              <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.border}` }}>
+              <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.glassBorder}`, background: i % 2 === 1 ? colors.glassSubtle : "transparent" }}>
                 {columns.map((c) => (
                   <td key={c.key} className="px-4 py-3 whitespace-nowrap">
                     {c.render ? c.render(row) : row[c.key]}
@@ -159,7 +159,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
               <div
                 key={i}
                 className="px-4 py-3.5"
-                style={{ borderTop: i === 0 ? "none" : `1px solid ${colors.border}` }}
+                style={{ borderTop: i === 0 ? "none" : `1px solid ${colors.glassBorder}` }}
               >
                 {/* Judul kartu: default = kolom pertama yang punya label; kalau
                     mobileTitleKey diisi, pakai kolom itu (nilai mentah, tanpa
