@@ -35,7 +35,7 @@ export function HistoryModal({ isOpen, onClose, history, onSave, onApply, onDele
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
-      <div className="sm-card sm-scale-in w-full max-w-xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
+      <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-xl max-h-[85vh] flex flex-col">
         <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
           <SectionTitle title="Riwayat & Perbandingan Periode" sub="Pilih 1 periode untuk bandingkan cepat, atau 2+ untuk lihat tren" icon={History} colors={colors} />
           <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
