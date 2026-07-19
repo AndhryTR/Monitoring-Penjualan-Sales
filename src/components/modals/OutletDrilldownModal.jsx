@@ -24,7 +24,7 @@ export function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
-      <div className="sm-card sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
+      <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col">
         <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl" style={{ background: colors.violet + "1A" }}><Store size={16} style={{ color: colors.violet }} /></div>

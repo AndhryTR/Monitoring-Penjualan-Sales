@@ -52,7 +52,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
                   <stop offset="100%" stopColor={colors.gold} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} vertical={false} />
               <XAxis dataKey="date" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
               <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
               <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} />
@@ -64,11 +64,17 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
           <SectionTitle title="Kumulatif Bulanan" sub="Total realisasi per bulan" icon={LayoutDashboard} colors={colors} />
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={agg.monthly}>
-              <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
+              <defs>
+                <linearGradient id="gMint" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={colors.mint} stopOpacity={0.85} />
+                  <stop offset="100%" stopColor={colors.mint} stopOpacity={0.15} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} vertical={false} />
               <XAxis dataKey="month" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
               <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
-              <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} />
-              <Bar dataKey="value" fill={colors.mint} radius={[6, 6, 0, 0]} />
+              <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} cursor={{ fill: colors.glassSubtle }} />
+              <Bar dataKey="value" fill="url(#gMint)" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

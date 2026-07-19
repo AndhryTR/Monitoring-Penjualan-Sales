@@ -51,7 +51,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
       const data = payload[0].payload;
       const barColor = data.ach >= 1 ? colors.mint : data.ach >= 0.7 ? colors.gold : colors.coral;
       return (
-        <div className="p-3 shadow-lg" style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10, fontSize: 12 }}>
+        <div className="p-3" style={{ background: colors.glassFillStrong, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${colors.glassBorderElevated}`, borderRadius: 10, fontSize: 12, boxShadow: colors.glassShadow }}>
           <div className="font-semibold mb-1" style={{ color: colors.text }}>{label}</div>
           <div className="mono font-semibold" style={{ color: barColor }}>
             Realisasi: {fmtRp(data.realisasiValue)}
@@ -69,10 +69,10 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
       <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} />
       <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
         <BarChart data={rows} layout="vertical" margin={{ left: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={colors.border} horizontal={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} horizontal={false} />
           <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
           <YAxis type="category" dataKey="name" width={160} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: colors.surface2 }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: colors.glassSubtle }} />
           <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
             {rows.map((r, i) => <Cell key={i} fill={r.ach >= 1 ? colors.mint : r.ach >= 0.7 ? colors.gold : colors.coral} />)}
           </Bar>

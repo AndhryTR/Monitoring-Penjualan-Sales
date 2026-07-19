@@ -92,10 +92,10 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
             <div className="text-xs uppercase tracking-wider mb-3" style={{ color: colors.textMuted }}>Distribusi Status Outlet</div>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={chartData} layout="vertical" margin={{ left: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={colors.border} horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} horizontal={false} />
                 <XAxis type="number" allowDecimals={false} tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="name" width={70} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => `${v} outlet`} />
+                <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => `${v} outlet`} cursor={{ fill: colors.glassSubtle }} />
                 <Bar dataKey="value" radius={[0, 6, 6, 0]}>
                   {chartData.map((d, i) => <Cell key={i} fill={d.fill} />)}
                 </Bar>

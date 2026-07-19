@@ -26,8 +26,8 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
 
   return (
     <aside
-      className="hidden md:flex flex-col shrink-0 sticky top-0 h-screen transition-all duration-300 ease-out"
-      style={{ width, background: colors.surface, borderRight: `1px solid ${colors.border}` }}
+      className="hidden md:flex flex-col shrink-0 sticky top-4 transition-all duration-300 ease-out sm-sidebar-glass"
+      style={{ width, height: "calc(100vh - 2rem)", marginLeft: "16px", marginTop: "16px", borderRadius: "20px" }}
     >
       {/* Logo/brand kecil di atas sidebar — cuma ikon saat collapsed */}
       <div className="flex items-center gap-2.5 px-4 py-5 shrink-0 overflow-hidden">
@@ -45,7 +45,7 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
         {SIDEBAR_SECTIONS.map((section) => (
           <div key={section.label} className="mb-4">
             {collapsed ? (
-              <div className="mx-1.5 my-2 border-t" style={{ borderColor: colors.border }} />
+              <div className="mx-1.5 my-2 border-t" style={{ borderColor: colors.glassBorder }} />
             ) : (
               <div className="px-2.5 mb-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: colors.textMuted, letterSpacing: "0.06em" }}>
                 {section.label}
@@ -64,8 +64,10 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
                     title={collapsed ? item.label : undefined}
                     className="sm-row flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-left disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{
-                      background: active ? colors.gold + "14" : "transparent",
-                      color: active ? colors.gold : colors.text,
+                      background: active ? colors.mint + "1F" : "transparent",
+                      color: active ? colors.mint : colors.text,
+                      borderLeft: `2px solid ${active ? colors.mint : "transparent"}`,
+                      boxShadow: active ? `0 0 16px ${colors.mint}33` : "none",
                       justifyContent: collapsed ? "center" : "flex-start",
                     }}
                   >
@@ -84,7 +86,7 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
         onClick={onToggleCollapse}
         title={collapsed ? "Perluas sidebar" : "Ciutkan sidebar"}
         className="sm-row flex items-center gap-2.5 px-4 py-3 text-sm shrink-0"
-        style={{ color: colors.textMuted, borderTop: `1px solid ${colors.border}`, justifyContent: collapsed ? "center" : "flex-start" }}
+        style={{ color: colors.textMuted, borderTop: `1px solid ${colors.glassBorder}`, justifyContent: collapsed ? "center" : "flex-start" }}
       >
         {collapsed ? <ChevronsRight size={16} /> : <><ChevronsLeft size={16} /> <span>Ciutkan</span></>}
       </button>

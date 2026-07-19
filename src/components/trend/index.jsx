@@ -154,7 +154,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
         </div>
         <ResponsiveContainer width="100%" height={280}>
           <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} vertical={false} />
             <XAxis dataKey="label" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
             <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false}
               tickFormatter={(v) => metric === "value" ? compactAxisValue(v) : fmtNum(v)} width={56} />

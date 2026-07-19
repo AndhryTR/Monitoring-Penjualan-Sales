@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, X, ChevronDown } from "lucide-react";
+import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { fmtNum } from "../../utils/formatters.js";
 
 /* ============================================================================
@@ -13,18 +13,14 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
   const [sortKey, setSortKey] = useState(initialSortKey || columns[0].key);
   const [sortDir, setSortDir] = useState("desc");
   const [query, setQuery] = useState("");
-  // visibleCount HANYA relevan kalau pageSize diberikan (mis. tabel transaksi
-  // dengan ribuan baris). Kalau tidak diberikan, semua baris hasil search+sort
-  // ditampilkan sekaligus (perilaku lama, tetap dipakai di 8+ tempat lain).
-  const [visibleCount, setVisibleCount] = useState(pageSize || Infinity);
+  const [page, setPage] = useState(1);
 
   // Reset ke halaman pertama setiap kali dataset SUMBER berubah (mis. filter
   // global/lokal berubah) atau query pencarian berubah — supaya user tidak
-  // "stuck" melihat baris ke-1500 dari hasil filter baru yang cuma 200 baris.
+  // "stuck" melihat halaman ke-30 dari hasil filter baru yang cuma 3 halaman.
   // Sengaja TIDAK reset saat ganti sortKey/sortDir: re-sort tetap beroperasi
-  // di atas SELURUH data (bukan cuma yang sudah termuat), jadi user boleh
-  // ganti urutan tanpa kehilangan progres "sudah muat berapa banyak".
-  useEffect(() => { setVisibleCount(pageSize || Infinity); }, [rows, query, pageSize]);
+  // di atas SELURUH data, jadi user boleh ganti urutan tanpa kehilangan posisi halaman.
+  useEffect(() => { setPage(1); }, [rows, query, pageSize]);
 
   // Kolom yang dijadikan target pencarian: pakai searchKeys eksplisit kalau ada,
   // kalau tidak, fallback ke semua kolom yang nilainya berupa string di baris pertama.
@@ -52,13 +48,22 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
   const toggleSort = (k) => { if (k === sortKey) setSortDir(sortDir === "asc" ? "desc" : "asc"); else { setSortKey(k); setSortDir("desc"); } };
 
   // Slice HANYA di sini — setelah search & sort selesai jalan di atas SELURUH
-  // `sorted`. Ini titik krusial fix bug sebelumnya: dulu pemotongan baris
-  // (incremental load) terjadi SEBELUM data masuk ke DataTable, jadi search &
-  // sort cuma bekerja di window yang sudah "dimuat", bukan di seluruh hasil
-  // filter — user bisa salah baca data (mis. sort by Value cuma mengurutkan
-  // 500 baris pertama, bukan top-value dari semua transaksi).
-  const visibleRows = pageSize ? sorted.slice(0, visibleCount) : sorted;
-  const hasMore = Boolean(pageSize) && sorted.length > visibleCount;
+  // `sorted`. Titik krusial: pemotongan baris (per-halaman) terjadi SETELAH
+  // data masuk ke DataTable, jadi search & sort bekerja di seluruh hasil
+  // filter, bukan di window yang sudah "dimuat" — user tidak salah baca data
+  // (mis. sort by Value tetap mengurutkan semua transaksi, bukan cuma halaman ini).
+  const totalPages = pageSize ? Math.max(1, Math.ceil(sorted.length / pageSize)) : 1;
+  const currentPage = Math.min(page, totalPages);
+  const visibleRows = pageSize ? sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize) : sorted;
+
+  // Nomor halaman yang ditampilkan sebagai pill: kalau total sedikit (≤7)
+  // tampilkan semua; kalau banyak, tampilkan halaman pertama/terakhir + 1
+  // sebelum/sesudah halaman aktif, sisanya diringkas jadi "…".
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages = new Set([1, 2, totalPages - 1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+    return Array.from(pages).filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
+  }, [totalPages, currentPage]);
 
   // Untuk tampilan card mobile: default-nya kolom pertama yang punya label jadi
   // judul kartu (perilaku lama, tetap dipakai di 8+ tempat lain). Kalau
@@ -97,7 +102,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
               onChange={(e) => setQuery(e.target.value)}
               placeholder={searchPlaceholder || "Cari..."}
               className="w-full pl-9 pr-8 py-2 rounded-xl text-sm outline-none"
-              style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+              style={{ background: colors.glassFill, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: `1px solid ${colors.glassBorder}`, color: colors.text }}
             />
             {query && (
               <button onClick={() => setQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }}>
@@ -117,10 +122,10 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
       <div className="hidden sm:block overflow-auto max-h-[65vh]">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">
-            <tr style={{ background: colors.surface2 }}>
+            <tr style={{ background: colors.glassFillStrong, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
               {columns.map((c) => (
                 <th key={c.key} onClick={() => c.label && toggleSort(c.key)} className="px-4 py-3 text-left cursor-pointer select-none whitespace-nowrap"
-                  style={{ color: colors.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", background: colors.surface2, boxShadow: `0 1px 0 ${colors.border}` }}>
+                  style={{ color: colors.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", background: colors.glassFillStrong, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: `0 1px 0 ${colors.glassBorderElevated}` }}>
                   {c.label} {sortKey === c.key && (sortDir === "asc" ? "↑" : "↓")}
                 </th>
               ))}
@@ -128,7 +133,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
           </thead>
           <tbody>
             {visibleRows.map((row, i) => (
-              <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.border}` }}>
+              <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.glassBorder}`, background: i % 2 === 1 ? colors.glassSubtle : "transparent" }}>
                 {columns.map((c) => (
                   <td key={c.key} className="px-4 py-3 whitespace-nowrap">
                     {c.render ? c.render(row) : row[c.key]}
@@ -159,7 +164,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
               <div
                 key={i}
                 className="px-4 py-3.5"
-                style={{ borderTop: i === 0 ? "none" : `1px solid ${colors.border}` }}
+                style={{ borderTop: i === 0 ? "none" : `1px solid ${colors.glassBorder}` }}
               >
                 {/* Judul kartu: default = kolom pertama yang punya label; kalau
                     mobileTitleKey diisi, pakai kolom itu (nilai mentah, tanpa
@@ -217,17 +222,52 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
         )}
       </div>
 
-      {hasMore && (
-        <div className="text-center py-4 px-4" style={{ borderTop: `1px solid ${colors.border}` }}>
-          <button
-            onClick={() => setVisibleCount((c) => c + pageSize)}
-            className="sm-btn inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
-            style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}
-          >
-            <ChevronDown size={14} /> Muat lebih banyak ({fmtNum(sorted.length - visibleCount)} baris tersisa)
-          </button>
-          <div className="text-xs mt-2" style={{ color: colors.textMuted }}>
-            Menampilkan {fmtNum(visibleCount)} dari {fmtNum(sorted.length)} baris
+      {pageSize && sorted.length > 0 && totalPages > 1 && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 flex-wrap" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
+          <div className="text-xs" style={{ color: colors.textMuted }}>
+            Menampilkan {fmtNum((currentPage - 1) * pageSize + 1)}–{fmtNum(Math.min(currentPage * pageSize, sorted.length))} dari {fmtNum(sorted.length)} baris
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              aria-label="Halaman sebelumnya"
+              className="sm-btn w-8 h-8 rounded-lg flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
+              style={{ color: colors.text }}
+            >
+              <ChevronLeft size={14} />
+            </button>
+            {pageNumbers.map((p, idx) => {
+              const prevP = pageNumbers[idx - 1];
+              const showEllipsis = prevP !== undefined && p - prevP > 1;
+              const active = p === currentPage;
+              return (
+                <span key={p} className="flex items-center gap-1">
+                  {showEllipsis && <span className="px-1 text-xs" style={{ color: colors.textMuted }}>…</span>}
+                  <button
+                    onClick={() => setPage(p)}
+                    aria-current={active ? "page" : undefined}
+                    className="sm-btn min-w-8 h-8 px-2 rounded-lg text-xs font-semibold mono"
+                    style={{
+                      background: active ? colors.mint + "1F" : colors.glassFill,
+                      border: `1px solid ${active ? colors.mint + "55" : colors.glassBorder}`,
+                      color: active ? colors.mint : colors.text,
+                    }}
+                  >
+                    {p}
+                  </button>
+                </span>
+              );
+            })}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              aria-label="Halaman berikutnya"
+              className="sm-btn w-8 h-8 rounded-lg flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
+              style={{ color: colors.text }}
+            >
+              <ChevronRight size={14} />
+            </button>
           </div>
         </div>
       )}
