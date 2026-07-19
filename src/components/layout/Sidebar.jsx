@@ -64,9 +64,9 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
                     title={collapsed ? item.label : undefined}
                     className="sm-row flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-left disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{
-                      background: active ? colors.gold + "1F" : "transparent",
-                      color: active ? colors.gold : colors.text,
-                      boxShadow: active ? `0 0 16px ${colors.gold}33` : "none",
+                      background: active ? colors.mint + "1F" : "transparent",
+                      color: active ? colors.mint : colors.text,
+                      boxShadow: active ? `0 0 16px ${colors.mint}33` : "none",
                       justifyContent: collapsed ? "center" : "flex-start",
                     }}
                   >
