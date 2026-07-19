@@ -16,7 +16,8 @@ export function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct,
   return (
     <div className="sm-glow-wrap sm-fadeup min-w-0" style={{ animationDelay: `${delay}ms` }}>
       <div className="sm-glow" style={{ background: accent }} />
-      <div className="sm-card p-5 min-w-0">
+      <div className="sm-card p-5 min-w-0" style={{ position: "relative", overflow: "hidden" }}>
+        <div className="sm-kpi-accent-line" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}00)` }} />
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs uppercase tracking-wider font-semibold" style={{ color: colors.textMuted }}>{label}</span>
           <div className="p-1.5 rounded-lg" style={{ background: accent + "1A" }}>
