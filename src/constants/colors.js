@@ -26,6 +26,7 @@ export const THEMES = {
     glassShadow: "0 8px 32px rgba(0,0,0,0.37)",
     modalBg: "rgba(15,23,42,0.85)",
     modalBorder: "rgba(255,255,255,0.12)",
+    chartGrid: "rgba(255,255,255,0.08)",
     blobs: [
       { rgb: "52,211,153", opacity: 0.12, size: 520 },
       { rgb: "167,139,250", opacity: 0.10, size: 560 },
@@ -61,6 +62,7 @@ export const THEMES = {
     glassShadow: "0 8px 32px rgba(0,0,0,0.08)",
     modalBg: "rgba(255,255,255,0.85)",
     modalBorder: "rgba(255,255,255,0.65)",
+    chartGrid: "rgba(17,24,39,0.10)",
     blobs: [
       { rgb: "52,211,153", opacity: 0.22, size: 620 },
       { rgb: "167,139,250", opacity: 0.20, size: 660 },

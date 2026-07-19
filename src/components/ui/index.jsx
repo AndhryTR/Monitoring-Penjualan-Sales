@@ -35,9 +35,12 @@ export function DrilldownButton({ colors, onClick, label = "Outlet" }) {
    di sini supaya konsisten dan tidak duplikasi.
 ============================================================================ */
 export const createChartTooltipStyle = (colors) => ({
-  background: colors.surface,
-  border: `1px solid ${colors.border}`,
+  background: colors.glassFillStrong,
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  border: `1px solid ${colors.glassBorderElevated}`,
   borderRadius: 10,
   color: colors.text,
   fontSize: 12,
+  boxShadow: colors.glassShadow,
 });
