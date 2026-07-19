@@ -142,11 +142,11 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
-      <div className="sm-card sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center glass-backdrop sm-fadein">
+      <div className="glass-modal sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" >
         <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
           <SectionTitle title="Pengaturan" icon={Settings} colors={colors} />
-          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
+          <button onClick={onClose} className="glass-btn p-2 rounded-full"><X size={16} /></button>
         </div>
         <div className="p-5 overflow-y-auto">
           <div className="grid grid-cols-2 gap-4 mb-6">
@@ -175,16 +175,16 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                   <div>
                     <label className="block text-xs mb-1" style={{ color: colors.textMuted }}>Target Value (Rp)</label>
                     <input type="number" value={t.total.value} onChange={e => handleTargetChange(t.code, 'value', e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: colors.ink, border: `1px solid ${colors.border}` }} />
+                      className="w-full px-3 py-1.5 rounded-md mono text-sm" className="glass-input" />
                   </div>
                   <div>
                     <label className="block text-xs mb-1" style={{ color: colors.textMuted }}>Target Active Outlet (AO)</label>
                     <input type="number" value={t.total.ao} onChange={e => handleTargetChange(t.code, 'ao', e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: colors.ink, border: `1px solid ${colors.border}` }} />
+                      className="w-full px-3 py-1.5 rounded-md mono text-sm" className="glass-input" />
                   </div>
                 </div>
 
-                <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${colors.border}` }}>
+                <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                   <button onClick={() => toggleFocusExpand(t.code)} className="sm-btn w-full flex items-center justify-between gap-2">
                     <span className="flex items-center gap-2 text-sm font-medium">
                       <Crosshair size={14} style={{ color: colors.violet }} />
@@ -198,7 +198,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                       {otherSales.length > 0 && (
                         <div className="flex items-center gap-2 mb-3">
                           <select value={copySourceCode[t.code] || ""} onChange={e => setCopySourceCode(prev => ({ ...prev, [t.code]: e.target.value }))}
-                            className="flex-1 px-2.5 py-1.5 rounded-md text-xs" style={{ background: colors.ink, border: `1px solid ${colors.border}`, color: colors.text }}>
+                            className="flex-1 px-2.5 py-1.5 rounded-md text-xs" className="glass-input">
                             <option value="">Salin dari sales lain...</option>
                             {otherSales.map(o => <option key={o.code} value={o.code}>{o.name} ({o.focus.length} produk)</option>)}
                           </select>
@@ -217,7 +217,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                       {t.focus.map((f, i) => {
                         const matchType = f.matchType || (f.keyword === "__GROUP__" ? "group" : f.keyword === "GAS_EXACT" ? "exact" : "contains");
                         return (
-                          <div key={i} className="p-2.5 rounded-lg relative" style={{ background: colors.ink, border: `1px solid ${colors.border}` }}>
+                          <div key={i} className="p-2.5 rounded-lg relative" className="glass-input">
                             <button onClick={() => handleFocusRemove(t.code, i)} title="Hapus produk fokus ini"
                               className="sm-btn absolute top-2 right-2 p-1 rounded-md" style={{ color: colors.coral }}>
                               <X size={12} />
@@ -227,12 +227,12 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                                 <label className="block text-[10px] mb-0.5" style={{ color: colors.textMuted }}>Nama Produk</label>
                                 <input value={f.name} onChange={e => handleFocusChange(t.code, i, 'name', e.target.value)}
                                   placeholder="mis. FISH CAKE"
-                                  className="w-full px-2 py-1.5 rounded text-xs" style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
+                                  className="w-full px-2 py-1.5 rounded text-xs" className="glass-input" />
                               </div>
                               <div>
                                 <label className="block text-[10px] mb-0.5" style={{ color: colors.textMuted }}>Tipe Pencocokan</label>
                                 <select value={matchType} onChange={e => handleFocusChange(t.code, i, 'matchType', e.target.value)}
-                                  className="w-full px-2 py-1.5 rounded text-xs" style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}>
+                                  className="w-full px-2 py-1.5 rounded text-xs" className="glass-input">
                                   {MATCH_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                 </select>
                               </div>
@@ -249,7 +249,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                                 </label>
                                 <input value={f.keyword} onChange={e => handleFocusChange(t.code, i, 'keyword', e.target.value)}
                                   placeholder="mis. FISH"
-                                  className="w-full px-2 py-1.5 rounded text-xs mono" style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
+                                  className="w-full px-2 py-1.5 rounded text-xs mono" className="glass-input" />
                                 {!f.keyword && (
                                   <p className="text-[10px] mt-0.5" style={{ color: colors.coral }}>Wajib diisi — kalau kosong, akan cocok ke SEMUA produk.</p>
                                 )}
@@ -260,13 +260,13 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                               <div>
                                 <label className="block text-[10px] mb-0.5" style={{ color: colors.textMuted }}>Target</label>
                                 <input type="number" value={f.target} onChange={e => handleFocusChange(t.code, i, 'target', e.target.value)}
-                                  className="w-full px-2 py-1.5 rounded text-xs mono" style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
+                                  className="w-full px-2 py-1.5 rounded text-xs mono" className="glass-input" />
                               </div>
                               <div>
                                 <label className="block text-[10px] mb-0.5" style={{ color: colors.textMuted }}>Satuan</label>
                                 <input value={f.unit} onChange={e => handleFocusChange(t.code, i, 'unit', e.target.value)}
                                   placeholder="KARTON"
-                                  className="w-full px-2 py-1.5 rounded text-xs" style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
+                                  className="w-full px-2 py-1.5 rounded text-xs" className="glass-input" />
                               </div>
                             </div>
                           </div>
@@ -326,8 +326,8 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
           </div>
         </div>
         <div className="p-4 mt-auto flex justify-end gap-3" style={{ background: colors.surface2, borderTop: `1px solid ${colors.border}` }}>
-          <button onClick={onClose} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${colors.border}` }}>Batal</button>
-          <button onClick={handleSave} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: colors.gold, color: "#0A1120" }}>Simpan Perubahan</button>
+          <button onClick={onClose} className="glass-btn px-4 py-2 rounded-lg text-sm font-semibold">Batal</button>
+          <button onClick={handleSave} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: colors.gold, color: "#0A1120" }}>Simpan Perubahan</button>
         </div>
       </div>
     </div>

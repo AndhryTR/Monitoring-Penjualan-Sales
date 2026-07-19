@@ -13,7 +13,7 @@ import { KpiCard } from "../components/KpiCard.jsx";
 import { PaceStrip } from "../components/PaceStrip.jsx";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
-import { DrilldownButton, createChartTooltipStyle, CollapsibleSection } from "../components/ui/index.jsx";
+import { SectionTitle, DrilldownButton, createChartTooltipStyle } from "../components/ui/index.jsx";
 import { AlertsPanel, ProjectionCard, PeriodComparisonCard } from "../components/cards/index.jsx";
 
 /* ============================================================================
@@ -42,56 +42,53 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
       <ProjectionCard projection={agg.projection} totals={t} colors={colors} method={projectionMethod} onMethodChange={onProjectionMethodChange} />
 
       <div className="grid lg:grid-cols-2 gap-6 mb-8">
-        <div className="sm-card p-5 sm-fadeup">
-          <CollapsibleSection id="mainReport.trenHarian" title="Tren Harian" sub="Realisasi value per tanggal" icon={CalendarDays} colors={colors}>
-            <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={agg.daily}>
-                <defs>
-                  <linearGradient id="gGold" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={colors.gold} stopOpacity={0.5} />
-                    <stop offset="100%" stopColor={colors.gold} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
-                <XAxis dataKey="date" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
-                <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
-                <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} />
-                <Area type="monotone" dataKey="value" stroke={colors.gold} fill="url(#gGold)" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CollapsibleSection>
+        <div className="glass-panel p-5 sm-fadeup">
+          <SectionTitle title="Tren Harian" sub="Realisasi value per tanggal" icon={CalendarDays} colors={colors} />
+          <ResponsiveContainer width="100%" height={240}>
+            <AreaChart data={agg.daily}>
+              <defs>
+                <linearGradient id="gGold" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={colors.gold} stopOpacity={0.5} />
+                  <stop offset="100%" stopColor={colors.gold} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
+              <XAxis dataKey="date" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
+              <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
+              <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} />
+              <Area type="monotone" dataKey="value" stroke={colors.gold} fill="url(#gGold)" strokeWidth={2} />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
-        <div className="sm-card p-5 sm-fadeup" style={{ animationDelay: "60ms" }}>
-          <CollapsibleSection id="mainReport.kumulatifBulanan" title="Kumulatif Bulanan" sub="Total realisasi per bulan" icon={LayoutDashboard} colors={colors}>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={agg.monthly}>
-                <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
-                <XAxis dataKey="month" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
-                <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
-                <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} />
-                <Bar dataKey="value" fill={colors.mint} radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CollapsibleSection>
+        <div className="glass-panel p-5 sm-fadeup" style={{ animationDelay: "60ms" }}>
+          <SectionTitle title="Kumulatif Bulanan" sub="Total realisasi per bulan" icon={LayoutDashboard} colors={colors} />
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={agg.monthly}>
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
+              <XAxis dataKey="month" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
+              <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
+              <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} />
+              <Bar dataKey="value" fill={colors.mint} radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
-      <CollapsibleSection id="mainReport.ringkasanSales" title="Ringkasan Semua Sales" icon={Users} colors={colors}>
-        <DataTable
-          colors={colors}
-          initialSortKey="realisasiValue"
-          columns={[
-            { key: "name", label: "Sales" },
-            { key: "targetValue", label: "Target", render: (r) => <span className="mono">{fmtRp(r.targetValue)}</span> },
-            { key: "realisasiValue", label: "Realisasi", render: (r) => <span className="mono">{fmtRp(r.realisasiValue)}</span> },
-            { key: "ach", label: "ACH", render: (r) => <AchBadge ach={r.ach} colors={colors} /> },
-            { key: "deviasiValue", label: "Deviasi", render: (r) => <span className="mono" style={{ color: colors.textMuted }}>{fmtRp(r.deviasiValue)}</span> },
-            { key: "realisasiAo", label: "AO", render: (r) => <span className="mono">{r.realisasiAo}/{r.targetAo}</span> },
-            { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(r.name, "Semua outlet", r.predicate)} /> },
-          ]}
-          rows={agg.bySales}
-        />
-      </CollapsibleSection>
+      <SectionTitle title="Ringkasan Semua Sales" icon={Users} colors={colors} />
+      <DataTable
+        colors={colors}
+        initialSortKey="realisasiValue"
+        columns={[
+          { key: "name", label: "Sales" },
+          { key: "targetValue", label: "Target", render: (r) => <span className="mono">{fmtRp(r.targetValue)}</span> },
+          { key: "realisasiValue", label: "Realisasi", render: (r) => <span className="mono">{fmtRp(r.realisasiValue)}</span> },
+          { key: "ach", label: "ACH", render: (r) => <AchBadge ach={r.ach} colors={colors} /> },
+          { key: "deviasiValue", label: "Deviasi", render: (r) => <span className="mono" style={{ color: colors.textMuted }}>{fmtRp(r.deviasiValue)}</span> },
+          { key: "realisasiAo", label: "AO", render: (r) => <span className="mono">{r.realisasiAo}/{r.targetAo}</span> },
+          { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(r.name, "Semua outlet", r.predicate)} /> },
+        ]}
+        rows={agg.bySales}
+      />
     </div>
   );
 }

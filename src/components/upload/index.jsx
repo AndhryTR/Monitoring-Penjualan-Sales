@@ -20,8 +20,8 @@ export function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, l
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
         onClick={() => inputRef.current && inputRef.current.click()}
-        className="sm-drop cursor-pointer rounded-2xl p-6 flex items-center gap-4 transition-colors"
-        style={{ border: `1.5px dashed ${dragOver ? colors.gold : colors.border}`, background: dragOver ? colors.gold + "0D" : colors.surface }}
+        className="glass-dropzone cursor-pointer rounded-2xl p-6 flex items-center gap-4"
+        
       >
         <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
         <div className="p-3 rounded-xl" style={{ background: colors.gold + "1A" }}>
@@ -34,8 +34,7 @@ export function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, l
           </div>
         </div>
         {!hasData && (
-          <button onClick={(e) => { e.stopPropagation(); onSample(); }} className="sm-btn text-xs px-3 py-2 rounded-lg font-medium"
-            style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.textMuted }}
+          <button onClick={(e) => { e.stopPropagation(); onSample(); }} className="glass-btn text-xs px-3 py-2 rounded-lg font-medium"
             disabled={sampleLoading}>
             {sampleLoading
               ? <span className="flex items-center gap-1.5"><RefreshCw size={13} className="sm-pulse" /> Memuat...</span>
@@ -43,7 +42,7 @@ export function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, l
           </button>
         )}
         {hasData && (
-          <button onClick={(e) => { e.stopPropagation(); onReset(); }} className="sm-btn text-xs px-3 py-2 rounded-lg font-medium flex items-center gap-1.5"
+          <button onClick={(e) => { e.stopPropagation(); onReset(); }} className="glass-btn text-xs px-3 py-2 rounded-lg font-medium flex items-center gap-1.5"
             style={{ background: colors.coral + "14", border: `1px solid ${colors.coral}33`, color: colors.coral }}>
             <X size={13} /> Hapus data
           </button>
@@ -74,13 +73,8 @@ export function MobileBottomNav({ primaryTabs, moreTabs, activeTab, onChange, co
   return (
     <>
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40"
-        style={{
-          background: colors.surface,
-          borderTop: `1px solid ${colors.border}`,
-          boxShadow: "0 -4px 20px rgba(0,0,0,0.18)",
-          paddingBottom: "env(safe-area-inset-bottom)",
-        }}
+        className="glass-sidebar md:hidden fixed bottom-0 left-0 right-0 z-40"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="flex items-stretch justify-around">
           {primaryTabs.map((t) => {
@@ -149,7 +143,7 @@ export function MobileBottomNav({ primaryTabs, moreTabs, activeTab, onChange, co
                     key={t.key}
                     onClick={() => handleSelect(t.key)}
                     className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl"
-                    style={{ background: isActive ? colors.gold + "1A" : colors.surface2, color: isActive ? colors.gold : colors.text }}
+                    style={{ background: isActive ? colors.gold + "1A" : "rgba(255,255,255,0.06)", color: isActive ? colors.gold : colors.text }}
                   >
                     <Icon size={20} />
                     <span className="text-xs font-medium">{t.shortLabel}</span>
@@ -183,7 +177,7 @@ export function MobileFab({ onFile, colors, loading }) {
       />
       <button
         onClick={() => inputRef.current && inputRef.current.click()}
-        className="md:hidden fixed right-4 z-40 sm-btn flex items-center justify-center w-14 h-14 rounded-full"
+        className="md:hidden fixed right-4 z-40 flex items-center justify-center w-14 h-14 rounded-full"
         style={{
           bottom: "calc(76px + env(safe-area-inset-bottom))",
           background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})`,
@@ -285,7 +279,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
           {["png", "jpeg"].map((fmt) => (
             <button key={fmt} disabled={imageBusy === itemKey}
               onClick={() => handleImageExport(itemKey, buildFn, filenameBase, fmt)}
-              className="sm-btn px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+              className="glass-btn px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
               style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}>
               {imageBusy === itemKey ? "Memproses..." : fmt.toUpperCase()}
             </button>
@@ -337,7 +331,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
         <ChevronDown size={13} style={{ color: colors.textMuted, transform: scorecardListOpen ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }} />
       </button>
       {scorecardListOpen && (
-        <div className="max-h-52 overflow-y-auto" style={{ borderTop: `1px solid ${colors.border}`, background: colors.surface2 }}>
+        <div className="max-h-52 overflow-y-auto" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.06)" }}>
           {salesSorted.map((sm) => (
             <button key={sm.code} onClick={() => { exportSalesScorecardPDF(sm, agg, opts); setOpen(false); }}
               className="sm-row w-full text-left pl-11 pr-4 py-2 flex items-center justify-between gap-2">
@@ -353,15 +347,14 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
   return (
     <div className="relative z-20" ref={ref}>
       <button onClick={() => setOpen((o) => !o)} disabled={disabled}
-        className="sm-btn flex items-center gap-2 px-2.5 md:px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+        className="flex items-center gap-2 px-2.5 md:px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
         style={{ background: colors.gold, color: "#0A1120" }}>
         <Download size={15} /> <span className="hidden md:inline">Export</span> <ChevronDown size={13} className="hidden md:inline" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && (
         <>
           
-          <div className="hidden md:block absolute right-0 z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden sm-fadein"
-            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
+          <div className="glass-elevated hidden md:block absolute right-0 z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden sm-fadein">
             {menuContent}
           </div>
 
@@ -371,13 +364,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
               role="dialog" aria-modal="true" aria-label="Menu Export">
               <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
               <div className="relative w-full max-h-[88vh] overflow-y-auto sm-scale-in"
-                style={{
-                  background: colors.surface,
-                  borderTop: `1px solid ${colors.border}`,
-                  borderRadius: "16px 16px 0 0",
-                  boxShadow: "0 -10px 40px rgba(0,0,0,0.3)",
-                  paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
-                }}>
+                className="glass-modal" style={{ borderRadius: "16px 16px 0 0", paddingBottom: "calc(20px + env(safe-area-inset-bottom))" }}>
                 
                 <div className="mx-auto my-4 w-10 h-1 rounded-full" style={{ background: colors.border }} />
                 {menuContent}

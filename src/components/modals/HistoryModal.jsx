@@ -34,16 +34,16 @@ export function HistoryModal({ isOpen, onClose, history, onSave, onApply, onDele
     : `Lihat Tren ${checked.length} Periode`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
-      <div className="sm-card sm-scale-in w-full max-w-xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center glass-backdrop sm-fadein">
+      <div className="glass-modal sm-scale-in w-full max-w-xl max-h-[85vh] flex flex-col" >
         <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
           <SectionTitle title="Riwayat & Perbandingan Periode" sub="Pilih 1 periode untuk bandingkan cepat, atau 2+ untuk lihat tren" icon={History} colors={colors} />
-          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
+          <button onClick={onClose} className="glass-btn p-2 rounded-full"><X size={16} /></button>
         </div>
         <div className="p-5 overflow-y-auto flex-1">
           <div className="flex gap-2 mb-5">
             <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label periode (mis. Juli 2026 Minggu 1)"
-              className="flex-1 px-3 py-2 rounded-lg text-sm" style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
+              className="flex-1 px-3 py-2 rounded-lg text-sm" className="glass-input" />
             <button onClick={() => onSave(label)} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap" style={{ background: colors.gold, color: "#0A1120" }}>
               Simpan Snapshot Ini
             </button>
@@ -80,7 +80,7 @@ export function HistoryModal({ isOpen, onClose, history, onSave, onApply, onDele
             <div className="text-xs mt-3 text-center" style={{ color: colors.textMuted }}>Maksimal {MAX_TREND_PERIODS} periode sekaligus.</div>
           )}
         </div>
-        <div className="p-5" style={{ borderTop: `1px solid ${colors.border}` }}>
+        <div className="p-5" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <button
             onClick={() => checked.length > 0 && onApply(checked)}
             disabled={checked.length === 0}

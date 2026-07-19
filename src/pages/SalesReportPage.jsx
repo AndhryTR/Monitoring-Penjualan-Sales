@@ -7,7 +7,7 @@ import { fmtRp, fmtNum } from "../utils/formatters.js";
 import { exportSalesScorecardPDF } from "../utils/pdfExport.js";
 import { getLastDaySalesMap } from "../utils/aggregation.js";
 import { DataTable } from "../components/ui/DataTable.jsx";
-import { DrilldownButton, CollapsibleSection } from "../components/ui/index.jsx";
+import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
 import { Leaderboard } from "../components/cards/index.jsx";
 import { AchBadge } from "../components/AchBadge.jsx";
 
@@ -51,7 +51,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
       const data = payload[0].payload;
       const barColor = data.ach >= 1 ? colors.mint : data.ach >= 0.7 ? colors.gold : colors.coral;
       return (
-        <div className="p-3 shadow-lg" style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10, fontSize: 12 }}>
+        <div className="p-3 shadow-lg" style={{ background: "rgba(17,24,39,0.85)", backdropFilter: "blur(24px)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 10, fontSize: 12 }}>
           <div className="font-semibold mb-1" style={{ color: colors.text }}>{label}</div>
           <div className="mono font-semibold" style={{ color: barColor }}>
             Realisasi: {fmtRp(data.realisasiValue)}
@@ -66,14 +66,44 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
     <div className="sm-fadein">
       <Leaderboard rows={rows} colors={colors} onDrilldown={onDrilldown} onExportScorecard={handleExportScorecard} />
 
-      <CollapsibleSection
-        id="salesReport.totalVsLastDay"
-        title="Total Periode vs Hari Terakhir"
-        sub="Pencapaian & AO total dibandingkan hari terakhir per sales"
-        icon={CalendarClock}
-        colors={colors}
-        className="mt-8 mb-8"
-      >
+      <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} />
+      <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
+        <BarChart data={rows} layout="vertical" margin={{ left: 10 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={colors.border} horizontal={false} />
+          <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
+          <YAxis type="category" dataKey="name" width={160} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.06)" }} />
+          <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
+            {rows.map((r, i) => <Cell key={i} fill={r.ach >= 1 ? colors.mint : r.ach >= 0.7 ? colors.gold : colors.coral} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+
+      <div className="mt-8">
+        <SectionTitle title="Detail per Sales × Grup Produk" icon={Boxes} colors={colors} />
+        <DataTable
+          colors={colors}
+          initialSortKey="value"
+          searchable
+          searchKeys={["salesName", "groupName"]}
+          searchPlaceholder="Cari nama sales atau grup produk..."
+          columns={[
+            { key: "salesName", label: "Sales" },
+            { key: "groupName", label: "Grup Produk" },
+            { key: "value", label: "Realisasi", render: (r) => <span className="mono">{fmtRp(r.value)}</span> },
+            { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(`${r.salesName} — ${r.groupName}`, "Outlet", r.predicate)} /> },
+          ]}
+          rows={groupRows}
+        />
+      </div>
+
+      <div className="mt-8 mb-8">
+        <SectionTitle
+          title="Total Periode vs Hari Terakhir"
+          sub="Pencapaian & AO total dibandingkan hari terakhir per sales"
+          icon={CalendarClock}
+          colors={colors}
+        />
         <DataTable
           colors={colors}
           initialSortKey="totalValue"
@@ -92,38 +122,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
           ]}
           rows={totalVsLastDayRows}
         />
-      </CollapsibleSection>
-
-      <CollapsibleSection id="salesReport.performaPerSales" title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} className="mb-8">
-        <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
-          <BarChart data={rows} layout="vertical" margin={{ left: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={colors.border} horizontal={false} />
-            <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
-            <YAxis type="category" dataKey="name" width={160} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: colors.surface2 }} />
-            <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
-              {rows.map((r, i) => <Cell key={i} fill={r.ach >= 1 ? colors.mint : r.ach >= 0.7 ? colors.gold : colors.coral} />)}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </CollapsibleSection>
-
-      <CollapsibleSection id="salesReport.detailSalesGrup" title="Detail per Sales × Grup Produk" icon={Boxes} colors={colors}>
-        <DataTable
-          colors={colors}
-          initialSortKey="value"
-          searchable
-          searchKeys={["salesName", "groupName"]}
-          searchPlaceholder="Cari nama sales atau grup produk..."
-          columns={[
-            { key: "salesName", label: "Sales" },
-            { key: "groupName", label: "Grup Produk" },
-            { key: "value", label: "Realisasi", render: (r) => <span className="mono">{fmtRp(r.value)}</span> },
-            { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(`${r.salesName} — ${r.groupName}`, "Outlet", r.predicate)} /> },
-          ]}
-          rows={groupRows}
-        />
-      </CollapsibleSection>
+      </div>
     </div>
   );
 }

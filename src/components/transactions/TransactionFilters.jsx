@@ -75,7 +75,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
             onChange={(e) => setFilters((f) => ({ ...f, qtyMin: e.target.value === "" ? null : e.target.value }))}
             placeholder="min"
             className="w-full px-3 py-2 rounded-lg text-sm mono"
-            style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+            className="glass-input"
           />
           <span style={{ color: colors.textMuted }}>—</span>
           <input
@@ -84,7 +84,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
             onChange={(e) => setFilters((f) => ({ ...f, qtyMax: e.target.value === "" ? null : e.target.value }))}
             placeholder="max"
             className="w-full px-3 py-2 rounded-lg text-sm mono"
-            style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+            className="glass-input"
           />
         </div>
       </div>
@@ -98,7 +98,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
             onChange={(e) => setFilters((f) => ({ ...f, valueMin: e.target.value === "" ? null : e.target.value }))}
             placeholder="min"
             className="w-full px-3 py-2 rounded-lg text-sm mono"
-            style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+            className="glass-input"
           />
           <span style={{ color: colors.textMuted }}>—</span>
           <input
@@ -107,7 +107,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
             onChange={(e) => setFilters((f) => ({ ...f, valueMax: e.target.value === "" ? null : e.target.value }))}
             placeholder="max"
             className="w-full px-3 py-2 rounded-lg text-sm mono"
-            style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+            className="glass-input"
           />
         </div>
       </div>
@@ -118,7 +118,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
           value={filters.unit || ""}
           onChange={(e) => setFilters((f) => ({ ...f, unit: e.target.value }))}
           className="w-full px-3 py-2 rounded-lg text-sm"
-          style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+          className="glass-input"
         >
           <option value="">Semua satuan</option>
           {unitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -141,12 +141,8 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
     <div className="mb-4">
       <button
         onClick={() => setOpen(!open)}
-        className="sm-btn flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold w-full md:w-auto"
-        style={{
-          background: colors.surface,
-          color: colors.text,
-          border: `1px solid ${activeCount > 0 ? colors.gold + "88" : colors.border}`,
-        }}
+        className="glass-btn flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold w-full md:w-auto"
+        style={{ border: `1px solid ${activeCount > 0 ? colors.gold + "88" : "rgba(255,255,255,0.08)"}` }}
         aria-label="Toggle filter lanjutan"
       >
         <Filter size={15} style={{ color: activeCount > 0 ? colors.gold : colors.textMuted }} />
@@ -164,7 +160,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
 
       {/* Desktop: inline panel */}
       {open && (
-        <div className="relative z-20 hidden md:block sm-card p-5 mt-3 sm-fadein">
+        <div className="glass-panel relative z-20 hidden md:block p-5 mt-3 sm-fadein">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 items-start">
             <div>
               <label className="block text-xs mb-1.5" style={{ color: colors.textMuted }}>Outlet</label>
@@ -187,7 +183,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
                   onChange={(e) => setFilters((f) => ({ ...f, qtyMin: e.target.value === "" ? null : e.target.value }))}
                   placeholder="min"
                   className="w-full px-3 py-2 rounded-lg text-sm mono"
-                  style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+                  className="glass-input"
                 />
                 <span style={{ color: colors.textMuted }}>—</span>
                 <input
@@ -196,7 +192,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
                   onChange={(e) => setFilters((f) => ({ ...f, qtyMax: e.target.value === "" ? null : e.target.value }))}
                   placeholder="max"
                   className="w-full px-3 py-2 rounded-lg text-sm mono"
-                  style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+                  className="glass-input"
                 />
               </div>
             </div>
@@ -209,7 +205,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
                   onChange={(e) => setFilters((f) => ({ ...f, valueMin: e.target.value === "" ? null : e.target.value }))}
                   placeholder="min"
                   className="w-full px-3 py-2 rounded-lg text-sm mono"
-                  style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+                  className="glass-input"
                 />
                 <span style={{ color: colors.textMuted }}>—</span>
                 <input
@@ -218,7 +214,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
                   onChange={(e) => setFilters((f) => ({ ...f, valueMax: e.target.value === "" ? null : e.target.value }))}
                   placeholder="max"
                   className="w-full px-3 py-2 rounded-lg text-sm mono"
-                  style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+                  className="glass-input"
                 />
               </div>
             </div>
@@ -228,7 +224,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
                 value={filters.unit || ""}
                 onChange={(e) => setFilters((f) => ({ ...f, unit: e.target.value }))}
                 className="w-full px-3 py-2 rounded-lg text-sm"
-                style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+                className="glass-input"
               >
                 <option value="">Semua satuan</option>
                 {unitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -261,13 +257,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div
             className="relative w-full rounded-t-2xl p-5 max-h-[88vh] overflow-y-auto sm-scale-in"
-            style={{
-              background: colors.surface,
-              borderTop: `1px solid ${colors.border}`,
-              borderRadius: "16px 16px 0 0",
-              boxShadow: "0 -10px 40px rgba(0,0,0,0.3)",
-              paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
-            }}
+            className="glass-modal" style={{ borderRadius: "16px 16px 0 0", paddingBottom: "calc(20px + env(safe-area-inset-bottom))" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mx-auto mb-4 w-10 h-1 rounded-full" style={{ background: colors.border }} />

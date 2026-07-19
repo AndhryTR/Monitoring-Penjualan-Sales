@@ -20,8 +20,8 @@ export function OutletDetailModal({ isOpen, onClose, outlet, products, colors })
     : products;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
-      <div className="sm-card sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center glass-backdrop sm-fadein">
+      <div className="glass-modal sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" >
         <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="p-2 rounded-xl shrink-0" style={{ background: colors.blue + "1A" }}><Store size={16} style={{ color: colors.blue }} /></div>
@@ -34,19 +34,19 @@ export function OutletDetailModal({ isOpen, onClose, outlet, products, colors })
         </div>
 
         <div className="p-5 pb-0 grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="sm-card p-3">
+          <div className="glass-subtle p-3">
             <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Total Value</div>
             <div className="mono text-sm font-bold">{fmtRp(outlet.value)}</div>
           </div>
-          <div className="sm-card p-3">
+          <div className="glass-subtle p-3">
             <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Frekuensi</div>
             <div className="mono text-sm font-bold">{fmtNum(outlet.invoiceCount)}×</div>
           </div>
-          <div className="sm-card p-3">
+          <div className="glass-subtle p-3">
             <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Terakhir Transaksi</div>
             <div className="mono text-sm font-bold">{outlet.lastDate || "-"}</div>
           </div>
-          <div className="sm-card p-3">
+          <div className="glass-subtle p-3">
             <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Status</div>
             <OutletStatusBadge status={outlet.status} colors={colors} />
           </div>
@@ -58,7 +58,7 @@ export function OutletDetailModal({ isOpen, onClose, outlet, products, colors })
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }} />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari produk..."
                 className="w-full pl-9 pr-3 py-2 rounded-xl text-sm outline-none"
-                style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
+                className="glass-input" />
             </div>
           )}
           <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>
@@ -71,7 +71,7 @@ export function OutletDetailModal({ isOpen, onClose, outlet, products, colors })
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr style={{ background: colors.surface2 }}>
+                <tr style={{ background: "rgba(255,255,255,0.06)" }}>
                   <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.textMuted }}>PRODUK</th>
                   <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.textMuted }}>GRUP</th>
                   <th className="px-3 py-2 text-right" style={{ fontSize: 11, color: colors.textMuted }}>VALUE</th>
@@ -80,7 +80,7 @@ export function OutletDetailModal({ isOpen, onClose, outlet, products, colors })
               </thead>
               <tbody>
                 {filtered.map((p, i) => (
-                  <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.border}` }}>
+                  <tr key={i} className="sm-row" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                     <td className="px-3 py-2">{p.productName}</td>
                     <td className="px-3 py-2 text-xs" style={{ color: colors.textMuted }}>{p.group}</td>
                     <td className="px-3 py-2 mono text-right">{fmtRp(p.value)}</td>

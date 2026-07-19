@@ -19,8 +19,8 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors 
   const uniqueGroups = new Set(rows.map((r) => r.group).filter(Boolean)).size;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
-      <div className="sm-card sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" style={{ background: colors.surface }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center glass-backdrop sm-fadein">
+      <div className="glass-modal sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col" >
         <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl" style={{ background: colors.gold + "1A" }}><FileSpreadsheet size={16} style={{ color: colors.gold }} /></div>
@@ -29,23 +29,23 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors 
               <div className="text-xs" style={{ color: colors.textMuted }}>{fileName}</div>
             </div>
           </div>
-          <button onClick={onCancel} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
+          <button onClick={onCancel} className="glass-btn p-2 rounded-full"><X size={16} /></button>
         </div>
         <div className="p-5 overflow-y-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="sm-card p-3">
+            <div className="glass-subtle p-3">
               <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Baris Terbaca</div>
               <div className="mono text-lg font-bold">{fmtNum(rows.length)}</div>
             </div>
-            <div className="sm-card p-3">
+            <div className="glass-subtle p-3">
               <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Baris Dilewati</div>
               <div className="mono text-lg font-bold" style={{ color: parseMeta.skippedBlankRows > 0 ? colors.gold : colors.text }}>{fmtNum(parseMeta.skippedBlankRows)}</div>
             </div>
-            <div className="sm-card p-3">
+            <div className="glass-subtle p-3">
               <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Sales Terdeteksi</div>
               <div className="mono text-lg font-bold">{uniqueSales}</div>
             </div>
-            <div className="sm-card p-3">
+            <div className="glass-subtle p-3">
               <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Grup Produk</div>
               <div className="mono text-lg font-bold">{uniqueGroups}</div>
             </div>
@@ -110,7 +110,7 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors 
             </div>
           )}
         </div>
-        <div className="p-5 flex justify-end gap-3" style={{ borderTop: `1px solid ${colors.border}` }}>
+        <div className="p-5 flex justify-end gap-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <button onClick={onCancel} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
             Batal
           </button>

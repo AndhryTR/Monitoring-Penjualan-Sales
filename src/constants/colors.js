@@ -14,7 +14,16 @@ export const THEMES = {
     shadow1: "#070c17",
     shadow2: "#0d1629",
     shadowInset1: "#070c17",
-    shadowInset2: "#0d1629"
+    shadowInset2: "#0d1629",
+    // Glass tokens
+    glassBg: "rgba(255,255,255,0.06)",
+    glassBgElevated: "rgba(255,255,255,0.10)",
+    glassBgSubtle: "rgba(255,255,255,0.03)",
+    glassBorder: "rgba(255,255,255,0.08)",
+    glassBorderElevated: "rgba(255,255,255,0.12)",
+    glassBlur: 24,
+    glassBlurLg: 32,
+    glassBlurSm: 16,
   },
   light: {
     ink: "#F9FAFB",
@@ -31,6 +40,15 @@ export const THEMES = {
     shadow1: "#d1d5db",
     shadow2: "#ffffff",
     shadowInset1: "#d1d5db",
-    shadowInset2: "#ffffff"
+    shadowInset2: "#ffffff",
+    // Glass tokens
+    glassBg: "rgba(255,255,255,0.45)",
+    glassBgElevated: "rgba(255,255,255,0.60)",
+    glassBgSubtle: "rgba(255,255,255,0.30)",
+    glassBorder: "rgba(0,0,0,0.06)",
+    glassBorderElevated: "rgba(0,0,0,0.08)",
+    glassBlur: 32,
+    glassBlurLg: 40,
+    glassBlurSm: 20,
   }
 };
