@@ -73,7 +73,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
     return (
       <div className="sm-fadein">
         <div className="sm-card p-12 text-center">
-          <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.surface2 }}>
+          <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.glassFill }}>
             <TrendingUp size={24} style={{ color: colors.textMuted }} />
           </div>
           <div className="disp text-base font-semibold mb-1">Belum ada periode untuk dibandingkan</div>
@@ -105,20 +105,20 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <SectionTitle title="Tren Periode" sub={`Membandingkan ${periods.length} periode · Value & AO per sales`} icon={TrendingUp} colors={colors} />
         <div className="flex items-center gap-2">
-          <div className="flex p-1 rounded-xl" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }}>
+          <div className="flex p-1 rounded-xl" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
             <button onClick={() => setMetric("value")}
               className="sm-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5"
-              style={{ background: metric === "value" ? colors.surface : "transparent", color: metric === "value" ? colors.gold : colors.textMuted }}>
+              style={{ background: metric === "value" ? colors.glassFillStrong : "transparent", color: metric === "value" ? colors.mint : colors.textMuted }}>
               <Wallet size={13} /> Value
             </button>
             <button onClick={() => setMetric("ao")}
               className="sm-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5"
-              style={{ background: metric === "ao" ? colors.surface : "transparent", color: metric === "ao" ? colors.gold : colors.textMuted }}>
+              style={{ background: metric === "ao" ? colors.glassFillStrong : "transparent", color: metric === "ao" ? colors.mint : colors.textMuted }}>
               <Users size={13} /> AO
             </button>
           </div>
           <button onClick={onOpenPeriodPicker} className="sm-btn inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
-            style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}>
+            style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
             <History size={13} /> {isAutoTrend ? "Pilih Manual" : `Ubah Periode (${selectedCount})`}
           </button>
         </div>

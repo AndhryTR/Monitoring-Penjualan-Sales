@@ -310,7 +310,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
             <button key={fmt} disabled={imageBusy === itemKey}
               onClick={() => handleImageExport(itemKey, buildFn, filenameBase, fmt)}
               className="sm-btn px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
-              style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}>
+              style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
               {imageBusy === itemKey ? "Memproses..." : fmt.toUpperCase()}
             </button>
           ))}
@@ -329,7 +329,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
         desc="Format lengkap dengan target, deviasi & produk fokus"
         onClick={() => { exportToExcel(agg, targets, opts); setOpen(false); }} />
 
-      <div style={{ borderTop: `1px solid ${colors.border}` }} />
+      <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
       <SectionLabel>PDF</SectionLabel>
       <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Ringkasan"
         desc="KPI, leaderboard sales & rekap grup produk"
@@ -341,14 +341,14 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
         desc="Rekap per grup, per sales & hari terakhir — 1 dokumen gabungan"
         onClick={() => { exportSalesGroupComparisonPDF(agg, opts); setOpen(false); }} />
 
-      <div style={{ borderTop: `1px solid ${colors.border}` }} />
+      <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
       <SectionLabel>Gambar</SectionLabel>
       <ImageMenuItem itemKey="excel" label="Export ke Excel" desc="Tampilan sama seperti file Excel, jadi 1 gambar"
         buildFn={() => buildExcelReportHTML(agg, targets, opts)} filenameBase={`Laporan_Sales_Gambar_${agg.meta.lastDate || "export"}`} />
       <ImageMenuItem itemKey="comparison" label="Laporan Perbandingan Sales" desc="Tampilan sama seperti PDF, jadi 1 gambar"
         buildFn={() => buildSalesGroupComparisonHTML(agg, opts)} filenameBase={`Laporan_Perbandingan_Sales_Gambar_${agg.meta.lastDate || "export"}`} />
 
-      <div style={{ borderTop: `1px solid ${colors.border}` }} />
+      <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
       <button onClick={() => setScorecardListOpen((v) => !v)}
         className="sm-row w-full text-left px-4 py-2.5 flex items-center justify-between gap-3">
         <div className="flex items-start gap-3">
@@ -361,7 +361,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
         <ChevronDown size={13} style={{ color: colors.textMuted, transform: scorecardListOpen ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }} />
       </button>
       {scorecardListOpen && (
-        <div className="max-h-52 overflow-y-auto" style={{ borderTop: `1px solid ${colors.border}`, background: colors.surface2 }}>
+        <div className="max-h-52 overflow-y-auto" style={{ borderTop: `1px solid ${colors.glassBorder}`, background: colors.glassFill }}>
           {salesSorted.map((sm) => (
             <button key={sm.code} onClick={() => { exportSalesScorecardPDF(sm, agg, opts); setOpen(false); }}
               className="sm-row w-full text-left pl-11 pr-4 py-2 flex items-center justify-between gap-2">
@@ -385,7 +385,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
         <>
           
           <div className="hidden md:block absolute right-0 z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden sm-fadein"
-            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
+            style={{ background: colors.glassFillStrong, backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", border: `1px solid ${colors.glassBorderElevated}`, boxShadow: colors.glassShadow }}>
             {menuContent}
           </div>
 
@@ -394,16 +394,14 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
             <div ref={sheetRef} className="md:hidden fixed inset-0 z-50 flex items-end sm-fadein"
               role="dialog" aria-modal="true" aria-label="Menu Export">
               <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
-              <div className="relative w-full max-h-[88vh] overflow-y-auto sm-scale-in"
+              <div className="relative w-full max-h-[88vh] overflow-y-auto sm-scale-in sm-modal-glass"
                 style={{
-                  background: colors.surface,
-                  borderTop: `1px solid ${colors.border}`,
                   borderRadius: "16px 16px 0 0",
                   boxShadow: "0 -10px 40px rgba(0,0,0,0.3)",
                   paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
                 }}>
                 
-                <div className="mx-auto my-4 w-10 h-1 rounded-full" style={{ background: colors.border }} />
+                <div className="mx-auto my-4 w-10 h-1 rounded-full" style={{ background: colors.glassBorderElevated }} />
                 {menuContent}
               </div>
             </div>,

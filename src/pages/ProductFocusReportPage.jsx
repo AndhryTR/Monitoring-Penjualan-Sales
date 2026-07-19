@@ -45,7 +45,7 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown }) {
                 </div>
                 <span className="mono text-sm font-semibold" style={{ color }}>{fmtPct(f.pct)}</span>
               </div>
-              <div className="h-2.5 rounded-full overflow-hidden" style={{ background: colors.surface2 }}>
+              <div className="h-2.5 rounded-full overflow-hidden" style={{ background: colors.glassFill }}>
                 <div className="sm-progress-fill h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: color }} />
               </div>
               <div className="flex justify-between mt-1.5 text-xs mono" style={{ color: colors.textMuted }}>

@@ -21,7 +21,7 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
       <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col">
-        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
+        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.glassBorder}` }}>
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl" style={{ background: colors.gold + "1A" }}><FileSpreadsheet size={16} style={{ color: colors.gold }} /></div>
             <div>
@@ -29,7 +29,7 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors 
               <div className="text-xs" style={{ color: colors.textMuted }}>{fileName}</div>
             </div>
           </div>
-          <button onClick={onCancel} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
+          <button onClick={onCancel} className="sm-btn p-2 rounded-full" style={{ background: colors.glassFill }}><X size={16} /></button>
         </div>
         <div className="p-5 overflow-y-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -65,7 +65,7 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors 
               <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>{parseMeta.sourceFiles.length} File Digabung</div>
               <div className="space-y-1.5">
                 {parseMeta.sourceFiles.map((sf, i) => (
-                  <div key={i} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ background: colors.surface2 }}>
+                  <div key={i} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ background: colors.glassFill }}>
                     <span className="truncate flex-1">{sf.name}</span>
                     <span className="mono text-xs" style={{ color: colors.textMuted }}>{fmtNum(sf.rowCount)} baris</span>
                   </div>
@@ -110,8 +110,8 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors 
             </div>
           )}
         </div>
-        <div className="p-5 flex justify-end gap-3" style={{ borderTop: `1px solid ${colors.border}` }}>
-          <button onClick={onCancel} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
+        <div className="p-5 flex justify-end gap-3" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
+          <button onClick={onCancel} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
             Batal
           </button>
           <button onClick={onConfirm} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.gold, color: "#0A1120" }}>

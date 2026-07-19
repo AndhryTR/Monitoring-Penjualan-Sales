@@ -23,7 +23,7 @@ export function SectionTitle({ title, sub, icon: Icon, colors }) {
 export function DrilldownButton({ colors, onClick, label = "Outlet" }) {
   return (
     <button onClick={onClick} className="sm-btn inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium"
-      style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.textMuted }}>
+      style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.textMuted }}>
       <Store size={12} /> {label}
     </button>
   );

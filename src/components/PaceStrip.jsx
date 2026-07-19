@@ -17,7 +17,7 @@ export function PaceStrip({ timeGonePct, achPct, colors }) {
           {ahead ? "Di atas pace waktu" : "Di bawah pace waktu"}
         </span>
       </div>
-      <div className="relative h-4 rounded-full overflow-hidden" style={{ background: colors.surface2 }}>
+      <div className="relative h-4 rounded-full overflow-hidden" style={{ background: colors.glassFill }}>
         <div className="sm-progress-fill h-full rounded-full" style={{ width: `${capped}%`, background: `linear-gradient(90deg, ${color}99, ${color})` }} />
         <div className="absolute top-0 h-full w-[2px]" style={{ left: `${Math.min(100, timeGonePct * 100)}%`, background: "#fff" }} />
       </div>

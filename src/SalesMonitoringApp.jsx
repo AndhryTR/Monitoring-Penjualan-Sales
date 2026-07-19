@@ -467,13 +467,13 @@ export default function SalesMonitoringApp() {
             {canShowInstallButton && (
               <button onClick={handleInstallClick}
                 className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
-                style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
+                style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
                 <Smartphone size={15} /> <span className="hidden sm:inline">Instal Aplikasi</span>
               </button>
             )}
             <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
               className="sm-btn flex items-center gap-2 px-2.5 py-2.5 rounded-xl text-sm font-semibold"
-              style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
+              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
               {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
             </button>
             {/* Riwayat & Pengaturan: desktop sekarang lewat Sidebar (section
@@ -481,12 +481,12 @@ export default function SalesMonitoringApp() {
                 Mobile tetap butuh ini karena tidak punya Sidebar sama sekali. */}
             <button onClick={() => setIsHistoryOpen(true)} disabled={!rawRows.length}
               className="sm-btn flex md:hidden items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
-              style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
+              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
               <History size={15} /> <span className="hidden sm:inline">Riwayat</span>
             </button>
             <button onClick={() => setIsSettingsOpen(true)}
               className="sm-btn flex md:hidden items-center gap-2 px-2.5 py-2.5 rounded-xl text-sm font-semibold"
-              style={{ background: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` }}>
+              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
               <Settings size={15} />
             </button>
             <ExportMenu agg={aggFinal} targets={targets} workDays={workDays} depotName={depotName} disabled={!rawRows.length} colors={colors} />
@@ -520,7 +520,7 @@ export default function SalesMonitoringApp() {
                 Perbarui Sekarang
               </button>
               <button onClick={() => setNeedRefresh(false)}
-                className="sm-btn px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${colors.border}` }}>
+                className="sm-btn px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${colors.glassBorder}` }}>
                 Nanti
               </button>
             </div>
@@ -530,13 +530,13 @@ export default function SalesMonitoringApp() {
         {/* PWA: instruksi manual instal untuk iOS Safari (tidak ada beforeinstallprompt) */}
         {showIosInstallHint && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein" onClick={() => setShowIosInstallHint(false)}>
-            <div className="sm-card sm-scale-in w-full max-w-sm p-5" style={{ background: colors.surface }} onClick={(e) => e.stopPropagation()}>
+            <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl" style={{ background: colors.gold + "1A" }}><Smartphone size={16} style={{ color: colors.gold }} /></div>
                   <div className="disp text-base font-semibold">Instal di iPhone/iPad</div>
                 </div>
-                <button onClick={() => setShowIosInstallHint(false)} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
+                <button onClick={() => setShowIosInstallHint(false)} className="sm-btn p-2 rounded-full" style={{ background: colors.glassFill }}><X size={16} /></button>
               </div>
               <ol className="text-sm space-y-2.5" style={{ color: colors.text }}>
                 <li className="flex items-start gap-2.5">
@@ -573,7 +573,7 @@ export default function SalesMonitoringApp() {
           <DashboardSkeleton colors={colors} />
         ) : !rawRows.length ? (
           <div className="sm-card p-16 text-center sm-fadeup">
-            <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.surface2 }}>
+            <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.glassFill }}>
               <FileSpreadsheet size={24} style={{ color: colors.textMuted }} />
             </div>
             <div className="disp text-base font-semibold mb-1">Belum ada data</div>
