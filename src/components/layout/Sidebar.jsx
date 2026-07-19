@@ -66,6 +66,7 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
                     style={{
                       background: active ? colors.mint + "1F" : "transparent",
                       color: active ? colors.mint : colors.text,
+                      borderLeft: `2px solid ${active ? colors.mint : "transparent"}`,
                       boxShadow: active ? `0 0 16px ${colors.mint}33` : "none",
                       justifyContent: collapsed ? "center" : "flex-start",
                     }}
