@@ -399,6 +399,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
                   borderRadius: "16px 16px 0 0",
                   boxShadow: "0 -10px 40px rgba(0,0,0,0.3)",
                   paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
+                  color: colors.text,
                 }}>
                 
                 <div className="mx-auto my-4 w-10 h-1 rounded-full" style={{ background: colors.glassBorderElevated }} />
