@@ -24,7 +24,16 @@ export function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct,
             <Icon size={14} style={{ color: accent }} />
           </div>
         </div>
-        <div className={`disp ${sizeClass} font-bold mono`}>
+        <div
+          className={`disp ${sizeClass} font-bold mono`}
+          style={{
+            backgroundImage: `linear-gradient(90deg, ${accent}, ${colors.text})`,
+            WebkitBackgroundClip: "text",
+            backgroundClip: "text",
+            color: "transparent",
+            WebkitTextFillColor: "transparent",
+          }}
+        >
           {displayText}
         </div>
         {sub && <div className="text-xs mt-1.5" style={{ color: colors.textMuted }}>{sub}</div>}
