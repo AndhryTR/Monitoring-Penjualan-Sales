@@ -19,7 +19,7 @@ export function PaceStrip({ timeGonePct, achPct, colors }) {
       </div>
       <div className="relative h-4 rounded-full overflow-hidden" style={{ background: colors.glassFill }}>
         <div className="sm-progress-fill h-full rounded-full" style={{ width: `${capped}%`, background: `linear-gradient(90deg, ${color}99, ${color})` }} />
-        <div className="absolute top-0 h-full w-[2px]" style={{ left: `${Math.min(100, timeGonePct * 100)}%`, background: "#fff" }} />
+        <div className="absolute top-0 h-full w-[2px]" style={{ left: `${Math.min(100, timeGonePct * 100)}%`, background: colors.text, boxShadow: "0 0 4px rgba(0,0,0,0.35)" }} />
       </div>
       <div className="flex justify-between mt-2 text-xs mono" style={{ color: colors.textMuted }}>
         <span>ACH {fmtPct(achPct)}</span>

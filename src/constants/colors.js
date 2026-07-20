@@ -11,10 +11,6 @@ export const THEMES = {
     coral: "#F87171",
     violet: "#A78BFA",
     blue: "#60A5FA",
-    shadow1: "#070c17",
-    shadow2: "#0d1629",
-    shadowInset1: "#070c17",
-    shadowInset2: "#0d1629",
     // --- Glass morphism tokens (Fase 4 — final spec) ---
     meshBg: "#0A1120",
     glassSubtle: "rgba(255,255,255,0.03)",
@@ -47,10 +43,6 @@ export const THEMES = {
     coral: "#DC2626",
     violet: "#7C3AED",
     blue: "#2563EB",
-    shadow1: "#d1d5db",
-    shadow2: "#ffffff",
-    shadowInset1: "#d1d5db",
-    shadowInset2: "#ffffff",
     // --- Glass morphism tokens (Fase 4 — final spec) ---
     meshBg: "linear-gradient(135deg, #e0e7ff, #f0fdf4, #fef3c7, #ede9fe)",
     glassSubtle: "rgba(255,255,255,0.25)",

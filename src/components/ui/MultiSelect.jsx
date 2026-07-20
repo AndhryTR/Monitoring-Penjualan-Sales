@@ -27,7 +27,7 @@ export function MultiSelect({ label, icon: Icon, options, selected, onChange, pl
       </button>
       {open && (
         <div className="sm-fadein absolute z-30 mt-2 w-64 rounded-xl p-2"
-          style={{ background: colors.glassFillStrong, backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", border: `1px solid ${colors.glassBorderElevated}`, boxShadow: colors.glassShadow }}>
+          style={{ background: colors.modalBg, backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)", border: `1px solid ${colors.modalBorder}`, boxShadow: colors.glassShadow }}>
           <div className="flex items-center gap-2 px-2 py-1.5 mb-1 rounded-lg" style={{ background: colors.glassSubtle }}>
             <Search size={13} style={{ color: colors.textMuted }} />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder || "Cari..."}

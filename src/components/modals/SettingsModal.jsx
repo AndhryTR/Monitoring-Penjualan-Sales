@@ -175,12 +175,12 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                   <div>
                     <label className="block text-xs mb-1" style={{ color: colors.textMuted }}>Target Value (Rp)</label>
                     <input type="number" value={t.total.value} onChange={e => handleTargetChange(t.code, 'value', e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: colors.ink, border: `1px solid ${colors.glassBorder}` }} />
+                      className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }} />
                   </div>
                   <div>
                     <label className="block text-xs mb-1" style={{ color: colors.textMuted }}>Target Active Outlet (AO)</label>
                     <input type="number" value={t.total.ao} onChange={e => handleTargetChange(t.code, 'ao', e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: colors.ink, border: `1px solid ${colors.glassBorder}` }} />
+                      className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }} />
                   </div>
                 </div>
 
@@ -198,7 +198,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                       {otherSales.length > 0 && (
                         <div className="flex items-center gap-2 mb-3">
                           <select value={copySourceCode[t.code] || ""} onChange={e => setCopySourceCode(prev => ({ ...prev, [t.code]: e.target.value }))}
-                            className="flex-1 px-2.5 py-1.5 rounded-md text-xs" style={{ background: colors.ink, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
+                            className="flex-1 px-2.5 py-1.5 rounded-md text-xs" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
                             <option value="">Salin dari sales lain...</option>
                             {otherSales.map(o => <option key={o.code} value={o.code}>{o.name} ({o.focus.length} produk)</option>)}
                           </select>
@@ -217,7 +217,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                       {t.focus.map((f, i) => {
                         const matchType = f.matchType || (f.keyword === "__GROUP__" ? "group" : f.keyword === "GAS_EXACT" ? "exact" : "contains");
                         return (
-                          <div key={i} className="p-2.5 rounded-lg relative" style={{ background: colors.ink, border: `1px solid ${colors.glassBorder}` }}>
+                          <div key={i} className="p-2.5 rounded-lg relative" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
                             <button onClick={() => handleFocusRemove(t.code, i)} title="Hapus produk fokus ini"
                               className="sm-btn absolute top-2 right-2 p-1 rounded-md" style={{ color: colors.coral }}>
                               <X size={12} />

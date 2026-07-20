@@ -51,7 +51,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
       const data = payload[0].payload;
       const barColor = data.ach >= 1 ? colors.mint : data.ach >= 0.7 ? colors.gold : colors.coral;
       return (
-        <div className="p-3" style={{ background: colors.glassFillStrong, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${colors.glassBorderElevated}`, borderRadius: 10, fontSize: 12, boxShadow: colors.glassShadow }}>
+        <div className="p-3" style={{ background: colors.modalBg, backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)", border: `1px solid ${colors.modalBorder}`, borderRadius: 10, fontSize: 12, boxShadow: colors.glassShadow }}>
           <div className="font-semibold mb-1" style={{ color: colors.text }}>{label}</div>
           <div className="mono font-semibold" style={{ color: barColor }}>
             Realisasi: {fmtRp(data.realisasiValue)}

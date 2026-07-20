@@ -385,7 +385,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
         <>
           
           <div className="hidden md:block absolute right-0 z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden sm-fadein"
-            style={{ background: colors.glassFillStrong, backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", border: `1px solid ${colors.glassBorderElevated}`, boxShadow: colors.glassShadow }}>
+            style={{ background: colors.modalBg, backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)", border: `1px solid ${colors.modalBorder}`, boxShadow: colors.glassShadow }}>
             {menuContent}
           </div>
 
