@@ -73,12 +73,14 @@ const createGlobalStyle = (colors) => `
 @keyframes smBlobE { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(5%,5%) scale(1.04); } }
 @keyframes smFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes smFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes smPageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes smPulse { 0%,100% { opacity:1 } 50% { opacity:.55 } }
 @keyframes smShimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
 @keyframes smDash { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) { .sm-mesh .blob { animation: none; } }
 .sm-fadeup { animation: smFadeUp .45s cubic-bezier(.16,1,.3,1) both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
 .sm-fadein { animation: smFadeIn .3s ease both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
+.sm-page-enter { animation: smPageIn .25s cubic-bezier(.16,1,.3,1) both; }
 .sm-pulse { animation: smPulse 1.8s ease-in-out infinite; }
 .sm-shimmer { background: linear-gradient(90deg, ${colors.surface2} 0%, ${colors.border} 50%, ${colors.surface2} 100%); background-size: 800px 100%; animation: smShimmer 1.4s linear infinite; }
 .sm-card { background: ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; border-radius: 16px; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); transition: transform .25s ease, box-shadow .25s ease, background .3s ease, border-color .3s ease, backdrop-filter .3s ease; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
