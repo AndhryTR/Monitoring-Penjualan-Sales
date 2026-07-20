@@ -63,10 +63,10 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
   };
 
   return (
-    <div className="sm-fadein">
+    <div className="sm-page-enter">
       <Leaderboard rows={rows} colors={colors} onDrilldown={onDrilldown} onExportScorecard={handleExportScorecard} />
 
-      <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} />
+      <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} accent={colors.mint} />
       <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
         <BarChart data={rows} layout="vertical" margin={{ left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} horizontal={false} />

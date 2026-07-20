@@ -30,8 +30,8 @@ export function ProductReportPage({ agg, colors, onDrilldown }) {
   };
 
   return (
-    <div className="sm-fadein">
-      <SectionTitle title="Pencapaian per Grup Produk" sub="Ranking berdasarkan realisasi" icon={Boxes} colors={colors} />
+    <div className="sm-page-enter">
+      <SectionTitle title="Pencapaian per Grup Produk" sub="Ranking berdasarkan realisasi" icon={Boxes} colors={colors} accent={colors.mint} />
       <ResponsiveContainer width="100%" height={Math.max(240, agg.byGroup.length * 42)}>
         <BarChart data={agg.byGroup} layout="vertical" margin={{ left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} horizontal={false} />

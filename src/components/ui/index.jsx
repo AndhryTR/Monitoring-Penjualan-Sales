@@ -4,13 +4,17 @@ import { Store } from "lucide-react";
    SECTIONTITLE
    Header kecil untuk section di dalam page: ikon + judul + sub-teks opsional.
 ============================================================================ */
-export function SectionTitle({ title, sub, icon: Icon, colors }) {
+export function SectionTitle({ title, sub, icon: Icon, colors, accent }) {
+  const tint = accent || colors.gold;
   return (
     <div className="flex items-center gap-3 mb-4">
-      {Icon && <div className="p-2 rounded-xl" style={{ background: colors.gold + "1A" }}><Icon size={16} style={{ color: colors.gold }} /></div>}
-      <div>
-        <h2 className="disp text-lg font-semibold">{title}</h2>
-        {sub && <p className="text-xs" style={{ color: colors.textMuted }}>{sub}</p>}
+      {Icon && <div className="p-2 rounded-xl" style={{ background: tint + "1A" }}><Icon size={16} style={{ color: tint }} /></div>}
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="w-1 rounded-full shrink-0" style={{ background: tint, alignSelf: "stretch", minHeight: 20 }} />
+        <div className="min-w-0">
+          <h2 className="disp text-lg font-semibold">{title}</h2>
+          {sub && <p className="text-xs" style={{ color: colors.textMuted }}>{sub}</p>}
+        </div>
       </div>
     </div>
   );

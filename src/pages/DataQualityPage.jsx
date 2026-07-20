@@ -19,7 +19,7 @@ export function DataQualityPage({ notes, colors, onDrilldown }) {
     notes.unknownGroups.length || notes.skippedBlankRows > 0 || notes.rowsWithMissingDate > 0 || notes.duplicateRowsRemoved > 0;
 
   return (
-    <div className="sm-fadein">
+    <div className="sm-page-enter">
       <SectionTitle title="Catatan Data" sub="Ringkasan kualitas data dari seluruh file yang diupload (tidak terpengaruh filter)" icon={ClipboardList} colors={colors} />
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">

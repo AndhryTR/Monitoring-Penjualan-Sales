@@ -49,8 +49,8 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
   ];
 
   return (
-    <div className="sm-fadein">
-      <SectionTitle title="Analisis Outlet" sub="Segmentasi outlet berdasarkan aktivitas beli — mengikuti filter yang aktif" icon={Store} colors={colors} />
+    <div className="sm-page-enter">
+      <SectionTitle title="Analisis Outlet" sub="Segmentasi outlet berdasarkan aktivitas beli — mengikuti filter yang aktif" icon={Store} colors={colors} accent={colors.violet} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <KpiCard label="Total Outlet" value={summary.total} icon={Store} accent={colors.blue} colors={colors} />

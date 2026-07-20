@@ -47,7 +47,7 @@ export function TransactionsPage({ agg, colors, onOutletDrilldown }) {
     : "Tidak ada tanggal";
 
   return (
-    <div className="sm-fadein">
+    <div className="sm-page-enter">
       <SectionTitle
         title="Transaksi"
         sub={`${fmtNum(summary.rowCount)} baris · ${summary.uniqueSales} sales · ${summary.uniqueOutlets} outlet · ${periodLabel}`}

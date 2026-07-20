@@ -71,7 +71,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
 
   if (!comparisonData || comparisonData.periods.length < 2) {
     return (
-      <div className="sm-fadein">
+      <div className="sm-page-enter">
         <div className="sm-card p-12 text-center">
           <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.glassFill }}>
             <TrendingUp size={24} style={{ color: colors.textMuted }} />
@@ -93,7 +93,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
   const { periods, bySales, totalsSeries } = comparisonData;
 
   return (
-    <div className="sm-fadein">
+    <div className="sm-page-enter">
       {isAutoTrend && (
         <div className="sm-card p-3 mb-4 flex items-center gap-2.5" style={{ background: colors.gold + "0D", border: `1px solid ${colors.gold}33` }}>
           <Sparkles size={15} style={{ color: colors.gold, flexShrink: 0 }} />
@@ -103,7 +103,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
         </div>
       )}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <SectionTitle title="Tren Periode" sub={`Membandingkan ${periods.length} periode · Value & AO per sales`} icon={TrendingUp} colors={colors} />
+        <SectionTitle title="Tren Periode" sub={`Membandingkan ${periods.length} periode · Value & AO per sales`} icon={TrendingUp} colors={colors} accent={colors.mint} />
         <div className="flex items-center gap-2">
           <div className="flex p-1 rounded-xl" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
             <button onClick={() => setMetric("value")}
