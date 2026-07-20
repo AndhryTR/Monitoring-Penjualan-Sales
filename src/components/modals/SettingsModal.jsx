@@ -185,7 +185,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                 </div>
 
                 <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
-                  <button onClick={() => toggleFocusExpand(t.code)} className="sm-btn w-full flex items-center justify-between gap-2">
+                  <button onClick={() => toggleFocusExpand(t.code)} className="sm-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg">
                     <span className="flex items-center gap-2 text-sm font-medium">
                       <Crosshair size={14} style={{ color: colors.violet }} />
                       Produk Fokus <span style={{ color: colors.textMuted }}>({t.focus.length})</span>
