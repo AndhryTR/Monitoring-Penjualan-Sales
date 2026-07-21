@@ -48,3 +48,5 @@ export const createChartTooltipStyle = (colors) => ({
   fontSize: 12,
   boxShadow: colors.glassShadow,
 });
+
+export { CustomSlider } from "./CustomSlider.jsx";

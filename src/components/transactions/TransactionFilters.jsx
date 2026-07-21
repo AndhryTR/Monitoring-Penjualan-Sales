@@ -63,6 +63,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
           onChange={handleOutletChange}
           placeholder="Cari outlet..."
           colors={colors}
+          fullWidth
         />
       </div>
 
@@ -176,6 +177,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
                 onChange={handleOutletChange}
                 placeholder="Cari outlet..."
                 colors={colors}
+                fullWidth
               />
             </div>
             <div>

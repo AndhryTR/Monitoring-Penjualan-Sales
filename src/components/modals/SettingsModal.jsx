@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Settings, X, Crosshair, ChevronDown, Plus, Download, Upload } from "lucide-react";
-import { SectionTitle } from "../ui/index.jsx";
+import { SectionTitle, CustomSlider } from "../ui/index.jsx";
 import { buildBackupPayload, downloadBackupFile, parseBackupFile } from "../../utils/backupExport.js";
 
 /* ============================================================================
@@ -152,8 +152,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium mb-2">Hari Kerja Efektif</label>
-              <input type="number" value={localWorkDays} onChange={e => setLocalWorkDays(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-lg mono" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}` }} />
+              <CustomSlider value={localWorkDays} onChange={setLocalWorkDays} colors={colors} />
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Nama Depo / Cabang</label>
