@@ -29,7 +29,7 @@ export function Leaderboard({ rows, colors, onDrilldown, onExportScorecard }) {
             <AchBadge ach={sm.ach} colors={colors} />
             {onExportScorecard && (
               <button onClick={() => onExportScorecard(sm)} title="Cetak scorecard PDF"
-                className="sm-btn p-2 rounded-lg" style={{ background: colors.surface2, color: colors.textMuted }}>
+                className="sm-btn p-2 rounded-lg" style={{ background: colors.glassFill, color: colors.textMuted }}>
                 <FileText size={14} />
               </button>
             )}
@@ -102,8 +102,8 @@ export function ProjectionCard({ projection, colors, method = "linear", onMethod
   return (
     <div className="sm-card p-5 sm-fadeup mb-6">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-1">
-        <SectionTitle title="Proyeksi Akhir Bulan" sub={active.note || "Ekstrapolasi linear dari rata-rata realisasi harian saat ini"} icon={Rocket} colors={colors} />
-        <div className="flex p-1 rounded-xl shrink-0" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }}>
+        <SectionTitle title="Proyeksi Akhir Bulan" sub={active.note || "Ekstrapolasi linear dari rata-rata realisasi harian saat ini"} icon={Rocket} colors={colors} accent={colors.violet} />
+        <div className="flex p-1 rounded-xl shrink-0" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
           {PROJECTION_METHODS.map((m) => {
             const disabled = !availability[m.key];
             const isActive = method === m.key;
@@ -113,7 +113,7 @@ export function ProjectionCard({ projection, colors, method = "linear", onMethod
                 disabled={disabled}
                 title={disabled ? "Data belum cukup untuk metode ini" : undefined}
                 className="sm-tab-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap disabled:opacity-30 disabled:cursor-not-allowed"
-                style={{ background: isActive ? colors.surface : "transparent", color: isActive ? colors.gold : colors.textMuted }}>
+                style={{ background: isActive ? colors.glassFillStrong : "transparent", color: isActive ? colors.mint : colors.textMuted }}>
                 {m.label}
               </button>
             );
@@ -154,7 +154,7 @@ export function AlertsPanel({ alerts, colors, onDrilldown }) {
   return (
     <div className="sm-card p-5 sm-fadeup mb-6" style={{ borderColor: colors.coral + "44" }}>
       <div className="flex items-center justify-between mb-3">
-        <SectionTitle title="Perlu Perhatian" sub={`${alerts.length} item belum ada realisasi sama sekali`} icon={BellRing} colors={colors} />
+        <SectionTitle title="Perlu Perhatian" sub={`${alerts.length} item belum ada realisasi sama sekali`} icon={BellRing} colors={colors} accent={colors.coral} />
       </div>
       <div className="space-y-2">
         {visible.map((a, i) => (
@@ -169,7 +169,7 @@ export function AlertsPanel({ alerts, colors, onDrilldown }) {
         ))}
       </div>
       {alerts.length > 2 && (
-        <button onClick={() => setExpanded(!expanded)} className="sm-btn text-xs font-medium mt-3" style={{ color: colors.gold }}>
+        <button onClick={() => setExpanded(!expanded)} className="sm-btn text-xs font-medium mt-3 px-3 py-1.5 rounded-lg" style={{ color: colors.gold }}>
           {expanded ? "Tampilkan lebih sedikit" : `Tampilkan ${alerts.length - 2} lainnya`}
         </button>
       )}
@@ -184,8 +184,8 @@ export function PeriodComparisonCard({ comparison, colors, onClear }) {
   return (
     <div className="sm-card p-5 sm-fadeup mb-6">
       <div className="flex items-center justify-between mb-4">
-        <SectionTitle title="Bandingkan Periode" sub={`vs ${comparison.label}`} icon={History} colors={colors} />
-        <button onClick={onClear} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={14} /></button>
+        <SectionTitle title="Bandingkan Periode" sub={`vs ${comparison.label}`} icon={History} colors={colors} accent={colors.blue} />
+        <button onClick={onClear} className="sm-btn p-2 rounded-full" style={{ background: colors.glassFill }}><X size={14} /></button>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
         <div>
@@ -206,7 +206,7 @@ export function PeriodComparisonCard({ comparison, colors, onClear }) {
       <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>Pertumbuhan per Sales</div>
       <div className="space-y-1.5 max-h-64 overflow-y-auto">
         {comparison.bySales.map((s) => (
-          <div key={s.code} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ background: colors.surface2, opacity: s.isGone ? 0.6 : 1 }}>
+          <div key={s.code} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ background: colors.glassFill, opacity: s.isGone ? 0.6 : 1 }}>
             <span className="truncate flex-1 flex items-center gap-2">
               {s.name}
               {s.isGone && (

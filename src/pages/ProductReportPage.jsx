@@ -18,7 +18,7 @@ export function ProductReportPage({ agg, colors, onDrilldown }) {
       const data = payload[0].payload;
       const barColor = data.ach >= 1 ? colors.mint : data.ach >= 0.7 ? colors.gold : colors.coral;
       return (
-        <div className="p-3" style={{ background: colors.glassFillStrong, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: `1px solid ${colors.glassBorderElevated}`, borderRadius: 10, fontSize: 12, boxShadow: colors.glassShadow }}>
+        <div className="p-3" style={{ background: colors.modalBg, backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)", border: `1px solid ${colors.modalBorder}`, borderRadius: 10, fontSize: 12, boxShadow: colors.glassShadow }}>
           <div className="font-semibold mb-1" style={{ color: colors.text }}>{label}</div>
           <div className="mono font-semibold" style={{ color: barColor }}>
             Realisasi: {fmtRp(data.realisasiValue)}
@@ -30,8 +30,8 @@ export function ProductReportPage({ agg, colors, onDrilldown }) {
   };
 
   return (
-    <div className="sm-fadein">
-      <SectionTitle title="Pencapaian per Grup Produk" sub="Ranking berdasarkan realisasi" icon={Boxes} colors={colors} />
+    <div className="sm-page-enter">
+      <SectionTitle title="Pencapaian per Grup Produk" sub="Ranking berdasarkan realisasi" icon={Boxes} colors={colors} accent={colors.mint} />
       <ResponsiveContainer width="100%" height={Math.max(240, agg.byGroup.length * 42)}>
         <BarChart data={agg.byGroup} layout="vertical" margin={{ left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} horizontal={false} />

@@ -4,13 +4,17 @@ import { Store } from "lucide-react";
    SECTIONTITLE
    Header kecil untuk section di dalam page: ikon + judul + sub-teks opsional.
 ============================================================================ */
-export function SectionTitle({ title, sub, icon: Icon, colors }) {
+export function SectionTitle({ title, sub, icon: Icon, colors, accent }) {
+  const tint = accent || colors.gold;
   return (
     <div className="flex items-center gap-3 mb-4">
-      {Icon && <div className="p-2 rounded-xl" style={{ background: colors.gold + "1A" }}><Icon size={16} style={{ color: colors.gold }} /></div>}
-      <div>
-        <h2 className="disp text-lg font-semibold">{title}</h2>
-        {sub && <p className="text-xs" style={{ color: colors.textMuted }}>{sub}</p>}
+      {Icon && <div className="p-2 rounded-xl" style={{ background: tint + "1A" }}><Icon size={16} style={{ color: tint }} /></div>}
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="w-1 rounded-full shrink-0" style={{ background: tint, alignSelf: "stretch", minHeight: 20 }} />
+        <div className="min-w-0">
+          <h2 className="disp text-lg font-semibold">{title}</h2>
+          {sub && <p className="text-xs" style={{ color: colors.textMuted }}>{sub}</p>}
+        </div>
       </div>
     </div>
   );
@@ -23,7 +27,7 @@ export function SectionTitle({ title, sub, icon: Icon, colors }) {
 export function DrilldownButton({ colors, onClick, label = "Outlet" }) {
   return (
     <button onClick={onClick} className="sm-btn inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium"
-      style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.textMuted }}>
+      style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.textMuted }}>
       <Store size={12} /> {label}
     </button>
   );
@@ -35,12 +39,14 @@ export function DrilldownButton({ colors, onClick, label = "Outlet" }) {
    di sini supaya konsisten dan tidak duplikasi.
 ============================================================================ */
 export const createChartTooltipStyle = (colors) => ({
-  background: colors.glassFillStrong,
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-  border: `1px solid ${colors.glassBorderElevated}`,
+  background: colors.modalBg,
+  backdropFilter: "blur(28px)",
+  WebkitBackdropFilter: "blur(28px)",
+  border: `1px solid ${colors.modalBorder}`,
   borderRadius: 10,
   color: colors.text,
   fontSize: 12,
   boxShadow: colors.glassShadow,
 });
+
+export { CustomSlider } from "./CustomSlider.jsx";

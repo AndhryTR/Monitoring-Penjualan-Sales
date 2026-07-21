@@ -47,7 +47,7 @@ export function TransactionsPage({ agg, colors, onOutletDrilldown }) {
     : "Tidak ada tanggal";
 
   return (
-    <div className="sm-fadein">
+    <div className="sm-page-enter">
       <SectionTitle
         title="Transaksi"
         sub={`${fmtNum(summary.rowCount)} baris · ${summary.uniqueSales} sales · ${summary.uniqueOutlets} outlet · ${periodLabel}`}
@@ -86,7 +86,7 @@ export function TransactionsPage({ agg, colors, onOutletDrilldown }) {
       {/* Tabel transaksi dengan incremental load */}
       {filteredRows.length === 0 ? (
         <div className="sm-card p-12 text-center">
-          <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.surface2 }}>
+          <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.glassFill }}>
             <Receipt size={24} style={{ color: colors.textMuted }} />
           </div>
           <div className="disp text-base font-semibold mb-1">Tidak ada transaksi</div>

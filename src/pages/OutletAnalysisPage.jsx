@@ -49,8 +49,8 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
   ];
 
   return (
-    <div className="sm-fadein">
-      <SectionTitle title="Analisis Outlet" sub="Segmentasi outlet berdasarkan aktivitas beli — mengikuti filter yang aktif" icon={Store} colors={colors} />
+    <div className="sm-page-enter">
+      <SectionTitle title="Analisis Outlet" sub="Segmentasi outlet berdasarkan aktivitas beli — mengikuti filter yang aktif" icon={Store} colors={colors} accent={colors.violet} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <KpiCard label="Total Outlet" value={summary.total} icon={Store} accent={colors.blue} colors={colors} />
@@ -67,14 +67,14 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
           <span>Aktif ≤</span>
           <input type="number" min={0} value={thresholds.activeMaxDays}
             onChange={(e) => setThresholds((prev) => ({ ...prev, activeMaxDays: Math.max(0, Number(e.target.value) || 0) }))}
-            className="w-16 px-2 py-1 rounded-md mono text-sm text-center" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }} />
+            className="w-16 px-2 py-1 rounded-md mono text-sm text-center" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}` }} />
           <span>hari</span>
         </div>
         <div className="flex items-center gap-2 text-sm">
           <span>Dormant &gt;</span>
           <input type="number" min={0} value={thresholds.dormantMinDays}
             onChange={(e) => setThresholds((prev) => ({ ...prev, dormantMinDays: Math.max(prev.activeMaxDays, Number(e.target.value) || 0) }))}
-            className="w-16 px-2 py-1 rounded-md mono text-sm text-center" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }} />
+            className="w-16 px-2 py-1 rounded-md mono text-sm text-center" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}` }} />
           <span>hari</span>
         </div>
         <div className="text-xs" style={{ color: colors.textMuted }}>

@@ -25,7 +25,7 @@ export function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
       <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col">
-        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
+        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.glassBorder}` }}>
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl" style={{ background: colors.violet + "1A" }}><Store size={16} style={{ color: colors.violet }} /></div>
             <div>
@@ -33,7 +33,7 @@ export function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets
               {subtitle && <div className="text-xs" style={{ color: colors.textMuted }}>{subtitle}</div>}
             </div>
           </div>
-          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
+          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.glassFill }}><X size={16} /></button>
         </div>
         {outlets.length > 0 && (
           <div className="px-5 pt-4">
@@ -44,7 +44,7 @@ export function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Cari nama outlet..."
                 className="w-full pl-9 pr-8 py-2 rounded-xl text-sm outline-none"
-                style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }}
+                style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}
               />
               {query && (
                 <button onClick={() => setQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }}>
@@ -66,7 +66,7 @@ export function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets
               </div>
               <table className="w-full text-sm">
                 <thead>
-                  <tr style={{ background: colors.surface2 }}>
+                  <tr style={{ background: colors.glassFill }}>
                     <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.textMuted }}>OUTLET</th>
                     <th className="px-3 py-2 text-right" style={{ fontSize: 11, color: colors.textMuted }}>VALUE</th>
                     <th className="px-3 py-2 text-center" style={{ fontSize: 11, color: colors.textMuted }}>QTY</th>
@@ -76,7 +76,7 @@ export function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets
                 </thead>
                 <tbody>
                   {filteredOutlets.map((o, i) => (
-                    <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.border}` }}>
+                    <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
                       <td className="px-3 py-2">{o.outletName}</td>
                       <td className="px-3 py-2 mono text-right">{fmtRp(o.value)}</td>
                       <td className="px-3 py-2 mono text-center">{fmtNum(o.qty)}</td>

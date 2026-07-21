@@ -16,11 +16,11 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown }) {
   const focusNames = useMemo(() => Array.from(new Set(agg.focusRows.map((f) => f.name))), [agg.focusRows]);
   const rows = focusFilter.length ? agg.focusRows.filter((f) => focusFilter.includes(f.name)) : agg.focusRows;
   return (
-    <div className="sm-fadein">
+    <div className="sm-page-enter">
       <div className="mb-6">
         <MultiSelect label="Produk Fokus" icon={Crosshair} options={focusNames} selected={focusFilter} onChange={setFocusFilter} placeholder="Cari produk fokus..." colors={colors} />
       </div>
-      <SectionTitle title="Pencapaian Produk Fokus per Sales" sub="Target & realisasi dalam satuan karton (kecuali ditandai lain, memakai satuan asli produk)" icon={Crosshair} colors={colors} />
+      <SectionTitle title="Pencapaian Produk Fokus per Sales" sub="Target & realisasi dalam satuan karton (kecuali ditandai lain, memakai satuan asli produk)" icon={Crosshair} colors={colors} accent={colors.coral} />
       {rows.length === 0 && (
         <div className="sm-card p-8 text-center" style={{ color: colors.textMuted }}>
           <AlertTriangle size={24} className="mx-auto mb-2" style={{ color: colors.gold }} />
@@ -45,7 +45,7 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown }) {
                 </div>
                 <span className="mono text-sm font-semibold" style={{ color }}>{fmtPct(f.pct)}</span>
               </div>
-              <div className="h-2.5 rounded-full overflow-hidden" style={{ background: colors.surface2 }}>
+              <div className="h-2.5 rounded-full overflow-hidden" style={{ background: colors.glassFill }}>
                 <div className="sm-progress-fill h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: color }} />
               </div>
               <div className="flex justify-between mt-1.5 text-xs mono" style={{ color: colors.textMuted }}>

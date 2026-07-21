@@ -47,7 +47,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
       />
       <MultiSelect label="Grup Barang" icon={Package} options={groupOptions} selected={filters.groups}
         onChange={(v) => setFilters((f) => ({ ...f, groups: v }))} placeholder="Cari grup..." colors={colors} />
-      <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style={{ background: colors.surface2, border: `1px solid ${colors.border}` }}>
+      <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}` }}>
         <CalendarDays size={14} style={{ color: colors.textMuted }} />
         <input type="date" value={filters.dateFrom || ""} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
           className="bg-transparent outline-none" style={{ color: colors.text, colorScheme } } />
@@ -72,9 +72,9 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
           onClick={() => setMobileOpen(true)}
           className="sm-btn flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold w-full"
           style={{
-            background: colors.surface,
+            background: colors.glassFill,
             color: colors.text,
-            border: `1px solid ${active > 0 ? colors.gold + "88" : colors.border}`,
+            border: `1px solid ${active > 0 ? colors.gold + "88" : colors.glassBorder}`,
           }}
           aria-label="Buka filter data"
         >
@@ -108,10 +108,8 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
         >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div
-            className="relative w-full rounded-t-2xl p-5 max-h-[88vh] overflow-y-auto sm-scale-in"
+            className="relative w-full rounded-t-2xl p-5 max-h-[88vh] overflow-y-auto sm-scale-in sm-modal-glass"
             style={{
-              background: colors.surface,
-              borderTop: `1px solid ${colors.border}`,
               borderRadius: "16px 16px 0 0",
               boxShadow: "0 -10px 40px rgba(0,0,0,0.3)",
               paddingBottom: "calc(20px + env(safe-area-inset-bottom))",
@@ -119,7 +117,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drag handle — indikator visual standar bottom-sheet iOS/Android */}
-            <div className="mx-auto mb-4 w-10 h-1 rounded-full" style={{ background: colors.border }} />
+            <div className="mx-auto mb-4 w-10 h-1 rounded-full" style={{ background: colors.glassBorder }} />
 
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2.5">
@@ -139,7 +137,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
               <button
                 onClick={() => setMobileOpen(false)}
                 className="sm-btn p-2 rounded-full"
-                style={{ background: colors.surface2 }}
+                style={{ background: colors.glassFill }}
                 aria-label="Tutup filter"
               >
                 <X size={16} />

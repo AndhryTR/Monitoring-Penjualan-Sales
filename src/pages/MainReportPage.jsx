@@ -26,13 +26,13 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
   // Calculate time gone based on unique work days found in the data vs total work days in the month.
   const timeGone = workDays ? Math.min(1, uniqueDaysInData / workDays) : 0;
   return (
-    <div className="sm-fadein">
+    <div className="sm-page-enter">
       <PaceStrip timeGonePct={timeGone} achPct={t.ach} colors={colors} />
       <AlertsPanel alerts={agg.alerts} colors={colors} onDrilldown={onDrilldown} />
       <PeriodComparisonCard comparison={comparison} colors={colors} onClear={onClearComparison} />
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         <KpiCard label="Target Value" value={t.targetValue} isMoney icon={Target} accent={colors.blue} delay={0} colors={colors} />
-        <KpiCard label="Realisasi Value" value={t.realisasiValue} isMoney icon={TrendingUp} accent={colors.mint} delay={40} colors={colors} />
+        <KpiCard label="Realisasi Value" value={t.realisasiValue} isMoney icon={TrendingUp} accent={colors.mint} delay={40} colors={colors} trend={agg.daily.map((d) => d.value)} />
         <KpiCard label="Achievement" value={t.ach} isPct icon={Sparkles} accent={colors.gold} delay={80} colors={colors} />
         <KpiCard label="Deviasi Value" value={t.deviasiValue} isMoney icon={TrendingDown} accent={colors.coral} delay={120} colors={colors} />
         <KpiCard label="Active Outlet" value={t.realisasiAo} icon={Users} accent={colors.violet} delay={160} colors={colors} />
@@ -43,7 +43,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
 
       <div className="grid lg:grid-cols-2 gap-6 mb-8">
         <div className="sm-card p-5 sm-fadeup">
-          <SectionTitle title="Tren Harian" sub="Realisasi value per tanggal" icon={CalendarDays} colors={colors} />
+          <SectionTitle title="Tren Harian" sub="Realisasi value per tanggal" icon={CalendarDays} colors={colors} accent={colors.gold} />
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={agg.daily}>
               <defs>
@@ -61,7 +61,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
           </ResponsiveContainer>
         </div>
         <div className="sm-card p-5 sm-fadeup" style={{ animationDelay: "60ms" }}>
-          <SectionTitle title="Kumulatif Bulanan" sub="Total realisasi per bulan" icon={LayoutDashboard} colors={colors} />
+          <SectionTitle title="Kumulatif Bulanan" sub="Total realisasi per bulan" icon={LayoutDashboard} colors={colors} accent={colors.mint} />
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={agg.monthly}>
               <defs>
@@ -80,7 +80,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
         </div>
       </div>
 
-      <SectionTitle title="Ringkasan Semua Sales" icon={Users} colors={colors} />
+      <SectionTitle title="Ringkasan Semua Sales" icon={Users} colors={colors} accent={colors.blue} />
       <DataTable
         colors={colors}
         initialSortKey="realisasiValue"

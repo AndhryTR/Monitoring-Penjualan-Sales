@@ -36,14 +36,14 @@ export function HistoryModal({ isOpen, onClose, history, onSave, onApply, onDele
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
       <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-xl max-h-[85vh] flex flex-col">
-        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.border}` }}>
+        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.glassBorder}` }}>
           <SectionTitle title="Riwayat & Perbandingan Periode" sub="Pilih 1 periode untuk bandingkan cepat, atau 2+ untuk lihat tren" icon={History} colors={colors} />
-          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.surface2 }}><X size={16} /></button>
+          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.glassFill }}><X size={16} /></button>
         </div>
         <div className="p-5 overflow-y-auto flex-1">
           <div className="flex gap-2 mb-5">
             <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label periode (mis. Juli 2026 Minggu 1)"
-              className="flex-1 px-3 py-2 rounded-lg text-sm" style={{ background: colors.surface2, border: `1px solid ${colors.border}`, color: colors.text }} />
+              className="flex-1 px-3 py-2 rounded-lg text-sm" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }} />
             <button onClick={() => onSave(label)} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap" style={{ background: colors.gold, color: "#0A1120" }}>
               Simpan Snapshot Ini
             </button>
@@ -56,12 +56,12 @@ export function HistoryModal({ isOpen, onClose, history, onSave, onApply, onDele
                 const isChecked = checked.includes(h.id);
                 const disabled = !isChecked && atLimit;
                 return (
-                  <div key={h.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: colors.surface2, opacity: disabled ? 0.5 : 1 }}>
+                  <div key={h.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: colors.glassFill, opacity: disabled ? 0.5 : 1 }}>
                     <button
                       onClick={() => !disabled && toggle(h.id)}
                       disabled={disabled}
                       className="w-5 h-5 rounded flex items-center justify-center shrink-0"
-                      style={{ background: isChecked ? colors.gold : "transparent", border: `1px solid ${isChecked ? colors.gold : colors.border}` }}
+                      style={{ background: isChecked ? colors.gold : "transparent", border: `1px solid ${isChecked ? colors.gold : colors.glassBorder}` }}
                       aria-label={`Pilih ${h.label}`}
                     >
                       {isChecked && <Check size={12} color="#0A1120" />}
@@ -80,12 +80,12 @@ export function HistoryModal({ isOpen, onClose, history, onSave, onApply, onDele
             <div className="text-xs mt-3 text-center" style={{ color: colors.textMuted }}>Maksimal {MAX_TREND_PERIODS} periode sekaligus.</div>
           )}
         </div>
-        <div className="p-5" style={{ borderTop: `1px solid ${colors.border}` }}>
+        <div className="p-5" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
           <button
             onClick={() => checked.length > 0 && onApply(checked)}
             disabled={checked.length === 0}
             className="sm-btn w-full px-4 py-2.5 rounded-xl text-sm font-semibold"
-            style={{ background: checked.length ? colors.gold : colors.surface2, color: checked.length ? "#0A1120" : colors.textMuted }}
+            style={{ background: checked.length ? colors.gold : colors.glassFill, color: checked.length ? "#0A1120" : colors.textMuted }}
           >
             {actionLabel}
           </button>
