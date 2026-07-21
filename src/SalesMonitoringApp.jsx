@@ -78,9 +78,9 @@ const createGlobalStyle = (colors) => `
 @keyframes smShimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
 @keyframes smDash { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) { .sm-mesh .blob { animation: none; } }
-.sm-fadeup { animation: smFadeUp .45s cubic-bezier(.16,1,.3,1) both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
+.sm-fadeup { animation: smFadeUp .45s cubic-bezier(.16,1,.3,1) backwards; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
 .sm-fadein { animation: smFadeIn .3s ease both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
-.sm-page-enter { animation: smPageIn .25s cubic-bezier(.16,1,.3,1) both; }
+.sm-page-enter { animation: smPageIn .25s cubic-bezier(.16,1,.3,1); }
 .sm-pulse { animation: smPulse 1.8s ease-in-out infinite; }
 .sm-shimmer { background: linear-gradient(90deg, ${colors.surface2} 0%, ${colors.border} 50%, ${colors.surface2} 100%); background-size: 800px 100%; animation: smShimmer 1.4s linear infinite; }
 .sm-card { background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; border-radius: 16px; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); transition: transform .25s ease, box-shadow .25s ease, background .3s ease, border-color .3s ease, backdrop-filter .3s ease; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
@@ -102,7 +102,7 @@ const createGlobalStyle = (colors) => `
 .sm-btn:active { transform: translateY(0); box-shadow: inset 0 2px 8px rgba(0,0,0,.25); }
 .sm-progress-fill { transition: width 1s cubic-bezier(.16,1,.3,1); }
 .sm-drop { transition: border-color .2s ease, background .2s ease; }
-.sm-scale-in { animation: smFadeUp .5s cubic-bezier(.16,1,.3,1) both; }
+.sm-scale-in { animation: smFadeUp .5s cubic-bezier(.16,1,.3,1); }
 `;
 
 
