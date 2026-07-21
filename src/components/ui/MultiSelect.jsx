@@ -26,7 +26,7 @@ export function MultiSelect({ label, icon: Icon, options, selected, onChange, pl
         <ChevronDown size={14} style={{ color: colors.textMuted, transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && (
-        <div className="sm-fadein absolute z-30 mt-2 w-64 rounded-xl p-2"
+        <div className="sm-fadein static md:absolute z-30 mt-2 w-full md:w-64 rounded-xl p-2"
           style={{ background: colors.modalBg, backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)", border: `1px solid ${colors.modalBorder}`, boxShadow: colors.glassShadow }}>
           <div className="flex items-center gap-2 px-2 py-1.5 mb-1 rounded-lg" style={{ background: colors.glassSubtle }}>
             <Search size={13} style={{ color: colors.textMuted }} />
