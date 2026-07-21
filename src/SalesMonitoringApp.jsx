@@ -101,8 +101,27 @@ const createGlobalStyle = (colors) => `
 .sm-btn:hover { transform: translateY(-2px); background: ${colors.glassFillStrong}; box-shadow: 0 6px 20px rgba(0,0,0,.22), inset 0 1px 0 ${colors.glassHighlight}; }
 .sm-btn:active { transform: translateY(0); box-shadow: inset 0 2px 8px rgba(0,0,0,.25); }
 .sm-progress-fill { transition: width 1s cubic-bezier(.16,1,.3,1); }
-.sm-drop { transition: border-color .2s ease, background .2s ease; }
-.sm-scale-in { animation: smFadeUp .5s cubic-bezier(.16,1,.3,1); }
+.sm-slider { 
+  background: ${colors.glassBorder} !important; 
+  border: 1px solid ${colors.glassBorder};
+  backdrop-filter: blur(8px);
+}
+.sm-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: ${colors.gold};
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(0,0,0,0.2);
+}
+.sm-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: ${colors.gold};
+  cursor: pointer;
+}
 `;
 
 
