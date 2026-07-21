@@ -599,7 +599,9 @@ export default function SalesMonitoringApp() {
 
         <div className="text-center text-xs mt-10 pb-4" style={{ color: colors.textMuted }}>
           Data diproses langsung di browser Anda — tidak diunggah ke server manapun. Data & pengaturan disimpan otomatis di perangkat/browser ini agar tidak hilang saat refresh.
-          <br><b className="text-xs" style={{ color: colors.textMuted }}>Credit: </b><b className="disp text-xl font-bold" style={{ color: colors.coral }}> Andri.S</b></br>
+        </div>
+        <div className="text-center">
+          <b className="text-xs" style={{ color: colors.textMuted }}>Credit: </b><b className="disp text-xl font-bold" style={{ color: colors.coral }}> Andri.S</b>
         </div>
       </div>
         </div>
