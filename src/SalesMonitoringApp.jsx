@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import sumBy from "lodash/sumBy";
 import {
   X, RefreshCw, Sun, Moon,
@@ -78,13 +78,22 @@ const createGlobalStyle = (colors) => `
 @keyframes smShimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
 @keyframes smDash { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) { .sm-mesh .blob { animation: none; } }
+/* Saat scroll aktif: hentikan animasi blob & sembunyikan noise sementara.
+   Animasi blob (translate+scale infinite) dan blend-mode noise sama-sama
+   membebani compositor GPU setiap frame — kalau dibiarkan jalan terus
+   SELAMA scroll juga berlangsung (yang butuh compositor juga), keduanya
+   rebutan resource dan bikin scroll terasa patah-patah di device lemah.
+   Blob & noise cuma dekorasi ambient, jadi aman dibekukan sesaat; begitu
+   scroll berhenti (150ms tanpa event baru), otomatis nyala lagi. */
+.sm-mesh.sm-scrolling .blob { animation-play-state: paused; }
+.sm-mesh.sm-scrolling .sm-noise { display: none; }
 .sm-fadeup { animation: smFadeUp .45s cubic-bezier(.16,1,.3,1) backwards; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
 .sm-fadein { animation: smFadeIn .3s ease both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
 .sm-page-enter { animation: smPageIn .25s cubic-bezier(.16,1,.3,1); }
 .sm-pulse { animation: smPulse 1.8s ease-in-out infinite; }
 .sm-shimmer { background: linear-gradient(90deg, ${colors.surface2} 0%, ${colors.border} 50%, ${colors.surface2} 100%); background-size: 800px 100%; animation: smShimmer 1.4s linear infinite; }
-.sm-card { background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; border-radius: 16px; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); transition: transform .25s ease, box-shadow .25s ease, background .3s ease, border-color .3s ease, backdrop-filter .3s ease; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
-.sm-card:hover { transform: translateY(-2px); background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFillStrong}; border-color: ${colors.glassBorderElevated}; backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
+.sm-card { background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; border-radius: 16px; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); transition: transform .25s ease, box-shadow .25s ease, background .3s ease, border-color .3s ease; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
+.sm-card:hover { transform: translateY(-2px); background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFillStrong}; border-color: ${colors.glassBorderElevated}; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
 .sm-glow-wrap { position: relative; }
 .sm-glow-wrap .sm-glow { position: absolute; inset: -8px; border-radius: 20px; filter: blur(18px); opacity: .12; z-index: -1; pointer-events: none; transition: opacity .3s ease; }
 .sm-glow-wrap:hover .sm-glow { opacity: .20; }
@@ -470,10 +479,33 @@ export default function SalesMonitoringApp() {
     setTrendSnapshotIds([]);
   }, []);
 
+  // Optimasi performa scroll (lihat komentar CSS .sm-scrolling): tandai
+  // background mesh sebagai "sedang scroll" via ref DOM langsung (bukan
+  // useState) supaya toggle ini TIDAK memicu re-render React sama sekali —
+  // scroll event bisa nembak puluhan kali per detik, kalau pakai setState
+  // di situ malah jadi sumber lag baru. Debounce 150ms: kelas dilepas begitu
+  // tidak ada event scroll baru selama itu.
+  const meshRef = useRef(null);
+  useEffect(() => {
+    let timeoutId = null;
+    const onScroll = () => {
+      if (meshRef.current) meshRef.current.classList.add("sm-scrolling");
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (meshRef.current) meshRef.current.classList.remove("sm-scrolling");
+      }, 150);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, []);
+
   return (
     <div className="smapp min-h-screen transition-colors duration-300">
       <style>{globalStyle}</style>
-      <div className="sm-mesh" aria-hidden="true">
+      <div className="sm-mesh" aria-hidden="true" ref={meshRef}>
         {colors.blobs.map((b, i) => (
           <div
             key={i}
