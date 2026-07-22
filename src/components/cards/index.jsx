@@ -6,6 +6,7 @@ import {
 import { fmtRp, fmtPct } from "../../utils/formatters.js";
 import { AchBadge } from "../AchBadge.jsx";
 import { SectionTitle, DrilldownButton } from "../ui/index.jsx";
+import { ACH_TIERS } from "../../constants/thresholds.js";
 
 export function Leaderboard({ rows, colors, onDrilldown, onExportScorecard }) {
   const ranked = useMemo(() => [...rows].sort((a, b) => (b.ach ?? -1) - (a.ach ?? -1)), [rows]);
@@ -23,7 +24,7 @@ export function Leaderboard({ rows, colors, onDrilldown, onExportScorecard }) {
             </div>
             {sm.projectedAch !== null && sm.projectedAch !== undefined && (
               <div className="hidden sm:block text-xs mono text-right" style={{ color: colors.textMuted }}>
-                Proyeksi <span style={{ color: sm.projectedAch >= 1 ? colors.mint : colors.coral }}>{fmtPct(sm.projectedAch)}</span>
+                Proyeksi <span style={{ color: sm.projectedAch >= ACH_TIERS.onPace ? colors.mint : colors.coral }}>{fmtPct(sm.projectedAch)}</span>
               </div>
             )}
             <AchBadge ach={sm.ach} colors={colors} />
@@ -92,7 +93,7 @@ function resolveProjection(method, projection) {
 // (persist ke localStorage) supaya diingat lintas sesi.
 export function ProjectionCard({ projection, colors, method = "linear", onMethodChange }) {
   const active = resolveProjection(method, projection);
-  const onTrack = active.projectedAch !== null ? active.projectedAch >= 1 : null;
+  const onTrack = active.projectedAch !== null ? active.projectedAch >= ACH_TIERS.onPace : null;
   const availability = {
     linear: true,
     trend7: Boolean(projection.methods?.trend7),

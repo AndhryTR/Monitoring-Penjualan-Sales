@@ -6,6 +6,7 @@ import { TrendingUp, ArrowUpRight, ArrowDownRight, History, Users, Wallet, Spark
 import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
 import { SectionTitle, createChartTooltipStyle } from "../ui/index.jsx";
 import { MultiSelect } from "../ui/MultiSelect.jsx";
+import { ACH_TIERS } from "../../constants/thresholds.js";
 
 const LINE_COLOR_KEYS = ["gold", "mint", "violet", "blue", "coral"];
 const MAX_DEFAULT_LINES = 5;
@@ -137,7 +138,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
                   {p.label} {p.isCurrent && <span className="text-[9px] px-1 py-0.5 rounded-full font-bold" style={{ background: colors.gold + "22" }}>AKTIF</span>}
                 </div>
                 <div className="mono text-sm font-bold truncate">{val === null ? "-" : metric === "value" ? fmtRp(val) : fmtNum(val)}</div>
-                <div className="text-xs mono" style={{ color: ach === null ? colors.textMuted : ach >= 1 ? colors.mint : colors.coral }}>
+                <div className="text-xs mono" style={{ color: ach === null ? colors.textMuted : ach >= ACH_TIERS.onPace ? colors.mint : colors.coral }}>
                   {ach === null ? "-" : fmtPct(ach)}
                 </div>
               </div>

@@ -10,6 +10,7 @@ import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
 import { Leaderboard } from "../components/cards/index.jsx";
 import { AchBadge } from "../components/AchBadge.jsx";
+import { ACH_TIERS } from "../constants/thresholds.js";
 
 /* ============================================================================
    TAB: SALES REPORT
@@ -49,7 +50,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
-      const barColor = data.ach >= 1 ? colors.mint : data.ach >= 0.7 ? colors.gold : colors.coral;
+      const barColor = data.ach >= ACH_TIERS.onPace ? colors.mint : data.ach >= ACH_TIERS.warning ? colors.gold : colors.coral;
       return (
         <div className="p-3" style={{ background: colors.modalBg, backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)", border: `1px solid ${colors.modalBorder}`, borderRadius: 10, fontSize: 12, boxShadow: colors.glassShadow }}>
           <div className="font-semibold mb-1" style={{ color: colors.text }}>{label}</div>
@@ -74,7 +75,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
           <YAxis type="category" dataKey="name" width={160} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: colors.glassSubtle }} />
           <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
-            {rows.map((r, i) => <Cell key={i} fill={r.ach >= 1 ? colors.mint : r.ach >= 0.7 ? colors.gold : colors.coral} />)}
+            {rows.map((r, i) => <Cell key={i} fill={r.ach >= ACH_TIERS.onPace ? colors.mint : r.ach >= ACH_TIERS.warning ? colors.gold : colors.coral} />)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
