@@ -59,7 +59,7 @@ const createGlobalStyle = (colors) => `
 .smapp *::-webkit-scrollbar-track { background: transparent; }
 /* --- Aurora mesh background (Fase 4 — final spec, 5 blobs) --- */
 .sm-mesh { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-.sm-mesh .blob { position: absolute; border-radius: 50%; filter: blur(80px); will-change: transform; }
+.sm-mesh .blob { position: absolute; border-radius: 50%; filter: blur(60px); will-change: transform; }
 .sm-noise { position: absolute; inset: -10%; opacity: .035; mix-blend-mode: overlay; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); background-size: 180px 180px; }
 .sm-mesh .blob-1 { top: -12%; left: -10%; animation: smBlobA 28s cubic-bezier(.4,0,.2,1) infinite; }
 .sm-mesh .blob-2 { top: 22%; right: -14%; animation: smBlobB 34s cubic-bezier(.4,0,.2,1) infinite; }
@@ -92,7 +92,7 @@ const createGlobalStyle = (colors) => `
 .sm-page-enter { animation: smPageIn .25s cubic-bezier(.16,1,.3,1); }
 .sm-pulse { animation: smPulse 1.8s ease-in-out infinite; }
 .sm-shimmer { background: linear-gradient(90deg, ${colors.surface2} 0%, ${colors.border} 50%, ${colors.surface2} 100%); background-size: 800px 100%; animation: smShimmer 1.4s linear infinite; }
-.sm-card { background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; border-radius: 16px; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); transition: transform .25s ease, box-shadow .25s ease, background .3s ease, border-color .3s ease; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
+.sm-card { background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; border-radius: 16px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); transition: transform .25s ease, box-shadow .25s ease, background .3s ease, border-color .3s ease; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; will-change: transform; }
 .sm-card:hover { transform: translateY(-2px); background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFillStrong}; border-color: ${colors.glassBorderElevated}; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
 .sm-glow-wrap { position: relative; }
 .sm-glow-wrap .sm-glow { position: absolute; inset: -8px; border-radius: 20px; filter: blur(18px); opacity: .12; z-index: -1; pointer-events: none; transition: opacity .3s ease; }
