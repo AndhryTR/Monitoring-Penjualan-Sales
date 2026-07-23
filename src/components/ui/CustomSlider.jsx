@@ -20,7 +20,6 @@ export function CustomSlider({ value, min = 1, max = 31, onChange, colors }) {
           background: colors.glassFill, 
           border: `1px solid ${colors.glassBorder}`, 
           color: colors.text,
-          boxShadow: "none" // Menonjolkan glass effect tanpa shadow berlebih
         }}
       >
         {value}

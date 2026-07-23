@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import sumBy from "lodash/sumBy";
 import { fmtRp, fmtNum, fmtPct } from "./formatters.js";
+import { ACH_TIERS } from "../constants/thresholds.js";
 
 /* ============================================================================
    EXPORT PDF
@@ -86,8 +87,8 @@ function drawFooterOnAllPages(doc) {
 
 function achColor(ach) {
   if (ach === null || ach === undefined) return COLORS.textMuted;
-  if (ach >= 1) return COLORS.mint;
-  if (ach >= 0.8) return COLORS.gold;
+  if (ach >= ACH_TIERS.onPace) return COLORS.mint;
+  if (ach >= ACH_TIERS.warning) return COLORS.gold;
   return COLORS.coral;
 }
 

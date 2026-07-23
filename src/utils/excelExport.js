@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx-js-style";
 import { dateStrToLocalDate, todayLocalDateStr } from "./excelParse.js";
+import { ACH_TIERS } from "../constants/thresholds.js";
 
 /* ============================================================================
    EXCEL EXPORT
@@ -24,8 +25,8 @@ export const XL_TIER_FILL = { mint: XL_COLORS.mint, amber: XL_COLORS.yellowTier,
 // bukan lompat diskrit — jadi 85% akan terlihat warna transisi kuning-hijau.
 const ACH_GRADIENT_STOPS = [
   { pct: 0, rgb: [248, 105, 107] },   // merah pastel
-  { pct: 0.7, rgb: [255, 235, 132] }, // kuning pastel
-  { pct: 1.0, rgb: [99, 190, 123] },  // hijau pastel
+  { pct: ACH_TIERS.warning, rgb: [255, 235, 132] }, // kuning pastel
+  { pct: ACH_TIERS.onPace, rgb: [99, 190, 123] },  // hijau pastel
 ];
 
 function achGradientColor(pct) {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import sumBy from "lodash/sumBy";
 import {
   X, RefreshCw, Sun, Moon,
@@ -10,7 +10,7 @@ import {
   parseWorkbookFile, dedupeRows,
 } from "./utils/excelParse.js";
 import {
-  useAggregates, computeAggregates, detectMonths, getOutletBreakdown, getProductBreakdownForOutlet,
+  useAggregates, computeAggregates, detectMonths, monthKey, getOutletBreakdown, getProductBreakdownForOutlet,
 } from "./utils/aggregation.js";
 import { useDataQualityNotes } from "./utils/dataQuality.js";
 import { buildHistorySnapshot, computeComparison, computeMultiPeriodComparison } from "./utils/history.js";
@@ -33,6 +33,7 @@ import { ProductReportPage } from "./pages/ProductReportPage.jsx";
 import { ProductFocusReportPage } from "./pages/ProductFocusReportPage.jsx";
 import { OutletAnalysisPage } from "./pages/OutletAnalysisPage.jsx";
 import { DataQualityPage } from "./pages/DataQualityPage.jsx";
+import { ExecutiveSummaryPage } from "./pages/ExecutiveSummaryPage.jsx";
 import { TransactionsPage } from "./pages/TransactionsPage.jsx";
 import { OutletDrilldownModal } from "./components/modals/OutletDrilldownModal.jsx";
 import { OutletDetailModal } from "./components/modals/OutletDetailModal.jsx";
@@ -59,7 +60,7 @@ const createGlobalStyle = (colors) => `
 .smapp *::-webkit-scrollbar-track { background: transparent; }
 /* --- Aurora mesh background (Fase 4 — final spec, 5 blobs) --- */
 .sm-mesh { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-.sm-mesh .blob { position: absolute; border-radius: 50%; filter: blur(80px); will-change: transform; }
+.sm-mesh .blob { position: absolute; border-radius: 50%; filter: blur(60px); will-change: transform; }
 .sm-noise { position: absolute; inset: -10%; opacity: .035; mix-blend-mode: overlay; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); background-size: 180px 180px; }
 .sm-mesh .blob-1 { top: -12%; left: -10%; animation: smBlobA 28s cubic-bezier(.4,0,.2,1) infinite; }
 .sm-mesh .blob-2 { top: 22%; right: -14%; animation: smBlobB 34s cubic-bezier(.4,0,.2,1) infinite; }
@@ -78,13 +79,22 @@ const createGlobalStyle = (colors) => `
 @keyframes smShimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
 @keyframes smDash { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) { .sm-mesh .blob { animation: none; } }
+/* Saat scroll aktif: hentikan animasi blob & sembunyikan noise sementara.
+   Animasi blob (translate+scale infinite) dan blend-mode noise sama-sama
+   membebani compositor GPU setiap frame — kalau dibiarkan jalan terus
+   SELAMA scroll juga berlangsung (yang butuh compositor juga), keduanya
+   rebutan resource dan bikin scroll terasa patah-patah di device lemah.
+   Blob & noise cuma dekorasi ambient, jadi aman dibekukan sesaat; begitu
+   scroll berhenti (150ms tanpa event baru), otomatis nyala lagi. */
+.sm-mesh.sm-scrolling .blob { animation-play-state: paused; }
+.sm-mesh.sm-scrolling .sm-noise { display: none; }
 .sm-fadeup { animation: smFadeUp .45s cubic-bezier(.16,1,.3,1) backwards; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
 .sm-fadein { animation: smFadeIn .3s ease both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
 .sm-page-enter { animation: smPageIn .25s cubic-bezier(.16,1,.3,1); }
 .sm-pulse { animation: smPulse 1.8s ease-in-out infinite; }
 .sm-shimmer { background: linear-gradient(90deg, ${colors.surface2} 0%, ${colors.border} 50%, ${colors.surface2} 100%); background-size: 800px 100%; animation: smShimmer 1.4s linear infinite; }
-.sm-card { background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; border-radius: 16px; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); transition: transform .25s ease, box-shadow .25s ease, background .3s ease, border-color .3s ease, backdrop-filter .3s ease; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
-.sm-card:hover { transform: translateY(-2px); background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFillStrong}; border-color: ${colors.glassBorderElevated}; backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
+.sm-card { background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; border-radius: 16px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); transition: transform .25s ease, box-shadow .25s ease, background .3s ease, border-color .3s ease; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; will-change: transform; }
+.sm-card:hover { transform: translateY(-2px); background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFillStrong}; border-color: ${colors.glassBorderElevated}; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
 .sm-glow-wrap { position: relative; }
 .sm-glow-wrap .sm-glow { position: absolute; inset: -8px; border-radius: 20px; filter: blur(18px); opacity: .12; z-index: -1; pointer-events: none; transition: opacity .3s ease; }
 .sm-glow-wrap:hover .sm-glow { opacity: .20; }
@@ -101,27 +111,51 @@ const createGlobalStyle = (colors) => `
 .sm-btn:hover { transform: translateY(-2px); background: ${colors.glassFillStrong}; box-shadow: 0 6px 20px rgba(0,0,0,.22), inset 0 1px 0 ${colors.glassHighlight}; }
 .sm-btn:active { transform: translateY(0); box-shadow: inset 0 2px 8px rgba(0,0,0,.25); }
 .sm-progress-fill { transition: width 1s cubic-bezier(.16,1,.3,1); }
+.sm-drop { transition: border-color .2s ease, background .2s ease; }
+.sm-scale-in { animation: smFadeUp .5s cubic-bezier(.16,1,.3,1); }
 .sm-slider { 
-  background: ${colors.glassBorder} !important; 
   border: 1px solid ${colors.glassBorder};
+  border-radius: 999px;
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  outline: none;
+}
+.sm-slider::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 999px;
+  background: transparent;
+}
+.sm-slider::-moz-range-track {
+  height: 8px;
+  border-radius: 999px;
+  background: transparent;
 }
 .sm-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 16px;
   height: 16px;
+  margin-top: -4px;
   border-radius: 50%;
   background: ${colors.gold};
+  border: 2px solid rgba(255,255,255,.5);
   cursor: pointer;
-  box-shadow: 0 0 10px rgba(0,0,0,0.2);
+  box-shadow: 0 0 10px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.4);
+  transition: transform .15s ease, box-shadow .15s ease;
 }
+.sm-slider::-webkit-slider-thumb:hover { transform: scale(1.15); box-shadow: 0 0 14px ${colors.gold}77, inset 0 1px 0 rgba(255,255,255,.5); }
 .sm-slider::-moz-range-thumb {
   width: 16px;
   height: 16px;
   border-radius: 50%;
   background: ${colors.gold};
+  border: 2px solid rgba(255,255,255,.5);
   cursor: pointer;
+  box-shadow: 0 0 10px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.4);
+  transition: transform .15s ease, box-shadow .15s ease;
 }
+.sm-slider::-moz-range-thumb:hover { transform: scale(1.15); }
+.sm-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px ${colors.mint}44, 0 0 10px rgba(0,0,0,.25); }
+.sm-slider:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px ${colors.mint}44, 0 0 10px rgba(0,0,0,.25); }
 `;
 
 
@@ -284,14 +318,36 @@ export default function SalesMonitoringApp() {
   // tetap diprioritaskan kalau user pernah pilih lewat modal Riwayat.
   const detectedMonths = useMemo(() => detectMonths(rawRows), [rawRows]);
 
+  // ---- Peringatan filter lintas-bulan (Lapis 2) ----
+  // Target di Settings selalu berarti target UNTUK 1 BULAN. Kalau filter
+  // tanggal yang sedang aktif (dateFrom..dateTo) mencakup lebih dari 1 bulan
+  // kalender, maka Dashboard/Sales/Produk/Fokus/Outlet Report — yang semuanya
+  // menjumlah realisasi lalu membaginya ke target itu apa adanya — akan
+  // menghasilkan ACH yang tidak lagi mencerminkan "progres vs target bulanan"
+  // yang sebenarnya. Ini TIDAK mengubah kalkulasi apa pun, cuma menandai
+  // kondisinya supaya bisa ditampilkan sebagai peringatan di UI.
+  const filterSpansMultipleMonths = useMemo(() => {
+    if (!filters.dateFrom || !filters.dateTo) return false;
+    return monthKey(filters.dateFrom) !== monthKey(filters.dateTo);
+  }, [filters.dateFrom, filters.dateTo]);
+
   const autoTrendComparisonData = useMemo(() => {
     if (detectedMonths.length < 2) return null;
-    // Filter sales/grup tetap dihormati, tapi dateFrom/dateTo dipaksa ke
-    // batas bulan masing-masing — mengabaikan filter tanggal global yang
-    // mungkin sedang aktif di tab lain (deteksi ini soal DATA YANG DI-UPLOAD,
-    // bukan soal apa yang sedang difilter di layar sekarang).
+    // Filter Sales tetap dihormati (siapa yang ditampilkan tidak berubah
+    // antar bulan), TAPI filter Grup Barang (filters.groups) SENGAJA
+    // diabaikan di sini — itu mencerminkan pilihan "grup mana yang relevan
+    // SEKARANG", dan kalau ikut dipakai untuk menghitung ulang bulan-bulan
+    // lain, transaksi dari golongan barang yang tidak kepilih di filter
+    // aktif akan tersaring habis dari bulan itu — padahal sales bisa saja
+    // menjual golongan berbeda di bulan lalu. Tiap bulan historis di sini
+    // SELALU mencakup SEMUA golongan barang yang benar-benar ada di bulan
+    // itu, supaya realisasi & AO per bulan (dan totalnya) tetap akurat.
+    // dateFrom/dateTo juga dipaksa ke batas bulan masing-masing — mengabaikan
+    // filter tanggal global yang mungkin sedang aktif di tab lain (deteksi
+    // ini soal DATA YANG DI-UPLOAD, bukan soal apa yang sedang difilter di
+    // layar sekarang).
     const monthlyAggs = detectedMonths.map((m) =>
-      computeAggregates(rawRows, targets, { salesCodes: filters.salesCodes, groups: filters.groups, dateFrom: m.dateFrom, dateTo: m.dateTo }, workDays)
+      computeAggregates(rawRows, targets, { salesCodes: filters.salesCodes, groups: [], dateFrom: m.dateFrom, dateTo: m.dateTo }, workDays)
     );
     const latest = detectedMonths[detectedMonths.length - 1];
     const latestAgg = monthlyAggs[monthlyAggs.length - 1];
@@ -299,7 +355,7 @@ export default function SalesMonitoringApp() {
       buildHistorySnapshot(monthlyAggs[i], { dateFrom: m.dateFrom, dateTo: m.dateTo }, fileName, m.label)
     );
     return computeMultiPeriodComparison(latestAgg, earlierSnapshots, { dateFrom: latest.dateFrom, dateTo: latest.dateTo }, fileName);
-  }, [detectedMonths, rawRows, targets, filters.salesCodes, filters.groups, workDays, fileName]);
+  }, [detectedMonths, rawRows, targets, filters.salesCodes, workDays, fileName]);
 
   // Manual (lewat modal Riwayat) selalu menang kalau pernah dipilih; kalau
   // belum, fallback ke auto-deteksi bulan (bisa null kalau cuma 1 bulan).
@@ -401,9 +457,17 @@ export default function SalesMonitoringApp() {
     setRawRows(rows);
     setParseMeta(meta);
     setFileName(name);
-    const dateStrs = rows.map(r => r.date).filter(Boolean).sort();
-    if (dateStrs.length) {
-      setFilters(f => ({ ...f, dateFrom: dateStrs[0], dateTo: dateStrs[dateStrs.length - 1] }));
+    // Default filter tanggal setelah upload = BULAN KALENDER TERAKHIR saja
+    // (bukan rentang penuh semua data yang diupload). Kalau data mencakup
+    // beberapa bulan tapi filter dibiarkan mencakup semuanya, Dashboard utama
+    // akan menjumlahkan realisasi banyak bulan lalu membandingkannya ke target
+    // yang cuma berlaku untuk 1 bulan — ACH & deviasi jadi salah baca. Bulan-
+    // bulan sebelumnya tidak hilang: tetap otomatis muncul di tab "Tren
+    // Periode" lewat detectMonths()/autoTrendComparisonData yang sudah ada.
+    const months = detectMonths(rows);
+    if (months.length) {
+      const latest = months[months.length - 1];
+      setFilters(f => ({ ...f, dateFrom: latest.dateFrom, dateTo: latest.dateTo }));
     }
     setPendingPreview(null);
   }, [pendingPreview]);
@@ -446,10 +510,33 @@ export default function SalesMonitoringApp() {
     setTrendSnapshotIds([]);
   }, []);
 
+  // Optimasi performa scroll (lihat komentar CSS .sm-scrolling): tandai
+  // background mesh sebagai "sedang scroll" via ref DOM langsung (bukan
+  // useState) supaya toggle ini TIDAK memicu re-render React sama sekali —
+  // scroll event bisa nembak puluhan kali per detik, kalau pakai setState
+  // di situ malah jadi sumber lag baru. Debounce 150ms: kelas dilepas begitu
+  // tidak ada event scroll baru selama itu.
+  const meshRef = useRef(null);
+  useEffect(() => {
+    let timeoutId = null;
+    const onScroll = () => {
+      if (meshRef.current) meshRef.current.classList.add("sm-scrolling");
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (meshRef.current) meshRef.current.classList.remove("sm-scrolling");
+      }, 150);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, []);
+
   return (
     <div className="smapp min-h-screen transition-colors duration-300">
       <style>{globalStyle}</style>
-      <div className="sm-mesh" aria-hidden="true">
+      <div className="sm-mesh" aria-hidden="true" ref={meshRef}>
         {colors.blobs.map((b, i) => (
           <div
             key={i}
@@ -605,14 +692,23 @@ export default function SalesMonitoringApp() {
         ) : (
           <>
             <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} theme={theme} />
+            {filterSpansMultipleMonths && ["main", "executive", "sales", "product", "focus", "outlet"].includes(activeTab) && (
+              <div className="sm-card p-3 mb-4 flex items-center gap-2.5 sm-fadeup" style={{ background: colors.gold + "0D", border: `1px solid ${colors.gold}33` }}>
+                <AlertTriangle size={15} style={{ color: colors.gold, flexShrink: 0 }} />
+                <p className="text-xs" style={{ color: colors.text }}>
+                  Rentang tanggal yang aktif mencakup lebih dari 1 bulan kalender, sementara target di Pengaturan berlaku per bulan. ACH & deviasi di halaman ini mungkin tidak mencerminkan performa yang sebenarnya — persempit filter ke 1 bulan, atau gunakan tab <b>Tren Periode</b> untuk membandingkan antar bulan dengan benar.
+                </p>
+              </div>
+            )}
             {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} />}
+            {activeTab === "executive" && <ExecutiveSummaryPage agg={aggFinal} colors={colors} workDays={workDays} onDrilldown={openDrilldown} comparison={comparison} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} />}
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "outlet" && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} />}
             {activeTab === "transactions" && <TransactionsPage agg={aggFinal} colors={colors} onOutletDrilldown={openOutletDetail} />}
             {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
-            {activeTab === "trend" && <TrendPeriodePage comparisonData={finalTrendComparisonData} isAutoTrend={isAutoTrend} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} />}
+            {activeTab === "trend" && <TrendPeriodePage comparisonData={finalTrendComparisonData} isAutoTrend={isAutoTrend} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} depotName={depotName} />}
           </>
         )}
 

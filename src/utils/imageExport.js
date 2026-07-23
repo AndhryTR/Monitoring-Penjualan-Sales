@@ -1,6 +1,7 @@
 import html2canvas from "html2canvas";
 import { fmtRp, fmtNum, fmtPct } from "./formatters.js";
 import { dateStrToLocalDate } from "./excelParse.js";
+import { ACH_TIERS } from "../constants/thresholds.js";
 
 /* ============================================================================
    IMAGE EXPORT
@@ -33,8 +34,8 @@ const PDF_COLORS = {
 // Jangan pakai achGradientColor (di bawah) untuk mirror PDF — beda template.
 function pdfAchTextColor(ach) {
   if (ach === null || ach === undefined) return PDF_COLORS.textMuted;
-  if (ach >= 1) return PDF_COLORS.mint;
-  if (ach >= 0.8) return PDF_COLORS.gold;
+  if (ach >= ACH_TIERS.onPace) return PDF_COLORS.mint;
+  if (ach >= ACH_TIERS.warning) return PDF_COLORS.gold;
   return PDF_COLORS.coral;
 }
 
@@ -53,8 +54,8 @@ const XL_TIER_FILL_HTML = { mint: XL_COLORS_HTML.mint, amber: XL_COLORS_HTML.yel
 // Gradien pencapaian — duplikat persis dari excelExport.js (lihat komentar di sana).
 const ACH_GRADIENT_STOPS = [
   { pct: 0, rgb: [248, 105, 107] },
-  { pct: 0.7, rgb: [255, 235, 132] },
-  { pct: 1.0, rgb: [99, 190, 123] },
+  { pct: ACH_TIERS.warning, rgb: [255, 235, 132] },
+  { pct: ACH_TIERS.onPace, rgb: [99, 190, 123] },
 ];
 function achGradientColor(pct) {
   if (pct === null || pct === undefined || Number.isNaN(pct)) return null;
