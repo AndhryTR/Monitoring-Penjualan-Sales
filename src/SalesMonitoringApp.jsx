@@ -332,12 +332,21 @@ export default function SalesMonitoringApp() {
 
   const autoTrendComparisonData = useMemo(() => {
     if (detectedMonths.length < 2) return null;
-    // Filter sales/grup tetap dihormati, tapi dateFrom/dateTo dipaksa ke
-    // batas bulan masing-masing — mengabaikan filter tanggal global yang
-    // mungkin sedang aktif di tab lain (deteksi ini soal DATA YANG DI-UPLOAD,
-    // bukan soal apa yang sedang difilter di layar sekarang).
+    // Filter Sales tetap dihormati (siapa yang ditampilkan tidak berubah
+    // antar bulan), TAPI filter Grup Barang (filters.groups) SENGAJA
+    // diabaikan di sini — itu mencerminkan pilihan "grup mana yang relevan
+    // SEKARANG", dan kalau ikut dipakai untuk menghitung ulang bulan-bulan
+    // lain, transaksi dari golongan barang yang tidak kepilih di filter
+    // aktif akan tersaring habis dari bulan itu — padahal sales bisa saja
+    // menjual golongan berbeda di bulan lalu. Tiap bulan historis di sini
+    // SELALU mencakup SEMUA golongan barang yang benar-benar ada di bulan
+    // itu, supaya realisasi & AO per bulan (dan totalnya) tetap akurat.
+    // dateFrom/dateTo juga dipaksa ke batas bulan masing-masing — mengabaikan
+    // filter tanggal global yang mungkin sedang aktif di tab lain (deteksi
+    // ini soal DATA YANG DI-UPLOAD, bukan soal apa yang sedang difilter di
+    // layar sekarang).
     const monthlyAggs = detectedMonths.map((m) =>
-      computeAggregates(rawRows, targets, { salesCodes: filters.salesCodes, groups: filters.groups, dateFrom: m.dateFrom, dateTo: m.dateTo }, workDays)
+      computeAggregates(rawRows, targets, { salesCodes: filters.salesCodes, groups: [], dateFrom: m.dateFrom, dateTo: m.dateTo }, workDays)
     );
     const latest = detectedMonths[detectedMonths.length - 1];
     const latestAgg = monthlyAggs[monthlyAggs.length - 1];
@@ -345,7 +354,7 @@ export default function SalesMonitoringApp() {
       buildHistorySnapshot(monthlyAggs[i], { dateFrom: m.dateFrom, dateTo: m.dateTo }, fileName, m.label)
     );
     return computeMultiPeriodComparison(latestAgg, earlierSnapshots, { dateFrom: latest.dateFrom, dateTo: latest.dateTo }, fileName);
-  }, [detectedMonths, rawRows, targets, filters.salesCodes, filters.groups, workDays, fileName]);
+  }, [detectedMonths, rawRows, targets, filters.salesCodes, workDays, fileName]);
 
   // Manual (lewat modal Riwayat) selalu menang kalau pernah dipilih; kalau
   // belum, fallback ke auto-deteksi bulan (bisa null kalau cuma 1 bulan).
