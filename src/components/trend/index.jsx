@@ -11,6 +11,38 @@ import { ACH_TIERS } from "../../constants/thresholds.js";
 const LINE_COLOR_KEYS = ["gold", "mint", "violet", "blue", "coral"];
 const MAX_DEFAULT_LINES = 5;
 
+// Warna tambahan di luar 5 warna tema utama (gold/mint/violet/blue/coral),
+// dipakai saat sales yang dipilih lebih dari 5 supaya tiap garis tetap punya
+// warna unik dan tidak ada yang dobel.
+const EXTRA_LINE_COLORS = [
+  "#F472B6", // pink
+  "#38BDF8", // sky
+  "#A3E635", // lime
+  "#FB923C", // orange
+  "#818CF8", // indigo
+  "#2DD4BF", // teal
+  "#E879F9", // fuchsia
+  "#FACC15", // yellow
+  "#4ADE80", // green
+  "#FB7185", // rose
+];
+
+// Mengembalikan warna garis chart berdasarkan index sales terpilih.
+// Urutan: 5 warna tema utama -> 10 warna tambahan -> generate warna HSL
+// otomatis (golden-angle) agar tetap unik walau sales yang dipilih sangat banyak.
+function getLineColor(index, colors) {
+  if (index < LINE_COLOR_KEYS.length) {
+    return colors[LINE_COLOR_KEYS[index]];
+  }
+  const extraIndex = index - LINE_COLOR_KEYS.length;
+  if (extraIndex < EXTRA_LINE_COLORS.length) {
+    return EXTRA_LINE_COLORS[extraIndex];
+  }
+  const total = LINE_COLOR_KEYS.length + EXTRA_LINE_COLORS.length;
+  const hue = ((extraIndex - EXTRA_LINE_COLORS.length) * 137.508) % 360;
+  return `hsl(${hue}, 70%, 55%)`;
+}
+
 // Formatter ringkas khusus label sumbu Y chart (mis. "1,2 Jt" / "850 Rb") — fmtRp
 // dari utils/formatters.js sengaja tidak diubah karena dipakai di banyak tempat
 // lain yang butuh format penuh "Rp 12.345.678".
@@ -162,7 +194,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
             <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => metric === "value" ? fmtRp(v) : fmtNum(v)} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             {effectiveSelectedNames.map((name, i) => (
-              <Line key={name} type="monotone" dataKey={name} stroke={colors[LINE_COLOR_KEYS[i % LINE_COLOR_KEYS.length]]}
+              <Line key={name} type="monotone" dataKey={name} stroke={getLineColor(i, colors)}
                 strokeWidth={2} dot={{ r: 3 }} connectNulls />
             ))}
           </LineChart>
