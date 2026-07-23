@@ -10,7 +10,7 @@ import {
   parseWorkbookFile, dedupeRows,
 } from "./utils/excelParse.js";
 import {
-  useAggregates, computeAggregates, detectMonths, getOutletBreakdown, getProductBreakdownForOutlet,
+  useAggregates, computeAggregates, detectMonths, monthKey, getOutletBreakdown, getProductBreakdownForOutlet,
 } from "./utils/aggregation.js";
 import { useDataQualityNotes } from "./utils/dataQuality.js";
 import { buildHistorySnapshot, computeComparison, computeMultiPeriodComparison } from "./utils/history.js";
@@ -317,6 +317,19 @@ export default function SalesMonitoringApp() {
   // tetap diprioritaskan kalau user pernah pilih lewat modal Riwayat.
   const detectedMonths = useMemo(() => detectMonths(rawRows), [rawRows]);
 
+  // ---- Peringatan filter lintas-bulan (Lapis 2) ----
+  // Target di Settings selalu berarti target UNTUK 1 BULAN. Kalau filter
+  // tanggal yang sedang aktif (dateFrom..dateTo) mencakup lebih dari 1 bulan
+  // kalender, maka Dashboard/Sales/Produk/Fokus/Outlet Report — yang semuanya
+  // menjumlah realisasi lalu membaginya ke target itu apa adanya — akan
+  // menghasilkan ACH yang tidak lagi mencerminkan "progres vs target bulanan"
+  // yang sebenarnya. Ini TIDAK mengubah kalkulasi apa pun, cuma menandai
+  // kondisinya supaya bisa ditampilkan sebagai peringatan di UI.
+  const filterSpansMultipleMonths = useMemo(() => {
+    if (!filters.dateFrom || !filters.dateTo) return false;
+    return monthKey(filters.dateFrom) !== monthKey(filters.dateTo);
+  }, [filters.dateFrom, filters.dateTo]);
+
   const autoTrendComparisonData = useMemo(() => {
     if (detectedMonths.length < 2) return null;
     // Filter sales/grup tetap dihormati, tapi dateFrom/dateTo dipaksa ke
@@ -434,9 +447,17 @@ export default function SalesMonitoringApp() {
     setRawRows(rows);
     setParseMeta(meta);
     setFileName(name);
-    const dateStrs = rows.map(r => r.date).filter(Boolean).sort();
-    if (dateStrs.length) {
-      setFilters(f => ({ ...f, dateFrom: dateStrs[0], dateTo: dateStrs[dateStrs.length - 1] }));
+    // Default filter tanggal setelah upload = BULAN KALENDER TERAKHIR saja
+    // (bukan rentang penuh semua data yang diupload). Kalau data mencakup
+    // beberapa bulan tapi filter dibiarkan mencakup semuanya, Dashboard utama
+    // akan menjumlahkan realisasi banyak bulan lalu membandingkannya ke target
+    // yang cuma berlaku untuk 1 bulan — ACH & deviasi jadi salah baca. Bulan-
+    // bulan sebelumnya tidak hilang: tetap otomatis muncul di tab "Tren
+    // Periode" lewat detectMonths()/autoTrendComparisonData yang sudah ada.
+    const months = detectMonths(rows);
+    if (months.length) {
+      const latest = months[months.length - 1];
+      setFilters(f => ({ ...f, dateFrom: latest.dateFrom, dateTo: latest.dateTo }));
     }
     setPendingPreview(null);
   }, [pendingPreview]);
@@ -661,6 +682,14 @@ export default function SalesMonitoringApp() {
         ) : (
           <>
             <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} theme={theme} />
+            {filterSpansMultipleMonths && ["main", "sales", "product", "focus", "outlet"].includes(activeTab) && (
+              <div className="sm-card p-3 mb-4 flex items-center gap-2.5 sm-fadeup" style={{ background: colors.gold + "0D", border: `1px solid ${colors.gold}33` }}>
+                <AlertTriangle size={15} style={{ color: colors.gold, flexShrink: 0 }} />
+                <p className="text-xs" style={{ color: colors.text }}>
+                  Rentang tanggal yang aktif mencakup lebih dari 1 bulan kalender, sementara target di Pengaturan berlaku per bulan. ACH & deviasi di halaman ini mungkin tidak mencerminkan performa yang sebenarnya — persempit filter ke 1 bulan, atau gunakan tab <b>Tren Periode</b> untuk membandingkan antar bulan dengan benar.
+                </p>
+              </div>
+            )}
             {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} />}
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
