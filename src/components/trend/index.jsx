@@ -290,7 +290,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
           <table className="w-full text-sm border-separate" style={{ borderSpacing: 0 }}>
             <thead>
               <tr>
-                <th className="text-left px-3 py-2 sticky left-0 z-10" style={{ background: colors.surface, color: colors.textMuted, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Sales</th>
+                <th className="text-left px-3 py-2 sticky left-0 z-10" style={{ background: colors.modalBg, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", color: colors.textMuted, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Sales</th>
                 {periods.map((p) => (
                   <th key={p.id} className="text-right px-3 py-2 whitespace-nowrap" style={{ color: p.isCurrent ? colors.gold : colors.textMuted, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>
                     {p.label}
@@ -302,7 +302,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
             <tbody>
               {bySales.map((s) => (
                 <tr key={s.code} className="sm-row">
-                  <td className="px-3 py-2 sticky left-0 z-10 truncate max-w-[160px]" style={{ background: colors.surface }}>{s.name}</td>
+                  <td className="px-3 py-2 sticky left-0 z-10 truncate max-w-[160px]" style={{ background: colors.modalBg, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>{s.name}</td>
                   {s.series.map((pt) => (
                     <td key={pt.periodId} className="text-right px-3 py-2 whitespace-nowrap">
                       {pt.missing ? (
