@@ -16,7 +16,7 @@ import { useDataQualityNotes } from "./utils/dataQuality.js";
 import { buildHistorySnapshot, computeComparison, computeMultiPeriodComparison } from "./utils/history.js";
 import { generateSampleRows } from "./utils/sampleData.js";
 import { ALIASES } from "./constants/aliases.js";
-import { PRIMARY_TABS, MORE_TABS } from "./constants/tabs.js";
+import { TABS } from "./constants/tabs.js";
 import { Sidebar } from "./components/layout/Sidebar.jsx";
 import { WORK_DAYS_DEFAULT } from "./constants/thresholds.js";
 import DEFAULT_TARGETS from "./constants/defaultTargets.json";
@@ -58,6 +58,8 @@ const createGlobalStyle = (colors) => `
 .smapp *::-webkit-scrollbar { height: 8px; width: 8px; }
 .smapp *::-webkit-scrollbar-thumb { background: ${colors.border}; border-radius: 4px; border: 2px solid ${colors.ink}; }
 .smapp *::-webkit-scrollbar-track { background: transparent; }
+/* Sembunyikan scrollbar pada mobile bottom nav (scroll-snap horizontal) */
+.sm-scrollhide::-webkit-scrollbar { display: none; }
 /* --- Aurora mesh background (Fase 4 — final spec, 5 blobs) --- */
 .sm-mesh { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .sm-mesh .blob { position: absolute; border-radius: 50%; filter: blur(60px); will-change: transform; }
@@ -193,7 +195,14 @@ export default function SalesMonitoringApp() {
   // sementara/eksploratif.
   const [trendSnapshotIds, setTrendSnapshotIds] = useState([]);
 
-  const [filters, setFilters] = useState(persistedSettings?.filters || { salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
+  const [filters, setFilters] = useState(() => {
+    const saved = persistedSettings?.filters;
+    if (!saved) return { salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" };
+    // Settings lama (sebelum fitur preset ada) belum punya field datePreset —
+    // kalau dateFrom/dateTo sudah keisi manual, anggap "custom" biar tidak
+    // tiba-tiba ketimpa jadi "Semua Data".
+    return { ...saved, datePreset: saved.datePreset ?? (saved.dateFrom || saved.dateTo ? "custom" : "all") };
+  });
   const [workDays, setWorkDays] = useState(persistedSettings?.workDays ?? WORK_DAYS_DEFAULT);
   const [targets, setTargets] = useState(persistedSettings?.targets ?? DEFAULT_TARGETS);
   const [depotName, setDepotName] = useState(persistedSettings?.depotName ?? "DEPO LOTIM");
@@ -467,7 +476,7 @@ export default function SalesMonitoringApp() {
     const months = detectMonths(rows);
     if (months.length) {
       const latest = months[months.length - 1];
-      setFilters(f => ({ ...f, dateFrom: latest.dateFrom, dateTo: latest.dateTo }));
+      setFilters(f => ({ ...f, dateFrom: latest.dateFrom, dateTo: latest.dateTo, datePreset: "thisMonth" }));
     }
     setPendingPreview(null);
   }, [pendingPreview]);
@@ -483,7 +492,7 @@ export default function SalesMonitoringApp() {
       setFileName("Data Contoh (demo)");
       setParseMeta({ totalDataRows: sampleRows.length, skippedBlankRows: 0, rowsWithMissingDate: 0,
         detectedFields: Object.keys(ALIASES), missingFields: [] });
-      setFilters({ salesCodes: [], groups: [], dateFrom: "2026-07-01", dateTo: "2026-07-03" });
+      setFilters({ salesCodes: [], groups: [], dateFrom: "2026-07-01", dateTo: "2026-07-03", datePreset: "custom" });
       setSampleLoading(false);
     }, 300);
   }, []);
@@ -500,7 +509,7 @@ export default function SalesMonitoringApp() {
     clearSession();
     clearHistory();
     setRawRows([]); setFileName(""); setParseMeta(null);
-    setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
+    setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" });
     setWorkDays(WORK_DAYS_DEFAULT);
     setTargets(DEFAULT_TARGETS);
     setDepotName("DEPO LOTIM");
@@ -556,12 +565,12 @@ export default function SalesMonitoringApp() {
         onDelete={deleteHistorySnapshot}
         defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
       <MobileFab onFile={handleFile} colors={colors} loading={loading} />
-      <MobileBottomNav primaryTabs={PRIMARY_TABS} moreTabs={MORE_TABS} activeTab={activeTab} onChange={setActiveTab} colors={colors} />
+      <MobileBottomNav tabs={TABS} activeTab={activeTab} onChange={setActiveTab} colors={colors} />
       <div className="flex items-start">
         <Sidebar activeTab={activeTab} onChangeTab={setActiveTab} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
           onOpenHistory={() => setIsHistoryOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} historyDisabled={!rawRows.length} colors={colors} />
         <div className="flex-1 min-w-0">
-      <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 pb-28 md:pb-6">
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 pb-24 md:pb-6">
         {/* header */}
         <div className="relative z-40 flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
           <div className="flex items-center gap-3">
@@ -691,7 +700,7 @@ export default function SalesMonitoringApp() {
           </div>
         ) : (
           <>
-            <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} theme={theme} />
+            <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} theme={theme} rawRows={rawRows} />
             {filterSpansMultipleMonths && ["main", "executive", "sales", "product", "focus", "outlet"].includes(activeTab) && (
               <div className="sm-card p-3 mb-4 flex items-center gap-2.5 sm-fadeup" style={{ background: colors.gold + "0D", border: `1px solid ${colors.gold}33` }}>
                 <AlertTriangle size={15} style={{ color: colors.gold, flexShrink: 0 }} />

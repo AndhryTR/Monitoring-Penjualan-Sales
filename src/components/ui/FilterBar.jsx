@@ -1,6 +1,7 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Users, Package, CalendarDays, RefreshCw, Filter, X, ChevronDown } from "lucide-react";
 import { MultiSelect } from "./MultiSelect.jsx";
+import { getDatePresetOptions, resolveDatePreset, getDatePresetLabel } from "../../utils/datePresets.js";
 
 /* ============================================================================
    FILTERBAR
@@ -8,12 +9,52 @@ import { MultiSelect } from "./MultiSelect.jsx";
    inline (flex-wrap), di mobile tampil sebagai bottom-sheet yang dipicu tombol
    "Filter" dengan badge jumlah filter aktif.
 ============================================================================ */
-export function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors, theme }) {
+export function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors, theme, rawRows }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [dateMenuOpen, setDateMenuOpen] = useState(false);
+  const dateMenuRef = useRef(null);
   const active = filters.salesCodes.length + filters.groups.length + (filters.dateFrom ? 1 : 0) + (filters.dateTo ? 1 : 0);
   const nameToCode = useMemo(() => Object.fromEntries(salesOptions.map((s) => [s.name, s.code])), [salesOptions]);
   const codeToName = useMemo(() => Object.fromEntries(salesOptions.map(s => [s.code, s.name])), [salesOptions]);
   const selectedNames = useMemo(() => filters.salesCodes.map(code => codeToName[code]).filter(Boolean), [filters.salesCodes, codeToName]);
+
+  // Preset tanggal aktif — fallback aman untuk filters lama (dari sebelum fitur
+  // ini ada) yang belum punya field datePreset: kalau dateFrom/dateTo terisi
+  // manual, anggap "custom"; kalau kosong, anggap "all".
+  const datePreset = filters.datePreset || (filters.dateFrom || filters.dateTo ? "custom" : "all");
+  const presetOptions = useMemo(() => getDatePresetOptions(rawRows), [rawRows]);
+  const presetLabel = getDatePresetLabel(datePreset, rawRows);
+
+  // Preset dinamis (bukan "custom"/"all" statis dgn tanggal kosong) dihitung
+  // ulang tiap kali rawRows berubah (mis. upload data baru) supaya "7 Hari
+  // Terakhir" dkk selalu relatif ke tanggal terbaru yang SEKARANG ada di data.
+  useEffect(() => {
+    if (datePreset === "custom") return;
+    const resolved = resolveDatePreset(datePreset, rawRows);
+    if (!resolved) return;
+    if (resolved.dateFrom !== filters.dateFrom || resolved.dateTo !== filters.dateTo) {
+      setFilters((f) => ({ ...f, dateFrom: resolved.dateFrom, dateTo: resolved.dateTo, datePreset }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawRows, datePreset]);
+
+  // Tutup dropdown preset tanggal saat klik di luar.
+  useEffect(() => {
+    if (!dateMenuOpen) return;
+    const onClickOutside = (e) => { if (dateMenuRef.current && !dateMenuRef.current.contains(e.target)) setDateMenuOpen(false); };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [dateMenuOpen]);
+
+  const handlePickPreset = (key) => {
+    setDateMenuOpen(false);
+    if (key === "custom") {
+      setFilters((f) => ({ ...f, datePreset: "custom" }));
+      return;
+    }
+    const resolved = resolveDatePreset(key, rawRows);
+    setFilters((f) => ({ ...f, dateFrom: resolved.dateFrom, dateTo: resolved.dateTo, datePreset: key }));
+  };
 
   const handleSalesChange = (selectedNames) => {
     const selectedCodes = selectedNames.map(name => nameToCode[name]);
@@ -47,16 +88,44 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
       />
       <MultiSelect label="Grup Barang" icon={Package} options={groupOptions} selected={filters.groups}
         onChange={(v) => setFilters((f) => ({ ...f, groups: v }))} placeholder="Cari grup..." colors={colors} />
-      <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}` }}>
-        <CalendarDays size={14} style={{ color: colors.textMuted }} />
-        <input type="date" value={filters.dateFrom || ""} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
-          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme } } />
-        <span style={{ color: colors.textMuted }}>-</span>
-        <input type="date" value={filters.dateTo || ""} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
-          className="bg-transparent outline-none" style={{ color: colors.text, colorScheme } } />
+      <div className="relative" ref={dateMenuRef}>
+        <button onClick={() => setDateMenuOpen((o) => !o)}
+          className="sm-btn flex items-center gap-2 px-3 py-2 rounded-xl text-sm"
+          style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
+          <CalendarDays size={14} style={{ color: colors.textMuted }} />
+          <span>{presetLabel}</span>
+          <ChevronDown size={13} style={{ color: colors.textMuted, transform: dateMenuOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+        </button>
+        {dateMenuOpen && (
+          <div className="absolute left-0 z-30 mt-2 w-52 rounded-xl overflow-hidden sm-fadein"
+            style={{ background: colors.modalBg, backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)", border: `1px solid ${colors.modalBorder}`, boxShadow: colors.glassShadow }}>
+            {presetOptions.map((p) => (
+              <button key={p.key} onClick={() => handlePickPreset(p.key)}
+                className="sm-row w-full text-left px-3.5 py-2.5 text-sm"
+                style={{ color: datePreset === p.key ? colors.gold : colors.text, fontWeight: datePreset === p.key ? 600 : 400 }}>
+                {p.label}
+              </button>
+            ))}
+            <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
+            <button onClick={() => handlePickPreset("custom")}
+              className="sm-row w-full text-left px-3.5 py-2.5 text-sm"
+              style={{ color: datePreset === "custom" ? colors.gold : colors.text, fontWeight: datePreset === "custom" ? 600 : 400 }}>
+              Custom...
+            </button>
+          </div>
+        )}
       </div>
+      {datePreset === "custom" && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}` }}>
+          <input type="date" value={filters.dateFrom || ""} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value, datePreset: "custom" }))}
+            className="bg-transparent outline-none" style={{ color: colors.text, colorScheme } } />
+          <span style={{ color: colors.textMuted }}>-</span>
+          <input type="date" value={filters.dateTo || ""} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value, datePreset: "custom" }))}
+            className="bg-transparent outline-none" style={{ color: colors.text, colorScheme } } />
+        </div>
+      )}
       {active > 0 && (
-        <button onClick={() => setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" })}
+        <button onClick={() => setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" })}
           className="sm-btn flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm" style={{ color: colors.coral, background: colors.coral + "14", border: `1px solid ${colors.coral}33` }}>
           <RefreshCw size={13} /> Reset ({active})
         </button>

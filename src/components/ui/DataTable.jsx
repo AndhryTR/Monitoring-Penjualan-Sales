@@ -125,7 +125,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
             <tr style={{ background: colors.glassFillStrong, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
               {columns.map((c) => (
                 <th key={c.key} onClick={() => c.label && toggleSort(c.key)} className="px-4 py-3 text-left cursor-pointer select-none whitespace-nowrap"
-                  style={{ color: colors.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", background: colors.glassFillStrong, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: `0 1px 0 ${colors.glassBorderElevated}` }}>
+                  style={{ color: colors.tableHeader, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", background: colors.glassFillStrong, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: `0 1px 0 ${colors.glassBorderElevated}` }}>
                   {c.label} {sortKey === c.key && (sortDir === "asc" ? "↑" : "↓")}
                 </th>
               ))}
@@ -194,7 +194,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
                       <div key={c.key} className="min-w-0">
                         <div
                           className="uppercase tracking-wider mb-0.5"
-                          style={{ color: colors.textMuted, fontSize: 9.5, letterSpacing: "0.04em" }}
+                          style={{ color: colors.tableHeader, fontSize: 9.5, letterSpacing: "0.04em" }}
                         >
                           {c.label}
                         </div>

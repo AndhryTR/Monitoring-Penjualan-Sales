@@ -6,6 +6,9 @@ export const THEMES = {
     border: "#374151",
     text: "#F9FAFB",
     textMuted: "#9CA3AF",
+    // Header tabel butuh kontras lebih tinggi dari textMuted biasa di atas
+    // background glass gelap — dipakai khusus oleh semua elemen <th>/thead.
+    tableHeader: "#E5E7EB",
     gold: "#FBBF24",
     mint: "#34D399",
     coral: "#F87171",
@@ -39,6 +42,8 @@ export const THEMES = {
     border: "#E5E7EB",
     text: "#111827",
     textMuted: "#6B7280",
+    // Sama dengan textMuted — mode terang sudah cukup kontras, jadi tidak perlu warna berbeda.
+    tableHeader: "#6B7280",
     gold: "#D97706",
     mint: "#059669",
     coral: "#DC2626",

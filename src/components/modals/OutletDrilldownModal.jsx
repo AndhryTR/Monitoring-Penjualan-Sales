@@ -67,11 +67,11 @@ export function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ background: colors.glassFill }}>
-                    <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.textMuted }}>OUTLET</th>
-                    <th className="px-3 py-2 text-right" style={{ fontSize: 11, color: colors.textMuted }}>VALUE</th>
-                    <th className="px-3 py-2 text-center" style={{ fontSize: 11, color: colors.textMuted }}>QTY</th>
-                    <th className="px-3 py-2 text-center" style={{ fontSize: 11, color: colors.textMuted }}>TRANSAKSI</th>
-                    <th className="px-3 py-2 text-center" style={{ fontSize: 11, color: colors.textMuted }}>TERAKHIR</th>
+                    <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.tableHeader }}>OUTLET</th>
+                    <th className="px-3 py-2 text-right" style={{ fontSize: 11, color: colors.tableHeader }}>VALUE</th>
+                    <th className="px-3 py-2 text-center" style={{ fontSize: 11, color: colors.tableHeader }}>QTY</th>
+                    <th className="px-3 py-2 text-center" style={{ fontSize: 11, color: colors.tableHeader }}>TRANSAKSI</th>
+                    <th className="px-3 py-2 text-center" style={{ fontSize: 11, color: colors.tableHeader }}>TERAKHIR</th>
                   </tr>
                 </thead>
                 <tbody>
