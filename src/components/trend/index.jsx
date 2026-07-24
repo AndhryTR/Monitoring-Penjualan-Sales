@@ -236,7 +236,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
       {/* Ringkasan total per periode — horizontal scroll di semua ukuran layar */}
       <div className="sm-card p-5 sm-fadeup mb-6">
         <div className="overflow-x-auto -mx-2 px-2 sm-scrollhide">
-          <div className="flex gap-4" style={{ minWidth: `${Math.max(periods.length * 140, 100)}%` }}>
+          <div className="flex gap-4">
             {periods.map((p, i) => {
               const t = totalsSeries[i];
               const val = metric === "value" ? t.value : t.ao;
