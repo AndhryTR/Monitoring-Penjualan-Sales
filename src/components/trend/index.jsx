@@ -290,13 +290,13 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
           <table className="w-full text-sm border-separate" style={{ borderSpacing: 0 }}>
             <thead>
               <tr>
-                <th className="text-left px-3 py-2 sticky left-0 z-10" style={{ background: colors.modalBg, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", color: colors.textMuted, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Sales</th>
+                <th className="text-left px-3 py-2 sticky left-0 z-10" style={{ background: colors.modalBg, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", color: colors.tableHeader, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Sales</th>
                 {periods.map((p) => (
-                  <th key={p.id} className="text-right px-3 py-2 whitespace-nowrap" style={{ color: p.isCurrent ? colors.gold : colors.textMuted, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>
+                  <th key={p.id} className="text-right px-3 py-2 whitespace-nowrap" style={{ color: p.isCurrent ? colors.gold : colors.tableHeader, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>
                     {p.label}
                   </th>
                 ))}
-                <th className="text-right px-3 py-2 whitespace-nowrap" style={{ color: colors.textMuted, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Growth</th>
+                <th className="text-right px-3 py-2 whitespace-nowrap" style={{ color: colors.tableHeader, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Growth</th>
               </tr>
             </thead>
             <tbody>

@@ -72,10 +72,10 @@ export function OutletDetailModal({ isOpen, onClose, outlet, products, colors })
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ background: colors.glassFill }}>
-                  <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.textMuted }}>PRODUK</th>
-                  <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.textMuted }}>GRUP</th>
-                  <th className="px-3 py-2 text-right" style={{ fontSize: 11, color: colors.textMuted }}>VALUE</th>
-                  <th className="px-3 py-2 text-center" style={{ fontSize: 11, color: colors.textMuted }}>TRANSAKSI</th>
+                  <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.tableHeader }}>PRODUK</th>
+                  <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.tableHeader }}>GRUP</th>
+                  <th className="px-3 py-2 text-right" style={{ fontSize: 11, color: colors.tableHeader }}>VALUE</th>
+                  <th className="px-3 py-2 text-center" style={{ fontSize: 11, color: colors.tableHeader }}>TRANSAKSI</th>
                 </tr>
               </thead>
               <tbody>
