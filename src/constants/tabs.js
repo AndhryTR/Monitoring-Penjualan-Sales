@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, UserRound, Boxes, Crosshair, Store, ClipboardList, TrendingUp, Receipt,
-  History, Settings,
+  History, Settings, Gauge,
 } from "lucide-react";
 
 /* ============================================================================
@@ -16,14 +16,15 @@ import {
    sekarang pakai SIDEBAR_SECTIONS di bawah (sidebar kiri, bukan tab bar lagi).
 ============================================================================ */
 export const TABS = [
-  { key: "main",         label: "Main Report",     shortLabel: "Main",      icon: LayoutDashboard, group: "primary" },
-  { key: "sales",        label: "Sales Report",    shortLabel: "Sales",     icon: UserRound,       group: "primary" },
-  { key: "product",      label: "Product Report",  shortLabel: "Produk",    icon: Boxes,           group: "primary" },
-  { key: "focus",        label: "Product Focus",   shortLabel: "Fokus",     icon: Crosshair,       group: "primary" },
-  { key: "outlet",       label: "Analisis Outlet", shortLabel: "Outlet",    icon: Store,           group: "more" },
-  { key: "trend",        label: "Tren Periode",    shortLabel: "Tren",      icon: TrendingUp,      group: "more" },
-  { key: "transactions", label: "Transaksi",       shortLabel: "Transaksi", icon: Receipt,         group: "more" },
-  { key: "quality",      label: "Catatan Data",    shortLabel: "Catatan",   icon: ClipboardList,   group: "more" },
+  { key: "executive",    label: "Executive Summary", shortLabel: "Ringkasan", icon: Gauge,           group: "primary" },
+  { key: "main",         label: "Main Report",      shortLabel: "Main",      icon: LayoutDashboard, group: "primary" },
+  { key: "sales",        label: "Sales Report",     shortLabel: "Sales",     icon: UserRound,       group: "primary" },
+  { key: "product",      label: "Product Report",   shortLabel: "Produk",    icon: Boxes,           group: "primary" },
+  { key: "focus",        label: "Product Focus",    shortLabel: "Fokus",     icon: Crosshair,       group: "more" },
+  { key: "outlet",       label: "Analisis Outlet",  shortLabel: "Outlet",    icon: Store,           group: "more" },
+  { key: "trend",        label: "Tren Periode",     shortLabel: "Tren",      icon: TrendingUp,      group: "more" },
+  { key: "transactions", label: "Transaksi",        shortLabel: "Transaksi", icon: Receipt,         group: "more" },
+  { key: "quality",      label: "Catatan Data",     shortLabel: "Catatan",   icon: ClipboardList,   group: "more" },
 ];
 
 export const PRIMARY_TABS = TABS.filter((t) => t.group === "primary");
@@ -39,6 +40,7 @@ export const SIDEBAR_SECTIONS = [
   {
     label: "Dashboard",
     items: [
+      { key: "executive", label: "Executive Summary", icon: Gauge, tabKey: "executive" },
       { key: "main", label: "Main Report", icon: LayoutDashboard, tabKey: "main" },
       { key: "sales", label: "Sales Report", icon: UserRound, tabKey: "sales" },
       { key: "product", label: "Product Report", icon: Boxes, tabKey: "product" },

@@ -33,6 +33,7 @@ import { ProductReportPage } from "./pages/ProductReportPage.jsx";
 import { ProductFocusReportPage } from "./pages/ProductFocusReportPage.jsx";
 import { OutletAnalysisPage } from "./pages/OutletAnalysisPage.jsx";
 import { DataQualityPage } from "./pages/DataQualityPage.jsx";
+import { ExecutiveSummaryPage } from "./pages/ExecutiveSummaryPage.jsx";
 import { TransactionsPage } from "./pages/TransactionsPage.jsx";
 import { OutletDrilldownModal } from "./components/modals/OutletDrilldownModal.jsx";
 import { OutletDetailModal } from "./components/modals/OutletDetailModal.jsx";
@@ -691,7 +692,7 @@ export default function SalesMonitoringApp() {
         ) : (
           <>
             <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} theme={theme} />
-            {filterSpansMultipleMonths && ["main", "sales", "product", "focus", "outlet"].includes(activeTab) && (
+            {filterSpansMultipleMonths && ["main", "executive", "sales", "product", "focus", "outlet"].includes(activeTab) && (
               <div className="sm-card p-3 mb-4 flex items-center gap-2.5 sm-fadeup" style={{ background: colors.gold + "0D", border: `1px solid ${colors.gold}33` }}>
                 <AlertTriangle size={15} style={{ color: colors.gold, flexShrink: 0 }} />
                 <p className="text-xs" style={{ color: colors.text }}>
@@ -699,7 +700,8 @@ export default function SalesMonitoringApp() {
                 </p>
               </div>
             )}
-            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} />}
+            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} />}
+            {activeTab === "executive" && <ExecutiveSummaryPage agg={aggFinal} colors={colors} workDays={workDays} onDrilldown={openDrilldown} comparison={comparison} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} />}
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}

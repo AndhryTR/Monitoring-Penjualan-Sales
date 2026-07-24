@@ -16,6 +16,15 @@ import { ALERT_MIN_DAYS } from "../constants/thresholds.js";
 export function dateKey(dateStr) { return dateStr || "unknown"; }
 export function monthKey(dateStr) { return dateStr ? dateStr.slice(0, 7) : "unknown"; }
 
+// Rule "ahead/behind pace": apakah ACH sekarang sudah >= progres waktu yang
+// sudah berjalan (timeGonePct). SATU-SATUNYA tempat rule ini didefinisikan —
+// dipakai bersama oleh PaceStrip (Main Report) & CompactKpiGrid (Executive
+// Summary) supaya kedua tab selalu konsisten kalau rule-nya berubah nanti.
+export function computePaceStatus(achPct, timeGonePct) {
+  if (achPct === null || achPct === undefined) return { isAhead: null };
+  return { isAhead: achPct >= timeGonePct };
+}
+
 const MONTHS_ID_FULL = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
 // Deteksi bulan-bulan kalender berbeda yang ada di `rows` (dipakai untuk

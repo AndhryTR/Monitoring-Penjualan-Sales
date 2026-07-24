@@ -1,11 +1,13 @@
 import React from "react";
 import { Sparkles } from "lucide-react";
 import { fmtPct } from "../utils/formatters";
+import { computePaceStatus } from "../utils/aggregation.js";
 
 export function PaceStrip({ timeGonePct, achPct, colors }) {
   const capped = Math.min(100, (achPct || 0) * 100);
-  const ahead = (achPct || 0) * 100 >= timeGonePct * 100;
-  const color = ahead ? colors.mint : colors.coral;
+  const { isAhead } = computePaceStatus(achPct, timeGonePct);
+  const color = isAhead === null ? colors.textMuted : isAhead ? colors.mint : colors.coral;
+  const label = isAhead === null ? "Belum cukup data" : isAhead ? "Di atas pace waktu" : "Di bawah pace waktu";
   return (
     <div className="sm-card sm-fadeup p-5 mb-6">
       <div className="flex items-center justify-between mb-3">
@@ -14,7 +16,7 @@ export function PaceStrip({ timeGonePct, achPct, colors }) {
           <span className="disp text-sm font-semibold">Pace ke Target</span>
         </div>
         <span className="text-xs mono" style={{ color }}>
-          {ahead ? "Di atas pace waktu" : "Di bawah pace waktu"}
+          {label}
         </span>
       </div>
       <div className="relative h-4 rounded-full overflow-hidden" style={{ background: colors.glassFill }}>
