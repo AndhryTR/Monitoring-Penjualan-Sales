@@ -193,7 +193,14 @@ export default function SalesMonitoringApp() {
   // sementara/eksploratif.
   const [trendSnapshotIds, setTrendSnapshotIds] = useState([]);
 
-  const [filters, setFilters] = useState(persistedSettings?.filters || { salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
+  const [filters, setFilters] = useState(() => {
+    const saved = persistedSettings?.filters;
+    if (!saved) return { salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" };
+    // Settings lama (sebelum fitur preset ada) belum punya field datePreset —
+    // kalau dateFrom/dateTo sudah keisi manual, anggap "custom" biar tidak
+    // tiba-tiba ketimpa jadi "Semua Data".
+    return { ...saved, datePreset: saved.datePreset ?? (saved.dateFrom || saved.dateTo ? "custom" : "all") };
+  });
   const [workDays, setWorkDays] = useState(persistedSettings?.workDays ?? WORK_DAYS_DEFAULT);
   const [targets, setTargets] = useState(persistedSettings?.targets ?? DEFAULT_TARGETS);
   const [depotName, setDepotName] = useState(persistedSettings?.depotName ?? "DEPO LOTIM");
@@ -467,7 +474,7 @@ export default function SalesMonitoringApp() {
     const months = detectMonths(rows);
     if (months.length) {
       const latest = months[months.length - 1];
-      setFilters(f => ({ ...f, dateFrom: latest.dateFrom, dateTo: latest.dateTo }));
+      setFilters(f => ({ ...f, dateFrom: latest.dateFrom, dateTo: latest.dateTo, datePreset: "thisMonth" }));
     }
     setPendingPreview(null);
   }, [pendingPreview]);
@@ -483,7 +490,7 @@ export default function SalesMonitoringApp() {
       setFileName("Data Contoh (demo)");
       setParseMeta({ totalDataRows: sampleRows.length, skippedBlankRows: 0, rowsWithMissingDate: 0,
         detectedFields: Object.keys(ALIASES), missingFields: [] });
-      setFilters({ salesCodes: [], groups: [], dateFrom: "2026-07-01", dateTo: "2026-07-03" });
+      setFilters({ salesCodes: [], groups: [], dateFrom: "2026-07-01", dateTo: "2026-07-03", datePreset: "custom" });
       setSampleLoading(false);
     }, 300);
   }, []);
@@ -500,7 +507,7 @@ export default function SalesMonitoringApp() {
     clearSession();
     clearHistory();
     setRawRows([]); setFileName(""); setParseMeta(null);
-    setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "" });
+    setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" });
     setWorkDays(WORK_DAYS_DEFAULT);
     setTargets(DEFAULT_TARGETS);
     setDepotName("DEPO LOTIM");
@@ -691,7 +698,7 @@ export default function SalesMonitoringApp() {
           </div>
         ) : (
           <>
-            <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} theme={theme} />
+            <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} theme={theme} rawRows={rawRows} />
             {filterSpansMultipleMonths && ["main", "executive", "sales", "product", "focus", "outlet"].includes(activeTab) && (
               <div className="sm-card p-3 mb-4 flex items-center gap-2.5 sm-fadeup" style={{ background: colors.gold + "0D", border: `1px solid ${colors.gold}33` }}>
                 <AlertTriangle size={15} style={{ color: colors.gold, flexShrink: 0 }} />
