@@ -233,25 +233,27 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
         </div>
       </div>
 
-      {/* Ringkasan total per periode */}
+      {/* Ringkasan total per periode — horizontal scroll di semua ukuran layar */}
       <div className="sm-card p-5 sm-fadeup mb-6">
-        <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${periods.length}, minmax(120px, 1fr))` }}>
-          {periods.map((p, i) => {
-            const t = totalsSeries[i];
-            const val = metric === "value" ? t.value : t.ao;
-            const ach = metric === "value" ? t.ach : t.achAo;
-            return (
-              <div key={p.id} className="min-w-0">
-                <div className="text-[11px] uppercase tracking-wider mb-1 truncate flex items-center gap-1" style={{ color: p.isCurrent ? colors.gold : colors.textMuted }}>
-                  {p.label} {p.isCurrent && <span className="text-[9px] px-1 py-0.5 rounded-full font-bold" style={{ background: colors.gold + "22" }}>AKTIF</span>}
+        <div className="overflow-x-auto -mx-2 px-2 sm-scrollhide">
+          <div className="flex gap-4" style={{ minWidth: `${Math.max(periods.length * 140, 100)}%` }}>
+            {periods.map((p, i) => {
+              const t = totalsSeries[i];
+              const val = metric === "value" ? t.value : t.ao;
+              const ach = metric === "value" ? t.ach : t.achAo;
+              return (
+                <div key={p.id} className="min-w-[120px] flex-none">
+                  <div className="text-[11px] uppercase tracking-wider mb-1 truncate flex items-center gap-1" style={{ color: p.isCurrent ? colors.gold : colors.textMuted }}>
+                    {p.label} {p.isCurrent && <span className="text-[9px] px-1 py-0.5 rounded-full font-bold" style={{ background: colors.gold + "22" }}>AKTIF</span>}
+                  </div>
+                  <div className="mono text-sm font-bold truncate">{val === null ? "-" : metric === "value" ? fmtRp(val) : fmtNum(val)}</div>
+                  <div className="text-xs mono" style={{ color: ach === null ? colors.textMuted : ach >= ACH_TIERS.onPace ? colors.mint : colors.coral }}>
+                    {ach === null ? "-" : fmtPct(ach)}
+                  </div>
                 </div>
-                <div className="mono text-sm font-bold truncate">{val === null ? "-" : metric === "value" ? fmtRp(val) : fmtNum(val)}</div>
-                <div className="text-xs mono" style={{ color: ach === null ? colors.textMuted : ach >= ACH_TIERS.onPace ? colors.mint : colors.coral }}>
-                  {ach === null ? "-" : fmtPct(ach)}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
 
