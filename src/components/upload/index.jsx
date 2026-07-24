@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   Upload, Download, X, ChevronDown, RefreshCw, FileSpreadsheet,
-  FileText, Printer, Menu, Image as ImageIcon,
+  FileText, Printer, Image as ImageIcon,
 } from "lucide-react";
 import { fmtPct } from "../../utils/formatters.js";
 import { exportSummaryPDF, exportSalesScorecardPDF, exportAllScorecardsPDF, exportSalesGroupComparisonPDF } from "../../utils/pdfExport.js";
@@ -59,119 +59,97 @@ export function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, l
 }
 
 /* ============================================================================
-   MOBILE NAVIGATION (H6)
-   - MobileBottomNav: bottom tab bar untuk mobile (md:hidden), menggantikan
-     top tab bar yang disembunyikan di mobile. Ikon + label pendek vertikal.
-   - MobileFab: tombol apung "Upload" di pojok kanan bawah (di atas bottom nav),
-     memberi akses cepat ke upload tanpa harus scroll ke atas.
+   MOBILE NAVIGATION (H6) — Enhanced Horizontal Scroll
+   - MobileBottomNav: bottom tab bar untuk mobile (md:hidden) dengan
+     horizontal scroll. SEMUA tab ditampilkan — tidak ada lagi pemisahan
+     primary/more — user bisa swipe/geser untuk melihat tab yang tidak muat.
+   - Scroll indicator dots di bawah menunjukkan posisi tab aktif.
+   - Aktif secara otomatis scroll ke tengah via scrollIntoView.
+   - MobileFab: tombol apung "Upload" di pojok kanan bawah (di atas bottom nav).
+
    Keduanya menghormati iOS safe-area-inset supaya tidak tertutup home indicator.
 ============================================================================ */
 
-// primaryTabs selalu tampil sebagai ikon di bottom nav. moreTabs (kalau ada)
-// dikelompokkan jadi satu slot terakhir "Lainnya" yang membuka bottom-sheet —
-// supaya nambah tab baru di masa depan tidak bikin bottom nav makin sesak/kecil.
-export function MobileBottomNav({ primaryTabs, moreTabs, activeTab, onChange, colors }) {
-  const [moreOpen, setMoreOpen] = useState(false);
-  const activeIsInMore = moreTabs.some((t) => t.key === activeTab);
+export function MobileBottomNav({ tabs, activeTab, onChange, colors }) {
+  const containerRef = useRef(null);
+  const activeRef = useRef(null);
 
-  const handleSelect = (key) => { onChange(key); setMoreOpen(false); };
+  // Auto-scroll ke posisi tab aktif saat activeTab berubah
+  useEffect(() => {
+    if (activeRef.current && containerRef.current) {
+      activeRef.current.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, [activeTab]);
+
+  const activeIndex = useMemo(() => tabs.findIndex((t) => t.key === activeTab), [tabs, activeTab]);
+
+  const navStyle = {
+    overflowX: 'auto',
+    scrollSnapType: 'x mandatory',
+    WebkitOverflowScrolling: 'touch',
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none',
+  };
+  const itemStyle = { scrollSnapAlign: 'center', flexShrink: 0, width: 72 };
 
   return (
-    <>
-      <nav
-        className="md:hidden fixed left-3 right-3 z-40 sm-mobile-nav-glass"
-        style={{
-          bottom: "calc(12px + env(safe-area-inset-bottom))",
-          borderRadius: "24px",
-        }}
-      >
-        <div className="flex items-stretch justify-around px-1 py-1.5">
-          {primaryTabs.map((t) => {
-            const Icon = t.icon;
-            const isActive = t.key === activeTab;
-            return (
-              <button
-                key={t.key}
-                onClick={() => handleSelect(t.key)}
-                className="flex flex-col items-center justify-center gap-0.5 py-1.5 px-1 flex-1 min-w-0 rounded-2xl"
-                style={{ color: isActive ? colors.mint : colors.textMuted }}
-                aria-label={t.label}
-                aria-current={isActive ? "page" : undefined}
-              >
-                <div className="relative flex items-center justify-center" style={{ width: 20, height: 20 }}>
-                  {isActive && <div className="absolute inset-0 rounded-full" style={{ background: colors.mint, opacity: 0.25, filter: "blur(8px)" }} />}
-                  <Icon size={20} style={{ strokeWidth: isActive ? 2.4 : 2, position: "relative" }} />
-                </div>
-                <span className="text-[10px] font-medium leading-tight truncate w-full text-center" style={{ maxWidth: 56 }}>
-                  {t.shortLabel}
-                </span>
-              </button>
-            );
-          })}
-          {moreTabs.length > 0 && (
+    <nav
+      className="md:hidden fixed left-3 right-3 z-40 sm-mobile-nav-glass"
+      style={{
+        bottom: "calc(12px + env(safe-area-inset-bottom))",
+        borderRadius: "24px",
+        paddingBottom: 0,
+      }}
+    >
+      <div ref={containerRef} style={navStyle} className="flex items-stretch px-1 pt-1.5 sm-scrollhide">
+        {tabs.map((t) => {
+          const Icon = t.icon;
+          const isActive = t.key === activeTab;
+          return (
             <button
-              onClick={() => setMoreOpen(true)}
-              className="flex flex-col items-center justify-center gap-0.5 py-1.5 px-1 flex-1 min-w-0 rounded-2xl"
-              style={{ color: activeIsInMore ? colors.mint : colors.textMuted }}
-              aria-label="Lainnya"
-              aria-current={activeIsInMore ? "page" : undefined}
+              key={t.key}
+              ref={isActive ? activeRef : undefined}
+              onClick={() => onChange(t.key)}
+              style={itemStyle}
+              className="flex flex-col items-center justify-center gap-0.5 py-1.5 px-1 rounded-2xl transition-colors shrink-0"
+              aria-label={t.label}
+              aria-current={isActive ? "page" : undefined}
             >
               <div className="relative flex items-center justify-center" style={{ width: 20, height: 20 }}>
-                {activeIsInMore && <div className="absolute inset-0 rounded-full" style={{ background: colors.mint, opacity: 0.25, filter: "blur(8px)" }} />}
-                <Menu size={20} style={{ strokeWidth: activeIsInMore ? 2.4 : 2, position: "relative" }} />
+                {isActive && (
+                  <div className="absolute inset-0 rounded-full" style={{ background: colors.mint, opacity: 0.25, filter: "blur(8px)" }} />
+                )}
+                <Icon size={20} style={{ strokeWidth: isActive ? 2.4 : 2, position: "relative", color: isActive ? colors.mint : colors.textMuted }} />
               </div>
-              <span className="text-[10px] font-medium leading-tight truncate w-full text-center" style={{ maxWidth: 56 }}>
-                Lainnya
+              <span className="text-[10px] font-medium leading-tight truncate w-full text-center whitespace-nowrap" style={{ color: isActive ? colors.mint : colors.textMuted, maxWidth: 64 }}>
+                {t.shortLabel}
               </span>
             </button>
-          )}
-        </div>
-      </nav>
+          );
+        })}
+      </div>
 
-      {moreOpen && (
-        <div
-          className="md:hidden fixed inset-0 z-50 flex items-end sm-fadein"
-          onClick={() => setMoreOpen(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Menu lainnya"
-        >
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div
-            className="relative w-full p-4 sm-scale-in sm-modal-glass"
-            style={{
-              borderRadius: "20px 20px 0 0",
-              boxShadow: "0 -10px 40px rgba(0,0,0,0.3)",
-              paddingBottom: "calc(16px + env(safe-area-inset-bottom))",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mx-auto mb-3 w-10 h-1 rounded-full" style={{ background: colors.glassBorderElevated }} />
-            <div className="grid grid-cols-3 gap-3">
-              {moreTabs.map((t) => {
-                const Icon = t.icon;
-                const isActive = t.key === activeTab;
-                return (
-                  <button
-                    key={t.key}
-                    onClick={() => handleSelect(t.key)}
-                    className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl"
-                    style={{
-                      background: isActive ? colors.mint + "1A" : colors.glassFill,
-                      color: isActive ? colors.mint : colors.text,
-                      border: `1px solid ${isActive ? colors.mint + "33" : colors.glassBorder}`,
-                    }}
-                  >
-                    <Icon size={20} />
-                    <span className="text-xs font-medium">{t.shortLabel}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+      {/* Scroll indicator dots */}
+      {tabs.length > 0 && (
+        <div className="flex justify-center items-center gap-1 pb-1.5 pt-0.5">
+          {tabs.map((t, i) => {
+            const isActiveDot = i === activeIndex;
+            return (
+              <div
+                key={t.key}
+                className="transition-all duration-250 rounded-full"
+                style={{
+                  width: isActiveDot ? 16 : 5,
+                  height: 3,
+                  borderRadius: 2,
+                  background: isActiveDot ? colors.gold : colors.glassBorder,
+                }}
+              />
+            );
+          })}
         </div>
       )}
-    </>
+    </nav>
   );
 }
 
@@ -195,7 +173,7 @@ export function MobileFab({ onFile, colors, loading }) {
       <div
         className="md:hidden fixed right-4 z-30 pointer-events-none"
         style={{
-          bottom: "calc(88px + env(safe-area-inset-bottom))",
+          bottom: "calc(96px + env(safe-area-inset-bottom))",
           width: 56,
           height: 56,
           borderRadius: "9999px",
@@ -209,7 +187,7 @@ export function MobileFab({ onFile, colors, loading }) {
         onClick={() => inputRef.current && inputRef.current.click()}
         className="md:hidden fixed right-4 z-40 sm-btn flex items-center justify-center w-14 h-14 rounded-full"
         style={{
-          bottom: "calc(88px + env(safe-area-inset-bottom))",
+          bottom: "calc(96px + env(safe-area-inset-bottom))",
           background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})`,
           color: "#0A1120",
           boxShadow: "0 8px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.35)",
