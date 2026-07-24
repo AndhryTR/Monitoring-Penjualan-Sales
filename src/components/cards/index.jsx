@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import {
-  Trophy, Rocket, BellRing, History, AlertTriangle, X, ArrowUpRight,
+  Trophy, Rocket, History, X, ArrowUpRight,
   ArrowDownRight, FileText,
 } from "lucide-react";
 import { fmtRp, fmtPct } from "../../utils/formatters.js";
@@ -147,36 +147,10 @@ export function ProjectionCard({ projection, colors, method = "linear", onMethod
   );
 }
 
-// Panel peringatan otomatis — sales/produk fokus yang masih 0% padahal sudah lewat beberapa hari kerja.
-export function AlertsPanel({ alerts, colors, onDrilldown }) {
-  const [expanded, setExpanded] = useState(false);
-  if (!alerts.length) return null;
-  const visible = expanded ? alerts : alerts.slice(0, 2);
-  return (
-    <div className="sm-card p-5 sm-fadeup mb-6" style={{ borderColor: colors.coral + "44" }}>
-      <div className="flex items-center justify-between mb-3">
-        <SectionTitle title="Perlu Perhatian" sub={`${alerts.length} item belum ada realisasi sama sekali`} icon={BellRing} colors={colors} accent={colors.coral} />
-      </div>
-      <div className="space-y-2">
-        {visible.map((a, i) => (
-          <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ background: colors.coral + "0D" }}>
-            <AlertTriangle size={14} style={{ color: colors.coral, flexShrink: 0 }} />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium truncate">{a.title}</div>
-              <div className="text-xs" style={{ color: colors.textMuted }}>{a.message}</div>
-            </div>
-            {onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(a.title, a.message, a.predicate)} />}
-          </div>
-        ))}
-      </div>
-      {alerts.length > 2 && (
-        <button onClick={() => setExpanded(!expanded)} className="sm-btn text-xs font-medium mt-3 px-3 py-1.5 rounded-lg" style={{ color: colors.gold }}>
-          {expanded ? "Tampilkan lebih sedikit" : `Tampilkan ${alerts.length - 2} lainnya`}
-        </button>
-      )}
-    </div>
-  );
-}
+// Panel peringatan otomatis (sales/produk fokus yang masih 0%) sudah dipindah
+// ke InsightBanner (src/components/executive/InsightBanner.jsx) — dipakai
+// bersama oleh Main Report & Executive Summary supaya alert & data quality
+// issues konsisten di kedua tab (1 komponen, 1 perilaku klik).
 
 // Kartu perbandingan periode — muncul di Main Report saat ada snapshot riwayat terpilih.
 export function PeriodComparisonCard({ comparison, colors, onClear }) {

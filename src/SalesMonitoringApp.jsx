@@ -700,7 +700,7 @@ export default function SalesMonitoringApp() {
                 </p>
               </div>
             )}
-            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} />}
+            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} />}
             {activeTab === "executive" && <ExecutiveSummaryPage agg={aggFinal} colors={colors} workDays={workDays} onDrilldown={openDrilldown} comparison={comparison} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} />}
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}

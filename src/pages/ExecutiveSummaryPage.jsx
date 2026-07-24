@@ -7,7 +7,8 @@ import { GroupMiniSummary } from "../components/executive/GroupMiniSummary.jsx";
 import { OutletHealthMini } from "../components/executive/OutletHealthMini.jsx";
 import { InsightBanner } from "../components/executive/InsightBanner.jsx";
 import { SectionCard } from "../components/executive/SectionCard.jsx";
-import { computeOutletAnalysis, detectMonths, computeAggregates } from "../utils/aggregation.js";
+import { computeOutletAnalysis } from "../utils/aggregation.js";
+import { useGrowthMoM } from "../hooks/useGrowthMoM.js";
 import { OUTLET_DEFAULT_THRESHOLDS } from "../constants/thresholds.js";
 
 /* ============================================================================
@@ -22,10 +23,7 @@ import { OUTLET_DEFAULT_THRESHOLDS } from "../constants/thresholds.js";
    5. OutletHealthMini — Distribusi status outlet (aktif/berisiko/dormant)
    6. InsightBanner — Alerts + data quality issues terintegrasi
 
-   Growth MoM bersifat cascade:
-   - Prioritas 1: dari snapshot perbandingan yang dipilih user
-   - Prioritas 2: auto-detect dari multi-bulan data (jika >=2 bulan)
-   - Fallback: null (tampilkan "-")
+   Growth MoM: lihat hooks/useGrowthMoM.js untuk detail cascade-nya.
 ============================================================================ */
 
 export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, comparison, dataQualityNotes, onNavigate, rawRows, targets, filters }) {
@@ -33,40 +31,7 @@ export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, compa
   // DERIVED DATA
   // ==========================================================================
 
-  // Growth MoM — cascade: snapshot > auto-detect > null
-  const growth = useMemo(() => {
-    // Prioritas 1: snapshot riwayat
-    if (comparison?.growth !== null && comparison?.growth !== undefined) {
-      return comparison.growth;
-    }
-    // Prioritas 2: auto-detect dari multi-bulan data
-    try {
-      const months = detectMonths(rawRows);
-      if (months.length >= 2) {
-        const latest = months[months.length - 1];
-        const prev = months[months.length - 2];
-        const latestAgg = computeAggregates(rawRows, targets, {
-          salesCodes: filters?.salesCodes ?? [],
-          groups: [],
-          dateFrom: latest.dateFrom,
-          dateTo: latest.dateTo,
-        }, workDays);
-        const prevAgg = computeAggregates(rawRows, targets, {
-          salesCodes: filters?.salesCodes ?? [],
-          groups: [],
-          dateFrom: prev.dateFrom,
-          dateTo: prev.dateTo,
-        }, workDays);
-        const prevValue = prevAgg.totals.realisasiValue;
-        if (prevValue > 0) {
-          return (latestAgg.totals.realisasiValue - prevValue) / prevValue;
-        }
-      }
-    } catch (_) {
-      // Silently fail — fallback ke null
-    }
-    return null;
-  }, [comparison, rawRows, targets, workDays, filters?.salesCodes]);
+  const growth = useGrowthMoM(comparison, rawRows, targets, workDays, filters?.salesCodes);
 
   // Kesehatan outlet — dihitung dari filteredRows
   const outletHealthSummary = useMemo(() => {
@@ -120,7 +85,7 @@ export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, compa
 
       {/* 2. Insight Banner — muncul jika ada issues */}
       {(agg.alerts.length > 0 || dataQualityNotes) && (
-        <InsightBanner alerts={agg.alerts} dataQualityNotes={dataQualityNotes} colors={colors} onNavigate={onNavigate} />
+        <InsightBanner alerts={agg.alerts} dataQualityNotes={dataQualityNotes} colors={colors} onNavigate={onNavigate} onDrilldown={onDrilldown} />
       )}
 
       {/* 3. Grid panel: Leaderboard + Focus (baris 1) */}

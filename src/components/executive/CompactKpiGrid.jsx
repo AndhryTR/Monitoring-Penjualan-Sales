@@ -1,5 +1,6 @@
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
+import { computePaceStatus } from "../../utils/aggregation.js";
 import { useCountUp } from "../../hooks/useCountUp.js";
 
 /* ============================================================================
@@ -98,9 +99,9 @@ export function CompactKpiGrid({ agg, growth, workDays, colors }) {
   // — reuse langsung di sini supaya tidak ada logic hari-unik yang terduplikasi.
   const uniqueDays = agg.meta.uniqueDays;
   const timeGonePct = workDays ? Math.min(1, uniqueDays / workDays) : 0;
-  const isAhead = t.ach !== null && t.ach >= timeGonePct;
-  const paceStatus = t.ach === null ? "Belum cukup data" : isAhead ? "✓ Di atas pace" : "✗ Di bawah pace";
-  const paceAccent = t.ach === null ? colors.textMuted : isAhead ? colors.mint : colors.coral;
+  const { isAhead } = computePaceStatus(t.ach, timeGonePct);
+  const paceStatus = isAhead === null ? "Belum cukup data" : isAhead ? "✓ Di atas pace" : "✗ Di bawah pace";
+  const paceAccent = isAhead === null ? colors.textMuted : isAhead ? colors.mint : colors.coral;
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

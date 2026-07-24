@@ -10,7 +10,7 @@
 export const WORK_DAYS_DEFAULT = 27;
 
 /** Sales/focus yang realisasinya masih 0 setelah sekian hari dianggap perlu
- *  perhatian (AlertsPanel di MainReportPage). */
+ *  perhatian (InsightBanner, dipakai di Main Report & Executive Summary). */
 export const ALERT_MIN_DAYS = 3;
 
 /** Jumlah maksimum snapshot riwayat periode yang disimpan di localStorage.

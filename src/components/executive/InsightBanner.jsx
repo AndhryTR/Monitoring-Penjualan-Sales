@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { BellRing, AlertTriangle, CheckCircle2, Users, Package, FileQuestion, ChevronRight } from "lucide-react";
 
 /* ============================================================================
@@ -5,14 +6,23 @@ import { BellRing, AlertTriangle, CheckCircle2, Users, Package, FileQuestion, Ch
    data quality issues (unknown sales, missing columns, unconvertible products),
    dan navigasi cepat ke tab terkait.
 
+   Komponen ini dipakai bersama di Executive Summary & Main Report — SATU-
+   SATUNYA tempat alert & data quality issues dirender, supaya kedua tab selalu
+   menunjukkan info yang sama dengan perilaku klik yang sama persis (drilldown
+   modal untuk item alert individual, navigasi tab untuk isu data quality).
+
    Props:
      alerts             — agg.alerts (dari computeAggregates)
      dataQualityNotes   — dari useDataQualityNotes()
      colors             — theme colors
-     onNavigate         — callback(tabKey) untuk navigasi cepat
+     onNavigate         — callback(tabKey) untuk navigasi cepat (isu data quality)
+     onDrilldown        — callback(title, message, predicate) untuk buka modal
+                           detail outlet per alert individual (opsional — kalau
+                           tidak disediakan, baris alert tidak bisa di-expand)
 ============================================================================ */
 
-export function InsightBanner({ alerts, dataQualityNotes, colors, onNavigate }) {
+export function InsightBanner({ alerts, dataQualityNotes, colors, onNavigate, onDrilldown }) {
+  const [alertsExpanded, setAlertsExpanded] = useState(false);
   const alertCount = alerts.length;
   const unknownSalesCount = dataQualityNotes?.unknownSales?.length ?? 0;
   const missingFieldsCount = dataQualityNotes?.missingFields?.length ?? 0;
@@ -54,14 +64,38 @@ export function InsightBanner({ alerts, dataQualityNotes, colors, onNavigate }) 
       {/* Issues list */}
       <div className="space-y-1.5">
         {alertCount > 0 && (
-          <IssueRow
-            icon={BellRing}
-            color={colors.coral}
-            label={`${alertCount} sales/produk belum ada realisasi`}
-            onClick={() => onNavigate?.("sales")}
-            colors={colors}
-            cta="Lihat Sales"
-          />
+          <>
+            <IssueRow
+              icon={BellRing}
+              color={colors.coral}
+              label={`${alertCount} sales/produk belum ada realisasi`}
+              onClick={() => setAlertsExpanded((v) => !v)}
+              colors={colors}
+              cta={alertsExpanded ? "Sembunyikan" : "Lihat Detail"}
+            />
+            {alertsExpanded && (
+              <div className="space-y-1.5 pl-1">
+                {alerts.map((a, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ background: `${colors.coral}0D` }}>
+                    <AlertTriangle size={13} style={{ color: colors.coral, flexShrink: 0 }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium truncate" style={{ color: colors.text }}>{a.title}</div>
+                      <div className="text-[11px]" style={{ color: colors.textMuted }}>{a.message}</div>
+                    </div>
+                    {onDrilldown && (
+                      <button
+                        onClick={() => onDrilldown(a.title, a.message, a.predicate)}
+                        className="sm-btn text-[10px] font-semibold shrink-0 px-2 py-1 rounded-md"
+                        style={{ color: colors.coral, background: `${colors.coral}14` }}
+                      >
+                        Detail
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
         {unknownSalesCount > 0 && (
           <IssueRow
