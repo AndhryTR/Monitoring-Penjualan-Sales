@@ -39,7 +39,7 @@ function FocusItem({ name, salesName, pct, isBest, colors }) {
   );
 }
 
-export function FocusProductMini({ focusRows, colors, onNavigate }) {
+export function FocusProductMini({ focusRows, colors }) {
   const summary = useMemo(() => {
     const total = focusRows.length;
     const onTrack = focusRows.filter(f => f.pct !== null && f.pct >= 1).length;
@@ -47,10 +47,15 @@ export function FocusProductMini({ focusRows, colors, onNavigate }) {
     const atRisk = total - onTrack - critical;
 
     const sorted = [...focusRows].filter(f => f.pct !== null).sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0));
-    const best3 = sorted.slice(0, 3);
-    const worst2 = sorted.filter(f => (f.pct ?? 1) < 0.5).slice(-2).reverse();
+    // Cuma 2 yang dirender (bukan 3) — sesuai lebar kolom "Terbaik" di layar.
+    const bestItems = sorted.slice(0, 2);
+    // worstItems diambil dari SISA data setelah bestItems dibuang — supaya kalau
+    // total produk fokus sedikit, tidak ada produk yang tampil dobel di kedua kolom.
+    const bestKeys = new Set(bestItems.map((f) => `${f.salesCode}|${f.name}`));
+    const remaining = sorted.filter((f) => !bestKeys.has(`${f.salesCode}|${f.name}`));
+    const worstItems = remaining.filter(f => (f.pct ?? 1) < 0.5).slice(-2).reverse();
 
-    return { total, onTrack, atRisk, critical, best3, worst2 };
+    return { total, onTrack, atRisk, critical, bestItems, worstItems };
   }, [focusRows]);
 
   if (summary.total === 0) {
@@ -91,19 +96,19 @@ export function FocusProductMini({ focusRows, colors, onNavigate }) {
 
       {/* Best & worst items */}
       <div className="grid grid-cols-2 gap-3 pt-1">
-        {summary.best3.length > 0 && (
+        {summary.bestItems.length > 0 && (
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: colors.mint }}>Terbaik</div>
-            {summary.best3.slice(0, 2).map((f, i) => (
-              <FocusItem key={i} name={f.name} salesName={f.salesName} pct={f.pct} isBest colors={colors} />
+            {summary.bestItems.map((f) => (
+              <FocusItem key={`${f.salesCode}-${f.name}`} name={f.name} salesName={f.salesName} pct={f.pct} isBest colors={colors} />
             ))}
           </div>
         )}
-        {summary.worst2.length > 0 && (
+        {summary.worstItems.length > 0 && (
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: colors.coral }}>Perlu Perhatian</div>
-            {summary.worst2.map((f, i) => (
-              <FocusItem key={i} name={f.name} salesName={f.salesName} pct={f.pct} isBest={false} colors={colors} />
+            {summary.worstItems.map((f) => (
+              <FocusItem key={`${f.salesCode}-${f.name}`} name={f.name} salesName={f.salesName} pct={f.pct} isBest={false} colors={colors} />
             ))}
           </div>
         )}

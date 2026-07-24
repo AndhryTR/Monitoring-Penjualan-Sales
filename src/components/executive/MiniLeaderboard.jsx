@@ -19,7 +19,7 @@ function MiniBar({ pct, color, colors }) {
   );
 }
 
-function SalesRow({ rank, name, value, ach, projectedAch, isWarning, colors, onNavigate }) {
+function SalesRow({ rank, name, value, ach, projectedAch, isWarning, colors }) {
   const color = ach >= 1 ? colors.mint : ach >= 0.7 ? colors.gold : colors.coral;
   return (
     <div
@@ -57,10 +57,16 @@ function SalesRow({ rank, name, value, ach, projectedAch, isWarning, colors, onN
   );
 }
 
-export function MiniLeaderboard({ agg, colors, onNavigate }) {
+export function MiniLeaderboard({ agg, colors }) {
   const allSorted = useMemo(() => [...agg.bySales].sort((a, b) => (b.ach ?? -1) - (a.ach ?? -1)), [agg.bySales]);
   const top3 = useMemo(() => allSorted.slice(0, 3), [allSorted]);
-  const bottom2 = useMemo(() => [...allSorted].reverse().slice(0, 2), [allSorted]);
+  // Kandidat bottom2 diambil dari SISA data setelah top3 dibuang — supaya kalau
+  // total sales sedikit (<=5), tidak ada sales yang tampil dobel di kedua daftar.
+  const bottom2 = useMemo(() => {
+    const top3Codes = new Set(top3.map((s) => s.code));
+    const remaining = allSorted.filter((s) => !top3Codes.has(s.code));
+    return [...remaining].reverse().slice(0, 2);
+  }, [allSorted, top3]);
 
   if (!top3.length) {
     return (

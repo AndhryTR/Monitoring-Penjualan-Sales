@@ -133,7 +133,7 @@ export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, compa
           actionLabel="Detail Sales"
           onAction={() => onNavigate?.("sales")}
         >
-          <MiniLeaderboard agg={agg} colors={colors} onNavigate={onNavigate} />
+          <MiniLeaderboard agg={agg} colors={colors} />
         </SectionCard>
 
         <SectionCard
@@ -144,7 +144,7 @@ export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, compa
           actionLabel="Detail Fokus"
           onAction={() => onNavigate?.("focus")}
         >
-          <FocusProductMini focusRows={agg.focusRows} colors={colors} onNavigate={onNavigate} />
+          <FocusProductMini focusRows={agg.focusRows} colors={colors} />
         </SectionCard>
       </div>
 
@@ -158,7 +158,7 @@ export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, compa
           actionLabel="Detail Produk"
           onAction={() => onNavigate?.("product")}
         >
-          <GroupMiniSummary byGroup={agg.byGroup} colors={colors} onNavigate={onNavigate} />
+          <GroupMiniSummary byGroup={agg.byGroup} colors={colors} />
         </SectionCard>
 
         <SectionCard
@@ -169,7 +169,7 @@ export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, compa
           actionLabel="Analisis Outlet"
           onAction={() => onNavigate?.("outlet")}
         >
-          <OutletHealthMini outletSummary={outletHealthSummary} colors={colors} onNavigate={onNavigate} />
+          <OutletHealthMini outletSummary={outletHealthSummary} colors={colors} />
         </SectionCard>
       </div>
     </div>

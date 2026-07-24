@@ -1,4 +1,3 @@
-import React, { useMemo } from "react";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
 import { useCountUp } from "../../hooks/useCountUp.js";
@@ -95,7 +94,9 @@ export function CompactKpiGrid({ agg, growth, workDays, colors }) {
   const t = agg.totals;
   const proj = agg.projection;
 
-  const uniqueDays = useMemo(() => new Set(agg.filteredRows.map(r => r.date)).size, [agg.filteredRows]);
+  // agg.meta.uniqueDays sudah dihitung sekali di aggregation.js (computeAggregates)
+  // — reuse langsung di sini supaya tidak ada logic hari-unik yang terduplikasi.
+  const uniqueDays = agg.meta.uniqueDays;
   const timeGonePct = workDays ? Math.min(1, uniqueDays / workDays) : 0;
   const isAhead = t.ach !== null && t.ach >= timeGonePct;
   const paceStatus = t.ach === null ? "Belum cukup data" : isAhead ? "✓ Di atas pace" : "✗ Di bawah pace";

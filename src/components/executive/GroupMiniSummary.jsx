@@ -32,7 +32,7 @@ function GroupBar({ name, value, ach, maxValue, colors }) {
   );
 }
 
-export function GroupMiniSummary({ byGroup, colors, onNavigate }) {
+export function GroupMiniSummary({ byGroup, colors }) {
   const groups = useMemo(() => {
     const sorted = [...byGroup].sort((a, b) => b.realisasiValue - a.realisasiValue);
     const top = sorted.slice(0, 4);
