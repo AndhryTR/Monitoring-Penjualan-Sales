@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Trophy, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
 import { fmtRp, fmtPct } from "../../utils/formatters.js";
+import { ACH_TIERS } from "../../constants/thresholds.js";
 
 /* ============================================================================
    MiniLeaderboard — Top 3 sales (merit) + bottom 2 sales (perhatian)
@@ -20,7 +21,7 @@ function MiniBar({ pct, color, colors }) {
 }
 
 function SalesRow({ rank, name, value, ach, projectedAch, isWarning, colors }) {
-  const color = ach >= 1 ? colors.mint : ach >= 0.7 ? colors.gold : colors.coral;
+  const color = ach >= ACH_TIERS.onPace ? colors.mint : ach >= ACH_TIERS.warning ? colors.gold : colors.coral;
   return (
     <div
       className="sm-row flex items-center gap-2.5 px-3 py-2 rounded-xl"
@@ -93,7 +94,7 @@ export function MiniLeaderboard({ agg, colors }) {
       ))}
 
       {/* Bottom 2 — hanya tampil jika ada sales yang ACH < 70% */}
-      {bottom2.some((sm) => (sm.ach ?? 1) < 0.7) && (
+      {bottom2.some((sm) => (sm.ach ?? 1) < ACH_TIERS.warning) && (
         <>
           <div className="flex items-center gap-1.5 pt-2 pb-1">
             <div className="flex-1 h-px" style={{ background: colors.glassBorder }} />

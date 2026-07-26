@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Package } from "lucide-react";
 import { fmtRp, fmtPct } from "../../utils/formatters.js";
+import { ACH_TIERS } from "../../constants/thresholds.js";
 
 /* ============================================================================
    GroupMiniSummary — Top 4 grup produk dengan mini horizontal bar
@@ -9,7 +10,7 @@ import { fmtRp, fmtPct } from "../../utils/formatters.js";
 
 function GroupBar({ name, value, ach, maxValue, colors }) {
   const pct = maxValue > 0 ? (value / maxValue) * 100 : 0;
-  const color = ach >= 1 ? colors.mint : ach >= 0.7 ? colors.gold : colors.coral;
+  const color = ach >= ACH_TIERS.onPace ? colors.mint : ach >= ACH_TIERS.warning ? colors.gold : colors.coral;
 
   return (
     <div className="flex items-center gap-2.5 py-1.5">

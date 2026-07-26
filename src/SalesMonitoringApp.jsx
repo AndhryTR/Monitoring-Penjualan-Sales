@@ -177,7 +177,7 @@ export default function SalesMonitoringApp() {
   const [sampleLoading, setSampleLoading] = useState(false);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState("main");
+  const [activeTab, setActiveTab] = useState("executive");
   const [theme, setTheme] = useState(persistedSettings?.theme || 'dark');
   // Status collapse sidebar desktop — diingat lintas sesi sama seperti tema.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(persistedSettings?.sidebarCollapsed ?? false);
