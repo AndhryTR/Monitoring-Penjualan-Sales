@@ -1,15 +1,16 @@
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
 import {
-  Store, Settings, CheckCircle2, AlertTriangle, XCircle,
+  Store, Settings, CheckCircle2, AlertTriangle, XCircle, CalendarDays,
 } from "lucide-react";
 import { fmtRp, fmtNum } from "../utils/formatters.js";
 import { computeOutletAnalysis } from "../utils/aggregation.js";
 import { KpiCard } from "../components/KpiCard.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, createChartTooltipStyle } from "../components/ui/index.jsx";
+import { VisitPatternModal } from "../components/modals/VisitPatternModal.jsx";
 
 /* ============================================================================
    TAB: ANALISIS OUTLET
@@ -36,7 +37,8 @@ export function OutletStatusBadge({ status, colors }) {
   );
 }
 
-export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onSelectOutlet }) {
+export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onSelectOutlet, rawRows, targets, depotName }) {
+  const [visitModalOpen, setVisitModalOpen] = useState(false);
   const { list, summary } = useMemo(
     () => computeOutletAnalysis(agg.filteredRows, agg.meta, thresholds),
     [agg.filteredRows, agg.meta, thresholds]
@@ -50,7 +52,14 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
 
   return (
     <div className="sm-page-enter">
-      <SectionTitle title="Analisis Outlet" sub="Segmentasi outlet berdasarkan aktivitas beli — mengikuti filter yang aktif" icon={Store} colors={colors} accent={colors.violet} />
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+        <SectionTitle title="Analisis Outlet" sub="Segmentasi outlet berdasarkan aktivitas beli — mengikuti filter yang aktif" icon={Store} colors={colors} accent={colors.violet} />
+        <button onClick={() => setVisitModalOpen(true)}
+          className="sm-btn inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold"
+          style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
+          <CalendarDays size={15} style={{ color: colors.violet }} /> Lihat Pola Kunjungan
+        </button>
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <KpiCard label="Total Outlet" value={summary.total} icon={Store} accent={colors.blue} colors={colors} />
@@ -134,6 +143,15 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
           />
         </>
       )}
+
+      <VisitPatternModal
+        isOpen={visitModalOpen}
+        onClose={() => setVisitModalOpen(false)}
+        rawRows={rawRows}
+        targets={targets}
+        colors={colors}
+        depotName={depotName}
+      />
     </div>
   );
 }
