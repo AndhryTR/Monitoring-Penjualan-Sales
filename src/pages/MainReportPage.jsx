@@ -60,7 +60,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
               <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} vertical={false} />
               <XAxis dataKey="date" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
               <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
-              <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} />
+              <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} cursor={{ fill: colors.glassSubtle }} />
               <Area type="monotone" dataKey="value" stroke={colors.gold} fill="url(#gGold)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
