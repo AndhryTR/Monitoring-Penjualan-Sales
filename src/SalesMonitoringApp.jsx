@@ -452,19 +452,38 @@ export default function SalesMonitoringApp() {
       const combinedName = fileList.length > 1
         ? `${fileList.length} file digabung (${fileList.map((f) => f.name).join(", ")})`
         : fileList[0].name;
+      // Kalau sudah ada data sebelumnya (upload sesi lalu), siapkan juga preview
+      // hasil GABUNGAN (data lama + file baru, dedup bersama) — supaya modal bisa
+      // menampilkan pilihan "Gabungkan" vs "Ganti semua" dengan angka yang akurat,
+      // tanpa perlu menghitung ulang saat user baru menekan konfirmasi.
+      let mergePreview = null;
+      if (rawRows.length) {
+        const merged = dedupeRows([...rawRows, ...combinedRows]);
+        const mergedDateStrs = merged.rows.map((r) => r.date).filter(Boolean).sort();
+        mergePreview = {
+          existingRowCount: rawRows.length,
+          newRowsAdded: merged.rows.length - rawRows.length,
+          totalAfterMerge: merged.rows.length,
+          dateFrom: mergedDateStrs[0] || "",
+          dateTo: mergedDateStrs[mergedDateStrs.length - 1] || "",
+          mergedRows: merged.rows,
+        };
+      }
       // Data belum langsung dipakai — tampilkan preview dulu, biar kesalahan format
       // (kolom tidak terbaca, tanggal kosong, dsb) ketahuan sebelum masuk ke dashboard.
-      setPendingPreview({ rows: combinedRows, parseMeta: combinedMeta, fileName: combinedName });
+      setPendingPreview({ rows: combinedRows, parseMeta: combinedMeta, fileName: combinedName, mergePreview });
     } catch (e) {
       setError("Gagal membaca salah satu file. Pastikan semua format .xlsx/.xls valid.");
     } finally { setLoading(false); }
-  }, []);
+  }, [rawRows]);
 
-  const confirmPreview = useCallback(() => {
+  const confirmPreview = useCallback((mode) => {
     if (!pendingPreview) return;
-    const { rows, parseMeta: meta, fileName: name } = pendingPreview;
+    const merge = mode === "merge" && pendingPreview.mergePreview;
+    const rows = merge ? pendingPreview.mergePreview.mergedRows : pendingPreview.rows;
+    const name = merge ? `${pendingPreview.fileName} (digabung dengan data sebelumnya)` : pendingPreview.fileName;
     setRawRows(rows);
-    setParseMeta(meta);
+    setParseMeta(pendingPreview.parseMeta);
     setFileName(name);
     // Default filter tanggal setelah upload = BULAN KALENDER TERAKHIR saja
     // (bukan rentang penuh semua data yang diupload). Kalau data mencakup
@@ -560,7 +579,7 @@ export default function SalesMonitoringApp() {
         theme={theme} setTheme={setTheme} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge} />
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
       <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
-      <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={confirmPreview} preview={pendingPreview} colors={colors} />
+      <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={(mode) => confirmPreview(mode)} preview={pendingPreview} colors={colors} />
       <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSave={saveHistorySnapshot} onApply={applyHistorySelection}
         onDelete={deleteHistorySnapshot}
         defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
