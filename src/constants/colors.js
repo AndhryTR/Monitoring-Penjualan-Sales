@@ -24,6 +24,14 @@ export const THEMES = {
     glassHighlight: "rgba(255,255,255,0.08)",
     glassShadow: "0 8px 32px rgba(0,0,0,0.37)",
     modalBg: "rgba(15,23,42,0.20)",
+    // Token TERPISAH khusus panel modal/bottom-sheet (dipakai lewat .sm-modal-glass)
+    // — bukan modalBg. Panel-panel ini selalu duduk DI ATAS overlay peredup
+    // bg-black/60 (beda konteks dari dropdown/tooltip yang mengambang tanpa
+    // overlay apa pun di baliknya). Kalau modalPanelBg ikut diturunkan opacity-nya
+    // serendah modalBg, overlay gelap di baliknya akan "bocor" tembus dan modal
+    // terlihat abu-abu gelap alih-alih putih/kaca terang — makanya token ini
+    // sengaja dijaga tetap tinggi opacity-nya, independen dari modalBg.
+    modalPanelBg: "rgba(15,23,42,0.85)",
     modalBorder: "rgba(255,255,255,0.12)",
     chartGrid: "rgba(255,255,255,0.08)",
     glassSheen: "rgba(255,255,255,0.10)",
@@ -58,7 +66,8 @@ export const THEMES = {
     glassBorderElevated: "rgba(255,255,255,0.65)",
     glassHighlight: "rgba(255,255,255,0.60)",
     glassShadow: "0 8px 32px rgba(0,0,0,0.08)",
-    modalBg: "rgba(255,255,255,0.40)",
+    modalBg: "rgba(255,255,255,0.20)",
+    modalPanelBg: "rgba(255,255,255,0.85)",
     modalBorder: "rgba(255,255,255,0.65)",
     chartGrid: "rgba(17,24,39,0.10)",
     glassSheen: "rgba(255,255,255,0.45)",
