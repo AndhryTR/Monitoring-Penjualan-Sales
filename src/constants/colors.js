@@ -23,7 +23,7 @@ export const THEMES = {
     glassBorderElevated: "rgba(255,255,255,0.14)",
     glassHighlight: "rgba(255,255,255,0.08)",
     glassShadow: "0 8px 32px rgba(0,0,0,0.37)",
-    modalBg: "rgba(15,23,42,0.85)",
+    modalBg: "rgba(15,23,42,0.20)",
     modalBorder: "rgba(255,255,255,0.12)",
     chartGrid: "rgba(255,255,255,0.08)",
     glassSheen: "rgba(255,255,255,0.10)",
