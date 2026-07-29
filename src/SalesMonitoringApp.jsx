@@ -744,7 +744,7 @@ export default function SalesMonitoringApp() {
           Data diproses langsung di browser Anda — tidak diunggah ke server manapun. Data & pengaturan disimpan otomatis di perangkat/browser ini agar tidak hilang saat refresh.
         </div>
         <div className="text-center">
-          <b className="text-xs" style={{ color: colors.textMuted }}>Credit: </b><b className="disp text-xl font-bold" style={{ color: colors.coral }}> Andri.S</b>
+          <b className="text-xs" style={{ color: colors.textMuted }}>Credit: </b>
         </div>
       </div>
         </div>
