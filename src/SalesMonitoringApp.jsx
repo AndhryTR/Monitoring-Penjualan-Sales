@@ -794,6 +794,9 @@ export default function SalesMonitoringApp() {
         )}
 
         <div className="text-center mt-10 pb-4">
+          <p className="text-xs mb-2" style={{ color: colors.textMuted }}>
+            Data diproses langsung di browser Anda — tidak diunggah ke server manapun.
+          </p>
           <button onClick={() => setIsAboutOpen(true)} className="sm-btn text-xs font-medium px-3 py-1.5 rounded-lg" style={{ color: colors.textMuted }}>
             Tentang Aplikasi
           </button>
