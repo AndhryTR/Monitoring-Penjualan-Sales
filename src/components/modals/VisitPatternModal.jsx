@@ -151,7 +151,8 @@ function VisitOutletRow({ outlet: o, colors }) {
 }
 
 function VisitHeatmap({ pattern, colors }) {
-  const dates = useMemo(() => {
+  const MAX_DAYS = 45;
+  const { dates, wasClipped } = useMemo(() => {
     const out = [];
     const cur = new Date(pattern.dateFrom + "T00:00:00");
     const end = new Date(pattern.dateTo + "T00:00:00");
@@ -160,11 +161,23 @@ function VisitHeatmap({ pattern, colors }) {
       out.push(`${y}-${m}-${d}`);
       cur.setDate(cur.getDate() + 1);
     }
-    return out;
+    // Tabel HTML tanpa batas kolom x baris (tanpa virtualisasi) bisa berat di
+    // device rendah kalau rentang tanggal panjang + outlet banyak. Batasi
+    // heatmap DI LAYAR ke 45 hari terakhir (paling relevan untuk pola
+    // kunjungan terkini) — file Excel yang di-export TETAP mencakup rentang
+    // penuh yang dipilih, cuma tampilan grid interaktifnya yang dibatasi.
+    if (out.length > MAX_DAYS) return { dates: out.slice(-MAX_DAYS), wasClipped: true };
+    return { dates: out, wasClipped: false };
   }, [pattern.dateFrom, pattern.dateTo]);
 
   return (
-    <table className="text-xs border-separate" style={{ borderSpacing: 2 }}>
+    <>
+      {wasClipped && (
+        <p className="text-xs mb-2" style={{ color: colors.textMuted }}>
+          Menampilkan {MAX_DAYS} hari terakhir dari rentang yang dipilih (grid di layar dibatasi supaya tetap ringan) — file Excel tetap mencakup rentang penuh.
+        </p>
+      )}
+      <table className="text-xs border-separate" style={{ borderSpacing: 2 }}>
       <thead>
         <tr>
           <th className="text-left px-2 py-1 sticky left-0 z-10" style={{ background: colors.modalPanelBg, color: colors.tableHeader, minWidth: 160 }}>Outlet</th>
@@ -195,5 +208,6 @@ function VisitHeatmap({ pattern, colors }) {
         })}
       </tbody>
     </table>
+    </>
   );
 }

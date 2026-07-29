@@ -47,9 +47,9 @@ import { SettingsModal } from "./components/modals/SettingsModal.jsx";
    violet = focus-product accent. Display: Space Grotesk, Body: Inter,
    Data/mono: JetBrains Mono.
 ============================================================================ */
-import { THEMES } from "./constants/colors.js";
+import { THEMES, applyPowerSaveColors } from "./constants/colors.js";
 
-const createGlobalStyle = (colors) => `
+const createGlobalStyle = (colors, powerSaveMode) => `
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
 * { box-sizing: border-box; }
 .smapp { font-family: 'Inter', sans-serif; color: ${colors.text}; background: ${colors.meshBg}; position: relative; }
@@ -63,7 +63,7 @@ const createGlobalStyle = (colors) => `
 /* --- Aurora mesh background (Fase 4 — final spec, 5 blobs) --- */
 .sm-mesh { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .sm-mesh .blob { position: absolute; border-radius: 50%; filter: blur(60px); will-change: transform; }
-.sm-noise { position: absolute; inset: -10%; opacity: .035; mix-blend-mode: overlay; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); background-size: 180px 180px; }
+.sm-noise { position: absolute; inset: -10%; opacity: .04; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); background-size: 180px 180px; }
 .sm-mesh .blob-1 { top: -12%; left: -10%; animation: smBlobA 28s cubic-bezier(.4,0,.2,1) infinite; }
 .sm-mesh .blob-2 { top: 22%; right: -14%; animation: smBlobB 34s cubic-bezier(.4,0,.2,1) infinite; }
 .sm-mesh .blob-3 { bottom: -14%; left: 12%; animation: smBlobC 31s cubic-bezier(.4,0,.2,1) infinite; }
@@ -81,13 +81,15 @@ const createGlobalStyle = (colors) => `
 @keyframes smShimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
 @keyframes smDash { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) { .sm-mesh .blob { animation: none; } }
-/* Saat scroll aktif: hentikan animasi blob & sembunyikan noise sementara.
-   Animasi blob (translate+scale infinite) dan blend-mode noise sama-sama
-   membebani compositor GPU setiap frame — kalau dibiarkan jalan terus
-   SELAMA scroll juga berlangsung (yang butuh compositor juga), keduanya
-   rebutan resource dan bikin scroll terasa patah-patah di device lemah.
-   Blob & noise cuma dekorasi ambient, jadi aman dibekukan sesaat; begitu
-   scroll berhenti (150ms tanpa event baru), otomatis nyala lagi. */
+/* Saat scroll aktif ATAU tab browser sedang tidak aktif/disembunyikan:
+   hentikan animasi blob & sembunyikan noise sementara. Animasi blob
+   (translate+scale infinite) membebani compositor GPU setiap frame — kalau
+   dibiarkan jalan terus SELAMA scroll juga berlangsung (yang butuh compositor
+   juga), keduanya rebutan resource dan bikin scroll terasa patah-patah di
+   device lemah. Begitu tab disembunyikan (pindah aplikasi/tab lain), animasi
+   ini bahkan tidak terlihat sama sekali — jadi sayang kalau tetap jalan &
+   buang daya. Blob & noise cuma dekorasi ambient, aman dibekukan sesaat;
+   otomatis nyala lagi begitu scroll berhenti / tab aktif lagi. */
 .sm-mesh.sm-scrolling .blob { animation-play-state: paused; }
 .sm-mesh.sm-scrolling .sm-noise { display: none; }
 .sm-fadeup { animation: smFadeUp .45s cubic-bezier(.16,1,.3,1) backwards; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
@@ -95,8 +97,8 @@ const createGlobalStyle = (colors) => `
 .sm-page-enter { animation: smPageIn .25s cubic-bezier(.16,1,.3,1); }
 .sm-pulse { animation: smPulse 1.8s ease-in-out infinite; }
 .sm-shimmer { background: linear-gradient(90deg, ${colors.surface2} 0%, ${colors.border} 50%, ${colors.surface2} 100%); background-size: 800px 100%; animation: smShimmer 1.4s linear infinite; }
-.sm-card { background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; border-radius: 16px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); transition: transform .25s ease, box-shadow .25s ease, background .3s ease, border-color .3s ease; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; will-change: transform; }
-.sm-card:hover { transform: translateY(-2px); background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFillStrong}; border-color: ${colors.glassBorderElevated}; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
+.sm-card { background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; border-radius: 16px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); transition: transform .25s ease, box-shadow .25s ease, background .3s ease, border-color .3s ease; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
+.sm-card:hover { transform: translateY(-2px); background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFillStrong}; border-color: ${colors.glassBorderElevated}; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; will-change: transform; }
 .sm-glow-wrap { position: relative; }
 .sm-glow-wrap .sm-glow { position: absolute; inset: -8px; border-radius: 20px; filter: blur(18px); opacity: .12; z-index: -1; pointer-events: none; transition: opacity .3s ease; }
 .sm-glow-wrap:hover .sm-glow { opacity: .20; }
@@ -158,6 +160,22 @@ const createGlobalStyle = (colors) => `
 .sm-slider::-moz-range-thumb:hover { transform: scale(1.15); }
 .sm-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px ${colors.mint}44, 0 0 10px rgba(0,0,0,.25); }
 .sm-slider:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px ${colors.mint}44, 0 0 10px rgba(0,0,0,.25); }
+${powerSaveMode ? `
+/* --- Mode Hemat Daya ---
+   backdrop-filter (blur di belakang kaca) adalah operasi PALING mahal di
+   seluruh desain ini — jauh lebih berat dari animasi blob atau shadow.
+   Blanket rule ini menghilangkannya TOTAL dari SEMUA elemen sekaligus,
+   termasuk yang di-set inline lewat JS (style={{backdropFilter:...}}) yang
+   tersebar di banyak file (dropdown, tooltip, dsb) — !important di
+   stylesheet MENANG atas inline style biasa (yang tidak !important), jadi
+   satu rule ini cukup tanpa perlu menyentuh file komponen manapun. Warna
+   solid/opaque-nya sendiri sudah ditangani terpisah lewat
+   applyPowerSaveColors() di constants/colors.js (mengganti isi token
+   glassFill dkk, bukan lewat CSS). Diletakkan PALING BAWAH supaya menang
+   dari rule !important lain (mis. .sm-modal-glass) lewat urutan sumber. */
+.sm-powersave * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.sm-powersave .sm-glow { display: none; }
+` : ""}
 `;
 
 
@@ -179,6 +197,7 @@ export default function SalesMonitoringApp() {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("executive");
   const [theme, setTheme] = useState(persistedSettings?.theme || 'dark');
+  const [powerSaveMode, setPowerSaveMode] = useState(persistedSettings?.powerSaveMode ?? false);
   // Status collapse sidebar desktop — diingat lintas sesi sama seperti tema.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(persistedSettings?.sidebarCollapsed ?? false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -232,8 +251,8 @@ export default function SalesMonitoringApp() {
   // hari kerja, nama depo) — jadi tidak perlu tombol "simpan" terpisah untuk ini,
   // beda dengan raw data yang lebih berat dan disimpan terpisah di bawah.
   useEffect(() => {
-    saveSettings({ theme, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed });
-  }, [theme, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed]);
+    saveSettings({ theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed });
+  }, [theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed]);
 
   // Simpan otomatis data transaksi ke IndexedDB tiap kali berubah (setelah upload
   // dikonfirmasi atau data contoh dimuat). Di-skip saat kosong karena reset
@@ -283,8 +302,11 @@ export default function SalesMonitoringApp() {
 
   const canShowInstallButton = !isStandalone && (!!installPromptEvent || isIOS);
 
-  const colors = useMemo(() => THEMES[theme], [theme]);
-  const globalStyle = useMemo(() => createGlobalStyle(colors), [colors]);
+  const colors = useMemo(() => {
+    const base = THEMES[theme];
+    return powerSaveMode ? applyPowerSaveColors(base) : base;
+  }, [theme, powerSaveMode]);
+  const globalStyle = useMemo(() => createGlobalStyle(colors, powerSaveMode), [colors, powerSaveMode]);
 
   const groupOptions = useMemo(() => {
     const s = new Set();
@@ -533,50 +555,78 @@ export default function SalesMonitoringApp() {
     setTargets(DEFAULT_TARGETS);
     setDepotName("DEPO LOTIM");
     setTheme('dark');
+    setPowerSaveMode(false);
     setHistory([]);
     setComparisonSnapshot(null);
     setTrendSnapshotIds([]);
   }, []);
 
-  // Optimasi performa scroll (lihat komentar CSS .sm-scrolling): tandai
-  // background mesh sebagai "sedang scroll" via ref DOM langsung (bukan
-  // useState) supaya toggle ini TIDAK memicu re-render React sama sekali —
-  // scroll event bisa nembak puluhan kali per detik, kalau pakai setState
-  // di situ malah jadi sumber lag baru. Debounce 150ms: kelas dilepas begitu
-  // tidak ada event scroll baru selama itu.
+  // Optimasi performa scroll & tab tidak aktif (lihat komentar CSS
+  // .sm-scrolling): tandai background mesh sebagai "harus dijeda" via ref DOM
+  // langsung (bukan useState) supaya toggle ini TIDAK memicu re-render React
+  // sama sekali — scroll event bisa nembak puluhan kali per detik, kalau
+  // pakai setState di situ malah jadi sumber lag baru. Dua kondisi independen
+  // digabung lewat 1 fungsi bersama supaya tidak saling menimpa: (1) sedang
+  // scroll (+150ms debounce setelah berhenti), (2) tab browser sedang
+  // disembunyikan (pindah tab/aplikasi lain — animasi bahkan tidak terlihat,
+  // sayang kalau tetap jalan buang baterai/CPU).
+  // .sm-powersave juga ditaruh di <body> (bukan cuma di .smapp) — beberapa
+  // elemen (bottom-sheet ExportMenu di mobile) dirender lewat createPortal
+  // LANGSUNG ke document.body, di LUAR pohon .smapp, jadi rule CSS
+  // ".sm-powersave *" tidak akan menjangkaunya kalau class-nya cuma ada di
+  // .smapp. Tanpa ini, elemen itu tetap menghitung blur (sia-sia, tidak
+  // kelihatan efeknya karena background-nya sudah solid) — buang GPU percuma.
+  useEffect(() => {
+    document.body.classList.toggle("sm-powersave", powerSaveMode);
+    return () => document.body.classList.remove("sm-powersave");
+  }, [powerSaveMode]);
+
   const meshRef = useRef(null);
   useEffect(() => {
     let timeoutId = null;
+    let isScrolling = false;
+    const updatePausedClass = () => {
+      if (!meshRef.current) return;
+      const shouldPause = isScrolling || document.hidden;
+      meshRef.current.classList.toggle("sm-scrolling", shouldPause);
+    };
     const onScroll = () => {
-      if (meshRef.current) meshRef.current.classList.add("sm-scrolling");
+      isScrolling = true;
+      updatePausedClass();
       if (timeoutId) clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
-        if (meshRef.current) meshRef.current.classList.remove("sm-scrolling");
+        isScrolling = false;
+        updatePausedClass();
       }, 150);
     };
+    const onVisibilityChange = () => updatePausedClass();
     window.addEventListener("scroll", onScroll, { passive: true });
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.removeEventListener("scroll", onScroll);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, []);
 
   return (
-    <div className="smapp min-h-screen transition-colors duration-300">
+    <div className={`smapp min-h-screen transition-colors duration-300 ${powerSaveMode ? "sm-powersave" : ""}`}>
       <style>{globalStyle}</style>
-      <div className="sm-mesh" aria-hidden="true" ref={meshRef}>
-        {colors.blobs.map((b, i) => (
-          <div
-            key={i}
-            className={`blob blob-${i + 1}`}
-            style={{ width: b.size, height: b.size, background: `rgba(${b.rgb},${b.opacity})` }}
-          />
-        ))}
-        <div className="sm-noise" />
-      </div>
+      {!powerSaveMode && (
+        <div className="sm-mesh" aria-hidden="true" ref={meshRef}>
+          {colors.blobs.map((b, i) => (
+            <div
+              key={i}
+              className={`blob blob-${i + 1}`}
+              style={{ width: b.size, height: b.size, background: `rgba(${b.rgb},${b.opacity})` }}
+            />
+          ))}
+          <div className="sm-noise" />
+        </div>
+      )}
       <div className="relative" style={{ zIndex: 1 }}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors}
-        theme={theme} setTheme={setTheme} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge} />
+        theme={theme} setTheme={setTheme} powerSaveMode={powerSaveMode} setPowerSaveMode={setPowerSaveMode} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge} />
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
       <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
       <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={(mode) => confirmPreview(mode)} preview={pendingPreview} colors={colors} />
@@ -742,9 +792,6 @@ export default function SalesMonitoringApp() {
 
         <div className="text-center text-xs mt-10 pb-4" style={{ color: colors.textMuted }}>
           Data diproses langsung di browser Anda — tidak diunggah ke server manapun. Data & pengaturan disimpan otomatis di perangkat/browser ini agar tidak hilang saat refresh.
-        </div>
-        <div className="text-center">
-          <b className="text-xs" style={{ color: colors.textMuted }}>Credit: </b>
         </div>
       </div>
         </div>

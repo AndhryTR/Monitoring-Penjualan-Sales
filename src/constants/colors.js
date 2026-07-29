@@ -86,3 +86,25 @@ export const THEMES = {
     ]
   }
 };
+
+// Mode Hemat Daya: dipanggil dari SalesMonitoringApp saat toggle aktif. Balik
+// SEMUA token translucent ("kaca") jadi solid opaque, pakai token surface/
+// surface2 yang sudah ada sejak sebelum redesign glass morphism (tidak pernah
+// dihapus, cuma sudah tidak dipakai di mana pun). Karena SETIAP komponen di
+// seluruh app membaca warna lewat token ini (colors.glassFill dsb, bukan hex
+// literal), mengganti nilainya di SATU tempat ini otomatis membuat seluruh
+// dropdown/tooltip/card/modal/sidebar ikut jadi solid — tanpa perlu menyentuh
+// satu pun file komponen. Border & shadow SENGAJA tidak diubah (border tipis
+// translucent & box-shadow itu murah untuk di-render, bukan sumber lag —
+// yang mahal adalah backdrop-filter & gradient sheen, itu yang dihilangkan).
+export function applyPowerSaveColors(colors) {
+  return {
+    ...colors,
+    glassSubtle: colors.surface,
+    glassFill: colors.surface2,
+    glassFillStrong: colors.surface2,
+    modalBg: colors.surface2,
+    modalPanelBg: colors.surface,
+    glassSheen: "transparent",
+  };
+}
