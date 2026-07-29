@@ -1,5 +1,10 @@
 export const THEMES = {
   dark: {
+    // Hint CSS color-scheme untuk native form control (popup <select>, kalender
+    // <input type="date">) — ini dirender OS/browser sendiri, TIDAK bisa
+    // di-style lewat background inline di elemen induknya. Tanpa ini, popup-nya
+    // akan selalu putih terang meski kotak tertutupnya sudah gelap.
+    colorScheme: "dark",
     ink: "#0A0E1A",
     surface: "#111827",
     surface2: "#1F2937",
@@ -44,6 +49,7 @@ export const THEMES = {
     ]
   },
   light: {
+    colorScheme: "light",
     ink: "#F4F6FB",
     surface: "#FFFFFF",
     surface2: "#F3F4F6",

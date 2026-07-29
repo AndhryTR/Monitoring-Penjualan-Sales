@@ -197,7 +197,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                       {otherSales.length > 0 && (
                         <div className="flex items-center gap-2 mb-3">
                           <select value={copySourceCode[t.code] || ""} onChange={e => setCopySourceCode(prev => ({ ...prev, [t.code]: e.target.value }))}
-                            className="flex-1 px-2.5 py-1.5 rounded-md text-xs" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
+                            className="flex-1 px-2.5 py-1.5 rounded-md text-xs" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}`, color: colors.text, colorScheme: colors.colorScheme }}>
                             <option value="">Salin dari sales lain...</option>
                             {otherSales.map(o => <option key={o.code} value={o.code}>{o.name} ({o.focus.length} produk)</option>)}
                           </select>
@@ -231,7 +231,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                               <div>
                                 <label className="block text-[10px] mb-0.5" style={{ color: colors.textMuted }}>Tipe Pencocokan</label>
                                 <select value={matchType} onChange={e => handleFocusChange(t.code, i, 'matchType', e.target.value)}
-                                  className="w-full px-2 py-1.5 rounded text-xs" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
+                                  className="w-full px-2 py-1.5 rounded text-xs" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text, colorScheme: colors.colorScheme }}>
                                   {MATCH_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                 </select>
                               </div>

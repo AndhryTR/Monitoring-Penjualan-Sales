@@ -119,7 +119,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
           value={filters.unit || ""}
           onChange={(e) => setFilters((f) => ({ ...f, unit: e.target.value }))}
           className="w-full px-3 py-2 rounded-lg text-sm"
-          style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}
+          style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text, colorScheme: colors.colorScheme }}
         >
           <option value="">Semua satuan</option>
           {unitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -230,7 +230,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
                 value={filters.unit || ""}
                 onChange={(e) => setFilters((f) => ({ ...f, unit: e.target.value }))}
                 className="w-full px-3 py-2 rounded-lg text-sm"
-                style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}
+                style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text, colorScheme: colors.colorScheme }}
               >
                 <option value="">Semua satuan</option>
                 {unitOptions.map((u) => <option key={u} value={u}>{u}</option>)}

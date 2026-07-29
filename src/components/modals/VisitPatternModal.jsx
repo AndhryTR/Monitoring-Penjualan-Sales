@@ -65,7 +65,7 @@ export function VisitPatternModal({ isOpen, onClose, rawRows, targets, colors, d
           <div>
             <label className="block text-xs mb-1.5" style={{ color: colors.textMuted }}>Sales</label>
             <select value={salesCode} onChange={(e) => setSalesCode(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
+              className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text, colorScheme: colors.colorScheme }}>
               <option value="">Pilih sales...</option>
               {targets.map((t) => <option key={t.code} value={t.code}>{t.name}</option>)}
             </select>
@@ -73,12 +73,12 @@ export function VisitPatternModal({ isOpen, onClose, rawRows, targets, colors, d
           <div>
             <label className="block text-xs mb-1.5" style={{ color: colors.textMuted }}>Dari Tanggal</label>
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg text-sm mono" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }} />
+              className="w-full px-3 py-2 rounded-lg text-sm mono" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text, colorScheme: colors.colorScheme }} />
           </div>
           <div>
             <label className="block text-xs mb-1.5" style={{ color: colors.textMuted }}>Sampai Tanggal</label>
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg text-sm mono" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }} />
+              className="w-full px-3 py-2 rounded-lg text-sm mono" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text, colorScheme: colors.colorScheme }} />
           </div>
         </div>
 
