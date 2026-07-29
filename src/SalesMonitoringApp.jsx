@@ -40,6 +40,7 @@ import { OutletDetailModal } from "./components/modals/OutletDetailModal.jsx";
 import { DataPreviewModal } from "./components/modals/DataPreviewModal.jsx";
 import { HistoryModal } from "./components/modals/HistoryModal.jsx";
 import { SettingsModal } from "./components/modals/SettingsModal.jsx";
+import { AboutModal } from "./components/modals/AboutModal.jsx";
 
 /* ============================================================================
    DESIGN TOKENS
@@ -201,6 +202,7 @@ export default function SalesMonitoringApp() {
   // Status collapse sidebar desktop — diingat lintas sesi sama seperti tema.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(persistedSettings?.sidebarCollapsed ?? false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [drilldown, setDrilldown] = useState(null);
   const [pendingPreview, setPendingPreview] = useState(null);
   const [parseMeta, setParseMeta] = useState(null);
@@ -627,6 +629,7 @@ export default function SalesMonitoringApp() {
       <div className="relative" style={{ zIndex: 1 }}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors}
         theme={theme} setTheme={setTheme} powerSaveMode={powerSaveMode} setPowerSaveMode={setPowerSaveMode} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge} />
+      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} colors={colors} />
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
       <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
       <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={(mode) => confirmPreview(mode)} preview={pendingPreview} colors={colors} />
@@ -790,8 +793,10 @@ export default function SalesMonitoringApp() {
           </>
         )}
 
-        <div className="text-center text-xs mt-10 pb-4" style={{ color: colors.textMuted }}>
-          Data diproses langsung di browser Anda — tidak diunggah ke server manapun. Data & pengaturan disimpan otomatis di perangkat/browser ini agar tidak hilang saat refresh.
+        <div className="text-center mt-10 pb-4">
+          <button onClick={() => setIsAboutOpen(true)} className="sm-btn text-xs font-medium px-3 py-1.5 rounded-lg" style={{ color: colors.textMuted }}>
+            Tentang Aplikasi
+          </button>
         </div>
       </div>
         </div>
