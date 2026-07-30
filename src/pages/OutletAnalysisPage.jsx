@@ -3,13 +3,14 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
 import {
-  Store, Settings, CheckCircle2, AlertTriangle, XCircle, CalendarDays,
+  Store, Settings, CheckCircle2, AlertTriangle, XCircle, CalendarDays, Download,
 } from "lucide-react";
 import { fmtRp, fmtNum } from "../utils/formatters.js";
 import { computeOutletAnalysis } from "../utils/aggregation.js";
 import { KpiCard } from "../components/KpiCard.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, createChartTooltipStyle } from "../components/ui/index.jsx";
+import { exportOutletAnalysisExcel } from "../utils/reportExcelExport.js";
 import { VisitPatternModal } from "../components/modals/VisitPatternModal.jsx";
 
 /* ============================================================================
@@ -49,16 +50,26 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
     { name: "Berisiko", value: summary.atRisk, fill: colors.gold },
     { name: "Dormant", value: summary.dormant, fill: colors.coral },
   ];
+  const handleExport = () => exportOutletAnalysisExcel(list, summary, {
+    depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
+  });
 
   return (
     <div className="sm-page-enter">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <SectionTitle title="Analisis Outlet" sub="Segmentasi outlet berdasarkan aktivitas beli — mengikuti filter yang aktif" icon={Store} colors={colors} accent={colors.violet} />
-        <button onClick={() => setVisitModalOpen(true)}
-          className="sm-btn inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold"
-          style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
-          <CalendarDays size={15} style={{ color: colors.violet }} /> Lihat Pola Kunjungan
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={handleExport}
+            className="sm-btn inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold"
+            style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
+            <Download size={15} /> Export Excel
+          </button>
+          <button onClick={() => setVisitModalOpen(true)}
+            className="sm-btn inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold"
+            style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
+            <CalendarDays size={15} style={{ color: colors.violet }} /> Lihat Pola Kunjungan
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
