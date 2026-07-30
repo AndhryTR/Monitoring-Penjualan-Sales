@@ -1,810 +1,106 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import sumBy from "lodash/sumBy";
+import { useMemo } from "react";
 import {
-  X, RefreshCw, Sun, Moon,
-  Smartphone, Share, History, Settings,
-  FileSpreadsheet, AlertTriangle, CheckCircle2,
+  ResponsiveContainer, BarChart, Bar, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip,
+} from "recharts";
+import {
+  Target, TrendingUp, TrendingDown, Sparkles, Users, Boxes,
+  CalendarDays, LayoutDashboard,
 } from "lucide-react";
-import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory } from "./utils/storage.js";
-import {
-  parseWorkbookFile, dedupeRows,
-} from "./utils/excelParse.js";
-import {
-  useAggregates, computeAggregates, detectMonths, monthKey, getOutletBreakdown, getProductBreakdownForOutlet,
-} from "./utils/aggregation.js";
-import { useDataQualityNotes } from "./utils/dataQuality.js";
-import { buildHistorySnapshot, computeComparison, computeMultiPeriodComparison } from "./utils/history.js";
-import { generateSampleRows } from "./utils/sampleData.js";
-import { ALIASES } from "./constants/aliases.js";
-import { TABS } from "./constants/tabs.js";
-import { Sidebar } from "./components/layout/Sidebar.jsx";
-import { WORK_DAYS_DEFAULT } from "./constants/thresholds.js";
-import DEFAULT_TARGETS from "./constants/defaultTargets.json";
-// Modul virtual dari vite-plugin-pwa — hanya ada saat plugin ini terpasang &
-// dijalankan lewat Vite (dev atau build), bukan package npm biasa.
-import { useRegisterSW } from "virtual:pwa-register/react";
-import { FilterBar } from "./components/ui/FilterBar.jsx";
-import { DashboardSkeleton } from "./components/ui/DashboardSkeleton.jsx";
-import { UploadDropzone, MobileBottomNav, MobileFab, ExportMenu } from "./components/upload/index.jsx";
-import { TrendPeriodePage } from "./components/trend/index.jsx";
-import { MainReportPage } from "./pages/MainReportPage.jsx";
-import { SalesReportPage } from "./pages/SalesReportPage.jsx";
-import { ProductReportPage } from "./pages/ProductReportPage.jsx";
-import { ProductFocusReportPage } from "./pages/ProductFocusReportPage.jsx";
-import { OutletAnalysisPage } from "./pages/OutletAnalysisPage.jsx";
-import { DataQualityPage } from "./pages/DataQualityPage.jsx";
-import { ExecutiveSummaryPage } from "./pages/ExecutiveSummaryPage.jsx";
-import { TransactionsPage } from "./pages/TransactionsPage.jsx";
-import { OutletDrilldownModal } from "./components/modals/OutletDrilldownModal.jsx";
-import { OutletDetailModal } from "./components/modals/OutletDetailModal.jsx";
-import { DataPreviewModal } from "./components/modals/DataPreviewModal.jsx";
-import { HistoryModal } from "./components/modals/HistoryModal.jsx";
-import { SettingsModal } from "./components/modals/SettingsModal.jsx";
-import { AboutModal } from "./components/modals/AboutModal.jsx";
+import { fmtRp, fmtNum } from "../utils/formatters.js";
+import { dateKey } from "../utils/aggregation.js";
+import { KpiCard } from "../components/KpiCard.jsx";
+import { PaceStrip } from "../components/PaceStrip.jsx";
+import { AchBadge } from "../components/AchBadge.jsx";
+import { DataTable } from "../components/ui/DataTable.jsx";
+import { SectionTitle, DrilldownButton, createChartTooltipStyle } from "../components/ui/index.jsx";
+import { ProjectionCard, PeriodComparisonCard } from "../components/cards/index.jsx";
+import { InsightBanner } from "../components/executive/InsightBanner.jsx";
 
 /* ============================================================================
-   DESIGN TOKENS
-   Ink navy surface, gold = on-pace, coral = behind pace, mint = growth,
-   violet = focus-product accent. Display: Space Grotesk, Body: Inter,
-   Data/mono: JetBrains Mono.
+   TAB: MAIN REPORT
+   Pace strip + alerts + comparison + 6 KPI + proyeksi + 2 chart + tabel sales.
 ============================================================================ */
-import { THEMES, applyPowerSaveColors } from "./constants/colors.js";
-
-const createGlobalStyle = (colors, powerSaveMode) => `
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
-* { box-sizing: border-box; }
-.smapp { font-family: 'Inter', sans-serif; color: ${colors.text}; background: ${colors.meshBg}; position: relative; }
-.smapp .disp { font-family: 'Space Grotesk', sans-serif; }
-.smapp .mono { font-family: 'JetBrains Mono', monospace; }
-.smapp *::-webkit-scrollbar { height: 8px; width: 8px; }
-.smapp *::-webkit-scrollbar-thumb { background: ${colors.border}; border-radius: 4px; border: 2px solid ${colors.ink}; }
-.smapp *::-webkit-scrollbar-track { background: transparent; }
-/* Sembunyikan scrollbar pada mobile bottom nav (scroll-snap horizontal) */
-.sm-scrollhide::-webkit-scrollbar { display: none; }
-/* --- Aurora mesh background (Fase 4 — final spec, 5 blobs) --- */
-.sm-mesh { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-.sm-mesh .blob { position: absolute; border-radius: 50%; filter: blur(60px); will-change: transform; }
-.sm-noise { position: absolute; inset: -10%; opacity: .04; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); background-size: 180px 180px; }
-.sm-mesh .blob-1 { top: -12%; left: -10%; animation: smBlobA 28s cubic-bezier(.4,0,.2,1) infinite; }
-.sm-mesh .blob-2 { top: 22%; right: -14%; animation: smBlobB 34s cubic-bezier(.4,0,.2,1) infinite; }
-.sm-mesh .blob-3 { bottom: -14%; left: 12%; animation: smBlobC 31s cubic-bezier(.4,0,.2,1) infinite; }
-.sm-mesh .blob-4 { bottom: -10%; right: 8%; animation: smBlobD 26s cubic-bezier(.4,0,.2,1) infinite; }
-.sm-mesh .blob-5 { top: 38%; left: 38%; animation: smBlobE 33s cubic-bezier(.4,0,.2,1) infinite; }
-@keyframes smBlobA { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(6%,4%) scale(1.08); } }
-@keyframes smBlobB { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-5%,6%) scale(1.05); } }
-@keyframes smBlobC { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(4%,-5%) scale(1.1); } }
-@keyframes smBlobD { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-4%,-4%) scale(1.06); } }
-@keyframes smBlobE { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(5%,5%) scale(1.04); } }
-@keyframes smFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes smFadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes smPageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes smPulse { 0%,100% { opacity:1 } 50% { opacity:.55 } }
-@keyframes smShimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
-@keyframes smDash { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
-@media (prefers-reduced-motion: reduce) { .sm-mesh .blob { animation: none; } }
-/* Saat scroll aktif ATAU tab browser sedang tidak aktif/disembunyikan:
-   hentikan animasi blob & sembunyikan noise sementara. Animasi blob
-   (translate+scale infinite) membebani compositor GPU setiap frame — kalau
-   dibiarkan jalan terus SELAMA scroll juga berlangsung (yang butuh compositor
-   juga), keduanya rebutan resource dan bikin scroll terasa patah-patah di
-   device lemah. Begitu tab disembunyikan (pindah aplikasi/tab lain), animasi
-   ini bahkan tidak terlihat sama sekali — jadi sayang kalau tetap jalan &
-   buang daya. Blob & noise cuma dekorasi ambient, aman dibekukan sesaat;
-   otomatis nyala lagi begitu scroll berhenti / tab aktif lagi. */
-.sm-mesh.sm-scrolling .blob { animation-play-state: paused; }
-.sm-mesh.sm-scrolling .sm-noise { display: none; }
-.sm-fadeup { animation: smFadeUp .45s cubic-bezier(.16,1,.3,1) backwards; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
-.sm-fadein { animation: smFadeIn .3s ease both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
-.sm-page-enter { animation: smPageIn .25s cubic-bezier(.16,1,.3,1); }
-.sm-pulse { animation: smPulse 1.8s ease-in-out infinite; }
-.sm-shimmer { background: linear-gradient(90deg, ${colors.surface2} 0%, ${colors.border} 50%, ${colors.surface2} 100%); background-size: 800px 100%; animation: smShimmer 1.4s linear infinite; }
-.sm-card { background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; border-radius: 16px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); transition: transform .25s ease, box-shadow .25s ease, background .3s ease, border-color .3s ease; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
-.sm-card:hover { transform: translateY(-2px); background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFillStrong}; border-color: ${colors.glassBorderElevated}; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; will-change: transform; }
-.sm-glow-wrap { position: relative; }
-.sm-glow-wrap .sm-glow { position: absolute; inset: -8px; border-radius: 20px; filter: blur(18px); opacity: .12; z-index: -1; pointer-events: none; transition: opacity .3s ease; }
-.sm-glow-wrap:hover .sm-glow { opacity: .20; }
-.sm-kpi-accent-line { position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 16px 16px 0 0; }
-.sm-sidebar-glass { background: radial-gradient(120% 70% at 15% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFill}; backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); border: 1px solid ${colors.glassBorder}; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
-.sm-mobile-nav-glass { background: radial-gradient(140% 200% at 20% -60%, ${colors.glassSheen}, transparent 60%), ${colors.glassFillStrong}; backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px); border: 1px solid ${colors.glassBorderElevated}; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
-.sm-modal-glass { background: radial-gradient(120% 60% at 15% -5%, ${colors.glassSheen}, transparent 55%), ${colors.modalPanelBg} !important; border: 1px solid ${colors.modalBorder} !important; backdrop-filter: blur(40px) !important; -webkit-backdrop-filter: blur(40px) !important; }
-.sm-tab-btn { position: relative; transition: color .2s ease; }
-.sm-chip { transition: all .18s ease; }
-.sm-chip:hover { transform: translateY(-1px); }
-.sm-row { transition: background .15s ease; }
-.sm-row:hover { background: ${colors.glassFillStrong}; }
-.sm-btn { background: ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transition: transform .2s ease, box-shadow .2s ease, background .2s ease; box-shadow: 0 4px 16px rgba(0,0,0,.18), inset 0 1px 0 ${colors.glassHighlight}; }
-.sm-btn:hover { transform: translateY(-2px); background: ${colors.glassFillStrong}; box-shadow: 0 6px 20px rgba(0,0,0,.22), inset 0 1px 0 ${colors.glassHighlight}; }
-.sm-btn:active { transform: translateY(0); box-shadow: inset 0 2px 8px rgba(0,0,0,.25); }
-.sm-progress-fill { transition: width 1s cubic-bezier(.16,1,.3,1); }
-.sm-drop { transition: border-color .2s ease, background .2s ease; }
-.sm-scale-in { animation: smFadeUp .5s cubic-bezier(.16,1,.3,1); }
-.sm-slider { 
-  border: 1px solid ${colors.glassBorder};
-  border-radius: 999px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  outline: none;
-}
-.sm-slider::-webkit-slider-runnable-track {
-  height: 8px;
-  border-radius: 999px;
-  background: transparent;
-}
-.sm-slider::-moz-range-track {
-  height: 8px;
-  border-radius: 999px;
-  background: transparent;
-}
-.sm-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
-  margin-top: -4px;
-  border-radius: 50%;
-  background: ${colors.gold};
-  border: 2px solid rgba(255,255,255,.5);
-  cursor: pointer;
-  box-shadow: 0 0 10px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.4);
-  transition: transform .15s ease, box-shadow .15s ease;
-}
-.sm-slider::-webkit-slider-thumb:hover { transform: scale(1.15); box-shadow: 0 0 14px ${colors.gold}77, inset 0 1px 0 rgba(255,255,255,.5); }
-.sm-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: ${colors.gold};
-  border: 2px solid rgba(255,255,255,.5);
-  cursor: pointer;
-  box-shadow: 0 0 10px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.4);
-  transition: transform .15s ease, box-shadow .15s ease;
-}
-.sm-slider::-moz-range-thumb:hover { transform: scale(1.15); }
-.sm-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px ${colors.mint}44, 0 0 10px rgba(0,0,0,.25); }
-.sm-slider:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px ${colors.mint}44, 0 0 10px rgba(0,0,0,.25); }
-${powerSaveMode ? `
-/* --- Mode Hemat Daya ---
-   backdrop-filter (blur di belakang kaca) adalah operasi PALING mahal di
-   seluruh desain ini — jauh lebih berat dari animasi blob atau shadow.
-   Blanket rule ini menghilangkannya TOTAL dari SEMUA elemen sekaligus,
-   termasuk yang di-set inline lewat JS (style={{backdropFilter:...}}) yang
-   tersebar di banyak file (dropdown, tooltip, dsb) — !important di
-   stylesheet MENANG atas inline style biasa (yang tidak !important), jadi
-   satu rule ini cukup tanpa perlu menyentuh file komponen manapun. Warna
-   solid/opaque-nya sendiri sudah ditangani terpisah lewat
-   applyPowerSaveColors() di constants/colors.js (mengganti isi token
-   glassFill dkk, bukan lewat CSS). Diletakkan PALING BAWAH supaya menang
-   dari rule !important lain (mis. .sm-modal-glass) lewat urutan sumber. */
-.sm-powersave * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
-.sm-powersave .sm-glow { display: none; }
-` : ""}
-`;
-
-
-/* ============================================================================
-   UPLOAD / EXPORT
-============================================================================ */
-
-export default function SalesMonitoringApp() {
-  // Dibaca sekali di render pertama (lazy initializer useState menjamin ini
-  // hanya jalan sekali, bukan setiap render) — jadi field-field di bawahnya
-  // bisa langsung memakai nilai tersimpan kalau ada, atau fallback ke default.
-  const [persistedSettings] = useState(() => loadSettings());
-
-  const [rawRows, setRawRows] = useState([]);
-  const [fileName, setFileName] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [sampleLoading, setSampleLoading] = useState(false);
-  const [sessionLoading, setSessionLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState("executive");
-  const [theme, setTheme] = useState(persistedSettings?.theme || 'dark');
-  const [powerSaveMode, setPowerSaveMode] = useState(persistedSettings?.powerSaveMode ?? false);
-  // Status collapse sidebar desktop — diingat lintas sesi sama seperti tema.
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(persistedSettings?.sidebarCollapsed ?? false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isAboutOpen, setIsAboutOpen] = useState(false);
-  const [drilldown, setDrilldown] = useState(null);
-  const [pendingPreview, setPendingPreview] = useState(null);
-  const [parseMeta, setParseMeta] = useState(null);
-  const [history, setHistory] = useState(() => loadHistory());
-  const [comparisonSnapshot, setComparisonSnapshot] = useState(null);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  // ID snapshot riwayat yang dipilih untuk tab "Tren Periode" (2+ periode
-  // sekaligus) — beda dari comparisonSnapshot di atas yang cuma 1-vs-1 untuk
-  // card "Bandingkan Periode" di Main Report. Sengaja tidak dipersist ke
-  // localStorage: dipilih ulang tiap sesi, konsisten dengan sifatnya yang
-  // sementara/eksploratif.
-  const [trendSnapshotIds, setTrendSnapshotIds] = useState([]);
-
-  const [filters, setFilters] = useState(() => {
-    const saved = persistedSettings?.filters;
-    if (!saved) return { salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" };
-    // Settings lama (sebelum fitur preset ada) belum punya field datePreset —
-    // kalau dateFrom/dateTo sudah keisi manual, anggap "custom" biar tidak
-    // tiba-tiba ketimpa jadi "Semua Data".
-    return { ...saved, datePreset: saved.datePreset ?? (saved.dateFrom || saved.dateTo ? "custom" : "all") };
-  });
-  const [workDays, setWorkDays] = useState(persistedSettings?.workDays ?? WORK_DAYS_DEFAULT);
-  const [targets, setTargets] = useState(persistedSettings?.targets ?? DEFAULT_TARGETS);
-  const [depotName, setDepotName] = useState(persistedSettings?.depotName ?? "DEPO LOTIM");
-  // Metode proyeksi terpilih di ProjectionCard (linear/trend7/weekday) —
-  // disimpan lintas sesi seperti pengaturan lain, konsisten dengan preferensi
-  // user yang sifatnya "cara pandang data", bukan data itu sendiri.
-  const [projectionMethod, setProjectionMethod] = useState(persistedSettings?.projectionMethod ?? "linear");
-
-  // Muat data sesi terakhir (hasil upload/demo sebelumnya) dari IndexedDB saat
-  // pertama kali app dibuka. Async, jadi ditampilkan status loading singkat
-  // dulu supaya tidak "flash" ke tampilan "Belum ada data" sebelum sempat dicek.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const session = await loadSession();
-      if (!cancelled && session) {
-        setRawRows(session.rawRows || []);
-        setFileName(session.fileName || "");
-        setParseMeta(session.parseMeta || null);
-      }
-      if (!cancelled) setSessionLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  // Simpan otomatis setiap kali pengaturan berubah (tema, filter, target,
-  // hari kerja, nama depo) — jadi tidak perlu tombol "simpan" terpisah untuk ini,
-  // beda dengan raw data yang lebih berat dan disimpan terpisah di bawah.
-  useEffect(() => {
-    saveSettings({ theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed });
-  }, [theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed]);
-
-  // Simpan otomatis data transaksi ke IndexedDB tiap kali berubah (setelah upload
-  // dikonfirmasi atau data contoh dimuat). Di-skip saat kosong karena reset
-  // ditangani secara eksplisit lewat clearSession() di handleReset.
-  useEffect(() => {
-    if (rawRows.length) saveSession({ rawRows, fileName, parseMeta });
-  }, [rawRows, fileName, parseMeta]);
-
-  /* --------------------------- PWA: instal & update --------------------------- */
-
-  // registerType: 'prompt' di vite.config.js — jadi kalau ada versi baru ter-deploy,
-  // tidak langsung auto-reload (bisa bikin filter/upload yang lagi dikerjakan hilang),
-  // tapi tampilkan notifikasi dan biarkan user pilih kapan mau refresh.
-  const {
-    needRefresh: [needRefresh, setNeedRefresh],
-    offlineReady: [offlineReady, setOfflineReady],
-    updateServiceWorker,
-  } = useRegisterSW({});
-
-  const [installPromptEvent, setInstallPromptEvent] = useState(null);
-  const [showIosInstallHint, setShowIosInstallHint] = useState(false);
-
-  const isIOS = useMemo(() => /iphone|ipad|ipod/i.test(window.navigator.userAgent), []);
-  const isStandalone = useMemo(() =>
-    window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true
-  , []);
-
-  useEffect(() => {
-    // Chrome/Android/Edge menembak event ini kalau app memenuhi syarat installability
-    // (manifest valid, service worker terdaftar, dsb). Kita cegah prompt otomatis
-    // browser (preventDefault), simpan eventnya, lalu munculkan tombol custom sendiri.
-    const handler = (e) => { e.preventDefault(); setInstallPromptEvent(e); };
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
-
-  const handleInstallClick = useCallback(async () => {
-    if (installPromptEvent) {
-      installPromptEvent.prompt();
-      await installPromptEvent.userChoice;
-      setInstallPromptEvent(null);
-    } else if (isIOS) {
-      // iOS Safari tidak punya beforeinstallprompt — harus manual lewat menu Share.
-      setShowIosInstallHint(true);
-    }
-  }, [installPromptEvent, isIOS]);
-
-  const canShowInstallButton = !isStandalone && (!!installPromptEvent || isIOS);
-
-  const colors = useMemo(() => {
-    const base = THEMES[theme];
-    return powerSaveMode ? applyPowerSaveColors(base) : base;
-  }, [theme, powerSaveMode]);
-  const globalStyle = useMemo(() => createGlobalStyle(colors, powerSaveMode), [colors, powerSaveMode]);
-
-  const groupOptions = useMemo(() => {
-    const s = new Set();
-    targets.forEach((t) => t.groups.forEach((g) => s.add(g.name)));
-    rawRows.forEach((r) => r.group && s.add(r.group));
-    return Array.from(s).sort();
-  }, [targets, rawRows]);
-
-  const salesOptions = useMemo(() => targets.map((t) => ({ name: t.name, code: t.code })), [targets]);
-  const aggFinal = useAggregates(rawRows, targets, filters, workDays);
-  const dataQualityNotes = useDataQualityNotes(rawRows, targets, parseMeta);
-  const openDrilldown = (title, subtitle, predicate) => {
-    setDrilldown({ title, subtitle, outlets: getOutletBreakdown(aggFinal.filteredRows, predicate) });
-  };
-
-  const [outletThresholds, setOutletThresholds] = useState({ activeMaxDays: 14, dormantMinDays: 30 });
-  const [outletDetail, setOutletDetail] = useState(null);
-  const openOutletDetail = (outlet) => setOutletDetail(outlet);
-  const outletDetailProducts = useMemo(
-    () => outletDetail ? getProductBreakdownForOutlet(aggFinal.filteredRows, outletDetail.outletCode) : [],
-    [outletDetail, aggFinal.filteredRows]
-  );
-
-  const comparison = useMemo(() => computeComparison(aggFinal, comparisonSnapshot), [aggFinal, comparisonSnapshot]);
-
-  const trendSnapshots = useMemo(
-    () => history.filter((h) => trendSnapshotIds.includes(h.id)),
-    [history, trendSnapshotIds]
-  );
-  const trendComparisonData = useMemo(
-    () => trendSnapshots.length > 0 ? computeMultiPeriodComparison(aggFinal, trendSnapshots, filters, fileName) : null,
-    [aggFinal, trendSnapshots, filters, fileName]
-  );
-
-  // ---- Auto-perbandingan per-bulan (Tren Periode) ----
-  // Kalau data yang di-UPLOAD (rawRows, bukan cuma yang sedang tampil setelah
-  // filter tanggal) mencakup >= 2 bulan kalender berbeda, otomatis hitung
-  // agregat penuh PER BULAN dan tampilkan sebagai perbandingan di Tren Periode
-  // — tanpa perlu simpan snapshot manual dulu. Manual (trendSnapshots di atas)
-  // tetap diprioritaskan kalau user pernah pilih lewat modal Riwayat.
-  const detectedMonths = useMemo(() => detectMonths(rawRows), [rawRows]);
-
-  // ---- Peringatan filter lintas-bulan (Lapis 2) ----
-  // Target di Settings selalu berarti target UNTUK 1 BULAN. Kalau filter
-  // tanggal yang sedang aktif (dateFrom..dateTo) mencakup lebih dari 1 bulan
-  // kalender, maka Dashboard/Sales/Produk/Fokus/Outlet Report — yang semuanya
-  // menjumlah realisasi lalu membaginya ke target itu apa adanya — akan
-  // menghasilkan ACH yang tidak lagi mencerminkan "progres vs target bulanan"
-  // yang sebenarnya. Ini TIDAK mengubah kalkulasi apa pun, cuma menandai
-  // kondisinya supaya bisa ditampilkan sebagai peringatan di UI.
-  const filterSpansMultipleMonths = useMemo(() => {
-    if (!filters.dateFrom || !filters.dateTo) return false;
-    return monthKey(filters.dateFrom) !== monthKey(filters.dateTo);
-  }, [filters.dateFrom, filters.dateTo]);
-
-  const autoTrendComparisonData = useMemo(() => {
-    if (detectedMonths.length < 2) return null;
-    // Filter Sales tetap dihormati (siapa yang ditampilkan tidak berubah
-    // antar bulan), TAPI filter Grup Barang (filters.groups) SENGAJA
-    // diabaikan di sini — itu mencerminkan pilihan "grup mana yang relevan
-    // SEKARANG", dan kalau ikut dipakai untuk menghitung ulang bulan-bulan
-    // lain, transaksi dari golongan barang yang tidak kepilih di filter
-    // aktif akan tersaring habis dari bulan itu — padahal sales bisa saja
-    // menjual golongan berbeda di bulan lalu. Tiap bulan historis di sini
-    // SELALU mencakup SEMUA golongan barang yang benar-benar ada di bulan
-    // itu, supaya realisasi & AO per bulan (dan totalnya) tetap akurat.
-    // dateFrom/dateTo juga dipaksa ke batas bulan masing-masing — mengabaikan
-    // filter tanggal global yang mungkin sedang aktif di tab lain (deteksi
-    // ini soal DATA YANG DI-UPLOAD, bukan soal apa yang sedang difilter di
-    // layar sekarang).
-    const monthlyAggs = detectedMonths.map((m) =>
-      computeAggregates(rawRows, targets, { salesCodes: filters.salesCodes, groups: [], dateFrom: m.dateFrom, dateTo: m.dateTo }, workDays)
-    );
-    const latest = detectedMonths[detectedMonths.length - 1];
-    const latestAgg = monthlyAggs[monthlyAggs.length - 1];
-    const earlierSnapshots = detectedMonths.slice(0, -1).map((m, i) =>
-      buildHistorySnapshot(monthlyAggs[i], { dateFrom: m.dateFrom, dateTo: m.dateTo }, fileName, m.label)
-    );
-    return computeMultiPeriodComparison(latestAgg, earlierSnapshots, { dateFrom: latest.dateFrom, dateTo: latest.dateTo }, fileName);
-  }, [detectedMonths, rawRows, targets, filters.salesCodes, workDays, fileName]);
-
-  // Manual (lewat modal Riwayat) selalu menang kalau pernah dipilih; kalau
-  // belum, fallback ke auto-deteksi bulan (bisa null kalau cuma 1 bulan).
-  const isAutoTrend = trendSnapshotIds.length === 0 && !!autoTrendComparisonData;
-  const finalTrendComparisonData = trendSnapshotIds.length > 0 ? trendComparisonData : autoTrendComparisonData;
-
-  // Dipanggil dari HistoryModal setelah user pilih 1 atau lebih snapshot.
-  // 1 dipilih → isi comparisonSnapshot (perbandingan cepat di Main Report).
-  // 2+ dipilih → isi trendSnapshotIds & pindah ke tab "Tren Periode".
-  const applyHistorySelection = useCallback((ids) => {
-    if (ids.length === 1) {
-      const h = history.find((x) => x.id === ids[0]);
-      setComparisonSnapshot(h || null);
-      setTrendSnapshotIds([]);
-    } else {
-      setTrendSnapshotIds(ids);
-      setComparisonSnapshot(null);
-      setActiveTab("trend");
-    }
-    setIsHistoryOpen(false);
-  }, [history]);
-
-  const saveHistorySnapshot = (label) => {
-    const snap = buildHistorySnapshot(aggFinal, filters, fileName, label);
-    setHistory((prev) => {
-      const next = [snap, ...prev].slice(0, 8);
-      saveHistory(next);
-      return next;
-    });
-    setIsHistoryOpen(false);
-  };
-  const deleteHistorySnapshot = (id) => {
-    setHistory((prev) => {
-      const next = prev.filter((h) => h.id !== id);
-      saveHistory(next);
-      return next;
-    });
-    setComparisonSnapshot((cur) => (cur && cur.id === id ? null : cur));
-    setTrendSnapshotIds((cur) => cur.filter((x) => x !== id));
-  };
-
-  // Dipanggil dari SettingsModal saat import file backup — GABUNGKAN snapshot
-  // dari file dengan riwayat yang sudah ada di device ini (bukan menimpa total),
-  // supaya import dari device lain tidak menghapus riwayat lokal yang belum
-  // sempat di-backup. Kalau ada id yang sama persis, versi dari file yang menang.
-  const importHistoryMerge = (importedHistory) => {
-    setHistory((prev) => {
-      const byId = new Map(prev.map((h) => [h.id, h]));
-      (importedHistory || []).forEach((h) => byId.set(h.id, h));
-      const next = Array.from(byId.values())
-        .sort((a, b) => (b.dateFrom || b.savedAt || "").localeCompare(a.dateFrom || a.savedAt || ""))
-        .slice(0, 8); // konsisten dengan batas di saveHistorySnapshot
-      saveHistory(next);
-      return next;
-    });
-  };
-
-
-  const handleFile = useCallback(async (files) => {
-    const fileList = Array.isArray(files) ? files : [files];
-    setLoading(true); setError("");
-    try {
-      const results = await Promise.all(fileList.map((f) => parseWorkbookFile(f)));
-      const combinedRowsRaw = results.flatMap((r) => r.rows);
-      if (!combinedRowsRaw.length) {
-        setError("File terbaca tapi tidak ada baris data yang cocok. Pastikan kolom sesuai format sell-out.");
-        setLoading(false);
-        return;
-      }
-      const { rows: combinedRows, duplicateCount } = dedupeRows(combinedRowsRaw);
-      const detectedSet = new Set();
-      results.forEach((r) => r.parseMeta.detectedFields.forEach((f) => detectedSet.add(f)));
-      // Kolom dianggap benar-benar "tidak terdeteksi" hanya kalau tidak ada di SEMUA file
-      // yang digabung — kalau cuma sebagian file yang tidak punya kolom itu, tetap dianggap ada.
-      const missingInAll = Object.keys(ALIASES).filter((f) => results.every((r) => r.parseMeta.missingFields.includes(f)));
-      const combinedMeta = {
-        totalDataRows: sumBy(results, (r) => r.parseMeta.totalDataRows),
-        skippedBlankRows: sumBy(results, (r) => r.parseMeta.skippedBlankRows),
-        rowsWithMissingDate: sumBy(results, (r) => r.parseMeta.rowsWithMissingDate),
-        detectedFields: Array.from(detectedSet),
-        missingFields: missingInAll,
-        duplicateRowsRemoved: duplicateCount,
-        sourceFiles: results.map((r, i) => ({ name: fileList[i].name, rowCount: r.rows.length })),
-      };
-      const combinedName = fileList.length > 1
-        ? `${fileList.length} file digabung (${fileList.map((f) => f.name).join(", ")})`
-        : fileList[0].name;
-      // Kalau sudah ada data sebelumnya (upload sesi lalu), siapkan juga preview
-      // hasil GABUNGAN (data lama + file baru, dedup bersama) — supaya modal bisa
-      // menampilkan pilihan "Gabungkan" vs "Ganti semua" dengan angka yang akurat,
-      // tanpa perlu menghitung ulang saat user baru menekan konfirmasi.
-      let mergePreview = null;
-      if (rawRows.length) {
-        const merged = dedupeRows([...rawRows, ...combinedRows]);
-        const mergedDateStrs = merged.rows.map((r) => r.date).filter(Boolean).sort();
-        mergePreview = {
-          existingRowCount: rawRows.length,
-          newRowsAdded: merged.rows.length - rawRows.length,
-          totalAfterMerge: merged.rows.length,
-          dateFrom: mergedDateStrs[0] || "",
-          dateTo: mergedDateStrs[mergedDateStrs.length - 1] || "",
-          mergedRows: merged.rows,
-        };
-      }
-      // Data belum langsung dipakai — tampilkan preview dulu, biar kesalahan format
-      // (kolom tidak terbaca, tanggal kosong, dsb) ketahuan sebelum masuk ke dashboard.
-      setPendingPreview({ rows: combinedRows, parseMeta: combinedMeta, fileName: combinedName, mergePreview });
-    } catch (e) {
-      setError("Gagal membaca salah satu file. Pastikan semua format .xlsx/.xls valid.");
-    } finally { setLoading(false); }
-  }, [rawRows]);
-
-  const confirmPreview = useCallback((mode) => {
-    if (!pendingPreview) return;
-    const merge = mode === "merge" && pendingPreview.mergePreview;
-    const rows = merge ? pendingPreview.mergePreview.mergedRows : pendingPreview.rows;
-    const name = merge ? `${pendingPreview.fileName} (digabung dengan data sebelumnya)` : pendingPreview.fileName;
-    setRawRows(rows);
-    setParseMeta(pendingPreview.parseMeta);
-    setFileName(name);
-    // Default filter tanggal setelah upload = BULAN KALENDER TERAKHIR saja
-    // (bukan rentang penuh semua data yang diupload). Kalau data mencakup
-    // beberapa bulan tapi filter dibiarkan mencakup semuanya, Dashboard utama
-    // akan menjumlahkan realisasi banyak bulan lalu membandingkannya ke target
-    // yang cuma berlaku untuk 1 bulan — ACH & deviasi jadi salah baca. Bulan-
-    // bulan sebelumnya tidak hilang: tetap otomatis muncul di tab "Tren
-    // Periode" lewat detectMonths()/autoTrendComparisonData yang sudah ada.
-    const months = detectMonths(rows);
-    if (months.length) {
-      const latest = months[months.length - 1];
-      setFilters(f => ({ ...f, dateFrom: latest.dateFrom, dateTo: latest.dateTo, datePreset: "thisMonth" }));
-    }
-    setPendingPreview(null);
-  }, [pendingPreview]);
-
-  const cancelPreview = useCallback(() => setPendingPreview(null), []);
-
-  const handleSample = useCallback(() => {
-    setSampleLoading(true);
-    // Simulasi loading agar terasa responsif
-    setTimeout(() => {
-      const sampleRows = generateSampleRows();
-      setRawRows(sampleRows);
-      setFileName("Data Contoh (demo)");
-      setParseMeta({ totalDataRows: sampleRows.length, skippedBlankRows: 0, rowsWithMissingDate: 0,
-        detectedFields: Object.keys(ALIASES), missingFields: [] });
-      setFilters({ salesCodes: [], groups: [], dateFrom: "2026-07-01", dateTo: "2026-07-03", datePreset: "custom" });
-      setSampleLoading(false);
-    }, 300);
-  }, []);
-
-  const handleReset = useCallback(() => {
-    setRawRows([]); setFileName(""); setParseMeta(null);
-    clearSession();
-  }, []);
-
-  // Hapus TOTAL semua yang tersimpan di perangkat ini: settings (localStorage)
-  // + data sesi (IndexedDB) + reset semua state ke default pabrik.
-  const handleClearAll = useCallback(() => {
-    clearSettings();
-    clearSession();
-    clearHistory();
-    setRawRows([]); setFileName(""); setParseMeta(null);
-    setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" });
-    setWorkDays(WORK_DAYS_DEFAULT);
-    setTargets(DEFAULT_TARGETS);
-    setDepotName("DEPO LOTIM");
-    setTheme('dark');
-    setPowerSaveMode(false);
-    setHistory([]);
-    setComparisonSnapshot(null);
-    setTrendSnapshotIds([]);
-  }, []);
-
-  // Optimasi performa scroll & tab tidak aktif (lihat komentar CSS
-  // .sm-scrolling): tandai background mesh sebagai "harus dijeda" via ref DOM
-  // langsung (bukan useState) supaya toggle ini TIDAK memicu re-render React
-  // sama sekali — scroll event bisa nembak puluhan kali per detik, kalau
-  // pakai setState di situ malah jadi sumber lag baru. Dua kondisi independen
-  // digabung lewat 1 fungsi bersama supaya tidak saling menimpa: (1) sedang
-  // scroll (+150ms debounce setelah berhenti), (2) tab browser sedang
-  // disembunyikan (pindah tab/aplikasi lain — animasi bahkan tidak terlihat,
-  // sayang kalau tetap jalan buang baterai/CPU).
-  // .sm-powersave juga ditaruh di <body> (bukan cuma di .smapp) — beberapa
-  // elemen (bottom-sheet ExportMenu di mobile) dirender lewat createPortal
-  // LANGSUNG ke document.body, di LUAR pohon .smapp, jadi rule CSS
-  // ".sm-powersave *" tidak akan menjangkaunya kalau class-nya cuma ada di
-  // .smapp. Tanpa ini, elemen itu tetap menghitung blur (sia-sia, tidak
-  // kelihatan efeknya karena background-nya sudah solid) — buang GPU percuma.
-  useEffect(() => {
-    document.body.classList.toggle("sm-powersave", powerSaveMode);
-    return () => document.body.classList.remove("sm-powersave");
-  }, [powerSaveMode]);
-
-  const meshRef = useRef(null);
-  useEffect(() => {
-    let timeoutId = null;
-    let isScrolling = false;
-    const updatePausedClass = () => {
-      if (!meshRef.current) return;
-      const shouldPause = isScrolling || document.hidden;
-      meshRef.current.classList.toggle("sm-scrolling", shouldPause);
-    };
-    const onScroll = () => {
-      isScrolling = true;
-      updatePausedClass();
-      if (timeoutId) clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        isScrolling = false;
-        updatePausedClass();
-      }, 150);
-    };
-    const onVisibilityChange = () => updatePausedClass();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, []);
-
+export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison, projectionMethod, onProjectionMethodChange, dataQualityNotes, onNavigate }) {
+  const uniqueDaysInData = useMemo(() => new Set(agg.filteredRows.map(r => dateKey(r.date))).size, [agg.filteredRows]);
+  const t = agg.totals;
+  // Calculate time gone based on unique work days found in the data vs total work days in the month.
+  const timeGone = workDays ? Math.min(1, uniqueDaysInData / workDays) : 0;
   return (
-    <div className={`smapp min-h-screen transition-colors duration-300 ${powerSaveMode ? "sm-powersave" : ""}`}>
-      <style>{globalStyle}</style>
-      {!powerSaveMode && (
-        <div className="sm-mesh" aria-hidden="true" ref={meshRef}>
-          {colors.blobs.map((b, i) => (
-            <div
-              key={i}
-              className={`blob blob-${i + 1}`}
-              style={{ width: b.size, height: b.size, background: `rgba(${b.rgb},${b.opacity})` }}
-            />
-          ))}
-          <div className="sm-noise" />
+    <div className="sm-page-enter">
+      <PaceStrip timeGonePct={timeGone} achPct={t.ach} colors={colors} />
+      {(agg.alerts.length > 0 || dataQualityNotes) && (
+        <div className="mb-6">
+          <InsightBanner alerts={agg.alerts} dataQualityNotes={dataQualityNotes} colors={colors} onNavigate={onNavigate} onDrilldown={onDrilldown} />
         </div>
       )}
-      <div className="relative" style={{ zIndex: 1 }}>
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors}
-        theme={theme} setTheme={setTheme} powerSaveMode={powerSaveMode} setPowerSaveMode={setPowerSaveMode} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge} />
-      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} colors={colors} />
-      <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
-      <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
-      <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={(mode) => confirmPreview(mode)} preview={pendingPreview} colors={colors} />
-      <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSave={saveHistorySnapshot} onApply={applyHistorySelection}
-        onDelete={deleteHistorySnapshot}
-        defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
-      <MobileFab onFile={handleFile} colors={colors} loading={loading} />
-      <MobileBottomNav tabs={TABS} activeTab={activeTab} onChange={setActiveTab} colors={colors} />
-      <div className="flex items-start">
-        <Sidebar activeTab={activeTab} onChangeTab={setActiveTab} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
-          onOpenHistory={() => setIsHistoryOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} historyDisabled={!rawRows.length} colors={colors} />
-        <div className="flex-1 min-w-0">
-      <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 pb-24 md:pb-6">
-        {/* header */}
-        <div className="relative z-40 flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl" style={{ background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})` }}>
-              <FileSpreadsheet size={20} color="#0A1120" />
-            </div>
-            <div>
-              <h1 className="disp text-xl font-bold">Monitoring Penjualan</h1>
-              <p className="text-xs" style={{ color: colors.textMuted }}>Dashboard pencapaian sales, produk & produk fokus</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {canShowInstallButton && (
-              <button onClick={handleInstallClick}
-                className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
-                style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
-                <Smartphone size={15} /> <span className="hidden sm:inline">Instal Aplikasi</span>
-              </button>
-            )}
-            <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
-              className="sm-btn flex items-center gap-2 px-2.5 py-2.5 rounded-xl text-sm font-semibold"
-              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
-              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-            </button>
-            {/* Riwayat & Pengaturan: desktop sekarang lewat Sidebar (section
-                Tools), jadi tombol ini disembunyikan mulai breakpoint md.
-                Mobile tetap butuh ini karena tidak punya Sidebar sama sekali. */}
-            <button onClick={() => setIsHistoryOpen(true)} disabled={!rawRows.length}
-              className="sm-btn flex md:hidden items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
-              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
-              <History size={15} /> <span className="hidden sm:inline">Riwayat</span>
-            </button>
-            <button onClick={() => setIsSettingsOpen(true)}
-              className="sm-btn flex md:hidden items-center gap-2 px-2.5 py-2.5 rounded-xl text-sm font-semibold"
-              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
-              <Settings size={15} />
-            </button>
-            <ExportMenu agg={aggFinal} targets={targets} workDays={workDays} depotName={depotName} disabled={!rawRows.length} colors={colors} />
-          </div>
+      <PeriodComparisonCard comparison={comparison} colors={colors} onClear={onClearComparison} />
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+        <KpiCard label="Target Value" value={t.targetValue} isMoney icon={Target} accent={colors.blue} delay={0} colors={colors} />
+        <KpiCard label="Realisasi Value" value={t.realisasiValue} isMoney icon={TrendingUp} accent={colors.mint} delay={40} colors={colors} trend={agg.daily.map((d) => d.value)} />
+        <KpiCard label="Achievement" value={t.ach} isPct icon={Sparkles} accent={colors.gold} delay={80} colors={colors} />
+        <KpiCard label="Deviasi Value" value={t.deviasiValue} isMoney icon={TrendingDown} accent={colors.coral} delay={120} colors={colors} />
+        <KpiCard label="Active Outlet" value={t.realisasiAo} icon={Users} accent={colors.violet} delay={160} colors={colors} />
+        <KpiCard label="Target AO" value={t.targetAo} icon={Boxes} accent={colors.textMuted} delay={200} colors={colors} />
+      </div>
+
+      <ProjectionCard projection={agg.projection} totals={t} colors={colors} method={projectionMethod} onMethodChange={onProjectionMethodChange} />
+
+      <div className="grid lg:grid-cols-2 gap-6 mb-8">
+        <div className="sm-card p-5 sm-fadeup">
+          <SectionTitle title="Tren Harian" sub="Realisasi value per tanggal" icon={CalendarDays} colors={colors} accent={colors.gold} />
+          <ResponsiveContainer width="100%" height={240}>
+            <AreaChart data={agg.daily}>
+              <defs>
+                <linearGradient id="gGold" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={colors.gold} stopOpacity={0.5} />
+                  <stop offset="100%" stopColor={colors.gold} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} vertical={false} />
+              <XAxis dataKey="date" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
+              <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
+              <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} />
+              <Area type="monotone" dataKey="value" stroke={colors.gold} fill="url(#gGold)" strokeWidth={2} />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
-
-        {/* PWA: notifikasi pertama kali app siap dipakai offline */}
-        {offlineReady && !needRefresh && (
-          <div className="mb-6 sm-fadeup flex items-center justify-between gap-3 px-4 py-3 rounded-xl" style={{ background: colors.mint + "14", border: `1px solid ${colors.mint}44` }}>
-            <div className="flex items-center gap-2.5 text-sm">
-              <CheckCircle2 size={15} style={{ color: colors.mint }} />
-              <span>Aplikasi siap dipakai walau tanpa internet.</span>
-            </div>
-            <button onClick={() => setOfflineReady(false)}
-              className="sm-btn p-1.5 rounded-lg" style={{ color: colors.textMuted }}>
-              <X size={14} />
-            </button>
-          </div>
-        )}
-
-        {/* PWA: notifikasi update tersedia */}
-        {needRefresh && (
-          <div className="mb-6 sm-fadeup flex items-center justify-between gap-3 px-4 py-3 rounded-xl" style={{ background: colors.gold + "14", border: `1px solid ${colors.gold}44` }}>
-            <div className="flex items-center gap-2.5 text-sm">
-              <RefreshCw size={15} style={{ color: colors.gold }} />
-              <span>Versi baru aplikasi tersedia.</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => updateServiceWorker(true)}
-                className="sm-btn px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: colors.gold, color: "#0A1120" }}>
-                Perbarui Sekarang
-              </button>
-              <button onClick={() => setNeedRefresh(false)}
-                className="sm-btn px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${colors.glassBorder}` }}>
-                Nanti
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* PWA: instruksi manual instal untuk iOS Safari (tidak ada beforeinstallprompt) */}
-        {showIosInstallHint && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein" onClick={() => setShowIosInstallHint(false)}>
-            <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl" style={{ background: colors.gold + "1A" }}><Smartphone size={16} style={{ color: colors.gold }} /></div>
-                  <div className="disp text-base font-semibold">Instal di iPhone/iPad</div>
-                </div>
-                <button onClick={() => setShowIosInstallHint(false)} className="sm-btn p-2 rounded-full" style={{ background: colors.glassFill }}><X size={16} /></button>
-              </div>
-              <ol className="text-sm space-y-2.5" style={{ color: colors.text }}>
-                <li className="flex items-start gap-2.5">
-                  <span className="mono font-semibold shrink-0" style={{ color: colors.gold }}>1.</span>
-                  <span className="flex items-center gap-1.5 flex-wrap">Tap ikon <Share size={14} style={{ color: colors.gold }} /> <b>Share</b> di bar bawah Safari</span>
-                </li>
-                <li className="flex items-start gap-2.5">
-                  <span className="mono font-semibold shrink-0" style={{ color: colors.gold }}>2.</span>
-                  <span>Pilih <b>"Add to Home Screen"</b></span>
-                </li>
-                <li className="flex items-start gap-2.5">
-                  <span className="mono font-semibold shrink-0" style={{ color: colors.gold }}>3.</span>
-                  <span>Tap <b>"Add"</b> di pojok kanan atas</span>
-                </li>
-              </ol>
-            </div>
-          </div>
-        )}
-
-        {/* upload */}
-        <div className="mb-6 sm-fadeup" style={{ animationDelay: "40ms" }}>
-          <UploadDropzone onFile={handleFile} hasData={!!rawRows.length} fileName={fileName} onReset={handleReset} onSample={handleSample} loading={loading} sampleLoading={sampleLoading} colors={colors} />
-          {error && (
-            <div className="mt-3 flex items-center gap-2 text-sm px-4 py-2.5 rounded-xl" style={{ background: colors.coral + "14", color: colors.coral, border: `1px solid ${colors.coral}33` }}>
-              <AlertTriangle size={14} /> {error}
-            </div>
-          )}
-        </div>
-
-        {/* tabs — desktop sekarang pakai Sidebar kiri (lihat root return),
-            bukan tab bar horizontal lagi. Mobile tetap MobileBottomNav. */}
-
-        {sessionLoading ? (
-          <DashboardSkeleton colors={colors} />
-        ) : !rawRows.length ? (
-          <div className="sm-card p-16 text-center sm-fadeup">
-            <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.glassFill }}>
-              <FileSpreadsheet size={24} style={{ color: colors.textMuted }} />
-            </div>
-            <div className="disp text-base font-semibold mb-1">Belum ada data</div>
-            <p className="text-sm" style={{ color: colors.textMuted }}>Upload file Excel sell-out di atas, atau coba dengan data contoh untuk melihat dashboard bekerja.</p>
-          </div>
-        ) : (
-          <>
-            <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} theme={theme} rawRows={rawRows} />
-            {filterSpansMultipleMonths && ["main", "executive", "sales", "product", "focus", "outlet"].includes(activeTab) && (
-              <div className="sm-card p-3 mb-4 flex items-center gap-2.5 sm-fadeup" style={{ background: colors.gold + "0D", border: `1px solid ${colors.gold}33` }}>
-                <AlertTriangle size={15} style={{ color: colors.gold, flexShrink: 0 }} />
-                <p className="text-xs" style={{ color: colors.text }}>
-                  Rentang tanggal yang aktif mencakup lebih dari 1 bulan kalender, sementara target di Pengaturan berlaku per bulan. ACH & deviasi di halaman ini mungkin tidak mencerminkan performa yang sebenarnya — persempit filter ke 1 bulan, atau gunakan tab <b>Tren Periode</b> untuk membandingkan antar bulan dengan benar.
-                </p>
-              </div>
-            )}
-            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} />}
-            {activeTab === "executive" && <ExecutiveSummaryPage agg={aggFinal} colors={colors} workDays={workDays} onDrilldown={openDrilldown} comparison={comparison} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} />}
-            {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
-            {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} />}
-            {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} />}
-            {activeTab === "outlet" && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} rawRows={rawRows} targets={targets} depotName={depotName} />}
-            {activeTab === "transactions" && <TransactionsPage agg={aggFinal} colors={colors} onOutletDrilldown={openOutletDetail} />}
-            {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
-            {activeTab === "trend" && <TrendPeriodePage comparisonData={finalTrendComparisonData} isAutoTrend={isAutoTrend} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} depotName={depotName} />}
-          </>
-        )}
-
-        <div className="text-center mt-10 pb-4">
-          <p className="text-xs mb-2" style={{ color: colors.textMuted }}>
-            Data diproses langsung di browser Anda — tidak diunggah ke server manapun.
-          </p>
-          <button onClick={() => setIsAboutOpen(true)} className="sm-btn text-xs font-medium px-3 py-1.5 rounded-lg" style={{ color: colors.textMuted }}>
-            Tentang Aplikasi
-          </button>
+        <div className="sm-card p-5 sm-fadeup" style={{ animationDelay: "60ms" }}>
+          <SectionTitle title="Kumulatif Bulanan" sub="Total realisasi per bulan" icon={LayoutDashboard} colors={colors} accent={colors.mint} />
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={agg.monthly}>
+              <defs>
+                <linearGradient id="gMint" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={colors.mint} stopOpacity={0.85} />
+                  <stop offset="100%" stopColor={colors.mint} stopOpacity={0.15} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} vertical={false} />
+              <XAxis dataKey="month" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
+              <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
+              <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} cursor={{ fill: colors.glassSubtle }} />
+              <Bar dataKey="value" fill="url(#gMint)" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
-        </div>
-      </div>
-      </div>
+
+      <SectionTitle title="Ringkasan Semua Sales" icon={Users} colors={colors} accent={colors.blue} />
+      <DataTable
+        colors={colors}
+        initialSortKey="realisasiValue"
+        columns={[
+          { key: "name", label: "Sales" },
+          { key: "targetValue", label: "Target", render: (r) => <span className="mono">{fmtRp(r.targetValue)}</span> },
+          { key: "realisasiValue", label: "Realisasi", render: (r) => <span className="mono">{fmtRp(r.realisasiValue)}</span> },
+          { key: "achAo", label: "ACH AO", render: (r) => <AchBadge ach={r.achAo} colors={colors} /> },
+          { key: "deviasiValue", label: "Deviasi", render: (r) => <span className="mono" style={{ color: colors.textMuted }}>{fmtRp(r.deviasiValue)}</span> },
+          { key: "realisasiAo", label: "AO", render: (r) => <span className="mono">{r.realisasiAo}/{r.targetAo}</span> },
+          { key: "ach", label: "ACH", render: (r) => <AchBadge ach={r.ach} colors={colors} /> },
+          { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(r.name, "Semua outlet", r.predicate)} /> },
+        ]}
+        rows={agg.bySales}
+      />
     </div>
   );
 }
