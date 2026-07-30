@@ -62,31 +62,34 @@ export function exportSalesReportExcel(agg, groupRows, totalVsLastDayRows, opts 
 
   // Sheet 1: Per Grup
   const b1 = makeSheetBuilder();
-  writeTitleBlock(b1, "Sales Report — Per Grup Produk", `${depotName} · ${dateRangeLabel} · Dibuat ${todayLocalDateStr()}`, 3);
-  writeHeaderRow(b1, 4, ["Sales", "Grup Produk", "Realisasi"]);
+  writeTitleBlock(b1, "Sales Report — Per Grup Produk", `${depotName} · ${dateRangeLabel} · Dibuat ${todayLocalDateStr()}`, 4);
+  writeHeaderRow(b1, 4, ["Sales", "Grup Produk", "Realisasi", "AO"]);
   groupRows.forEach((r, i) => {
     const row = 5 + i;
     b1.setCell(row, 1, r.salesName);
     b1.setCell(row, 2, r.groupName);
     b1.setCell(row, 3, r.value, { numFmt: XL_NUMFMT_MONEY });
+    b1.setCell(row, 4, r.ao, { numFmt: XL_NUMFMT_INT });
   });
-  XLSX.utils.book_append_sheet(wb, b1.finalize([22, 22, 18]), "Per Grup");
+  XLSX.utils.book_append_sheet(wb, b1.finalize([22, 22, 18, 10]), "Per Grup");
 
   // Sheet 2: Total vs Hari Terakhir
   const b2 = makeSheetBuilder();
-  writeTitleBlock(b2, "Sales Report — Total Periode vs Hari Terakhir", `${depotName} · ${dateRangeLabel} · Dibuat ${todayLocalDateStr()}`, 6);
-  writeHeaderRow(b2, 4, ["Sales", "Realisasi Total", "AO Total", "ACH Total", "Realisasi Hari Terakhir", "AO Hari Terakhir"]);
+  writeTitleBlock(b2, "Sales Report — Total Periode vs Hari Terakhir", `${depotName} · ${dateRangeLabel} · Dibuat ${todayLocalDateStr()}`, 7);
+  writeHeaderRow(b2, 4, ["Sales", "Realisasi Total", "AO Total", "ACH Value Total", "ACH AO Total", "Realisasi Hari Terakhir", "AO Hari Terakhir"]);
   totalVsLastDayRows.forEach((r, i) => {
     const row = 5 + i;
-    const achFill = achGradientColor(r.totalAch);
+    const achValueFill = achGradientColor(r.totalAch);
+    const achAoFill = achGradientColor(r.totalAchAo);
     b2.setCell(row, 1, r.salesName);
     b2.setCell(row, 2, r.totalValue, { numFmt: XL_NUMFMT_MONEY });
     b2.setCell(row, 3, r.totalAo, { numFmt: XL_NUMFMT_INT });
-    b2.setCell(row, 4, r.totalAch !== null && r.totalAch !== undefined ? r.totalAch : "", { numFmt: XL_NUMFMT_PCT1, fill: achFill || undefined });
-    b2.setCell(row, 5, r.lastDayValue, { numFmt: XL_NUMFMT_MONEY });
-    b2.setCell(row, 6, r.lastDayAo, { numFmt: XL_NUMFMT_INT });
+    b2.setCell(row, 4, r.totalAch !== null && r.totalAch !== undefined ? r.totalAch : "", { numFmt: XL_NUMFMT_PCT1, fill: achValueFill || undefined });
+    b2.setCell(row, 5, r.totalAchAo !== null && r.totalAchAo !== undefined ? r.totalAchAo : "", { numFmt: XL_NUMFMT_PCT1, fill: achAoFill || undefined });
+    b2.setCell(row, 6, r.lastDayValue, { numFmt: XL_NUMFMT_MONEY });
+    b2.setCell(row, 7, r.lastDayAo, { numFmt: XL_NUMFMT_INT });
   });
-  XLSX.utils.book_append_sheet(wb, b2.finalize([22, 18, 12, 12, 20, 16]), "Total vs Hari Terakhir");
+  XLSX.utils.book_append_sheet(wb, b2.finalize([22, 18, 12, 14, 14, 20, 16]), "Total vs Hari Terakhir");
 
   XLSX.writeFile(wb, `Sales_Report_${(depotName || "depo").replace(/[^a-z0-9]+/gi, "_")}_${todayLocalDateStr()}.xlsx`);
 }
