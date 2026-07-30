@@ -29,7 +29,7 @@ const ACH_GRADIENT_STOPS = [
   { pct: ACH_TIERS.onPace, rgb: [99, 190, 123] },  // hijau pastel
 ];
 
-function achGradientColor(pct) {
+export function achGradientColor(pct) {
   if (pct === null || pct === undefined || Number.isNaN(pct)) return null;
   const p = Math.max(0, pct); // klem batas bawah di 0% (ach negatif tidak masuk akal)
   const stops = ACH_GRADIENT_STOPS;
