@@ -784,8 +784,8 @@ export default function SalesMonitoringApp() {
             {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} />}
             {activeTab === "executive" && <ExecutiveSummaryPage agg={aggFinal} colors={colors} workDays={workDays} onDrilldown={openDrilldown} comparison={comparison} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} />}
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
-            {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
-            {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} />}
+            {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} />}
+            {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} />}
             {activeTab === "outlet" && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} rawRows={rawRows} targets={targets} depotName={depotName} />}
             {activeTab === "transactions" && <TransactionsPage agg={aggFinal} colors={colors} onOutletDrilldown={openOutletDetail} />}
             {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
