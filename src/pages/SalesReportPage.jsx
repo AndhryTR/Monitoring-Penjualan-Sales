@@ -29,7 +29,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
   const rows = agg.bySales;
   const handleExportScorecard = (salesRow) => exportSalesScorecardPDF(salesRow, agg, { workDays, depotName });
   const groupRows = useMemo(() => rows.flatMap((sm) => sm.groups.map((g) => ({
-    salesName: sm.name, groupName: g.name, value: g.realisasiValue, predicate: g.predicate,
+    salesName: sm.name, groupName: g.name, value: g.realisasiValue, ao: g.realisasiAo, predicate: g.predicate,
   }))), [rows]);
 
   // Perbandingan pencapaian TOTAL periode vs HARI TERAKHIR per sales.
@@ -40,7 +40,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
     const ld = lastDaySalesMap[sm.code] || { valueLastDay: 0, aoLastDay: 0 };
     return {
       code: sm.code, salesName: sm.name,
-      totalValue: sm.realisasiValue, totalAo: sm.realisasiAo, totalAch: sm.ach,
+      totalValue: sm.realisasiValue, totalAo: sm.realisasiAo, totalAch: sm.ach, totalAchAo: sm.achAo,
       lastDayValue: ld.valueLastDay, lastDayAo: ld.aoLastDay,
       predicate: sm.predicate,
     };
