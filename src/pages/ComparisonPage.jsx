@@ -37,35 +37,20 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, filters }) 
   const [periods, setPeriods] = useState([]);
   const [metric, setMetric] = useState("value");
 
-  // ---- Rentang tanggal: default ikut FilterBar global, bisa di-override ----
-  // lewat preset cepat di kartu Periode (sama seperti filter global + custom).
-  // "global" → pakai filters.dateFrom/dateTo; selain itu pakai localDate.
-  const [dateMode, setDateMode] = useState("global");
-  const [localDateFrom, setLocalDateFrom] = useState("");
-  const [localDateTo, setLocalDateTo] = useState("");
-  const rangeFrom = dateMode === "global" ? filters.dateFrom : localDateFrom;
-  const rangeTo = dateMode === "global" ? filters.dateTo : localDateTo;
-
-  // ---- Periode default: bulan kalender di dalam rentang aktif ----
+  // ---- Periode default: bulan kalender di dalam rentang filter global ----
   const defaultPeriods = useMemo(() => {
     if (!rawRows.length) return [];
-    return clampMonthsToFilter(detectMonths(rawRows), rangeFrom, rangeTo);
-  }, [rawRows, rangeFrom, rangeTo]);
+    return clampMonthsToFilter(detectMonths(rawRows), filters.dateFrom, filters.dateTo);
+  }, [rawRows, filters.dateFrom, filters.dateTo]);
 
   // Saat default periode berubah (mis. filter ganti bulan), pilihan periode
   // aktif di-sync ulang kalau user belum pernah set custom — kalau user sudah
-  // pilih custom, jangan ketimpa. Begitu juga saat rentang di-override.
+  // pilih custom, jangan ketimpa.
   const [hasCustomPeriods, setHasCustomPeriods] = useState(false);
   const effectivePeriods = useMemo(() => {
     if (hasCustomPeriods) return periods;
     return defaultPeriods;
   }, [hasCustomPeriods, periods, defaultPeriods]);
-
-  // Saat rentang tanggal berubah (global atau preset cepat), reset pilihan
-  // periode custom supaya periode default baru yang dipakai.
-  useEffect(() => {
-    setHasCustomPeriods(false);
-  }, [dateMode, localDateFrom, localDateTo, rangeFrom, rangeTo]);
 
   // ---- Agregat per periode (selalu hitung untuk semua default periode) ----
   const periodAggs = useMemo(() => {
@@ -179,14 +164,6 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, filters }) 
           defaultPeriods={defaultPeriods}
           periods={periods}
           onChange={(p) => { setPeriods(p); setHasCustomPeriods(true); }}
-          dateMode={dateMode}
-          localDateFrom={localDateFrom}
-          localDateTo={localDateTo}
-          onDateRangeChange={({ mode: m, dateFrom: df, dateTo: dt }) => {
-            setDateMode(m);
-            setLocalDateFrom(df || "");
-            setLocalDateTo(dt || "");
-          }}
           rawRows={rawRows}
           colors={colors}
         />
