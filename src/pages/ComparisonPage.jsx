@@ -181,8 +181,6 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, filters }) 
         </div>
       </div>
 
-      {firstRenderSync}
-
       {!ready ? (
         <div className="sm-card p-12 text-center">
           <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.glassFill }}>
