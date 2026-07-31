@@ -1,14 +1,14 @@
-import { useState, useMemo, useRef, useEffect } from "react";
-import { Plus, Trash2, CalendarRange, Globe, CalendarDays, ChevronDown } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Plus, Trash2, CalendarRange, Globe } from "lucide-react";
 import { getDatePresetOptions, resolveDatePreset, getDatePresetLabel } from "../../utils/datePresets.js";
 import { periodLabel } from "../../utils/comparison.js";
 
 /* ============================================================================
    PERIODPICKER
    Pilih periode yang dibandingkan di tab Perbandingan. Tiga lapisan:
-   1. Rentang tanggal: tombol dropdown preset — SAMA PERSIS seperti preset
-      tanggal di FilterBar global (Semua Data, Bulan Ini, 7/14 Hari Terakhir,
-      Minggu Ini, bulan dinamis, Custom). Default "Ikut Filter Global".
+   1. Preset cepat rentang tanggal (sama seperti FilterBar global): Ikut
+      Filter Global / Semua Data / Bulan Ini / 7-14 Hari / Minggu Ini /
+      bulan dinamis / Custom — memengaruhi bulan-bulan default di bawahnya.
    2. Periode default = bulan kalender di dalam rentang aktif (chip).
    3. Sub-rentang kustom (tambah manual, maks 8 periode total).
 ============================================================================ */
@@ -16,31 +16,8 @@ export function PeriodPicker({ defaultPeriods, periods, onChange, dateMode, loca
   const [customLabel, setCustomLabel] = useState("");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
-  const [presetOpen, setPresetOpen] = useState(false);
-  const presetRef = useRef(null);
 
   const presetOptions = getDatePresetOptions(rawRows);
-
-  // Tutup dropdown preset saat klik di luar — sama seperti FilterBar.
-  useEffect(() => {
-    if (!presetOpen) return;
-    const onClick = (e) => { if (presetRef.current && !presetRef.current.contains(e.target)) setPresetOpen(false); };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [presetOpen]);
-
-  // Label tombol dropdown
-  let presetLabel = "Ikut Filter Global";
-  if (dateMode === "custom") presetLabel = "Custom...";
-  else if (dateMode !== "global") presetLabel = getDatePresetLabel(dateMode, rawRows);
-
-  const pickPreset = (key) => {
-    setPresetOpen(false);
-    if (key === "global") { onDateRangeChange({ mode: "global", dateFrom: "", dateTo: "" }); return; }
-    if (key === "custom") { onDateRangeChange({ mode: "custom", dateFrom: "", dateTo: "" }); return; }
-    const resolved = resolveDatePreset(key, rawRows);
-    onDateRangeChange({ mode: key, dateFrom: resolved?.dateFrom || "", dateTo: resolved?.dateTo || "" });
-  };
 
   const isDefaultSelected = useMemo(
     () => new Set(periods.filter((p) => !p.isCustom).map((p) => p.id)),
@@ -65,48 +42,41 @@ export function PeriodPicker({ defaultPeriods, periods, onChange, dateMode, loca
 
   const isFull = periods.length >= 8;
 
+  // ---- Preset cepat rentang tanggal ----
+  const pickPreset = (key) => {
+    if (key === "global") { onDateRangeChange({ mode: "global", dateFrom: "", dateTo: "" }); return; }
+    if (key === "custom") { onDateRangeChange({ mode: "custom", dateFrom: "", dateTo: "" }); return; }
+    const resolved = resolveDatePreset(key, rawRows);
+    onDateRangeChange({ mode: key, dateFrom: resolved?.dateFrom || "", dateTo: resolved?.dateTo || "" });
+  };
+
+  const PresetChip = ({ label, active, onClick, icon: Icon }) => (
+    <button onClick={onClick}
+      className="sm-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold inline-flex items-center gap-1 transition-colors"
+      style={{
+        background: active ? colors.gold + "22" : colors.glassFill,
+        border: `1px solid ${active ? colors.gold + "66" : colors.glassBorder}`,
+        color: active ? colors.gold : colors.textMuted,
+      }}>
+      {Icon && <Icon size={11} />} {label}
+    </button>
+  );
+
   return (
     <div className="sm-card p-4">
-      {/* Rentang tanggal: dropdown preset — sama seperti FilterBar global */}
+      {/* Preset cepat rentang tanggal — sama seperti FilterBar global */}
       <div className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: colors.textMuted }}>
         Rentang Tanggal
       </div>
-      <div className="relative mb-3" ref={presetRef}>
-        <button onClick={() => setPresetOpen((o) => !o)}
-          className="sm-btn flex items-center gap-2 px-3 py-2 rounded-xl text-sm w-full"
-          style={{ background: colors.glassFill, border: `1px solid ${dateMode === "global" ? colors.glassBorder : colors.gold + "66"}`, color: colors.text }}>
-          {dateMode === "global" ? <Globe size={14} style={{ color: colors.textMuted }} className="shrink-0" /> : <CalendarDays size={14} style={{ color: colors.gold }} className="shrink-0" />}
-          <span className="flex-1 text-left truncate">{presetLabel}</span>
-          <ChevronDown size={13} style={{ color: colors.textMuted, transform: presetOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }} className="shrink-0" />
-        </button>
-        {presetOpen && (
-          <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl overflow-hidden sm-fadein"
-            style={{ background: colors.modalBg, backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)", border: `1px solid ${colors.modalBorder}`, boxShadow: colors.glassShadow }}>
-            <button onClick={() => pickPreset("global")}
-              className="sm-row w-full text-left px-3.5 py-2.5 text-sm flex items-center gap-2"
-              style={{ color: dateMode === "global" ? colors.gold : colors.text, fontWeight: dateMode === "global" ? 600 : 400 }}>
-              <Globe size={14} className="shrink-0" style={{ color: dateMode === "global" ? colors.gold : colors.textMuted }} />
-              Ikut Filter Global
-            </button>
-            <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
-            {presetOptions.map((p) => (
-              <button key={p.key} onClick={() => pickPreset(p.key)}
-                className="sm-row w-full text-left px-3.5 py-2.5 text-sm"
-                style={{ color: dateMode === p.key ? colors.gold : colors.text, fontWeight: dateMode === p.key ? 600 : 400 }}>
-                {p.label}
-              </button>
-            ))}
-            <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
-            <button onClick={() => pickPreset("custom")}
-              className="sm-row w-full text-left px-3.5 py-2.5 text-sm"
-              style={{ color: dateMode === "custom" ? colors.gold : colors.text, fontWeight: dateMode === "custom" ? 600 : 400 }}>
-              Custom...
-            </button>
-          </div>
-        )}
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        <PresetChip label="Ikut Filter Global" icon={Globe} active={dateMode === "global"} onClick={() => pickPreset("global")} />
+        {presetOptions.map((p) => (
+          <PresetChip key={p.key} label={p.label} active={dateMode === p.key} onClick={() => pickPreset(p.key)} />
+        ))}
+        <PresetChip label="Custom..." active={dateMode === "custom"} onClick={() => pickPreset("custom")} />
       </div>
 
-      {/* Rentang custom: date picker manual inline — sama seperti FilterBar */}
+      {/* Rentang custom: date picker manual */}
       {dateMode === "custom" && (
         <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-xl text-sm" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}` }}>
           <input type="date" value={localDateFrom || ""} onChange={(e) => onDateRangeChange({ mode: "custom", dateFrom: e.target.value, dateTo: localDateTo })}
