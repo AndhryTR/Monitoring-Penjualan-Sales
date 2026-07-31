@@ -289,7 +289,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
       <div className="sm-card p-5 sm-fadeup mb-8">
         <SectionTitle title={`Detail ${metric === "value" ? "Value" : "AO"} per Sales`} sub="Kolom terakhir = periode aktif · pertumbuhan dihitung antar 2 titik data terakhir yang tersedia" icon={Users} colors={colors} />
         <div className="overflow-x-auto -mx-1">
-          <table className="w-full text-sm border-separate" style={{ borderSpacing: 0 }}>
+          <table key={periods.map((p) => p.id).join("|")} className="w-full text-sm border-separate" style={{ borderSpacing: 0 }}>
             <thead>
               <tr>
                 <th className="text-left px-3 py-2 sticky left-0 z-10" style={{ background: colors.modalBg, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", color: colors.tableHeader, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Sales</th>
