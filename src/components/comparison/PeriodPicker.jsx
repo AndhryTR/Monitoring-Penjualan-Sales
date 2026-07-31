@@ -69,7 +69,11 @@ export function PeriodPicker({ defaultPeriods, periods, onChange, colors, rawRow
   const isFull = periods.length >= 8;
 
   return (
-    <div className="sm-card p-4">
+    // z-30 saat dropdown terbuka: .sm-card punya will-change:transform (stacking
+    // context sendiri) — tanpa z-index naik, dropdown z-40 di dalamnya tetap
+    // tertutup elemen di bawahnya (KPI card dll) karena mereka punya stacking
+    // context sendiri juga dan DOM-nya datang lebih akhir.
+    <div className="sm-card p-4" style={{ position: "relative", zIndex: presetOpen ? 30 : 1 }}>
       {/* Periode default (bulan di rentang filter global aktif) */}
       <div className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: colors.textMuted }}>
         Periode ({periods.length}/8)
