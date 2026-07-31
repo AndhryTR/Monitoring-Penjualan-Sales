@@ -2,6 +2,7 @@ import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
 import { computePaceStatus } from "../../utils/aggregation.js";
 import { useCountUp } from "../../hooks/useCountUp.js";
+import { ACH_TIERS } from "../../constants/thresholds.js";
 
 /* ============================================================================
    CompactKpiGrid — 8 KPI ringkas dalam grid 4×2 (desktop) / 2×4 (mobile)
@@ -55,7 +56,7 @@ function GrowthKpiItem({ growth, colors, delay }) {
 }
 
 function ProjectionKpiItem({ proj, colors, delay }) {
-  const accent = proj?.projectedAch !== null && proj?.projectedAch >= 1 ? colors.mint : colors.gold;
+  const accent = proj?.projectedAch !== null && proj?.projectedAch >= ACH_TIERS.onPace ? colors.mint : colors.gold;
   return (
     <div className="sm-fadeup min-w-0" style={{ animationDelay: `${delay}ms` }}>
       <div className="sm-card p-3.5 min-w-0 h-full" style={{ position: "relative", overflow: "hidden" }}>

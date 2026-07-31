@@ -1,20 +1,24 @@
 import { useState, useMemo } from "react";
-import { Crosshair, AlertTriangle } from "lucide-react";
+import { Crosshair, AlertTriangle, Download } from "lucide-react";
 import { fmtNum, fmtPct } from "../utils/formatters.js";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { MultiSelect } from "../components/ui/MultiSelect.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
+import { exportProductFocusExcel } from "../utils/reportExcelExport.js";
 
 /* ============================================================================
    TAB: PRODUCT FOCUS
    MultiSelect filter produk fokus + grid kartu progress bar per sales×produk
    + tabel detail.
 ============================================================================ */
-export function ProductFocusReportPage({ agg, colors, onDrilldown }) {
+export function ProductFocusReportPage({ agg, colors, onDrilldown, depotName }) {
   const [focusFilter, setFocusFilter] = useState([]);
   const focusNames = useMemo(() => Array.from(new Set(agg.focusRows.map((f) => f.name))), [agg.focusRows]);
   const rows = focusFilter.length ? agg.focusRows.filter((f) => focusFilter.includes(f.name)) : agg.focusRows;
+  const handleExport = () => exportProductFocusExcel(rows, {
+    depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
+  });
   return (
     <div className="sm-page-enter">
       <div className="mb-6">
@@ -57,7 +61,14 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown }) {
         })}
       </div>
 
-      <SectionTitle title="Detail Tabel" icon={Crosshair} colors={colors} />
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-0">
+        <SectionTitle title="Detail Tabel" icon={Crosshair} colors={colors} />
+        <button onClick={handleExport}
+          className="sm-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+          style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
+          <Download size={13} /> Export Excel
+        </button>
+      </div>
       <DataTable
         colors={colors}
         initialSortKey="pct"

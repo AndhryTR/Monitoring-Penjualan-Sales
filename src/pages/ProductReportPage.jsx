@@ -1,18 +1,22 @@
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
-import { Boxes, Package } from "lucide-react";
+import { Boxes, Package, Download } from "lucide-react";
 import { fmtRp, fmtNum } from "../utils/formatters.js";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { ACH_TIERS } from "../constants/thresholds.js";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
+import { exportProductReportExcel } from "../utils/reportExcelExport.js";
 
 /* ============================================================================
    TAB: PRODUCT REPORT
    Bar chart vertical per grup produk + tabel detail grup.
 ============================================================================ */
-export function ProductReportPage({ agg, colors, onDrilldown }) {
+export function ProductReportPage({ agg, colors, onDrilldown, depotName }) {
+  const handleExport = () => exportProductReportExcel(agg.byGroup, {
+    depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
+  });
   // Custom Tooltip yang sama untuk Product Report
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -46,7 +50,14 @@ export function ProductReportPage({ agg, colors, onDrilldown }) {
       </ResponsiveContainer>
 
       <div className="mt-8">
-        <SectionTitle title="Detail Grup Produk" icon={Package} colors={colors} />
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-0">
+          <SectionTitle title="Detail Grup Produk" icon={Package} colors={colors} />
+          <button onClick={handleExport}
+            className="sm-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+            style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
+            <Download size={13} /> Export Excel
+          </button>
+        </div>
         <DataTable
           colors={colors}
           initialSortKey="realisasiValue"

@@ -17,7 +17,7 @@ function toDateStr(d) {
   return `${y}-${m}-${day}`;
 }
 
-function addDays(dateStr, delta) {
+export function addDays(dateStr, delta) {
   const d = dateStrToLocalDate(dateStr);
   if (!d) return null;
   d.setDate(d.getDate() + delta);

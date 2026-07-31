@@ -1,5 +1,6 @@
+import { useState, useEffect } from "react";
 import {
-  FileSpreadsheet, X, AlertTriangle, CheckCircle2, XCircle,
+  FileSpreadsheet, X, AlertTriangle, CheckCircle2, XCircle, GitMerge, RefreshCcw,
 } from "lucide-react";
 import { fmtNum } from "../../utils/formatters.js";
 import { FIELD_LABELS } from "../../constants/aliases.js";
@@ -9,11 +10,18 @@ import { FIELD_LABELS } from "../../constants/aliases.js";
    Modal preview data sebelum dikonfirmasi — dipakai setelah user upload file
    Excel. Menampilkan ringkasan: baris terbaca, baris dilewati, sales/grup
    terdeteksi, duplikat dihapus, file digabung, rentang tanggal, kolom
-   terdeteksi/tidak. User bisa konfirmasi "Gunakan Data Ini" atau batal.
+   terdeteksi/tidak. Kalau sudah ada data sebelumnya, user juga memilih mau
+   GABUNGKAN (dedup otomatis vs data lama) atau GANTI SEMUA. User bisa
+   konfirmasi "Gunakan Data Ini" atau batal.
 ============================================================================ */
 export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors }) {
+  const hasMergeOption = !!(preview && preview.mergePreview);
+  const [mode, setMode] = useState(hasMergeOption ? "merge" : "replace");
+  // Reset pilihan ke default setiap kali preview baru muncul (file baru dipilih)
+  useEffect(() => { setMode(hasMergeOption ? "merge" : "replace"); }, [preview, hasMergeOption]);
+
   if (!isOpen || !preview) return null;
-  const { rows, parseMeta, fileName } = preview;
+  const { rows, parseMeta, fileName, mergePreview } = preview;
   const dateStrs = rows.map((r) => r.date).filter(Boolean).sort();
   const uniqueSales = new Set(rows.map((r) => r.salesCode).filter(Boolean)).size;
   const uniqueGroups = new Set(rows.map((r) => r.group).filter(Boolean)).size;
@@ -32,6 +40,50 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors 
           <button onClick={onCancel} className="sm-btn p-2 rounded-full" style={{ background: colors.glassFill }}><X size={16} /></button>
         </div>
         <div className="p-5 overflow-y-auto">
+          {hasMergeOption && (
+            <div className="mb-6">
+              <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>
+                Sudah ada {fmtNum(mergePreview.existingRowCount)} baris data sebelumnya
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  onClick={() => setMode("merge")}
+                  className="sm-btn text-left p-3.5 rounded-xl"
+                  style={{
+                    background: mode === "merge" ? colors.mint + "1A" : colors.glassFill,
+                    border: `1px solid ${mode === "merge" ? colors.mint + "66" : colors.glassBorder}`,
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <GitMerge size={15} style={{ color: mode === "merge" ? colors.mint : colors.textMuted }} />
+                    <span className="text-sm font-semibold" style={{ color: mode === "merge" ? colors.mint : colors.text }}>Gabungkan dengan data yang ada</span>
+                  </div>
+                  <p className="text-xs" style={{ color: colors.textMuted }}>
+                    Disarankan. Baris duplikat otomatis dihilangkan — total jadi <b className="mono">{fmtNum(mergePreview.totalAfterMerge)}</b> baris
+                    {mergePreview.dateFrom && ` (${mergePreview.dateFrom} — ${mergePreview.dateTo})`}.
+                    {" "}<b className="mono">{fmtNum(Math.max(0, mergePreview.newRowsAdded))}</b> baris baru ditambahkan.
+                  </p>
+                </button>
+                <button
+                  onClick={() => setMode("replace")}
+                  className="sm-btn text-left p-3.5 rounded-xl"
+                  style={{
+                    background: mode === "replace" ? colors.coral + "1A" : colors.glassFill,
+                    border: `1px solid ${mode === "replace" ? colors.coral + "66" : colors.glassBorder}`,
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <RefreshCcw size={15} style={{ color: mode === "replace" ? colors.coral : colors.textMuted }} />
+                    <span className="text-sm font-semibold" style={{ color: mode === "replace" ? colors.coral : colors.text }}>Ganti semua data yang lama</span>
+                  </div>
+                  <p className="text-xs" style={{ color: colors.textMuted }}>
+                    Data sebelumnya ({fmtNum(mergePreview.existingRowCount)} baris) akan dihapus, diganti total dengan file ini saja ({fmtNum(rows.length)} baris).
+                  </p>
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
             <div className="sm-card p-3">
               <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Baris Terbaca</div>
@@ -114,8 +166,8 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors 
           <button onClick={onCancel} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
             Batal
           </button>
-          <button onClick={onConfirm} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.gold, color: "#0A1120" }}>
-            Gunakan Data Ini
+          <button onClick={() => onConfirm(mode)} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.gold, color: "#0A1120" }}>
+            {mode === "merge" ? "Gabungkan Data" : "Gunakan Data Ini"}
           </button>
         </div>
       </div>

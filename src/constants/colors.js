@@ -1,5 +1,10 @@
 export const THEMES = {
   dark: {
+    // Hint CSS color-scheme untuk native form control (popup <select>, kalender
+    // <input type="date">) — ini dirender OS/browser sendiri, TIDAK bisa
+    // di-style lewat background inline di elemen induknya. Tanpa ini, popup-nya
+    // akan selalu putih terang meski kotak tertutupnya sudah gelap.
+    colorScheme: "dark",
     ink: "#0A0E1A",
     surface: "#111827",
     surface2: "#1F2937",
@@ -23,7 +28,15 @@ export const THEMES = {
     glassBorderElevated: "rgba(255,255,255,0.14)",
     glassHighlight: "rgba(255,255,255,0.08)",
     glassShadow: "0 8px 32px rgba(0,0,0,0.37)",
-    modalBg: "rgba(15,23,42,0.85)",
+    modalBg: "rgba(15,23,42,0.20)",
+    // Token TERPISAH khusus panel modal/bottom-sheet (dipakai lewat .sm-modal-glass)
+    // — bukan modalBg. Panel-panel ini selalu duduk DI ATAS overlay peredup
+    // bg-black/60 (beda konteks dari dropdown/tooltip yang mengambang tanpa
+    // overlay apa pun di baliknya). Kalau modalPanelBg ikut diturunkan opacity-nya
+    // serendah modalBg, overlay gelap di baliknya akan "bocor" tembus dan modal
+    // terlihat abu-abu gelap alih-alih putih/kaca terang — makanya token ini
+    // sengaja dijaga tetap tinggi opacity-nya, independen dari modalBg.
+    modalPanelBg: "rgba(15,23,42,0.85)",
     modalBorder: "rgba(255,255,255,0.12)",
     chartGrid: "rgba(255,255,255,0.08)",
     glassSheen: "rgba(255,255,255,0.10)",
@@ -36,6 +49,7 @@ export const THEMES = {
     ]
   },
   light: {
+    colorScheme: "light",
     ink: "#F4F6FB",
     surface: "#FFFFFF",
     surface2: "#F3F4F6",
@@ -58,7 +72,8 @@ export const THEMES = {
     glassBorderElevated: "rgba(255,255,255,0.65)",
     glassHighlight: "rgba(255,255,255,0.60)",
     glassShadow: "0 8px 32px rgba(0,0,0,0.08)",
-    modalBg: "rgba(255,255,255,0.85)",
+    modalBg: "rgba(255,255,255,0.20)",
+    modalPanelBg: "rgba(255,255,255,0.85)",
     modalBorder: "rgba(255,255,255,0.65)",
     chartGrid: "rgba(17,24,39,0.10)",
     glassSheen: "rgba(255,255,255,0.45)",
@@ -71,3 +86,25 @@ export const THEMES = {
     ]
   }
 };
+
+// Mode Hemat Daya: dipanggil dari SalesMonitoringApp saat toggle aktif. Balik
+// SEMUA token translucent ("kaca") jadi solid opaque, pakai token surface/
+// surface2 yang sudah ada sejak sebelum redesign glass morphism (tidak pernah
+// dihapus, cuma sudah tidak dipakai di mana pun). Karena SETIAP komponen di
+// seluruh app membaca warna lewat token ini (colors.glassFill dsb, bukan hex
+// literal), mengganti nilainya di SATU tempat ini otomatis membuat seluruh
+// dropdown/tooltip/card/modal/sidebar ikut jadi solid — tanpa perlu menyentuh
+// satu pun file komponen. Border & shadow SENGAJA tidak diubah (border tipis
+// translucent & box-shadow itu murah untuk di-render, bukan sumber lag —
+// yang mahal adalah backdrop-filter & gradient sheen, itu yang dihilangkan).
+export function applyPowerSaveColors(colors) {
+  return {
+    ...colors,
+    glassSubtle: colors.surface,
+    glassFill: colors.surface2,
+    glassFillStrong: colors.surface2,
+    modalBg: colors.surface2,
+    modalPanelBg: colors.surface,
+    glassSheen: "transparent",
+  };
+}

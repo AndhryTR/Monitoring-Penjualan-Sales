@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Settings, X, Crosshair, ChevronDown, Plus, Download, Upload } from "lucide-react";
+import { Settings, X, Crosshair, ChevronDown, Plus, Download, Upload, Zap } from "lucide-react";
 import { SectionTitle, CustomSlider } from "../ui/index.jsx";
 import { buildBackupPayload, downloadBackupFile, parseBackupFile } from "../../utils/backupExport.js";
 
@@ -13,7 +13,7 @@ import { buildBackupPayload, downloadBackupFile, parseBackupFile } from "../../u
    saat modal dibuka, lalu di-commit ke parent state saat "Simpan Perubahan".
 ============================================================================ */
 export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWorkDays, depotName, setDepotName, onClearAll, colors,
-  theme, setTheme, filters, setFilters, projectionMethod, setProjectionMethod, history, onImportHistory }) {
+  theme, setTheme, powerSaveMode, setPowerSaveMode, filters, setFilters, projectionMethod, setProjectionMethod, history, onImportHistory }) {
   const [localTargets, setLocalTargets] = useState(targets);
   const [localWorkDays, setLocalWorkDays] = useState(workDays);
   const [localDepotName, setLocalDepotName] = useState(depotName);
@@ -162,6 +162,34 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
               <p className="text-xs mt-1" style={{ color: colors.textMuted }}>Muncul sebagai judul di hasil export Excel</p>
             </div>
           </div>
+
+          <div className="sm-card p-4 mb-6 flex items-center justify-between gap-4" style={{ borderLeft: `3px solid ${powerSaveMode ? colors.mint : colors.glassBorder}` }}>
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="p-2 rounded-xl shrink-0" style={{ background: (powerSaveMode ? colors.mint : colors.textMuted) + "1A" }}>
+                <Zap size={16} style={{ color: powerSaveMode ? colors.mint : colors.textMuted }} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold">Mode Hemat Daya</div>
+                <p className="text-xs mt-0.5" style={{ color: colors.textMuted }}>
+                  Untuk perangkat yang terasa lambat/lag. Mematikan animasi background & efek kaca (blur) —
+                  tampilan jadi lebih flat/solid, tapi jauh lebih ringan. Warna & tata letak tetap sama.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setPowerSaveMode?.((v) => !v)}
+              className="sm-btn shrink-0 relative w-12 h-7 rounded-full transition-colors"
+              style={{ background: powerSaveMode ? colors.mint + "55" : colors.glassBorder }}
+              aria-pressed={powerSaveMode}
+              aria-label="Toggle Mode Hemat Daya"
+            >
+              <span
+                className="absolute top-1 rounded-full transition-transform"
+                style={{ width: 20, height: 20, background: powerSaveMode ? colors.mint : colors.textMuted, left: 4, transform: powerSaveMode ? "translateX(20px)" : "translateX(0)" }}
+              />
+            </button>
+          </div>
+
           <h3 className="text-base font-semibold disp mb-3">Target Sales</h3>
           <div className="space-y-3">
             {localTargets.map(t => {
@@ -197,7 +225,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                       {otherSales.length > 0 && (
                         <div className="flex items-center gap-2 mb-3">
                           <select value={copySourceCode[t.code] || ""} onChange={e => setCopySourceCode(prev => ({ ...prev, [t.code]: e.target.value }))}
-                            className="flex-1 px-2.5 py-1.5 rounded-md text-xs" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
+                            className="flex-1 px-2.5 py-1.5 rounded-md text-xs" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}`, color: colors.text, colorScheme: colors.colorScheme }}>
                             <option value="">Salin dari sales lain...</option>
                             {otherSales.map(o => <option key={o.code} value={o.code}>{o.name} ({o.focus.length} produk)</option>)}
                           </select>
@@ -231,7 +259,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                               <div>
                                 <label className="block text-[10px] mb-0.5" style={{ color: colors.textMuted }}>Tipe Pencocokan</label>
                                 <select value={matchType} onChange={e => handleFocusChange(t.code, i, 'matchType', e.target.value)}
-                                  className="w-full px-2 py-1.5 rounded text-xs" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
+                                  className="w-full px-2 py-1.5 rounded text-xs" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text, colorScheme: colors.colorScheme }}>
                                   {MATCH_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                 </select>
                               </div>

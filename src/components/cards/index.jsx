@@ -1,33 +1,53 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Trophy, Rocket, History, X, ArrowUpRight,
   ArrowDownRight, FileText,
 } from "lucide-react";
-import { fmtRp, fmtPct } from "../../utils/formatters.js";
+import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
 import { AchBadge } from "../AchBadge.jsx";
 import { SectionTitle, DrilldownButton } from "../ui/index.jsx";
 import { ACH_TIERS } from "../../constants/thresholds.js";
 
 export function Leaderboard({ rows, colors, onDrilldown, onExportScorecard }) {
-  const ranked = useMemo(() => [...rows].sort((a, b) => (b.ach ?? -1) - (a.ach ?? -1)), [rows]);
+  const [metric, setMetric] = useState("value"); // "value" | "ao"
+  const ranked = useMemo(() => {
+    const key = metric === "ao" ? "achAo" : "ach";
+    return [...rows].sort((a, b) => (b[key] ?? -1) - (a[key] ?? -1));
+  }, [rows, metric]);
   const medal = (i) => ["🥇", "🥈", "🥉"][i] || `${i + 1}`;
   return (
     <div className="sm-card p-5 sm-fadeup mb-8">
-      <SectionTitle title="Leaderboard Sales" sub="Diurutkan berdasarkan pencapaian (ACH%)" icon={Trophy} colors={colors} />
-      <div className="space-y-2">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-0">
+        <SectionTitle title="Leaderboard Sales" sub={`Diurutkan berdasarkan pencapaian${metric === "ao" ? " AO" : ""} (ACH%)`} icon={Trophy} colors={colors} />
+        <div className="flex p-1 rounded-xl" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
+          <button onClick={() => setMetric("value")}
+            className="sm-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold"
+            style={{ background: metric === "value" ? colors.glassFillStrong : "transparent", color: metric === "value" ? colors.mint : colors.textMuted }}>
+            Value
+          </button>
+          <button onClick={() => setMetric("ao")}
+            className="sm-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold"
+            style={{ background: metric === "ao" ? colors.glassFillStrong : "transparent", color: metric === "ao" ? colors.mint : colors.textMuted }}>
+            AO
+          </button>
+        </div>
+      </div>
+      <div className="space-y-2 mt-4">
         {ranked.map((sm, i) => (
           <div key={sm.code} className="sm-row flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: i < 3 ? colors.gold + "0D" : "transparent" }}>
             <div className="w-8 text-center text-base">{medal(i)}</div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium truncate">{sm.name}</div>
-              <div className="text-xs mono" style={{ color: colors.textMuted }}>{fmtRp(sm.realisasiValue)} / {fmtRp(sm.targetValue)}</div>
+              <div className="text-xs mono" style={{ color: colors.textMuted }}>
+                {metric === "ao" ? `${fmtNum(sm.realisasiAo)} / ${fmtNum(sm.targetAo)} outlet` : `${fmtRp(sm.realisasiValue)} / ${fmtRp(sm.targetValue)}`}
+              </div>
             </div>
-            {sm.projectedAch !== null && sm.projectedAch !== undefined && (
+            {metric === "value" && sm.projectedAch !== null && sm.projectedAch !== undefined && (
               <div className="hidden sm:block text-xs mono text-right" style={{ color: colors.textMuted }}>
                 Proyeksi <span style={{ color: sm.projectedAch >= ACH_TIERS.onPace ? colors.mint : colors.coral }}>{fmtPct(sm.projectedAch)}</span>
               </div>
             )}
-            <AchBadge ach={sm.ach} colors={colors} />
+            <AchBadge ach={metric === "ao" ? sm.achAo : sm.ach} colors={colors} />
             {onExportScorecard && (
               <button onClick={() => onExportScorecard(sm)} title="Cetak scorecard PDF"
                 className="sm-btn p-2 rounded-lg" style={{ background: colors.glassFill, color: colors.textMuted }}>

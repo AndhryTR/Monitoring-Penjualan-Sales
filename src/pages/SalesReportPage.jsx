@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
-import { UserRound, Boxes, CalendarClock } from "lucide-react";
+import { UserRound, Boxes, CalendarClock, Download } from "lucide-react";
 import { fmtRp, fmtNum } from "../utils/formatters.js";
 import { exportSalesScorecardPDF } from "../utils/pdfExport.js";
 import { getLastDaySalesMap } from "../utils/aggregation.js";
@@ -11,6 +11,7 @@ import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
 import { Leaderboard } from "../components/cards/index.jsx";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { ACH_TIERS } from "../constants/thresholds.js";
+import { exportSalesReportExcel } from "../utils/reportExcelExport.js";
 
 /* ============================================================================
    TAB: SALES REPORT
@@ -28,7 +29,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
   const rows = agg.bySales;
   const handleExportScorecard = (salesRow) => exportSalesScorecardPDF(salesRow, agg, { workDays, depotName });
   const groupRows = useMemo(() => rows.flatMap((sm) => sm.groups.map((g) => ({
-    salesName: sm.name, groupName: g.name, value: g.realisasiValue, predicate: g.predicate,
+    salesName: sm.name, groupName: g.name, value: g.realisasiValue, ao: g.realisasiAo, predicate: g.predicate,
   }))), [rows]);
 
   // Perbandingan pencapaian TOTAL periode vs HARI TERAKHIR per sales.
@@ -39,12 +40,15 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
     const ld = lastDaySalesMap[sm.code] || { valueLastDay: 0, aoLastDay: 0 };
     return {
       code: sm.code, salesName: sm.name,
-      totalValue: sm.realisasiValue, totalAo: sm.realisasiAo, totalAch: sm.ach,
+      totalValue: sm.realisasiValue, totalAo: sm.realisasiAo, totalAch: sm.ach, totalAchAo: sm.achAo,
       lastDayValue: ld.valueLastDay, lastDayAo: ld.aoLastDay,
       predicate: sm.predicate,
     };
   }), [rows, lastDaySalesMap]);
   const lastDateLabel = agg.meta.lastDate ? formatDateIDShort(agg.meta.lastDate) : "Hari Terakhir";
+  const handleExportExcel = () => exportSalesReportExcel(agg, groupRows, totalVsLastDayRows, {
+    depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
+  });
 
   // Custom Tooltip untuk menyesuaikan warna teks dengan warna bar
   const CustomTooltip = ({ active, payload, label }) => {
@@ -67,7 +71,14 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
     <div className="sm-page-enter">
       <Leaderboard rows={rows} colors={colors} onDrilldown={onDrilldown} onExportScorecard={handleExportScorecard} />
 
-      <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} accent={colors.mint} />
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-0">
+        <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} accent={colors.mint} />
+        <button onClick={handleExportExcel}
+          className="sm-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+          style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
+          <Download size={13} /> Export Excel
+        </button>
+      </div>
       <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
         <BarChart data={rows} layout="vertical" margin={{ left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} horizontal={false} />
