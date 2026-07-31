@@ -1,8 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
-import { GitCompareArrows, Users, Package, Store, Wallet, CalendarDays } from "lucide-react";
+import { GitCompareArrows, Users, Package, Store, Wallet } from "lucide-react";
 import { MultiSelect } from "../components/ui/MultiSelect.jsx";
 import { SectionTitle } from "../components/ui/index.jsx";
-import { DateRangePreset } from "../components/comparison/DateRangePreset.jsx";
 import { PeriodPicker } from "../components/comparison/PeriodPicker.jsx";
 import { MetricToggle } from "../components/comparison/MetricToggle.jsx";
 import { MatrixKpiTotal } from "../components/comparison/MatrixKpiTotal.jsx";
@@ -39,7 +38,7 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, filters }) 
   const [metric, setMetric] = useState("value");
 
   // ---- Rentang tanggal: default ikut FilterBar global, bisa di-override ----
-  // lewat DateRangePreset (preset cepat sama seperti filter global + custom).
+  // lewat preset cepat di kartu Periode (sama seperti filter global + custom).
   // "global" → pakai filters.dateFrom/dateTo; selain itu pakai localDate.
   const [dateMode, setDateMode] = useState("global");
   const [localDateFrom, setLocalDateFrom] = useState("");
@@ -174,38 +173,21 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, filters }) 
         />
       </div>
 
-      {/* Rentang tanggal + periode + metrik */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <DateRangePreset
-          mode={dateMode}
-          dateFrom={localDateFrom}
-          dateTo={localDateTo}
-          onChange={({ mode: m, dateFrom: df, dateTo: dt }) => {
-            setDateMode(m);
-            setLocalDateFrom(df || "");
-            setLocalDateTo(dt || "");
-          }}
-          rawRows={rawRows}
-          colors={colors}
-        />
-        {dateMode === "global" && rangeFrom && rangeTo && (
-          <span className="text-xs" style={{ color: colors.textMuted }}>
-            Rentang aktif: {rangeFrom} — {rangeTo}
-          </span>
-        )}
-        {dateMode !== "global" && (
-          <span className="text-xs inline-flex items-center gap-1" style={{ color: colors.gold }}>
-            <CalendarDays size={12} /> Rentang override (tidak ikut filter global)
-          </span>
-        )}
-      </div>
-
       {/* Periode + metrik */}
       <div className="grid lg:grid-cols-2 gap-4 mb-5">
         <PeriodPicker
           defaultPeriods={defaultPeriods}
           periods={periods}
           onChange={(p) => { setPeriods(p); setHasCustomPeriods(true); }}
+          dateMode={dateMode}
+          localDateFrom={localDateFrom}
+          localDateTo={localDateTo}
+          onDateRangeChange={({ mode: m, dateFrom: df, dateTo: dt }) => {
+            setDateMode(m);
+            setLocalDateFrom(df || "");
+            setLocalDateTo(dt || "");
+          }}
+          rawRows={rawRows}
           colors={colors}
         />
         <div className="sm-card p-4">
