@@ -25,7 +25,7 @@ export function GroupedBarChart({ data, periods, periodColor, metricKey, isMoney
         />
         <Legend wrapperStyle={{ fontSize: 11, color: colors.textMuted }} />
         {periods.map((p, i) => (
-          <Bar key={p.id} dataKey={p.label} stackId={undefined} fill={periodColor(p, i)} radius={i === periods.length - 1 ? [4, 4, 0, 0] : 0} maxBarSize={40} />
+          <Bar key={p.id} dataKey={p.label} stackId="a" fill={periodColor(p, i)} radius={i === periods.length - 1 ? [4, 4, 0, 0] : 0} maxBarSize={40} />
         ))}
       </BarChart>
     </ResponsiveContainer>

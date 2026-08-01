@@ -8,7 +8,9 @@ import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
 export function MatrixKpiTotal({ label, value, growth, isMoney, isPct, accent, colors }) {
   const growthColor = growth === null ? colors.textMuted : growth >= 0 ? colors.mint : colors.coral;
   const GrowthIcon = growth === null ? null : growth >= 0 ? ArrowUpRight : ArrowDownRight;
-  const display = isPct ? (value === null || value === undefined ? "-" : fmtPct(value)) : isMoney ? fmtRp(value) : fmtNum(value);
+  const display = value === null || value === undefined
+    ? "-"
+    : isPct ? fmtPct(value) : isMoney ? fmtRp(value) : fmtNum(value);
 
   return (
     <div className="sm-card p-4 min-w-0" style={{ position: "relative", overflow: "hidden", borderTop: `2px solid ${accent}` }}>

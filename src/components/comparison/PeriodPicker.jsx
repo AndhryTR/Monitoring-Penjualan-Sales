@@ -44,6 +44,8 @@ export function PeriodPicker({ periods, onChange, colors, rawRows }) {
 
   const addCustom = () => {
     if (!customFrom || !customTo || customTo < customFrom) return;
+    // Cegah duplikat rentang yang sama — sama seperti guard di addFromPreset.
+    if (periods.some((p) => p.dateFrom === customFrom && p.dateTo === customTo)) return;
     onChange([...periods, { id: `custom:${customFrom}:${customTo}`, label: customLabel.trim() || `${customFrom} s/d ${customTo}`, dateFrom: customFrom, dateTo: customTo }]);
     setCustomLabel(""); setCustomFrom(""); setCustomTo("");
   };
