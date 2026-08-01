@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { GitCompareArrows, Users, Package, Store, Wallet } from "lucide-react";
 import { MultiSelect } from "../components/ui/MultiSelect.jsx";
 import { SectionTitle } from "../components/ui/index.jsx";
@@ -11,7 +11,8 @@ import {
   computePeriodAggs, buildSalesMatrix, buildGroupMatrix,
   buildOutletMatrix, collectOutletOptions, COMPARISON_METRICS, rowTotal, computeGrowth,
 } from "../utils/comparison.js";
-import { fmtRp, fmtNum, fmtPct } from "../utils/formatters.js";
+import { saveCompareState, loadCompareState } from "../utils/storage.js";
+import { fmtRp, fmtPct } from "../utils/formatters.js";
 
 /* ============================================================================
    TAB: PERBANDINGAN (Comparison Studio)
@@ -31,10 +32,21 @@ const MODES = [
 ];
 
 export function ComparisonPage({ rawRows, targets, colors, workDays }) {
-  const [mode, setMode] = useState("sales");
-  const [selectedEntities, setSelectedEntities] = useState([]);
-  const [periods, setPeriods] = useState([]);
+  // State di-restore dari localStorage (tab ini di-unmount tiap pindah tab —
+  // tanpa persist, semua pilihan hilang saat kembali). Lazy init: baca sekali
+  // di mount; guard pakai useRef supaya "Clear All" yang dipicu dari luar
+  // (halaman lain) tidak ter-overwrite oleh persist effect yang terlambat.
+  const savedRef = useRef(loadCompareState() || {});
+  const [mode, setMode] = useState(savedRef.current.mode || "sales");
+  const [selectedEntities, setSelectedEntities] = useState(savedRef.current.selectedEntities || []);
+  const [periods, setPeriods] = useState(savedRef.current.periods || []);
   const [metric, setMetric] = useState("value");
+
+  // Simpan otomatis setiap kali pilihan berubah — supaya pilihan tetap ada
+  // saat pindah tab lalu kembali (karena tab di-unmount).
+  useEffect(() => {
+    saveCompareState({ mode, selectedEntities, periods });
+  }, [mode, selectedEntities, periods]);
 
   // ---- Agregat per periode (hanya periode yang dipilih user) ----
   const periodAggs = useMemo(() => {
