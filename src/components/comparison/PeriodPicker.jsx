@@ -27,26 +27,51 @@ export function PeriodPicker({ periods, onChange, colors, rawRows }) {
   const [presetOpen, setPresetOpen] = useState(false);
   const [presetPos, setPresetPos] = useState(null);
   const presetRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   const presetOptions = getDatePresetOptions(rawRows);
 
-  // Tutup dropdown preset saat klik di luar — sama seperti FilterBar.
+  // Tutup dropdown preset saat klik di luar — sama seperti FilterBar. Klik DI
+  // DALAM dropdown portal (dropdownRef) TIDAK menutup: kalau ditutup saat
+  // mousedown, React menghapus tombol opsi dari DOM sebelum event click sempat
+  // di-fire — preset tidak akan pernah tertambah.
   useEffect(() => {
     if (!presetOpen) return;
-    const onClick = (e) => { if (presetRef.current && !presetRef.current.contains(e.target)) setPresetOpen(false); };
+    const onClick = (e) => {
+      const inToggle = presetRef.current && presetRef.current.contains(e.target);
+      const inDropdown = dropdownRef.current && dropdownRef.current.contains(e.target);
+      if (!inToggle && !inDropdown) setPresetOpen(false);
+    };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, [presetOpen]);
 
   // Posisi dropdown portal (fixed, relatif viewport) — dihitung dari tombol,
-  // di-update saat scroll/resize supaya tetap menempel.
+  // di-update saat scroll/resize supaya tetap menempel. Kalau ruang di bawah
+  // tombol sempit, dropdown dibuka ke ATAS; tinggi dibatasi supaya tidak keluar
+  // layar (daftar panjang bisa di-scroll di dalam dropdown).
   useEffect(() => {
     if (!presetOpen) { setPresetPos(null); return; }
     const update = () => {
       const el = presetRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
-      setPresetPos({ top: r.bottom + 8, left: r.left, width: r.width });
+      const MAX = 320;
+      const gap = 8;
+      const spaceBelow = window.innerHeight - r.bottom - gap;
+      const spaceAbove = r.top - gap;
+      let top, maxHeight;
+      if (spaceBelow >= 200) {
+        top = r.bottom + gap;
+        maxHeight = Math.min(MAX, spaceBelow);
+      } else if (spaceAbove >= 200) {
+        maxHeight = Math.min(MAX, spaceAbove);
+        top = r.top - gap - maxHeight;
+      } else {
+        top = r.bottom + gap;
+        maxHeight = Math.max(120, spaceBelow);
+      }
+      setPresetPos({ top, left: r.left, width: r.width, maxHeight });
     };
     update();
     window.addEventListener("resize", update);
@@ -129,9 +154,10 @@ export function PeriodPicker({ periods, onChange, colors, rawRows }) {
               <ChevronDown size={13} style={{ color: colors.textMuted, transform: presetOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }} className="shrink-0" />
             </button>
             {presetOpen && presetPos && createPortal(
-              <div className="sm-fadein rounded-xl overflow-hidden"
+              <div ref={dropdownRef} className="sm-fadein rounded-xl overflow-y-auto"
                 style={{
                   position: "fixed", top: presetPos.top, left: presetPos.left, width: presetPos.width,
+                  maxHeight: presetPos.maxHeight,
                   zIndex: 9999,
                   background: colors.modalBg, backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)",
                   border: `1px solid ${colors.modalBorder}`, boxShadow: colors.glassShadow,
