@@ -1,7 +1,6 @@
 import sumBy from "lodash/sumBy";
 import { effectiveKartonQty } from "./excelParse.js";
-import { detectMonths, computeAggregates } from "./aggregation.js";
-import { todayLocalDateStr } from "./excelParse.js";
+import { computeAggregates } from "./aggregation.js";
 
 /* ============================================================================
    PERBANDINGAN (COMPARISON MATRIX) — tab "Perbandingan"
@@ -9,8 +8,8 @@ import { todayLocalDateStr } from "./excelParse.js";
    mengikuti pola yang sama: pilih 2+ entitas, pilih 2+ periode, lalu lihat
    metrik per sel.
 
-   Periode default = bulan kalender di dalam rentang filter global aktif.
-   User bisa menambah sub-rentang kustom (mis. "1-15 Jul" vs "16-31 Jul").
+   Periode 100% pilihan user (preset rentang cepat / rentang manual) — TIDAK
+   otomatis mengikuti filter tanggal global.
 
    ACH per sel hanya dihitung kalau periode = 1 bulan kalender PENUH (target
    di aplikasi ini selalu berlaku per bulan). Sub-rentang parsial -> ach = null.
@@ -41,29 +40,6 @@ export function periodLabel(dateFrom, dateTo) {
   return `${dateFrom} s/d ${dateTo}`;
 }
 
-// Potong daftar bulan kalender (dari detectMonths) ke rentang filter global
-// yang sedang aktif. Bulan yang hanya "menyentuh" sebagian rentang tetap
-// disertakan (di-clamp ke batas filter) supaya bulan terakhir yang belum
-// berjalan tetap muncul — labelnya nanti tetap menampilkan rentang asli bulan.
-export function clampMonthsToFilter(detected, dateFrom, dateTo) {
-  return detected
-    .filter((m) => {
-      if (dateFrom && m.dateTo < dateFrom) return false;
-      if (dateTo && m.dateFrom > dateTo) return false;
-      return true;
-    })
-    .map((m) => ({
-      ...m,
-      dateFrom: dateFrom && dateFrom > m.dateFrom ? dateFrom : m.dateFrom,
-      dateTo: dateTo && dateTo < m.dateTo ? dateTo : m.dateTo,
-    }));
-}
-
-// Rentang sub-periode kustom yang dimasukkan user lewat date picker.
-export function parseCustomRange(label, dateFrom, dateTo) {
-  return { id: `custom:${label}`, label, dateFrom, dateTo, isCustom: true };
-}
-
 /* ----------------------------------------------------------------------------
    AGREGASI PER PERIODE
    Hitung agregat penuh (computeAggregates) untuk tiap periode dengan filter
@@ -90,9 +66,15 @@ export function computePeriodAggs(rawRows, targets, salesCodes, periods, workDay
    = value / ao / qty / ach / deviasi.
 ---------------------------------------------------------------------------- */
 export function buildSalesMatrix(periodAggs, selectedSalesCodes, workDays) {
-  const codes = new Set(selectedSalesCodes || []);
-  // Union kode sales dari semua periode (terhormat kode yang dipilih user).
-  periodAggs.forEach(({ agg }) => agg.bySales.forEach((s) => codes.add(s.code)));
+  const selection = (selectedSalesCodes || []).filter(Boolean);
+  // Baris = sales terpilih. Kalau belum ada pilihan, tampilkan semua sales
+  // yang muncul di periode terpilih (view awal). Begitu user memilih, baris
+  // DIBATASI ke pilihan — union setiap saat akan membuat picker tidak
+  // berfungsi (semua sales selalu muncul lagi).
+  const codes = new Set(selection);
+  if (!selection.length) {
+    periodAggs.forEach(({ agg }) => agg.bySales.forEach((s) => codes.add(s.code)));
+  }
   const nameByCode = new Map();
   periodAggs.forEach(({ agg }) => agg.bySales.forEach((s) => { if (!nameByCode.has(s.code)) nameByCode.set(s.code, s.name); }));
   const targetByCode = new Map();
@@ -132,8 +114,12 @@ export function buildSalesMatrix(periodAggs, selectedSalesCodes, workDays) {
    (dari targets per sales) — dihitung ulang via computeAggregates tiap periode.
 ---------------------------------------------------------------------------- */
 export function buildGroupMatrix(periodAggs, selectedGroupNames) {
+  // Baris = grup terpilih; kalau belum ada pilihan, semua grup yang muncul di
+  // periode terpilih (view awal) — sama seperti buildSalesMatrix.
   const names = new Set(selectedGroupNames || []);
-  periodAggs.forEach(({ agg }) => agg.byGroup.forEach((g) => names.add(g.name)));
+  if (!(selectedGroupNames || []).length) {
+    periodAggs.forEach(({ agg }) => agg.byGroup.forEach((g) => names.add(g.name)));
+  }
 
   const rows = Array.from(names).map((name) => {
     const cells = periodAggs.map(({ agg, period }) => {
@@ -157,7 +143,16 @@ export function buildGroupMatrix(periodAggs, selectedGroupNames) {
    outletCode || outletName. Qty & AO dihitung dari baris per periode.
 ---------------------------------------------------------------------------- */
 export function buildOutletMatrix(periodAggs, selectedOutletKeys) {
+  // Baris = outlet terpilih; kalau belum ada pilihan, semua outlet yang muncul
+  // di periode terpilih (view awal) — sama seperti buildSalesMatrix.
   const keys = new Set(selectedOutletKeys || []);
+  if (!(selectedOutletKeys || []).length) {
+    periodAggs.forEach(({ agg }) => {
+      agg.filteredRows.forEach((r) => {
+        keys.add(r.outletCode || r.outletName || "UNKNOWN");
+      });
+    });
+  }
   const nameByKey = new Map();
   periodAggs.forEach(({ agg }) => {
     agg.filteredRows.forEach((r) => {
@@ -255,14 +250,3 @@ export function collectOutletOptions(periodAggs) {
   });
   return Array.from(map.entries()).map(([key, label]) => ({ key, label }));
 }
-
-// Rentang "periode aktif" saat ini untuk info header halaman.
-export function buildComparisonHeader(periods, dateFrom, dateTo) {
-  return {
-    count: periods.length,
-    label: dateFrom && dateTo ? `${dateFrom} — ${dateTo}` : "Semua data",
-    generatedAt: todayLocalDateStr(),
-  };
-}
-
-export { detectMonths };
