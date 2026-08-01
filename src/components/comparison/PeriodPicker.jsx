@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Plus, Trash2, CalendarRange, ChevronDown } from "lucide-react";
 import { getDatePresetOptions, resolveDatePreset, getDatePresetLabel } from "../../utils/datePresets.js";
 
@@ -11,12 +12,20 @@ import { getDatePresetOptions, resolveDatePreset, getDatePresetLabel } from "../
       bulan dinamis). Klik 1 preset langsung menambah 1 periode.
    2. Form manual (label + date from/to) untuk rentang parsial bebas.
    Maksimal 8 periode total.
+
+   Dropdown preset dirender lewat PORTAL ke <body> (bukan absolute di dalam
+   card): .sm-card punya backdrop-filter sendiri, dan elemen ber-backdrop-filter
+   jadi "backdrop root" — backdrop-filter anak di dalamnya TIDAK bisa memblur
+   elemen di luar card, jadi modalBg transparan bocor tembus (terlihat tidak
+   blur). Portal keluar memecah backdrop root → blur(32px) bekerja sama seperti
+   dropdown di FilterBar.
 ============================================================================ */
 export function PeriodPicker({ periods, onChange, colors, rawRows }) {
   const [customLabel, setCustomLabel] = useState("");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [presetOpen, setPresetOpen] = useState(false);
+  const [presetPos, setPresetPos] = useState(null);
   const presetRef = useRef(null);
 
   const presetOptions = getDatePresetOptions(rawRows);
@@ -27,6 +36,25 @@ export function PeriodPicker({ periods, onChange, colors, rawRows }) {
     const onClick = (e) => { if (presetRef.current && !presetRef.current.contains(e.target)) setPresetOpen(false); };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
+  }, [presetOpen]);
+
+  // Posisi dropdown portal (fixed, relatif viewport) — dihitung dari tombol,
+  // di-update saat scroll/resize supaya tetap menempel.
+  useEffect(() => {
+    if (!presetOpen) { setPresetPos(null); return; }
+    const update = () => {
+      const el = presetRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setPresetPos({ top: r.bottom + 8, left: r.left, width: r.width });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
   }, [presetOpen]);
 
   // Tambah periode dari preset rentang (klik 1 preset = 1 periode baru).
@@ -88,7 +116,10 @@ export function PeriodPicker({ periods, onChange, colors, rawRows }) {
             Tambah Periode
           </div>
 
-          {/* Dropdown preset rentang — SAMA seperti preset tanggal di FilterBar */}
+          {/* Dropdown preset rentang — SAMA seperti preset tanggal di FilterBar.
+              Portal ke body: .sm-card punya backdrop-filter sendiri (backdrop
+              root) yang membuat modalBg transparan bocor tembus kalau dropdown
+              dirender absolute di dalam card. */}
           <div className="relative mb-2" ref={presetRef}>
             <button onClick={() => setPresetOpen((o) => !o)}
               className="sm-btn flex items-center gap-2 px-3 py-2 rounded-xl text-sm w-full"
@@ -97,9 +128,14 @@ export function PeriodPicker({ periods, onChange, colors, rawRows }) {
               <span className="flex-1 text-left truncate">Pilih rentang cepat...</span>
               <ChevronDown size={13} style={{ color: colors.textMuted, transform: presetOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }} className="shrink-0" />
             </button>
-            {presetOpen && (
-              <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl overflow-hidden sm-fadein"
-                style={{ background: colors.modalBg, backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)", border: `1px solid ${colors.modalBorder}`, boxShadow: colors.glassShadow }}>
+            {presetOpen && presetPos && createPortal(
+              <div className="sm-fadein rounded-xl overflow-hidden"
+                style={{
+                  position: "fixed", top: presetPos.top, left: presetPos.left, width: presetPos.width,
+                  zIndex: 9999,
+                  background: colors.modalBg, backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)",
+                  border: `1px solid ${colors.modalBorder}`, boxShadow: colors.glassShadow,
+                }}>
                 {presetOptions.map((p) => (
                   <button key={p.key} onClick={() => addFromPreset(p.key)}
                     className="sm-row w-full text-left px-3.5 py-2.5 text-sm"
@@ -107,7 +143,8 @@ export function PeriodPicker({ periods, onChange, colors, rawRows }) {
                     {p.label}
                   </button>
                 ))}
-              </div>
+              </div>,
+              document.body
             )}
           </div>
 
