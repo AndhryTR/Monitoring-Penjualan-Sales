@@ -130,8 +130,10 @@ export function ComparisonPage({ rawRows, targets, colors, workDays }) {
     <div className="sm-page-enter">
       <SectionTitle title="Perbandingan" sub="Bandingkan entitas (sales / grup / outlet) lintas periode pilihan Anda" icon={GitCompareArrows} colors={colors} accent={colors.violet} />
 
-      {/* Mode selector */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
+      {/* Mode selector — wrapper relative z-10: dropdown MultiSelect entitas
+          harus tetap di atas konten di bawahnya (card Periode dll), TAPI tidak
+          boleh menutupi dropdown FilterBar global di atas (z-20/z-30). */}
+      <div className="relative z-10 flex flex-wrap items-center gap-2 mb-4">
         <div className="flex p-1 rounded-xl" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
           {MODES.map((m) => {
             const Icon = m.icon;
