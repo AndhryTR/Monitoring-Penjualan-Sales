@@ -1,21 +1,18 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, CalendarRange, ChevronDown } from "lucide-react";
 import { getDatePresetOptions, resolveDatePreset, getDatePresetLabel } from "../../utils/datePresets.js";
-import { periodLabel } from "../../utils/comparison.js";
 
 /* ============================================================================
    PERIODPICKER
-   Pilih periode yang dibandingkan di tab Perbandingan:
-   1. Periode default = bulan kalender di dalam rentang filter global aktif
-      (chip toggle, dihitung dari detectMonths + clamp ke rentang global).
-   2. Periode TAMBAHAN (ke-2 dst.) — bisa dibuat dari:
-      a. Dropdown preset rentang — SAMA seperti preset tanggal di FilterBar
-         global (Semua Data, Bulan Ini, 7/14 Hari Terakhir, Minggu Ini,
-         bulan dinamis). Klik 1 preset langsung menambah 1 periode.
-      b. Form manual (label + date from/to) untuk rentang parsial bebas.
+   Pilih periode yang dibandingkan di tab Perbandingan. Semua periode 100%
+   pilihan user (TIDAK otomatis mengikuti rentang filter global):
+   1. Dropdown preset rentang — SAMA seperti preset tanggal di FilterBar
+      global (Semua Data, Bulan Ini, 7/14 Hari Terakhir, Minggu Ini,
+      bulan dinamis). Klik 1 preset langsung menambah 1 periode.
+   2. Form manual (label + date from/to) untuk rentang parsial bebas.
    Maksimal 8 periode total.
 ============================================================================ */
-export function PeriodPicker({ defaultPeriods, periods, onChange, colors, rawRows }) {
+export function PeriodPicker({ periods, onChange, colors, rawRows }) {
   const [customLabel, setCustomLabel] = useState("");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -32,19 +29,6 @@ export function PeriodPicker({ defaultPeriods, periods, onChange, colors, rawRow
     return () => document.removeEventListener("mousedown", onClick);
   }, [presetOpen]);
 
-  const isDefaultSelected = useMemo(
-    () => new Set(periods.filter((p) => !p.isCustom).map((p) => p.id)),
-    [periods]
-  );
-
-  const toggleDefault = (p) => {
-    if (isDefaultSelected.has(p.id)) {
-      onChange(periods.filter((x) => x.id !== p.id));
-    } else {
-      onChange([...periods, p]);
-    }
-  };
-
   // Tambah periode dari preset rentang (klik 1 preset = 1 periode baru).
   const addFromPreset = (key) => {
     setPresetOpen(false);
@@ -54,17 +38,17 @@ export function PeriodPicker({ defaultPeriods, periods, onChange, colors, rawRow
     // Cegah duplikat rentang yang sama (mis. preset "Bulan Ini" = bulan dinamis)
     if (periods.some((p) => p.dateFrom === resolved.dateFrom && p.dateTo === resolved.dateTo)) return;
     onChange([...periods, {
-      id, label: getDatePresetLabel(key, rawRows), dateFrom: resolved.dateFrom, dateTo: resolved.dateTo, isCustom: true,
+      id, label: getDatePresetLabel(key, rawRows), dateFrom: resolved.dateFrom, dateTo: resolved.dateTo,
     }]);
   };
 
   const addCustom = () => {
     if (!customFrom || !customTo || customTo < customFrom) return;
-    onChange([...periods, { id: `custom:${customFrom}:${customTo}`, label: customLabel.trim() || `${customFrom} s/d ${customTo}`, dateFrom: customFrom, dateTo: customTo, isCustom: true }]);
+    onChange([...periods, { id: `custom:${customFrom}:${customTo}`, label: customLabel.trim() || `${customFrom} s/d ${customTo}`, dateFrom: customFrom, dateTo: customTo }]);
     setCustomLabel(""); setCustomFrom(""); setCustomTo("");
   };
 
-  const removeCustom = (id) => onChange(periods.filter((p) => p.id !== id));
+  const removePeriod = (id) => onChange(periods.filter((p) => p.id !== id));
 
   const isFull = periods.length >= 8;
 
@@ -74,45 +58,26 @@ export function PeriodPicker({ defaultPeriods, periods, onChange, colors, rawRow
     // tertutup elemen di bawahnya (KPI card dll) karena mereka punya stacking
     // context sendiri juga dan DOM-nya datang lebih akhir.
     <div className="sm-card p-4" style={{ position: "relative", zIndex: presetOpen ? 30 : 1 }}>
-      {/* Periode default (bulan di rentang filter global aktif) */}
       <div className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: colors.textMuted }}>
         Periode ({periods.length}/8)
       </div>
-      {defaultPeriods.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {defaultPeriods.map((p) => {
-            const on = isDefaultSelected.has(p.id);
-            return (
-              <button key={p.id} onClick={() => (isFull && !on) ? null : toggleDefault(p)}
-                disabled={isFull && !on}
-                className="sm-btn px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40 transition-colors"
-                style={{
-                  background: on ? colors.mint + "22" : colors.glassFill,
-                  border: `1px solid ${on ? colors.mint + "66" : colors.glassBorder}`,
-                  color: on ? colors.mint : colors.text,
-                }}>
-                {p.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-      {defaultPeriods.length === 0 && (
-        <p className="text-xs mb-3" style={{ color: colors.textMuted }}>
-          Tidak ada bulan penuh dalam rentang filter aktif — tambah periode manual di bawah.
-        </p>
-      )}
 
-      {/* Periode tambahan (dari preset rentang atau manual) */}
-      {periods.filter((p) => p.isCustom).map((p) => (
-        <div key={p.id} className="flex items-center gap-2 mb-2">
-          <CalendarRange size={13} style={{ color: colors.gold }} className="shrink-0" />
-          <span className="text-xs font-medium flex-1 truncate" style={{ color: colors.text }}>{p.label}</span>
-          <button onClick={() => removeCustom(p.id)} className="sm-btn p-1.5 rounded-lg" style={{ color: colors.coral }}>
-            <Trash2 size={12} />
-          </button>
-        </div>
-      ))}
+      {/* Periode terpilih — semua berasal dari preset cepat atau form manual */}
+      {periods.length === 0 ? (
+        <p className="text-xs mb-3" style={{ color: colors.textMuted }}>
+          Belum ada periode — tambah minimal 2 periode untuk membandingkan.
+        </p>
+      ) : (
+        periods.map((p) => (
+          <div key={p.id} className="flex items-center gap-2 mb-2">
+            <CalendarRange size={13} style={{ color: colors.gold }} className="shrink-0" />
+            <span className="text-xs font-medium flex-1 truncate" style={{ color: colors.text }}>{p.label}</span>
+            <button onClick={() => removePeriod(p.id)} className="sm-btn p-1.5 rounded-lg" style={{ color: colors.coral }}>
+              <Trash2 size={12} />
+            </button>
+          </div>
+        ))
+      )}
 
       {/* Tambah periode baru */}
       {!isFull && (
@@ -164,5 +129,3 @@ export function PeriodPicker({ defaultPeriods, periods, onChange, colors, rawRow
     </div>
   );
 }
-
-export { periodLabel };
