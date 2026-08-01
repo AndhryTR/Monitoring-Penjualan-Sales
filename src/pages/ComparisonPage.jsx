@@ -112,6 +112,9 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, filters }) 
   }, [kpiRows, metric]);
 
   const metricMeta = COMPARISON_METRICS.find((m) => m.key === metric);
+  // Sama seperti relabeling di MetricToggle — "AO" tidak bermakna per-outlet,
+  // jadi labelnya disesuaikan jadi "Frekuensi Transaksi" khusus mode outlet.
+  const metricLabel = mode === "outlet" && metric === "ao" ? "Frekuensi Transaksi" : metricMeta.label;
   const pickColor = periodColorPicker(colors);
   const ready = effectivePeriods.length >= 2 && kpiRows.length >= 2;
 
@@ -169,7 +172,7 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, filters }) 
         />
         <div className="sm-card p-4">
           <div className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: colors.textMuted }}>Metrik</div>
-          <MetricToggle metric={metric} onChange={setMetric} colors={colors} />
+          <MetricToggle metric={metric} onChange={setMetric} colors={colors} mode={mode} />
           <p className="text-xs mt-3" style={{ color: colors.textMuted }}>
             {metric === "ach" || metric === "deviasi"
               ? "ACH & Deviasi hanya dihitung untuk periode 1 bulan kalender penuh (target berlaku per bulan). Sub-rentang parsial ditampilkan '—'."
@@ -215,14 +218,14 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, filters }) 
           {/* Bar chart */}
           <div className="sm-card p-5 mb-5 sm-fadeup">
             <div className="text-xs uppercase tracking-wider mb-3" style={{ color: colors.textMuted }}>
-              {metricMeta.label} per Periode
+              {metricLabel} per Periode
             </div>
             <GroupedBarChart data={chartData} periods={effectivePeriods} periodColor={pickColor} metricKey={metric} isMoney={metricMeta.money} isPct={metricMeta.pct} colors={colors} />
           </div>
 
           {/* Tabel matrix */}
           <div className="sm-card p-5 sm-fadeup">
-            <SectionTitle title={`Detail ${metricMeta.label} per Entitas`} sub="Kolom = periode · angka kecil di bawah = ACH (hanya periode 1 bulan penuh)" icon={Wallet} colors={colors} />
+            <SectionTitle title={`Detail ${metricLabel} per Entitas`} sub="Kolom = periode · angka kecil di bawah = ACH (hanya periode 1 bulan penuh)" icon={Wallet} colors={colors} />
             <MatrixTable
               rows={kpiRows}
               periods={effectivePeriods}

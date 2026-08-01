@@ -22,8 +22,8 @@ export const TABS = [
   { key: "product",      label: "Product Report",   shortLabel: "Produk",    icon: Boxes,           group: "primary" },
   { key: "focus",        label: "Product Focus",    shortLabel: "Fokus",     icon: Crosshair,       group: "more" },
   { key: "outlet",       label: "Analisis Outlet",  shortLabel: "Outlet",    icon: Store,           group: "more" },
-  { key: "compare",      label: "Perbandingan",     shortLabel: "Banding",   icon: GitCompareArrows, group: "more" },
   { key: "trend",        label: "Tren Periode",     shortLabel: "Tren",      icon: TrendingUp,      group: "more" },
+  { key: "compare",      label: "Perbandingan",     shortLabel: "Banding",   icon: GitCompareArrows, group: "more" },
   { key: "transactions", label: "Transaksi",        shortLabel: "Transaksi", icon: Receipt,         group: "more" },
   { key: "quality",      label: "Catatan Data",     shortLabel: "Catatan",   icon: ClipboardList,   group: "more" },
 ];
@@ -52,8 +52,8 @@ export const SIDEBAR_SECTIONS = [
     label: "Analisis",
     items: [
       { key: "outlet", label: "Analisis Outlet", icon: Store, tabKey: "outlet" },
-      { key: "compare", label: "Perbandingan", icon: GitCompareArrows, tabKey: "compare" },
       { key: "trend", label: "Tren Periode", icon: TrendingUp, tabKey: "trend" },
+      { key: "compare", label: "Perbandingan", icon: GitCompareArrows, tabKey: "compare" },
       { key: "transactions", label: "Transaksi", icon: Receipt, tabKey: "transactions" },
     ],
   },

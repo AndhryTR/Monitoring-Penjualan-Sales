@@ -175,7 +175,14 @@ export function buildOutletMatrix(periodAggs, selectedOutletKeys) {
         period,
         exists: true,
         value: sumBy(rs, "value"),
-        ao: new Set(rs.map((r) => r.outletCode)).size,
+        // "AO" tidak bermakna di level outlet (tiap baris tabel sudah
+        // difilter ke 1 outlet spesifik, jadi "jumlah outlet unik" akan
+        // selalu ~1 — tidak informatif). Diganti maknanya jadi "Frekuensi
+        // Transaksi" (jumlah invoice unik) — field key tetap "ao" supaya
+        // struktur matrix & cellMetric() tetap seragam lintas dimensi;
+        // cuma LABEL di UI yang disesuaikan per mode (lihat COMPARISON_METRICS
+        // & MetricToggle/ComparisonPage).
+        ao: new Set(rs.map((r) => r.invoiceNo).filter(Boolean)).size,
         qty: sumBy(rs, effectiveKartonQty),
         ach: null,
         deviasi: null,

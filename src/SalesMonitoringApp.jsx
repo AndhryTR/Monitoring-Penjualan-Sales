@@ -32,10 +32,10 @@ import { SalesReportPage } from "./pages/SalesReportPage.jsx";
 import { ProductReportPage } from "./pages/ProductReportPage.jsx";
 import { ProductFocusReportPage } from "./pages/ProductFocusReportPage.jsx";
 import { OutletAnalysisPage } from "./pages/OutletAnalysisPage.jsx";
+import { ComparisonPage } from "./pages/ComparisonPage.jsx";
 import { DataQualityPage } from "./pages/DataQualityPage.jsx";
 import { ExecutiveSummaryPage } from "./pages/ExecutiveSummaryPage.jsx";
 import { TransactionsPage } from "./pages/TransactionsPage.jsx";
-import { ComparisonPage } from "./pages/ComparisonPage.jsx";
 import { OutletDrilldownModal } from "./components/modals/OutletDrilldownModal.jsx";
 import { OutletDetailModal } from "./components/modals/OutletDetailModal.jsx";
 import { DataPreviewModal } from "./components/modals/DataPreviewModal.jsx";
@@ -774,7 +774,7 @@ export default function SalesMonitoringApp() {
         ) : (
           <>
             <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} theme={theme} rawRows={rawRows} />
-            {filterSpansMultipleMonths && ["main", "executive", "sales", "product", "focus", "outlet", "compare"].includes(activeTab) && (
+            {filterSpansMultipleMonths && ["main", "executive", "sales", "product", "focus", "outlet"].includes(activeTab) && (
               <div className="sm-card p-3 mb-4 flex items-center gap-2.5 sm-fadeup" style={{ background: colors.gold + "0D", border: `1px solid ${colors.gold}33` }}>
                 <AlertTriangle size={15} style={{ color: colors.gold, flexShrink: 0 }} />
                 <p className="text-xs" style={{ color: colors.text }}>

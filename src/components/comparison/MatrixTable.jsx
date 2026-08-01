@@ -1,5 +1,6 @@
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
+import { ACH_TIERS } from "../../constants/thresholds.js";
 
 /* ============================================================================
    MATRIXTABLE — baris entitas × kolom periode + kolom growth.
@@ -10,7 +11,7 @@ export function MatrixTable({ rows, periods, periodColor, metricKey, isMoney, is
   if (!rows.length) return null;
   return (
     <div className="overflow-x-auto -mx-1">
-      <table className="w-full text-sm border-separate" style={{ borderSpacing: 0 }}>
+      <table key={periods.map((p) => p.id).join("|") + ":" + metricKey} className="w-full text-sm border-separate" style={{ borderSpacing: 0 }}>
         <thead>
           <tr>
             <th className="text-left px-3 py-2 sticky left-0 z-10" style={{ background: colors.modalPanelBg, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", color: colors.tableHeader, fontWeight: 500, fontSize: 11, textTransform: "uppercase", minWidth: 140 }}>
@@ -40,7 +41,7 @@ export function MatrixTable({ rows, periods, periodColor, metricKey, isMoney, is
                       <div>
                         <div className="mono">{v === null || v === undefined ? "-" : isPct ? fmtPct(v) : isMoney ? fmtRp(v) : fmtNum(v)}</div>
                         {showAch && c.exists && c.ach !== null && metricKey !== "ach" && (
-                          <div className="text-[10px] mono" style={{ color: c.ach >= 1 ? colors.mint : c.ach >= 0.7 ? colors.gold : colors.coral }}>
+                          <div className="text-[10px] mono" style={{ color: c.ach >= ACH_TIERS.onPace ? colors.mint : c.ach >= ACH_TIERS.warning ? colors.gold : colors.coral }}>
                             {fmtPct(c.ach)}
                           </div>
                         )}
