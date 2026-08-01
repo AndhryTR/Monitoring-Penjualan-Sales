@@ -5,7 +5,7 @@ import {
   Smartphone, Share, History, Settings,
   FileSpreadsheet, AlertTriangle, CheckCircle2,
 } from "lucide-react";
-import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory } from "./utils/storage.js";
+import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState } from "./utils/storage.js";
 import {
   parseWorkbookFile, dedupeRows,
 } from "./utils/excelParse.js";
@@ -32,6 +32,7 @@ import { SalesReportPage } from "./pages/SalesReportPage.jsx";
 import { ProductReportPage } from "./pages/ProductReportPage.jsx";
 import { ProductFocusReportPage } from "./pages/ProductFocusReportPage.jsx";
 import { OutletAnalysisPage } from "./pages/OutletAnalysisPage.jsx";
+import { ComparisonPage } from "./pages/ComparisonPage.jsx";
 import { DataQualityPage } from "./pages/DataQualityPage.jsx";
 import { ExecutiveSummaryPage } from "./pages/ExecutiveSummaryPage.jsx";
 import { TransactionsPage } from "./pages/TransactionsPage.jsx";
@@ -551,6 +552,7 @@ export default function SalesMonitoringApp() {
     clearSettings();
     clearSession();
     clearHistory();
+    clearCompareState();
     setRawRows([]); setFileName(""); setParseMeta(null);
     setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" });
     setWorkDays(WORK_DAYS_DEFAULT);
@@ -787,6 +789,7 @@ export default function SalesMonitoringApp() {
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} />}
             {activeTab === "outlet" && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} rawRows={rawRows} targets={targets} depotName={depotName} />}
+            {activeTab === "compare" && <ComparisonPage rawRows={rawRows} targets={targets} colors={colors} workDays={workDays} />}
             {activeTab === "transactions" && <TransactionsPage agg={aggFinal} colors={colors} onOutletDrilldown={openOutletDetail} />}
             {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "trend" && <TrendPeriodePage comparisonData={finalTrendComparisonData} isAutoTrend={isAutoTrend} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} depotName={depotName} />}

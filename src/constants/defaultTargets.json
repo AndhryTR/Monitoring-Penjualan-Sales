@@ -80,6 +80,11 @@
         "ao": 180
       },
       {
+        "name": "KEXIN FOOD",
+        "value": 0,
+        "ao": 0
+      },
+      {
         "name": "MI KRITING",
         "value": 63000000,
         "ao": 100
@@ -95,9 +100,24 @@
         "ao": 120
       },
       {
+        "name": "SHB",
+        "value": 0,
+        "ao": 0
+      },
+      {
         "name": "SNACK",
         "value": 30000000,
         "ao": 140
+      },
+      {
+        "name": "SWEET TEN GROUP",
+        "value": 0,
+        "ao": 0
+      },
+      {
+        "name": "SWEET TEN SNACK",
+        "value": 0,
+        "ao": 0
       }
     ],
     "focus": [
@@ -160,6 +180,11 @@
         "ao": 180
       },
       {
+        "name": "KEXIN FOOD",
+        "value": 0,
+        "ao": 0
+      },
+      {
         "name": "MI KRITING",
         "value": 42000000,
         "ao": 80
@@ -175,12 +200,39 @@
         "ao": 120
       },
       {
+        "name": "SHB",
+        "value": 0,
+        "ao": 0
+      },
+      {
         "name": "SNACK",
         "value": 25000000,
         "ao": 140
+      },
+      {
+        "name": "SWEET TEN GROUP",
+        "value": 0,
+        "ao": 0
+      },
+      {
+        "name": "SWEET TEN SNACK",
+        "value": 0,
+        "ao": 0
       }
     ],
     "focus": [
+      {
+        "name": "FISH CAKE",
+        "target": 0,
+        "keyword": "FISH",
+        "unit": "KARTON"
+      },
+      {
+        "name": "PANDA",
+        "target": 0,
+        "keyword": "PANDA",
+        "unit": "KARTON"
+      },
       {
         "name": "MI KRITING",
         "target": 600,
@@ -240,8 +292,13 @@
         "ao": 180
       },
       {
+        "name": "KEXIN FOOD",
+        "value": 0,
+        "ao": 0
+      },
+      {
         "name": "MI KRITING",
-        "value": 35000000,
+        "value": 25000000,
         "ao": 80
       },
       {
@@ -255,12 +312,39 @@
         "ao": 120
       },
       {
+        "name": "SHB",
+        "value": 0,
+        "ao": 0
+      },
+      {
         "name": "SNACK",
         "value": 20000000,
         "ao": 140
+      },
+      {
+        "name": "SWEET TEN GROUP",
+        "value": 0,
+        "ao": 0
+      },
+      {
+        "name": "SWEET TEN SNACK",
+        "value": 0,
+        "ao": 0
       }
     ],
     "focus": [
+      {
+        "name": "FISH CAKE",
+        "target": 0,
+        "keyword": "FISH",
+        "unit": "KARTON"
+      },
+      {
+        "name": "PANDA",
+        "target": 0,
+        "keyword": "PANDA",
+        "unit": "KARTON"
+      },
       {
         "name": "MI KRITING",
         "target": 600,
@@ -320,6 +404,16 @@
         "ao": 40
       },
       {
+        "name": "ILS",
+        "value": 0,
+        "ao": 0
+      },
+      {
+        "name": "IWM",
+        "value": 0,
+        "ao": 0
+      },
+      {
         "name": "MAAM MAAM",
         "value": 67200000,
         "ao": 120
@@ -358,6 +452,12 @@
         "unit": "KARTON"
       },
       {
+        "name": "TEABUZZ",
+        "target": 0,
+        "keyword": "TEE BUZZ",
+        "unit": "KARTON"
+      },
+      {
         "name": "CUSTARD",
         "target": 15,
         "keyword": "CUSTARD",
@@ -370,7 +470,7 @@
         "unit": "KARTON"
       },
       {
-        "name": "COKLAT DOLAR",
+        "name": "DOLAR CHOCO",
         "target": 20,
         "keyword": "DOLLAR",
         "unit": "KARTON"
@@ -461,6 +561,12 @@
         "name": "JES LOLY",
         "target": 10,
         "keyword": "JESS LOLY",
+        "unit": "KARTON"
+      },
+      {
+        "name": "TEABUZZ",
+        "target": 0,
+        "keyword": "TEE BUZZ",
         "unit": "KARTON"
       },
       {
@@ -567,6 +673,12 @@
         "name": "JES LOLY",
         "target": 10,
         "keyword": "JESS LOLY",
+        "unit": "KARTON"
+      },
+      {
+        "name": "TEABUZZ",
+        "target": 0,
+        "keyword": "TEE BUZZ",
         "unit": "KARTON"
       },
       {

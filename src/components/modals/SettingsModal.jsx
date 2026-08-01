@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Settings, X, Crosshair, ChevronDown, Plus, Download, Upload, Zap } from "lucide-react";
+import { Settings, X, Crosshair, ChevronDown, Plus, Download, Upload, Zap, Package, Copy } from "lucide-react";
 import { SectionTitle, CustomSlider } from "../ui/index.jsx";
 import { buildBackupPayload, downloadBackupFile, parseBackupFile } from "../../utils/backupExport.js";
 
@@ -18,7 +18,9 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
   const [localWorkDays, setLocalWorkDays] = useState(workDays);
   const [localDepotName, setLocalDepotName] = useState(depotName);
   const [expandedFocusCodes, setExpandedFocusCodes] = useState(() => new Set());
+  const [expandedGroupsCodes, setExpandedGroupsCodes] = useState(() => new Set());
   const [copySourceCode, setCopySourceCode] = useState({});
+  const [copyGroupSourceCode, setCopyGroupSourceCode] = useState({});
   const [importError, setImportError] = useState("");
   const fileInputRef = useRef(null);
 
@@ -80,6 +82,47 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
       ? { ...t, focus: source.focus.map(f => ({ ...f })) }
       : t));
     setExpandedFocusCodes(prev => new Set(prev).add(salesCode));
+  };
+
+  // --- Target per Grup Produk ---
+  const toggleGroupsExpand = (code) => {
+    setExpandedGroupsCodes(prev => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code); else next.add(code);
+      return next;
+    });
+  };
+
+  const handleGroupChange = (salesCode, groupIdx, field, value) => {
+    setLocalTargets(prev => prev.map(t => {
+      if (t.code !== salesCode) return t;
+      const groups = t.groups.map((g, i) => i === groupIdx ? { ...g, [field]: field === "name" ? value : (Number(value) || 0) } : g);
+      return { ...t, groups };
+    }));
+  };
+
+  const handleGroupAdd = (salesCode) => {
+    setLocalTargets(prev => prev.map(t => t.code === salesCode
+      ? { ...t, groups: [...t.groups, { name: "", value: 0, ao: 0 }] }
+      : t));
+    setExpandedGroupsCodes(prev => new Set(prev).add(salesCode));
+  };
+
+  const handleGroupRemove = (salesCode, groupIdx) => {
+    setLocalTargets(prev => prev.map(t => t.code === salesCode
+      ? { ...t, groups: t.groups.filter((_, i) => i !== groupIdx) }
+      : t));
+  };
+
+  const handleGroupCopyFrom = (salesCode) => {
+    const sourceCode = copyGroupSourceCode[salesCode];
+    const source = localTargets.find(t => t.code === sourceCode);
+    if (!source || !source.groups.length) return;
+    if (!window.confirm(`Salin ${source.groups.length} target grup dari ${source.name}? Daftar grup yang sudah ada di sales ini akan diganti.`)) return;
+    setLocalTargets(prev => prev.map(t => t.code === salesCode
+      ? { ...t, groups: source.groups.map(g => ({ ...g })) }
+      : t));
+    setExpandedGroupsCodes(prev => new Set(prev).add(salesCode));
   };
 
   const handleSave = () => {
@@ -194,7 +237,9 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
           <div className="space-y-3">
             {localTargets.map(t => {
               const isExpanded = expandedFocusCodes.has(t.code);
+              const isGroupsExpanded = expandedGroupsCodes.has(t.code);
               const otherSales = localTargets.filter(o => o.code !== t.code && o.focus.length > 0);
+              const otherSalesWithGroups = localTargets.filter(o => o.code !== t.code && o.groups.length > 0);
               return (
               <div key={t.code} className="p-3 rounded-lg" style={{ background: colors.glassFill }}>
                 <p className="font-semibold text-sm mb-2">{t.name}</p>
@@ -209,6 +254,74 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                     <input type="number" value={t.total.ao} onChange={e => handleTargetChange(t.code, 'ao', e.target.value)}
                       className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }} />
                   </div>
+                </div>
+
+                <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
+                  <button onClick={() => toggleGroupsExpand(t.code)} className="sm-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg">
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <Package size={14} style={{ color: colors.mint }} />
+                      Target Grup Produk <span style={{ color: colors.textMuted }}>({t.groups.length})</span>
+                    </span>
+                    <ChevronDown size={14} style={{ color: colors.textMuted, transform: isGroupsExpanded ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+                  </button>
+
+                  {isGroupsExpanded && (
+                    <div className="mt-3 space-y-2">
+                      {otherSalesWithGroups.length > 0 && (
+                        <div className="flex items-center gap-2 mb-3">
+                          <select value={copyGroupSourceCode[t.code] || ""} onChange={e => setCopyGroupSourceCode(prev => ({ ...prev, [t.code]: e.target.value }))}
+                            className="flex-1 px-2.5 py-1.5 rounded-md text-xs" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}`, color: colors.text, colorScheme: colors.colorScheme }}>
+                            <option value="">Salin dari sales lain...</option>
+                            {otherSalesWithGroups.map(o => <option key={o.code} value={o.code}>{o.name} ({o.groups.length} grup)</option>)}
+                          </select>
+                          <button onClick={() => handleGroupCopyFrom(t.code)} disabled={!copyGroupSourceCode[t.code]}
+                            className="sm-btn px-3 py-1.5 rounded-md text-xs font-semibold disabled:opacity-40"
+                            style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}` }}>
+                            <Copy size={12} className="inline mr-1" /> Salin
+                          </button>
+                        </div>
+                      )}
+
+                      {t.groups.length === 0 && (
+                        <p className="text-xs text-center py-3" style={{ color: colors.textMuted }}>Belum ada target grup untuk sales ini.</p>
+                      )}
+
+                      {t.groups.map((g, gi) => (
+                        <div key={gi} className="p-2.5 rounded-lg relative" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
+                          <button onClick={() => handleGroupRemove(t.code, gi)} title="Hapus target grup ini"
+                            className="sm-btn absolute top-2 right-2 p-1 rounded-md" style={{ color: colors.coral }}>
+                            <X size={12} />
+                          </button>
+                          <div className="grid grid-cols-1 gap-2 mb-2 pr-6">
+                            <div>
+                              <label className="block text-[10px] mb-0.5" style={{ color: colors.textMuted }}>Nama Grup</label>
+                              <input value={g.name} onChange={e => handleGroupChange(t.code, gi, 'name', e.target.value)}
+                                placeholder="mis. ENESIS"
+                                className="w-full px-2 py-1.5 rounded text-xs" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }} />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] mb-0.5" style={{ color: colors.textMuted }}>Target Value (Rp)</label>
+                              <input type="number" value={g.value} onChange={e => handleGroupChange(t.code, gi, 'value', e.target.value)}
+                                className="w-full px-2 py-1.5 rounded text-xs mono" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }} />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] mb-0.5" style={{ color: colors.textMuted }}>Target AO</label>
+                              <input type="number" value={g.ao} onChange={e => handleGroupChange(t.code, gi, 'ao', e.target.value)}
+                                className="w-full px-2 py-1.5 rounded text-xs mono" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }} />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      <button onClick={() => handleGroupAdd(t.code)}
+                        className="sm-btn w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold"
+                        style={{ background: colors.mint + "14", color: colors.mint, border: `1px dashed ${colors.mint}66` }}>
+                        <Plus size={13} /> Tambah Grup Produk
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>

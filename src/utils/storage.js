@@ -68,6 +68,48 @@ export function clearSettings() {
   }
 }
 
+/* ------------------- Comparison tab (localStorage) ------------------- */
+// Pilihan di tab Perbandingan (mode, entitas terpilih, periode terpilih)
+// dipersist TERPISAH dari settings: tab ini di-unmount tiap kali pindah tab,
+// jadi state lokal biasa akan hilang. Simpan/restore otomatis saat
+// mount/unmount supaya pilihan tidak hilang saat pindah tab lalu kembali.
+
+const COMPARE_KEY = "smapp:compare:v1";
+const COMPARE_VERSION = 1;
+
+export function saveCompareState(state) {
+  try {
+    const payload = JSON.stringify({ _v: COMPARE_VERSION, ...state });
+    window.localStorage.setItem(COMPARE_KEY, payload);
+    return true;
+  } catch (e) {
+    console.warn("Gagal menyimpan pilihan Perbandingan ke localStorage:", e);
+    return false;
+  }
+}
+
+export function loadCompareState() {
+  try {
+    const raw = window.localStorage.getItem(COMPARE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch (e) {
+    console.warn("Gagal membaca pilihan Perbandingan tersimpan, memakai default:", e);
+    return null;
+  }
+}
+
+export function clearCompareState() {
+  try {
+    window.localStorage.removeItem(COMPARE_KEY);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 /* ---------------------- Riwayat snapshot periode (localStorage) ---------------------- *
  * Ringan: cuma menyimpan ANGKA HASIL AGREGASI per periode (target/realisasi per
  * sales & grup), BUKAN data transaksi mentah — jadi walau riwayatnya menumpuk,

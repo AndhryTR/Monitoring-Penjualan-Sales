@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, UserRound, Boxes, Crosshair, Store, ClipboardList, TrendingUp, Receipt,
-  History, Settings, Gauge,
+  History, Settings, Gauge, GitCompareArrows,
 } from "lucide-react";
 
 /* ============================================================================
@@ -23,6 +23,7 @@ export const TABS = [
   { key: "focus",        label: "Product Focus",    shortLabel: "Fokus",     icon: Crosshair,       group: "more" },
   { key: "outlet",       label: "Analisis Outlet",  shortLabel: "Outlet",    icon: Store,           group: "more" },
   { key: "trend",        label: "Tren Periode",     shortLabel: "Tren",      icon: TrendingUp,      group: "more" },
+  { key: "compare",      label: "Perbandingan",     shortLabel: "Banding",   icon: GitCompareArrows, group: "more" },
   { key: "transactions", label: "Transaksi",        shortLabel: "Transaksi", icon: Receipt,         group: "more" },
   { key: "quality",      label: "Catatan Data",     shortLabel: "Catatan",   icon: ClipboardList,   group: "more" },
 ];
@@ -52,6 +53,7 @@ export const SIDEBAR_SECTIONS = [
     items: [
       { key: "outlet", label: "Analisis Outlet", icon: Store, tabKey: "outlet" },
       { key: "trend", label: "Tren Periode", icon: TrendingUp, tabKey: "trend" },
+      { key: "compare", label: "Perbandingan", icon: GitCompareArrows, tabKey: "compare" },
       { key: "transactions", label: "Transaksi", icon: Receipt, tabKey: "transactions" },
     ],
   },
