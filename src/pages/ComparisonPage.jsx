@@ -48,18 +48,24 @@ export function ComparisonPage({ rawRows, targets, colors, workDays }) {
     saveCompareState({ mode, selectedEntities, periods });
   }, [mode, selectedEntities, periods]);
 
+  // Nama -> kode sales (picker memakai nama, agregasi memakai kode).
+  const salesCodeByName = useMemo(() => Object.fromEntries(targets.map((t) => [t.name, t.code])), [targets]);
+  const salesKeys = mode === "sales" ? selectedEntities.map((n) => salesCodeByName[n] || n) : [];
+
   // ---- Agregat per periode (hanya periode yang dipilih user) ----
+  // Sales mode wajib filter pakai KODE — nama tidak cocok dengan r.salesCode
+  // (pencocokan di computeAggregates), kalau nama yang dikirim semua baris
+  // terfilter habis dan value jadi 0.
   const periodAggs = useMemo(() => {
     if (!periods.length) return [];
-    return computePeriodAggs(rawRows, targets, mode === "sales" ? selectedEntities : [], periods, workDays);
-  }, [rawRows, targets, mode, selectedEntities, periods, workDays]);
+    return computePeriodAggs(rawRows, targets, salesKeys, periods, workDays);
+  }, [rawRows, targets, salesKeys, periods, workDays]);
 
   // ---- Opsi entitas per mode ----
   // Sales: {label: nama, code} untuk picker; matriks pakai KODE (sama seperti
   // FilterBar/agg). Kalau hanya nama yang dikirim, pencocokan nama vs kode
   // (t.code) gagal -> semua baris sales terfilter -> data hilang.
   const salesOptions = useMemo(() => targets.map((t) => ({ label: t.name, code: t.code })), [targets]);
-  const salesCodeByName = useMemo(() => Object.fromEntries(targets.map((t) => [t.name, t.code])), [targets]);
   const groupOptions = useMemo(() => {
     const s = new Set();
     targets.forEach((t) => t.groups.forEach((g) => s.add(g.name)));
