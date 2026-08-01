@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { GitCompareArrows, Users, Package, Store, Wallet } from "lucide-react";
 import { MultiSelect } from "../components/ui/MultiSelect.jsx";
 import { SectionTitle } from "../components/ui/index.jsx";
@@ -8,17 +8,16 @@ import { MatrixKpiTotal } from "../components/comparison/MatrixKpiTotal.jsx";
 import { GroupedBarChart, periodColorPicker } from "../components/comparison/GroupedBarChart.jsx";
 import { MatrixTable } from "../components/comparison/MatrixTable.jsx";
 import {
-  clampMonthsToFilter, computePeriodAggs, buildSalesMatrix, buildGroupMatrix,
+  computePeriodAggs, buildSalesMatrix, buildGroupMatrix,
   buildOutletMatrix, collectOutletOptions, COMPARISON_METRICS, rowTotal, computeGrowth,
 } from "../utils/comparison.js";
-import { detectMonths } from "../utils/aggregation.js";
 import { fmtRp, fmtNum, fmtPct } from "../utils/formatters.js";
 
 /* ============================================================================
    TAB: PERBANDINGAN (Comparison Studio)
    Matriks entitas × periode: pilih 2+ entitas (sales/grup/outlet) dan 2+
-   periode (bulan di rentang filter global + sub-rentang kustom), lalu
-   bandingkan Value / AO / Qty KARTON / ACH / Deviasi per sel.
+   periode (preset rentang cepat atau rentang manual), lalu bandingkan
+   Value / AO / Qty KARTON / ACH / Deviasi per sel.
 
    Semua agregasi dihitung di sini dari rawRows + targets (bukan agg yang
    difilter) — sama seperti autoTrendComparisonData di SalesMonitoringApp —
@@ -31,32 +30,17 @@ const MODES = [
   { key: "outlet", label: "Outlet", icon: Store },
 ];
 
-export function ComparisonPage({ rawRows, targets, colors, workDays, filters }) {
+export function ComparisonPage({ rawRows, targets, colors, workDays }) {
   const [mode, setMode] = useState("sales");
   const [selectedEntities, setSelectedEntities] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [metric, setMetric] = useState("value");
 
-  // ---- Periode default: bulan kalender di dalam rentang filter global ----
-  const defaultPeriods = useMemo(() => {
-    if (!rawRows.length) return [];
-    return clampMonthsToFilter(detectMonths(rawRows), filters.dateFrom, filters.dateTo);
-  }, [rawRows, filters.dateFrom, filters.dateTo]);
-
-  // Saat default periode berubah (mis. filter ganti bulan), pilihan periode
-  // aktif di-sync ulang kalau user belum pernah set custom — kalau user sudah
-  // pilih custom, jangan ketimpa.
-  const [hasCustomPeriods, setHasCustomPeriods] = useState(false);
-  const effectivePeriods = useMemo(() => {
-    if (hasCustomPeriods) return periods;
-    return defaultPeriods;
-  }, [hasCustomPeriods, periods, defaultPeriods]);
-
-  // ---- Agregat per periode (selalu hitung untuk semua default periode) ----
+  // ---- Agregat per periode (hanya periode yang dipilih user) ----
   const periodAggs = useMemo(() => {
-    if (!effectivePeriods.length) return [];
-    return computePeriodAggs(rawRows, targets, mode === "sales" ? selectedEntities : [], effectivePeriods, workDays);
-  }, [rawRows, targets, mode, selectedEntities, effectivePeriods, workDays]);
+    if (!periods.length) return [];
+    return computePeriodAggs(rawRows, targets, mode === "sales" ? selectedEntities : [], periods, workDays);
+  }, [rawRows, targets, mode, selectedEntities, periods, workDays]);
 
   // ---- Opsi entitas per mode ----
   const salesOptions = useMemo(() => targets.map((t) => t.name), [targets]);
@@ -116,23 +100,11 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, filters }) 
   // jadi labelnya disesuaikan jadi "Frekuensi Transaksi" khusus mode outlet.
   const metricLabel = mode === "outlet" && metric === "ao" ? "Frekuensi Transaksi" : metricMeta.label;
   const pickColor = periodColorPicker(colors);
-  const ready = effectivePeriods.length >= 2 && kpiRows.length >= 2;
-
-  // Sync awal: saat data pertama kali dimuat (default periode tersedia),
-  // pilih semua bulan default sebagai periode aktif. Jangan pakai setState
-  // langsung saat render — ditunda lewat useEffect supaya tidak memicu
-  // warning React "setState during render".
-  const [initDone, setInitDone] = useState(false);
-  useEffect(() => {
-    if (!initDone && defaultPeriods.length) {
-      setInitDone(true);
-      setPeriods(defaultPeriods);
-    }
-  }, [initDone, defaultPeriods]);
+  const ready = periods.length >= 2 && kpiRows.length >= 2;
 
   return (
     <div className="sm-page-enter">
-      <SectionTitle title="Perbandingan" sub="Bandingkan entitas (sales / grup / outlet) lintas periode — ikuti filter tanggal global" icon={GitCompareArrows} colors={colors} accent={colors.violet} />
+      <SectionTitle title="Perbandingan" sub="Bandingkan entitas (sales / grup / outlet) lintas periode pilihan Anda" icon={GitCompareArrows} colors={colors} accent={colors.violet} />
 
       {/* Mode selector */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -164,9 +136,8 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, filters }) 
       {/* Periode + metrik */}
       <div className="grid lg:grid-cols-2 gap-4 mb-5">
         <PeriodPicker
-          defaultPeriods={defaultPeriods}
           periods={periods}
-          onChange={(p) => { setPeriods(p); setHasCustomPeriods(true); }}
+          onChange={setPeriods}
           rawRows={rawRows}
           colors={colors}
         />
@@ -192,7 +163,7 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, filters }) 
           </div>
           <div className="disp text-base font-semibold mb-1">Belum bisa dibandingkan</div>
           <p className="text-sm" style={{ color: colors.textMuted }}>
-            {effectivePeriods.length < 2
+            {periods.length < 2
               ? "Pilih minimal 2 periode untuk membandingkan."
               : "Pilih minimal 2 entitas (sales/grup/outlet)."}
           </p>
@@ -220,7 +191,7 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, filters }) 
             <div className="text-xs uppercase tracking-wider mb-3" style={{ color: colors.textMuted }}>
               {metricLabel} per Periode
             </div>
-            <GroupedBarChart data={chartData} periods={effectivePeriods} periodColor={pickColor} metricKey={metric} isMoney={metricMeta.money} isPct={metricMeta.pct} colors={colors} />
+            <GroupedBarChart data={chartData} periods={periods} periodColor={pickColor} metricKey={metric} isMoney={metricMeta.money} isPct={metricMeta.pct} colors={colors} />
           </div>
 
           {/* Tabel matrix */}
@@ -228,7 +199,7 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, filters }) 
             <SectionTitle title={`Detail ${metricLabel} per Entitas`} sub="Kolom = periode · angka kecil di bawah = ACH (hanya periode 1 bulan penuh)" icon={Wallet} colors={colors} />
             <MatrixTable
               rows={kpiRows}
-              periods={effectivePeriods}
+              periods={periods}
               periodColor={pickColor}
               metricKey={metric}
               isMoney={metricMeta.money}
