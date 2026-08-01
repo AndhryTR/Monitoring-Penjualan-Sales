@@ -55,7 +55,11 @@ export function ComparisonPage({ rawRows, targets, colors, workDays }) {
   }, [rawRows, targets, mode, selectedEntities, periods, workDays]);
 
   // ---- Opsi entitas per mode ----
-  const salesOptions = useMemo(() => targets.map((t) => t.name), [targets]);
+  // Sales: {label: nama, code} untuk picker; matriks pakai KODE (sama seperti
+  // FilterBar/agg). Kalau hanya nama yang dikirim, pencocokan nama vs kode
+  // (t.code) gagal -> semua baris sales terfilter -> data hilang.
+  const salesOptions = useMemo(() => targets.map((t) => ({ label: t.name, code: t.code })), [targets]);
+  const salesCodeByName = useMemo(() => Object.fromEntries(targets.map((t) => [t.name, t.code])), [targets]);
   const groupOptions = useMemo(() => {
     const s = new Set();
     targets.forEach((t) => t.groups.forEach((g) => s.add(g.name)));
@@ -64,18 +68,20 @@ export function ComparisonPage({ rawRows, targets, colors, workDays }) {
   }, [targets, rawRows]);
   const outletOptions = useMemo(() => collectOutletOptions(periodAggs).map((o) => ({ label: o.label, key: o.key })), [periodAggs]);
 
-  const entityOptions = mode === "sales" ? salesOptions : mode === "group" ? groupOptions : outletOptions.map((o) => o.label);
+  const entityOptions = mode === "sales" ? salesOptions.map((o) => o.label) : mode === "group" ? groupOptions : outletOptions.map((o) => o.label);
   // Konversi label -> kode untuk mode outlet (label bisa dobel antar outlet).
   const outletKeyByLabel = useMemo(() => {
     const m = new Map();
     outletOptions.forEach((o) => m.set(o.label, o.key));
     return m;
   }, [outletOptions]);
-  const selectedKeys = mode === "outlet" ? selectedEntities.map((l) => outletKeyByLabel.get(l) || l) : selectedEntities;
+  const selectedKeys = mode === "sales"
+    ? selectedEntities.map((n) => salesCodeByName[n] || n)
+    : mode === "outlet" ? selectedEntities.map((l) => outletKeyByLabel.get(l) || l) : selectedEntities;
 
-  // ---- Matriks sesuai mode ----
+  // ---- Matriks sesuai mode (sales pakai KODE, bukan nama) ----
   const matrix = useMemo(() => {
-    if (mode === "sales") return buildSalesMatrix(periodAggs, selectedEntities);
+    if (mode === "sales") return buildSalesMatrix(periodAggs, selectedKeys);
     if (mode === "group") return buildGroupMatrix(periodAggs, selectedEntities);
     return buildOutletMatrix(periodAggs, selectedKeys);
   }, [mode, periodAggs, selectedEntities, selectedKeys]);
