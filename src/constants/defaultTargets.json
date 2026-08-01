@@ -70,7 +70,7 @@
     "name": "BUDI KARYAWAN",
     "tier": "amber",
     "total": {
-      "value": 490.000.000,
+      "value": 490000000,
       "ao": 250
     },
     "groups": [
@@ -91,7 +91,7 @@
       },
       {
         "name": "PLANGI JAYA",
-        "value": 185.000.000,
+        "value": 185000000,
         "ao": 120
       },
       {
@@ -150,7 +150,7 @@
     "name": "TAUFAN ARI KUSAIRI",
     "tier": "amber",
     "total": {
-      "value": 308.000.000,
+      "value": 308000000,
       "ao": 250
     },
     "groups": [
@@ -161,7 +161,7 @@
       },
       {
         "name": "MI KRITING",
-        "value": 42.000.000,
+        "value": 42000000,
         "ao": 80
       },
       {
@@ -171,7 +171,7 @@
       },
       {
         "name": "PLANGI JAYA",
-        "value": 56.000.000,
+        "value": 56000000,
         "ao": 120
       },
       {
@@ -230,18 +230,18 @@
     "name": "AZUL AZMIL SANI",
     "tier": "amber",
     "total": {
-      "value": 306.000.000,
+      "value": 306000000,
       "ao": 250
     },
     "groups": [
       {
         "name": "B-FOODS",
-        "value": 135.000.000,
+        "value": 135000000,
         "ao": 180
       },
       {
         "name": "MI KRITING",
-        "value": 35.000.000,
+        "value": 35000000,
         "ao": 80
       },
       {
@@ -251,7 +251,7 @@
       },
       {
         "name": "PLANGI JAYA",
-        "value": 56.000.000,
+        "value": 56000000,
         "ao": 120
       },
       {
@@ -310,7 +310,7 @@
     "name": "SUSAN HANI",
     "tier": "amber",
     "total": {
-      "value": 316.700.000,
+      "value": 316700000,
       "ao": 250
     },
     "groups": [
@@ -321,7 +321,7 @@
       },
       {
         "name": "MAAM MAAM",
-        "value": 67.200.000,
+        "value": 67200000,
         "ao": 120
       },
       {
@@ -336,12 +336,12 @@
       },
       {
         "name": "ROTI",
-        "value": 125.000.000,
+        "value": 125000000,
         "ao": 210
       },
       {
         "name": "RPFI",
-        "value": 98.000.000,
+        "value": 98000000,
         "ao": 180
       },
       {
@@ -406,7 +406,7 @@
     "name": "SOFYAN HADI",
     "tier": "amber",
     "total": {
-      "value": 235.500.000,
+      "value": 235500000,
       "ao": 250
     },
     "groups": [
@@ -427,7 +427,7 @@
       },
       {
         "name": "MAAM MAAM",
-        "value": 35.000.000,
+        "value": 35000000,
         "ao": 120
       },
       {
@@ -442,12 +442,12 @@
       },
       {
         "name": "ROTI",
-        "value": 65.000.000,
+        "value": 65000000,
         "ao": 180
       },
       {
         "name": "RPFI",
-        "value": 112.000.000,
+        "value": 112000000,
         "ao": 180
       },
       {
@@ -512,7 +512,7 @@
     "name": "I GUSTI PUTU SUARDIKA",
     "tier": "amber",
     "total": {
-      "value": 314.100.000,
+      "value": 314100000,
       "ao": 250
     },
     "groups": [
@@ -533,7 +533,7 @@
       },
       {
         "name": "MAAM MAAM",
-        "value": 54.600.000,
+        "value": 54600000,
         "ao": 120
       },
       {
@@ -548,12 +548,12 @@
       },
       {
         "name": "ROTI",
-        "value": 110.000.000,
+        "value": 110000000,
         "ao": 180
       },
       {
         "name": "RPFI",
-        "value": 126.000.000,
+        "value": 126000000,
         "ao": 180
       },
       {
@@ -618,7 +618,7 @@
     "name": "HEMA MALIHI",
     "tier": "violet",
     "total": {
-      "value": 178.300.000,
+      "value": 178300000,
       "ao": 240
     },
     "groups": [
@@ -640,7 +640,7 @@
     "name": "MARIA ANDRIANI",
     "tier": "violet",
     "total": {
-      "value": 178.300.000,
+      "value": 178300000,
       "ao": 240
     },
     "groups": [
