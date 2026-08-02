@@ -50,12 +50,14 @@ export function Leaderboard({ rows, colors, onDrilldown, onExportScorecard }) {
             <AchBadge ach={metric === "ao" ? sm.achAo : sm.ach} colors={colors} />
             {onExportScorecard && (
               <button onClick={() => onExportScorecard(sm)} title="Cetak scorecard PDF"
-                className="sm-btn p-2 rounded-lg" style={{ background: colors.glassFill, color: colors.textMuted }}>
+                className="hidden md:inline-flex sm-btn p-2 rounded-lg" style={{ background: colors.glassFill, color: colors.textMuted }}>
                 <FileText size={14} />
               </button>
             )}
             {onDrilldown && (
-              <DrilldownButton colors={colors} onClick={() => onDrilldown(sm.name, "Semua outlet", sm.predicate)} />
+              <div className="hidden md:inline-flex">
+                <DrilldownButton colors={colors} onClick={() => onDrilldown(sm.name, "Semua outlet", sm.predicate)} />
+              </div>
             )}
           </div>
         ))}
