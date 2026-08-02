@@ -43,8 +43,13 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
       totalValue: sm.realisasiValue, totalAo: sm.realisasiAo, totalAch: sm.ach, totalAchAo: sm.achAo,
       lastDayValue: ld.valueLastDay, lastDayAo: ld.aoLastDay,
       predicate: sm.predicate,
+      // Drilldown di tabel ini harus konsisten dengan data yang dilihat user —
+      // cuma outlet yang bertransaksi HARI TERAKHIR (bukan seluruh periode).
+      predicateLastDay: agg.meta.lastDate
+        ? (row) => row.salesCode === sm.code && row.date === agg.meta.lastDate
+        : sm.predicate,
     };
-  }), [rows, lastDaySalesMap]);
+  }), [rows, lastDaySalesMap, agg.meta.lastDate]);
   const lastDateLabel = agg.meta.lastDate ? formatDateIDShort(agg.meta.lastDate) : "Hari Terakhir";
   const handleExportExcel = () => exportSalesReportExcel(agg, groupRows, totalVsLastDayRows, {
     depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
@@ -130,7 +135,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
             { key: "totalAch", label: "ACH% Total", render: (r) => <AchBadge ach={r.totalAch} colors={colors} /> },
             { key: "lastDayValue", label: `Realisasi (${lastDateLabel})`, render: (r) => <span className="mono">{fmtRp(r.lastDayValue)}</span> },
             { key: "lastDayAo", label: `AO (${lastDateLabel})`, render: (r) => <span className="mono">{fmtNum(r.lastDayAo)}</span> },
-            { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(r.salesName, "Semua outlet", r.predicate)} /> },
+            { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(`${r.salesName} — ${lastDateLabel}`, "Outlet (hari terakhir)", r.predicateLastDay)} /> },
           ]}
           rows={totalVsLastDayRows}
         />
