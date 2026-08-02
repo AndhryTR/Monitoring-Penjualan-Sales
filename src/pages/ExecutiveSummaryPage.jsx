@@ -1,8 +1,9 @@
 import { useMemo } from "react";
-import { Gauge, Users, Crosshair, Package, Store } from "lucide-react";
+import { Gauge, Users, Crosshair, Package, Store, Target } from "lucide-react";
 import { CompactKpiGrid } from "../components/executive/CompactKpiGrid.jsx";
 import { MiniLeaderboard } from "../components/executive/MiniLeaderboard.jsx";
 import { FocusProductMini } from "../components/executive/FocusProductMini.jsx";
+import { FocusGroupMini } from "../components/executive/FocusGroupMini.jsx";
 import { GroupMiniSummary } from "../components/executive/GroupMiniSummary.jsx";
 import { OutletHealthMini } from "../components/executive/OutletHealthMini.jsx";
 import { InsightBanner } from "../components/executive/InsightBanner.jsx";
@@ -137,6 +138,20 @@ export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, compa
           <OutletHealthMini outletSummary={outletHealthSummary} colors={colors} />
         </SectionCard>
       </div>
+
+      {/* 5. Grup Fokus — full-width di bawah grid. Highlight grup yang
+          ditandai fokus di Pengaturan (tanpa target baru — ACH pakai target
+          grup existing). */}
+      <SectionCard
+        title="Grup Fokus"
+        icon={Target}
+        accent={colors.violet}
+        colors={colors}
+        actionLabel="Detail Fokus"
+        onAction={() => onNavigate?.("focus")}
+      >
+        <FocusGroupMini focusGroupRows={agg.focusGroupRows} colors={colors} />
+      </SectionCard>
     </div>
   );
 }

@@ -66,7 +66,7 @@ export const SIDEBAR_SECTIONS = [
   {
     label: "Tools",
     items: [
-      { key: "history", label: "Riwayat", icon: History, action: "history" },
+      { key: "history", label: "Snapshot Periode", icon: History, action: "history" },
       { key: "settings", label: "Pengaturan", icon: Settings, action: "settings" },
     ],
   },

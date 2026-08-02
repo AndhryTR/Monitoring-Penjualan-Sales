@@ -675,7 +675,7 @@ export default function SalesMonitoringApp() {
             <button onClick={() => setIsHistoryOpen(true)} disabled={!rawRows.length}
               className="sm-btn flex md:hidden items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
               style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
-              <History size={15} /> <span className="hidden sm:inline">Riwayat</span>
+              <History size={15} /> <span className="hidden sm:inline">Snapshot</span>
             </button>
             <button onClick={() => setIsSettingsOpen(true)}
               className="sm-btn flex md:hidden items-center gap-2 px-2.5 py-2.5 rounded-xl text-sm font-semibold"

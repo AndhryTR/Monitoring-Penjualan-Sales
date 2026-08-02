@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Settings, X, Crosshair, ChevronDown, Plus, Download, Upload, Zap, Package, Copy } from "lucide-react";
+import { Settings, X, Crosshair, ChevronDown, Plus, Download, Upload, Zap, Package, Copy, Sigma, Search } from "lucide-react";
 import { SectionTitle, CustomSlider } from "../ui/index.jsx";
 import { buildBackupPayload, downloadBackupFile, parseBackupFile } from "../../utils/backupExport.js";
 
@@ -23,12 +23,21 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
   const [copyGroupSourceCode, setCopyGroupSourceCode] = useState({});
   const [importError, setImportError] = useState("");
   const fileInputRef = useRef(null);
+  // Tab aktif modal: "general" | "sales" | "backup". Reset ke "general" tiap
+  // modal dibuka ulang supaya user mulai dari overview, bukan nyangkut di tab
+  // sebelumnya.
+  const [activeSection, setActiveSection] = useState("general");
+  // Query pencarian sales di tab Target Sales — cuma filter tampilan, tidak
+  // menghapus data. Reset tiap modal dibuka.
+  const [salesQuery, setSalesQuery] = useState("");
 
   useEffect(() => {
     if (isOpen) {
       setLocalTargets(targets);
       setLocalWorkDays(workDays);
       setLocalDepotName(depotName);
+      setActiveSection("general");
+      setSalesQuery("");
     }
   }, [isOpen, targets, workDays, depotName]);
 
@@ -125,6 +134,27 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
     setExpandedGroupsCodes(prev => new Set(prev).add(salesCode));
   };
 
+  // Toggle status "grup fokus" — flag highlight grup existing (tanpa target
+  // baru). Dipakai oleh Executive Summary & tab Product Focus (view Grup Fokus).
+  const handleGroupFocusToggle = (salesCode, groupIdx) => {
+    setLocalTargets(prev => prev.map(t => {
+      if (t.code !== salesCode) return t;
+      const groups = t.groups.map((g, i) => i === groupIdx ? { ...g, focus: !g.focus } : g);
+      return { ...t, groups };
+    }));
+  };
+
+  // Auto-sum Target Value dari semua grup produk sales tsb → isi total.value
+  // (state lokal modal; user tetap klik "Simpan Perubahan" untuk commit).
+  // Hanya Value — AO tidak disentuh (sum AO grup bisa over-count outlet unik).
+  const handleAutoSumValue = (salesCode) => {
+    setLocalTargets(prev => prev.map(t => {
+      if (t.code !== salesCode) return t;
+      const sum = (t.groups || []).reduce((acc, g) => acc + (Number(g.value) || 0), 0);
+      return { ...t, total: { ...t.total, value: sum } };
+    }));
+  };
+
   const handleSave = () => {
     setTargets(localTargets);
     setWorkDays(localWorkDays);
@@ -184,6 +214,13 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
     { value: "exact", label: "Sama persis nama produk" },
   ];
 
+  // Sales yang tampil di tab Target Sales — difilter oleh query pencarian
+  // (nama/kode, case-insensitive). Kalau kosong, tampilkan semua.
+  const q = salesQuery.trim().toLowerCase();
+  const filteredTargets = q
+    ? localTargets.filter((t) => t.name.toLowerCase().includes(q) || t.code.toLowerCase().includes(q))
+    : localTargets;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
       <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col">
@@ -191,7 +228,26 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
           <SectionTitle title="Pengaturan" icon={Settings} colors={colors} />
           <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.glassFill }}><X size={16} /></button>
         </div>
+        {/* Tab bar — navigasi utama modal */}
+        <div className="px-5 pt-3 pb-0 flex gap-1.5" style={{ borderBottom: `1px solid ${colors.glassBorder}` }}>
+          {[
+            { key: "general", label: "Umum", icon: Settings },
+            { key: "sales", label: "Target Sales", icon: Package },
+            { key: "backup", label: "Backup & Data", icon: Download },
+          ].map((t) => {
+            const Icon = t.icon;
+            const on = activeSection === t.key;
+            return (
+              <button key={t.key} onClick={() => setActiveSection(t.key)}
+                className="sm-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5"
+                style={{ background: on ? colors.glassFillStrong : "transparent", color: on ? colors.mint : colors.textMuted }}>
+                <Icon size={13} /> {t.label}
+              </button>
+            );
+          })}
+        </div>
         <div className="p-5 overflow-y-auto">
+          {activeSection === "general" && (<>
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium mb-2">Hari Kerja Efektif</label>
@@ -232,22 +288,64 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
               />
             </button>
           </div>
-
-          <h3 className="text-base font-semibold disp mb-3">Target Sales</h3>
+          </>)}
+          {activeSection === "sales" && (<>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h3 className="text-base font-semibold disp">Target Sales</h3>
+            <span className="text-xs" style={{ color: colors.textMuted }}>{filteredTargets.length} sales</span>
+          </div>
+          {/* Search sales — cuma filter tampilan, tidak menghapus data */}
+          <div className="relative mb-3">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }} />
+            <input
+              value={salesQuery}
+              onChange={(e) => setSalesQuery(e.target.value)}
+              placeholder="Cari sales berdasarkan nama atau kode..."
+              className="w-full pl-9 pr-8 py-2 rounded-lg text-sm outline-none"
+              style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}
+            />
+            {salesQuery && (
+              <button onClick={() => setSalesQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }} aria-label="Bersihkan pencarian">
+                <X size={14} />
+              </button>
+            )}
+          </div>
           <div className="space-y-3">
-            {localTargets.map(t => {
+            {filteredTargets.map(t => {
               const isExpanded = expandedFocusCodes.has(t.code);
               const isGroupsExpanded = expandedGroupsCodes.has(t.code);
               const otherSales = localTargets.filter(o => o.code !== t.code && o.focus.length > 0);
               const otherSalesWithGroups = localTargets.filter(o => o.code !== t.code && o.groups.length > 0);
               return (
               <div key={t.code} className="p-3 rounded-lg" style={{ background: colors.glassFill }}>
-                <p className="font-semibold text-sm mb-2">{t.name}</p>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="font-semibold text-sm truncate">{t.name}</p>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: colors.mint + "1A", color: colors.mint }}>
+                      {t.groups.length} grup
+                    </span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: colors.violet + "1A", color: colors.violet }}>
+                      {t.focus.length} fokus
+                    </span>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs mb-1" style={{ color: colors.textMuted }}>Target Value (Rp)</label>
-                    <input type="number" value={t.total.value} onChange={e => handleTargetChange(t.code, 'value', e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }} />
+                    <div className="flex items-center gap-1.5">
+                      <input type="number" value={t.total.value} onChange={e => handleTargetChange(t.code, 'value', e.target.value)}
+                        className="w-full px-3 py-1.5 rounded-md mono text-sm" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }} />
+                      <button
+                        onClick={() => handleAutoSumValue(t.code)}
+                        disabled={!(t.groups || []).length}
+                        title="Jumlahkan otomatis semua target value grup produk sales ini"
+                        aria-label={`Auto-sum target value ${t.name}`}
+                        className="sm-btn p-1.5 rounded-md shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
+                        style={{ background: colors.gold + "1A", color: colors.gold, border: `1px solid ${colors.gold}55` }}
+                      >
+                        <Sigma size={14} />
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs mb-1" style={{ color: colors.textMuted }}>Target Active Outlet (AO)</label>
@@ -287,12 +385,27 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                       )}
 
                       {t.groups.map((g, gi) => (
-                        <div key={gi} className="p-2.5 rounded-lg relative" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
-                          <button onClick={() => handleGroupRemove(t.code, gi)} title="Hapus target grup ini"
-                            className="sm-btn absolute top-2 right-2 p-1 rounded-md" style={{ color: colors.coral }}>
-                            <X size={12} />
-                          </button>
-                          <div className="grid grid-cols-1 gap-2 mb-2 pr-6">
+                        <div key={gi} className="p-2.5 rounded-lg relative" style={{ background: colors.glassSubtle, border: `1px solid ${g.focus ? colors.violet + "66" : colors.glassBorder}` }}>
+                          <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleGroupFocusToggle(t.code, gi)}
+                              title={g.focus ? "Hapus dari grup fokus" : "Jadikan grup fokus"}
+                              aria-pressed={!!g.focus}
+                              className="sm-btn p-1.5 rounded-md flex items-center gap-1 text-[10px] font-semibold"
+                              style={{
+                                background: g.focus ? colors.violet + "1A" : "transparent",
+                                color: g.focus ? colors.violet : colors.textMuted,
+                                border: `1px solid ${g.focus ? colors.violet + "66" : colors.glassBorder}`,
+                              }}
+                            >
+                              <Crosshair size={12} /> {g.focus ? "FOKUS" : "Fokus"}
+                            </button>
+                            <button onClick={() => handleGroupRemove(t.code, gi)} title="Hapus target grup ini"
+                              className="sm-btn p-1 rounded-md" style={{ color: colors.coral }}>
+                              <X size={12} />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 gap-2 mb-2 pr-24">
                             <div>
                               <label className="block text-[10px] mb-0.5" style={{ color: colors.textMuted }}>Nama Grup</label>
                               <input value={g.name} onChange={e => handleGroupChange(t.code, gi, 'name', e.target.value)}
@@ -424,8 +537,9 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
               </div>
             );})}
           </div>
-
-          <div className="mt-8 p-4 rounded-lg" style={{ background: colors.mint + "0D", border: `1px solid ${colors.mint}33` }}>
+          </>)}
+          {activeSection === "backup" && (<>
+          <div className="p-4 rounded-lg" style={{ background: colors.mint + "0D", border: `1px solid ${colors.mint}33` }}>
             <h3 className="text-sm font-semibold mb-1" style={{ color: colors.mint }}>Backup & Restore</h3>
             <p className="text-xs mb-3" style={{ color: colors.textMuted }}>
               Export Target, Hari Kerja, Nama Depo, Tema, Filter, Metode Proyeksi, dan Riwayat Snapshot jadi 1 file — untuk backup atau pindah ke device/browser lain. Tidak termasuk data transaksi mentah yang sedang di-upload.
@@ -464,6 +578,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
               Hapus Semua Data Tersimpan
             </button>
           </div>
+          </>)}
         </div>
         <div className="p-4 mt-auto flex justify-end gap-3" style={{ background: colors.glassFill, borderTop: `1px solid ${colors.glassBorder}` }}>
           <button onClick={onClose} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${colors.glassBorder}` }}>Batal</button>

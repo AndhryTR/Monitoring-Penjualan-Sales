@@ -96,6 +96,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
           { key: "ach", label: "ACH", render: (r) => <AchBadge ach={r.ach} colors={colors} /> },
           { key: "deviasiValue", label: "Deviasi", render: (r) => <span className="mono" style={{ color: colors.textMuted }}>{fmtRp(r.deviasiValue)}</span> },
           { key: "realisasiAo", label: "AO", render: (r) => <span className="mono">{r.realisasiAo}/{r.targetAo}</span> },
+          { key: "achAo", label: "ACH AO", render: (r) => <AchBadge ach={r.achAo} colors={colors} /> },
           { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(r.name, "Semua outlet", r.predicate)} /> },
         ]}
         rows={agg.bySales}

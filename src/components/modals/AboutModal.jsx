@@ -1,5 +1,6 @@
 import {
   FileSpreadsheet, X, LayoutDashboard, TrendingUp, Store, Crosshair, Download, Users, Shield,
+  Package, History,
 } from "lucide-react";
 
 /* ============================================================================
@@ -14,6 +15,8 @@ const FEATURES = [
   { icon: TrendingUp, label: "Tren Periode", desc: "Bandingkan performa antar bulan" },
   { icon: Store, label: "Analisis Outlet", desc: "Segmentasi & pola kunjungan" },
   { icon: Crosshair, label: "Produk Fokus", desc: "Pantau target produk prioritas" },
+  { icon: Package, label: "Grup Fokus", desc: "Highlight grup yang sedang digenjot" },
+  { icon: History, label: "Snapshot Periode", desc: "Simpan & bandingkan periode untuk tren" },
   { icon: Download, label: "Export", desc: "Excel, PDF, dan gambar" },
   { icon: Users, label: "Multi-Sales", desc: "Kelola target & performa tiap sales" },
 ];
@@ -79,7 +82,7 @@ export function AboutModal({ isOpen, onClose, colors }) {
           <div className="sm-card p-4 text-center" style={{ borderLeft: `3px solid ${colors.coral}` }}>
             <div className="text-xs" style={{ color: colors.textMuted }}>Dibuat oleh</div>
             <div className="disp text-2xl font-bold mt-0.5" style={{ color: colors.coral }}>Andri.S</div>
-            <div className="text-xs mt-2" style={{ color: colors.textMuted }}>React · Vite · Tailwind CSS &middot; v1.7.0</div>
+            <div className="text-xs mt-2" style={{ color: colors.textMuted }}>React · Vite · Tailwind CSS &middot; v2.0.0</div>
           </div>
         </div>
       </div>

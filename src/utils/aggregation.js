@@ -336,7 +336,7 @@ export function computeAggregates(rows, targets, filters, workDays) {
         const gValue = sumBy(grs, "value");
         const gAo = new Set(grs.map((r) => r.outletCode)).size;
         return {
-          name: g.name, targetValue: g.value, targetAo: g.ao,
+          name: g.name, targetValue: g.value, targetAo: g.ao, focus: !!g.focus,
           realisasiValue: gValue, realisasiAo: gAo,
           ach: g.value ? gValue / g.value : null, achAo: g.ao ? gAo / g.ao : null,
           deviasiValue: g.value ? g.value - gValue : 0, deviasiAo: g.ao ? g.ao - gAo : 0,
@@ -358,7 +358,7 @@ export function computeAggregates(rows, targets, filters, workDays) {
         realisasiValue: value, realisasiAo: ao, ach, achAo,
         deviasiValue: t.total.value ? t.total.value - value : null,
         deviasiAo: t.total.ao ? t.total.ao - ao : null,
-        groups, focus, predicate: (row) => row.salesCode === t.code };
+        groups, focus, focusGroups: groups.filter((g) => g.focus), predicate: (row) => row.salesCode === t.code };
     });
 
     const totalTargetValue = sumBy(bySales, "targetValue");
@@ -420,6 +420,29 @@ export function computeAggregates(rows, targets, filters, workDays) {
       });
     });
 
+    // focus groups — grup yang ditandai `focus: true` di Pengaturan (highlight
+    // grup existing, tanpa target baru). Data reuse dari perhitungan grup yang
+    // sudah ada; cuma di-flatten jadi baris global (paralel `focusRows`).
+    const focusGroupRows = [];
+    relevantTargets.forEach((t) => {
+      t.groups.forEach((g) => {
+        if (!g.focus) return;
+        const rs = filtered.filter((r) => r.salesCode === t.code && r.group === g.name);
+        const gValue = sumBy(rs, "value");
+        const gAo = new Set(rs.map((r) => r.outletCode)).size;
+        focusGroupRows.push({
+          salesCode: t.code, salesName: t.name, name: g.name,
+          targetValue: g.value, realisasiValue: gValue,
+          targetAo: g.ao, realisasiAo: gAo,
+          ach: g.value ? gValue / g.value : null,
+          achAo: g.ao ? gAo / g.ao : null,
+          predicate: (row) => row.salesCode === t.code && row.group === g.name,
+        });
+      });
+    });
+    // Urut: sales teratas (ACH desc) dulu, lalu grup dengan realisasi terbesar.
+    focusGroupRows.sort((a, b) => (b.ach ?? -1) - (a.ach ?? -1) || b.realisasiValue - a.realisasiValue);
+
     // Info tanggal untuk header laporan (BULAN, SD HARI INI, tanggal "per")
     const uniqueDateStrs = Array.from(new Set(filtered.map((r) => r.date).filter(Boolean))).sort();
     const meta = {
@@ -465,7 +488,7 @@ export function computeAggregates(rows, targets, filters, workDays) {
     }
 
     return {
-      filteredRows: filtered, bySales, byGroup, daily, monthly, focusRows, meta, projection, alerts,
+      filteredRows: filtered, bySales, byGroup, daily, monthly, focusRows, focusGroupRows, meta, projection, alerts,
       totals: { targetValue: totalTargetValue, targetAo: totalTargetAo, realisasiValue: totalRealisasiValue,
         realisasiAo: totalRealisasiAo, ach: overallAch,
         deviasiValue: totalTargetValue ? totalTargetValue - totalRealisasiValue : null },

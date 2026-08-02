@@ -192,7 +192,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
           <button onClick={onOpenPeriodPicker}
             className="sm-btn inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
             style={{ background: colors.gold, color: "#0A1120" }}>
-            <History size={15} /> Pilih Periode Riwayat
+            <History size={15} /> Pilih Snapshot Periode
           </button>
         </div>
       </div>
