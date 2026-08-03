@@ -789,7 +789,7 @@ export default function SalesMonitoringApp() {
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} />}
             {activeTab === "outlet" && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} rawRows={rawRows} targets={targets} depotName={depotName} />}
-            {activeTab === "compare" && <ComparisonPage rawRows={rawRows} targets={targets} colors={colors} workDays={workDays} />}
+            {activeTab === "compare" && <ComparisonPage rawRows={rawRows} targets={targets} colors={colors} workDays={workDays} depotName={depotName} />}
             {activeTab === "transactions" && <TransactionsPage agg={aggFinal} colors={colors} onOutletDrilldown={openOutletDetail} />}
             {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
             {activeTab === "trend" && <TrendPeriodePage comparisonData={finalTrendComparisonData} isAutoTrend={isAutoTrend} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} depotName={depotName} />}
