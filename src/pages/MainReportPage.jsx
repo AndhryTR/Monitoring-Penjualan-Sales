@@ -8,7 +8,7 @@ import {
   CalendarDays, LayoutDashboard,
 } from "lucide-react";
 import { fmtRp, fmtNum } from "../utils/formatters.js";
-import { dateKey } from "../utils/aggregation.js";
+import { dateKey, computeAggregates } from "../utils/aggregation.js";
 import { KpiCard } from "../components/KpiCard.jsx";
 import { PaceStrip } from "../components/PaceStrip.jsx";
 import { AchBadge } from "../components/AchBadge.jsx";
@@ -21,11 +21,23 @@ import { InsightBanner } from "../components/executive/InsightBanner.jsx";
    TAB: MAIN REPORT
    Pace strip + alerts + comparison + 6 KPI + proyeksi + 2 chart + tabel sales.
 ============================================================================ */
-export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison, projectionMethod, onProjectionMethodChange, dataQualityNotes, onNavigate }) {
+export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison, projectionMethod, onProjectionMethodChange, dataQualityNotes, onNavigate, rawRows, targets, filters }) {
   const uniqueDaysInData = useMemo(() => new Set(agg.filteredRows.map(r => dateKey(r.date))).size, [agg.filteredRows]);
   const t = agg.totals;
   // Calculate time gone based on unique work days found in the data vs total work days in the month.
   const timeGone = workDays ? Math.min(1, uniqueDaysInData / workDays) : 0;
+
+  // Kumulatif bulanan dari seluruh dataset (raw), ikut filter sales & grup
+  // (TANPA rentang tanggal), ambil max 12 bulan terakhir yang ADA datanya.
+  // computeAggregates dipanggil dengan filters tanpa dateFrom/dateTo supaya
+  // rentang tidak membatasi bulan yang tampil, tapi sales/grup tetap berlaku.
+  const monthlyCumulative = useMemo(() => {
+    if (!rawRows || !rawRows.length) return [];
+    const aggAll = computeAggregates(rawRows, targets, { ...filters, dateFrom: "", dateTo: "" }, null);
+    const months = (aggAll.monthly || []).sort((a, b) => a.month.localeCompare(b.month));
+    // Bulan hanya yang ADA datanya, kronologis, max 12 terakhir.
+    return months.slice(-12);
+  }, [rawRows, targets, filters]);
   return (
     <div className="sm-page-enter">
       <PaceStrip timeGonePct={timeGone} achPct={t.ach} colors={colors} />
@@ -66,9 +78,9 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
           </ResponsiveContainer>
         </div>
         <div className="sm-card p-5 sm-fadeup" style={{ animationDelay: "60ms" }}>
-          <SectionTitle title="Kumulatif Bulanan" sub="Total realisasi per bulan" icon={LayoutDashboard} colors={colors} accent={colors.mint} />
+          <SectionTitle title="Kumulatif Bulanan" sub={`${monthlyCumulative.length ? `${monthlyCumulative.length > 1 ? `${monthlyCumulative.length} bulan terakhir` : monthlyCumulative[0].month} · ` : ""}Realisasi value per bulan`} icon={LayoutDashboard} colors={colors} accent={colors.mint} />
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={agg.monthly}>
+            <BarChart data={monthlyCumulative}>
               <defs>
                 <linearGradient id="gMint" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={colors.mint} stopOpacity={0.85} />
