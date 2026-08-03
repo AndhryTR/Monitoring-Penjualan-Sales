@@ -13,6 +13,9 @@ import {
 } from "../utils/comparison.js";
 import { saveCompareState, loadCompareState } from "../utils/storage.js";
 import { fmtRp, fmtPct } from "../utils/formatters.js";
+import { exportComparisonExcel } from "../utils/comparisonExport.js";
+import { captureChartImage } from "../utils/trendExport.js";
+import { Download } from "lucide-react";
 
 /* ============================================================================
    TAB: PERBANDINGAN (Comparison Studio)
@@ -31,7 +34,9 @@ const MODES = [
   { key: "outlet", label: "Outlet", icon: Store },
 ];
 
-export function ComparisonPage({ rawRows, targets, colors, workDays }) {
+export function ComparisonPage({ rawRows, targets, colors, workDays, depotName }) {
+  const [exportBusy, setExportBusy] = useState(false);
+  const chartRef = useRef(null);
   // State di-restore dari localStorage (tab ini di-unmount tiap pindah tab —
   // tanpa persist, semua pilihan hilang saat kembali). Lazy init: baca sekali
   // di mount; guard pakai useRef supaya "Clear All" yang dipicu dari luar
@@ -126,6 +131,36 @@ export function ComparisonPage({ rawRows, targets, colors, workDays }) {
   const pickColor = periodColorPicker(colors);
   const ready = periods.length >= 2 && kpiRows.length >= 2;
 
+  // Rentang label untuk subtitle export (dari periode pertama & terakhir).
+  const rangeLabel = periods.length
+    ? `${periods[0].label} — ${periods[periods.length - 1].label}`
+    : "";
+
+  const handleExport = async () => {
+    if (!ready || exportBusy) return;
+    setExportBusy(true);
+    try {
+      let chartImage = null;
+      try {
+        chartImage = chartRef.current ? await captureChartImage(chartRef.current, colors.surface) : null;
+      } catch (e) {
+        console.error("Gagal menangkap grafik:", e);
+      }
+      exportComparisonExcel(kpiRows, periods, {
+        depotName: depotName || "DEPO LOTIM",
+        mode,
+        metricKey: metric,
+        metricLabel,
+        rangeLabel,
+        chartImage,
+      });
+    } catch (e) {
+      console.error("Gagal export perbandingan:", e);
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
   return (
     <div className="sm-page-enter">
       <SectionTitle title="Perbandingan" sub="Bandingkan entitas (sales / grup / outlet) lintas periode pilihan Anda" icon={GitCompareArrows} colors={colors} accent={colors.violet} />
@@ -213,14 +248,19 @@ export function ComparisonPage({ rawRows, targets, colors, workDays }) {
           </div>
 
           {/* Bar chart */}
-          <div className="sm-card p-5 mb-5 sm-fadeup">
-            <div className="text-xs uppercase tracking-wider mb-3" style={{ color: colors.textMuted }}>
-              {metricLabel} per Periode
+          <div className="sm-card p-5 mb-5 sm-fadeup" ref={chartRef}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs uppercase tracking-wider" style={{ color: colors.textMuted }}>
+                {metricLabel} per Periode
+              </div>
+              <button onClick={handleExport} disabled={exportBusy}
+                className="sm-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.mint }}>
+                <Download size={14} /> {exportBusy ? "Menyiapkan..." : "Export Excel"}
+              </button>
             </div>
             <GroupedBarChart data={chartData} periods={periods} periodColor={pickColor} metricKey={metric} isMoney={metricMeta.money} isPct={metricMeta.pct} colors={colors} />
           </div>
-
-          {/* Tabel matrix */}
           <div className="sm-card p-5 sm-fadeup">
             <SectionTitle title={`Detail ${metricLabel} per Entitas`} sub="Kolom = periode · angka kecil di bawah = ACH (hanya periode 1 bulan penuh)" icon={Wallet} colors={colors} />
             <MatrixTable
