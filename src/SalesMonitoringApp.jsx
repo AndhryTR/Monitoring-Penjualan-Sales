@@ -305,14 +305,24 @@ export default function SalesMonitoringApp() {
 
   // Hanya jalankan saat login: tarik cloud, merge LWW, terapkan ke state.
   const runPullAndApply = useCallback(async () => {
+    console.log("[sync] runPullAndApply jalan");
     if (!supabase) return;
-    const pull = await pullFromCloud();
-    if (!pull.ok) { setSyncState("error"); setSyncMsg("Gagal menarik data cloud."); return; }
+    let pull;
+    try {
+      pull = await pullFromCloud();
+    } catch (e) {
+      console.error("[sync] pullFromCloud THROW:", e);
+      setSyncState("error"); setSyncMsg("Gagal menarik data cloud: " + (e?.message || e));
+      return;
+    }
+    console.log("[sync] pull result ok:", pull?.ok, "reason:", pull?.reason);
+    if (!pull?.ok) { setSyncState("error"); setSyncMsg("Gagal menarik data cloud."); return; }
 
     // Dokumen di CLOUD yang TIDAK ada (atau kosong) tapi LOKAL punya data ->
     // push lokal ke cloud. Session dianggap "ada" HANYA kalau raw_rows isi.
     const sessionCloud = pull.docs.find((d) => d.key === "session");
     const sessionCloudHasData = !!(sessionCloud && sessionCloud.data && sessionCloud.data.raw_rows && sessionCloud.data.raw_rows.length);
+    console.log("[sync] pull docs:", pull.docs.map((d) => d.key).join(",") || "(kosong)", "| sessionCloudHasData:", sessionCloudHasData, "| local rawRows:", rawRows ? rawRows.length : "null");
     const cloudKeys = new Set(pull.docs.map((d) => d.key));
     // Normalisasi docs untuk merge: session cloud KOSONG dianggap tak ada
     // (jangan sampai merge menimpa data lokal dengan baris kosong).
@@ -394,6 +404,7 @@ export default function SalesMonitoringApp() {
 
   // Gabungan flush + pull: jalankan setelah login atau saat refresh manual.
   const syncNow = useCallback(async () => {
+    console.log("[sync] syncNow dipanggil, authed:", isAuthedRef.current, "supabase:", !!supabase);
     if (!supabase || !isAuthedRef.current) return;
     setSyncState("syncing");
     await flushQueueRef.current?.();
