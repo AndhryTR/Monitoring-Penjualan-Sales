@@ -123,8 +123,8 @@ async function upsertRow(table, payload) {
 // (depot_name, work_days, ...) — Supabase menolak kolom yang tidak dikenal.
 export async function pushToCloud(docs) {
   if (!supabase) return { ok: false, reason: "not_configured", pushed: 0 };
-  const uid = supabase.auth.getUser().then((x) => x.data?.user?.id).catch(() => null);
-  const user = await uid;
+  const { data: sessData } = await supabase.auth.getSession().catch(() => ({ data: null }));
+  const user = sessData?.session?.user || null;
   if (!user?.id) return { ok: false, reason: "no_session", pushed: 0 };
   const now = nowMs();
   let pushed = 0;
@@ -133,6 +133,15 @@ export async function pushToCloud(docs) {
     const device = data.updated_by || getDeviceId();
     const updated_at = data.updated_at || now;
     try {
+      if (key === "session") {
+        const bytes = new Blob([JSON.stringify(data.rawRows || [])]).size;
+        console.log(`[sync] push session: rows=${(data.rawRows || []).length} payload~${(bytes / 1024 / 1024).toFixed(1)}MB`);
+        if (!(data.rawRows && data.rawRows.length)) {
+          // Session TANPA baris data = tidak ada data. Jangan pernah upsert
+          // (mencegah cloud terisi baris kosong yang "memiliki" dokumen).
+          continue;
+        }
+      }
       if (key === "settings") {
         await upsertRow("profiles", {
           user_id: user.id,
@@ -166,14 +175,16 @@ export async function pushToCloud(docs) {
       console.warn(`[sync] gagal push ${key}:`, e.message);
     }
   }
-  return { ok: true, reason: "ok", pushed };
+  // Kalau ADA yang gagal, tandai error (bukan "ok") supaya UI tidak menipu.
+  const allOk = pushed === docs.length;
+  return { ok: allOk, reason: allOk ? "ok" : "partial", pushed, total: docs.length };
 }
 
 // Ambil semua dokumen cloud milik user -> array [{key, data}]
 export async function pullFromCloud() {
   if (!supabase) return { ok: false, reason: "not_configured", docs: [] };
-  const uid = supabase.auth.getUser().then((x) => x.data?.user?.id).catch(() => null);
-  const user = await uid;
+  const { data: sessData } = await supabase.auth.getSession().catch(() => ({ data: null }));
+  const user = sessData?.session?.user || null;
   if (!user?.id) return { ok: false, reason: "no_session", docs: [] };
   const docs = [];
   const tables = ["profiles", "sales_data", "history"];
