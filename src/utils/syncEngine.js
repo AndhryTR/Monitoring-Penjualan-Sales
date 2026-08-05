@@ -119,11 +119,13 @@ async function upsertRow(table, payload) {
 }
 
 // Setiap dokumen: payload di-colok di kolom jsonb tabel masing-masing.
+// PENTING: nama kolom harus SNAKE_CASE persis seperti di setup.sql
+// (depot_name, work_days, ...) — Supabase menolak kolom yang tidak dikenal.
 export async function pushToCloud(docs) {
   if (!supabase) return { ok: false, reason: "not_configured", pushed: 0 };
   const uid = supabase.auth.getUser().then((x) => x.data?.user?.id).catch(() => null);
   const user = await uid;
-  if (!user) return { ok: false, reason: "no_session", pushed: 0 };
+  if (!user?.id) return { ok: false, reason: "no_session", pushed: 0 };
   const now = nowMs();
   let pushed = 0;
   for (const doc of docs) {
@@ -135,19 +137,19 @@ export async function pushToCloud(docs) {
         await upsertRow("profiles", {
           user_id: user.id,
           targets: data.targets ?? null,
-          workDays: data.workDays ?? null,
-          depotName: data.depotName ?? null,
+          work_days: data.workDays ?? null,
+          depot_name: data.depotName ?? null,
           theme: data.theme ?? null,
-          projectionMethod: data.projectionMethod ?? null,
-          sidebarCollapsed: data.sidebarCollapsed ?? null,
+          projection_method: data.projectionMethod ?? null,
+          sidebar_collapsed: data.sidebarCollapsed ?? null,
           updated_at, updated_by: device,
         });
       } else if (key === "session") {
         await upsertRow("sales_data", {
           user_id: user.id,
-          fileName: data.fileName ?? null,
-          parseMeta: data.parseMeta ?? null,
-          rawRows: data.rawRows ?? null,
+          file_name: data.fileName ?? null,
+          parse_meta: data.parseMeta ?? null,
+          raw_rows: data.rawRows ?? null,
           updated_at, updated_by: device,
         });
       } else if (key === "history") {
@@ -172,7 +174,7 @@ export async function pullFromCloud() {
   if (!supabase) return { ok: false, reason: "not_configured", docs: [] };
   const uid = supabase.auth.getUser().then((x) => x.data?.user?.id).catch(() => null);
   const user = await uid;
-  if (!user) return { ok: false, reason: "no_session", docs: [] };
+  if (!user?.id) return { ok: false, reason: "no_session", docs: [] };
   const docs = [];
   const tables = ["profiles", "sales_data", "history"];
   for (const t of tables) {
