@@ -273,7 +273,8 @@ export default function SalesMonitoringApp() {
       setSyncState("done"); setLastSyncAt(Date.now());
       setPendingFlags(attachPendingFlags(await getAllPending()));
     } else {
-      setSyncState("error"); setSyncMsg("Gagal mengirim ke cloud.");
+      setSyncState("error");
+      setSyncMsg(`Gagal mengirim ${res.total - res.pushed}/${res.total} perubahan ke cloud.`);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   flushQueueRef.current = flushQueue;
@@ -308,22 +309,61 @@ export default function SalesMonitoringApp() {
     const pull = await pullFromCloud();
     if (!pull.ok) { setSyncState("error"); setSyncMsg("Gagal menarik data cloud."); return; }
 
-    // Dokumen di CLOUD yang TIDAK ada tapi LOKAL punya data -> push lokal ke
-    // cloud (sumber pertama dari perangkat yang sudah punya data, mis. upload
-    // sebelum login atau dimuat dari IndexedDB).
+    // Dokumen di CLOUD yang TIDAK ada (atau kosong) tapi LOKAL punya data ->
+    // push lokal ke cloud. Session dianggap "ada" HANYA kalau raw_rows isi.
+    const sessionCloud = pull.docs.find((d) => d.key === "session");
+    const sessionCloudHasData = !!(sessionCloud && sessionCloud.data && sessionCloud.data.raw_rows && sessionCloud.data.raw_rows.length);
     const cloudKeys = new Set(pull.docs.map((d) => d.key));
+    // Normalisasi docs untuk merge: session cloud KOSONG dianggap tak ada
+    // (jangan sampai merge menimpa data lokal dengan baris kosong).
+    const pullDocsForMerge = pull.docs
+      .filter((d) => !(d.key === "session" && !sessionCloudHasData))
+      .map((d) => (d.key === "session" ? { ...d, data: { ...d.data } } : d));
+
+    if (!sessionCloudHasData) {
+      // baca dari IndexedDB kalau state React belum terisi (race saat app baru
+      // dimuat) — supaya tidak mengirim raw_rows kosong / melewatkan data.
+      let localRows = rawRows;
+      let localFile = fileName;
+      let localMeta = parseMeta;
+      if (!(localRows && localRows.length)) {
+        try {
+          const stored = await loadSession();
+          if (stored && stored.rawRows && stored.rawRows.length) {
+            localRows = stored.rawRows;
+            localFile = stored.fileName || "";
+            localMeta = stored.parseMeta || null;
+          }
+        } catch (_e) { /* abaikan */ }
+      }
+      if (localRows && localRows.length) {
+        // pastikan state terisi (data lama dari IndexedDB)
+        if (!(rawRows && rawRows.length)) {
+          setRawRows(localRows);
+          setFileName(localFile);
+          setParseMeta(localMeta);
+        }
+        await pushToCloud([{ key: "session", data: {
+          rawRows: localRows, fileName: localFile, parseMeta: localMeta,
+          updated_by: getDeviceId(), updated_at: Date.now(),
+        } }]);
+        localTsRef.current.session = Date.now();
+        console.log(`[sync] push session (local-first): rows=${localRows.length}`);
+      }
+    }
     const localHas = {
       settings: true, // settings selalu dianggap ada (ada default)
       session: (rawRows && rawRows.length > 0),
       history: (history && history.length > 0),
     };
     for (const k of ["settings", "session", "history"]) {
-      if (!cloudKeys.has(k) && localHas[k]) {
-        await pushToCloud([{ key: k, data: buildLocalDoc(k) }]);
+      if (!cloudKeys.has(k) && localHas[k] && k !== "session") {
+        const res = await pushToCloud([{ key: k, data: buildLocalDoc(k) }]);
+        console.log(`[sync] push ${k}: ok=${res.ok} pushed=${res.pushed} total=${res.total}`);
       }
     }
 
-    const { apply, pushBack } = mergeLocalVsCloud(localTsRef.current, pull.docs);
+    const { apply, pushBack } = mergeLocalVsCloud(localTsRef.current, pullDocsForMerge);
     if (apply.length) {
       apply.forEach(({ key, data }) => {
         localTsRef.current[key] = Number(data.updated_at) || Date.now();
