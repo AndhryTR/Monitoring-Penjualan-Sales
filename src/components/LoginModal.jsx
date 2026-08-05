@@ -11,7 +11,7 @@ import { signInWithIdentifier, signUpAccount, resetPassword } from "../utils/clo
    DAFTAR: username + email + password + konfirmasi (field terpisah).
 ============================================================================ */
 
-export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUser, onLogout, syncState = "idle", lastSyncAt = 0 }) {
+export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUser, onLogout, syncState = "idle", lastSyncAt = 0, onManualSync }) {
   const [tab, setTab] = useState("login");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -129,6 +129,11 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
                 </div>
               </div>
             </div>
+            <button onClick={onManualSync} disabled={syncState === "syncing"}
+              className="sm-btn w-full px-3 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5"
+              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
+              {syncState === "syncing" ? <Loader2 size={15} className="animate-spin" /> : <CloudUpload size={15} style={{ color: colors.mint }} />} Sinkronkan Sekarang
+            </button>
             <button onClick={onLogout}
               className="sm-btn w-full px-3 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5"
               style={{ background: colors.coral + "14", color: colors.coral, border: `1px solid ${colors.coral}33` }}>
