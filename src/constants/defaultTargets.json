@@ -99,12 +99,12 @@
       },
       {
         "name": "MOCHI CONLEY",
-        "value": 185000000,
+        "value": 77000000,
         "ao": 120
       },
       {
         "name": "PLANGI JAYA",
-        "value": 77000000,
+        "value": 185000000,
         "ao": 120,
         "focus": true
       },
@@ -312,7 +312,7 @@
       },
       {
         "name": "MI KRITING",
-        "value": 35000000,
+        "value": 25000000,
         "ao": 80,
         "focus": true
       },

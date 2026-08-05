@@ -1,11 +1,17 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import sumBy from "lodash/sumBy";
 import {
-  X, RefreshCw, Sun, Moon,
+  X, RefreshCw, Sun, Moon, Cloud, CloudOff, CloudUpload, User as UserIcon,
   Smartphone, Share, History, Settings,
   FileSpreadsheet, AlertTriangle, CheckCircle2,
 } from "lucide-react";
-import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState } from "./utils/storage.js";
+import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState, setSyncCallbacks } from "./utils/storage.js";
+import { supabase, getSession, onAuthChange, signOutAccount } from "./utils/cloud.js";
+import {
+  getDeviceId, queuePending, getAllPending, countAllPending, clearPending,
+  pushToCloud, pullFromCloud, mergeLocalVsCloud, attachPendingFlags,
+} from "./utils/syncEngine.js";
+import { LoginModal } from "./components/LoginModal.jsx";
 import {
   parseWorkbookFile, dedupeRows,
 } from "./utils/excelParse.js";
@@ -233,6 +239,100 @@ export default function SalesMonitoringApp() {
   // user yang sifatnya "cara pandang data", bukan data itu sendiri.
   const [projectionMethod, setProjectionMethod] = useState(persistedSettings?.projectionMethod ?? "linear");
 
+  /* ============================ AKUN & SINKRONISASI ============================ */
+  const [sessionUser, setSessionUser] = useState(null);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [syncState, setSyncState] = useState("idle"); // idle | syncing | done | error | offline
+  const [syncMsg, setSyncMsg] = useState("");
+  const [pendingFlags, setPendingFlags] = useState({ settings: false, session: false, history: false });
+  const [lastSyncAt, setLastSyncAt] = useState(0);
+  const [syncBanner, setSyncBanner] = useState(null); // { type: "info"|"ok"|"err", text }
+
+  // updated_at lokal per dokumen — dipakai perbandingan LWW saat merge.
+  const localTsRef = useRef({
+    settings: Number(persistedSettings?.updated_at) || 0,
+    session: 0,
+    history: 0,
+  });
+  const isAuthedRef = useRef(false);
+  // ref ke flushQueue — diisi di body render tiap kali, dipakai dari effect
+  // lifecycle yang didefinisikan sebelum definisi flushQueue.
+  const flushQueueRef = useRef(null);
+
+  // Flush queue -> cloud (dipakai saat ada perubahan & saat koneksi pulih).
+  const flushQueue = useCallback(async () => {
+    if (!supabase) return;
+    const sess = await getSession();
+    if (!sess) { setSyncState("offline"); return; }
+    const all = await getAllPending();
+    if (!all.length) { setSyncState("done"); setLastSyncAt(Date.now()); return; }
+    setSyncState("syncing");
+    const res = await pushToCloud(all);
+    if (res.ok) {
+      setSyncState("done"); setLastSyncAt(Date.now());
+      setPendingFlags(attachPendingFlags(await getAllPending()));
+    } else {
+      setSyncState("error"); setSyncMsg("Gagal mengirim ke cloud.");
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  flushQueueRef.current = flushQueue;
+
+  const cloudEnabled = !!supabase;
+
+  // Keluar dari akun — state app TIDAK diubah (data lokal tetap utuh);
+  // listener onAuthChange akan set sessionUser=null & syncState=idle.
+  const handleLogout = useCallback(async () => {
+    await signOutAccount();
+    setIsLoginOpen(false);
+  }, []);
+
+  // Bangun "dokumen lokal" berisi data terkini + updated_at + device id.
+  const buildLocalDoc = useCallback((key) => {
+    const base = { updated_by: getDeviceId(), updated_at: localTsRef.current[key] || Date.now() };
+    if (key === "settings") {
+      return { ...base, targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed };
+    }
+    if (key === "session") {
+      return { ...base, rawRows, fileName, parseMeta };
+    }
+    if (key === "history") {
+      return { ...base, entries: history };
+    }
+    return base;
+  }, [targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed, rawRows, fileName, parseMeta, history]);
+
+  // Hanya jalankan saat login: tarik cloud, merge LWW, terapkan ke state.
+  const runPullAndApply = useCallback(async () => {
+    const pull = await pullFromCloud();
+    if (!pull.ok) { setSyncState("error"); setSyncMsg("Gagal menarik data cloud."); return; }
+    const { apply, pushBack } = mergeLocalVsCloud(localTsRef.current, pull.docs);
+    if (apply.length) {
+      apply.forEach(({ key, data }) => {
+        localTsRef.current[key] = Number(data.updated_at) || Date.now();
+        if (key === "settings") {
+          if (data.targets) setTargets(data.targets);
+          if (data.work_days) setWorkDays(data.work_days);
+          if (data.depot_name) setDepotName(data.depot_name);
+          if (data.theme) setTheme(data.theme);
+          if (data.projection_method) setProjectionMethod(data.projection_method);
+          if (typeof data.sidebar_collapsed === "boolean") setSidebarCollapsed(data.sidebar_collapsed);
+        } else if (key === "session") {
+          if (data.raw_rows && data.raw_rows.length) {
+            setRawRows(data.raw_rows);
+            setFileName(data.file_name || "");
+            setParseMeta(data.parse_meta || null);
+          }
+        } else if (key === "history") {
+          if (Array.isArray(data.entries)) setHistory(data.entries);
+        }
+      });
+    }
+    if (pushBack.length) {
+      await pushToCloud(pushBack.map(({ key, data }) => ({ key, data })));
+    }
+    setLastSyncAt(Date.now());
+  }, [pullFromCloud, mergeLocalVsCloud, pushToCloud]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Muat data sesi terakhir (hasil upload/demo sebelumnya) dari IndexedDB saat
   // pertama kali app dibuka. Async, jadi ditampilkan status loading singkat
   // dulu supaya tidak "flash" ke tampilan "Belum ada data" sebelum sempat dicek.
@@ -254,15 +354,142 @@ export default function SalesMonitoringApp() {
   // hari kerja, nama depo) — jadi tidak perlu tombol "simpan" terpisah untuk ini,
   // beda dengan raw data yang lebih berat dan disimpan terpisah di bawah.
   useEffect(() => {
-    saveSettings({ theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed });
-  }, [theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed]);
+    saveSettings({ theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed, updated_at: Date.now() });
+    localTsRef.current.settings = Date.now();
+    if (isAuthedRef.current) {
+      queuePending("settings", { data: buildLocalDoc("settings") });
+      if (supabase) { flushQueueRef.current?.(); }
+    }
+  }, [theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Simpan otomatis data transaksi ke IndexedDB tiap kali berubah (setelah upload
   // dikonfirmasi atau data contoh dimuat). Di-skip saat kosong karena reset
   // ditangani secara eksplisit lewat clearSession() di handleReset.
   useEffect(() => {
     if (rawRows.length) saveSession({ rawRows, fileName, parseMeta });
-  }, [rawRows, fileName, parseMeta]);
+    // Sync data transaksi ke cloud (kalau authed + berubah).
+    if (isAuthedRef.current && rawRows.length) {
+      queuePending("session", { data: buildLocalDoc("session") });
+      if (supabase) { flushQueueRef.current?.(); }
+    }
+  }, [rawRows, fileName, parseMeta]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync riwayat ke cloud saat berubah.
+  useEffect(() => {
+    if (isAuthedRef.current && history.length) {
+      queuePending("history", { data: buildLocalDoc("history") });
+      if (supabase) { flushQueueRef.current?.(); }
+    }
+  }, [history]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Set callbacks sync ke storage.js: setelah simpan lokal, tandai queue.
+  useEffect(() => {
+    setSyncCallbacks({ markPending: () => {
+      if (!isAuthedRef.current) return;
+      setPendingFlags(attachPendingFlags([])); // trigger refresh ringan
+      flushQueueRef.current?.();
+    } });
+    return () => setSyncCallbacks(null);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Inisialisasi: cek sesi + pasang listener auth + listener online/offline.
+  useEffect(() => {
+    let alive = true;
+    let flushTimer = null;
+    // utk autorefresh status saat koneksi pulih
+    const doFlush = () => { if (alive && isAuthedRef.current) flushQueueRef.current?.(); };
+    (async () => {
+      const sess = await getSession();
+      if (!alive) return;
+      if (sess) {
+        isAuthedRef.current = true;
+        setSessionUser(sess.user);
+        // baca updated_at lokal untuk pengaturan tersimpan
+        const st = loadSettings();
+        if (st && st.updated_at) localTsRef.current.settings = Number(st.updated_at);
+        await flushQueueRef.current?.();
+        const pull = await pullFromCloud();
+        const { apply, pushBack } = mergeLocalVsCloud(localTsRef.current, pull.docs);
+        Object.assign(localTsRef.current, {});
+        if (apply.length) {
+          apply.forEach(({ key, data }) => {
+            localTsRef.current[key] = Number(data.updated_at) || Date.now();
+            if (key === "settings") {
+              if (data.targets) setTargets(data.targets);
+              if (data.work_days) setWorkDays(data.work_days);
+              if (data.depot_name) setDepotName(data.depot_name);
+              if (data.theme) setTheme(data.theme);
+              if (data.projection_method) setProjectionMethod(data.projection_method);
+              if (typeof data.sidebar_collapsed === "boolean") setSidebarCollapsed(data.sidebar_collapsed);
+            } else if (key === "session") {
+              if (data.raw_rows && data.raw_rows.length) {
+                setRawRows(data.raw_rows); setFileName(data.file_name || ""); setParseMeta(data.parse_meta || null);
+              }
+            } else if (key === "history") {
+              if (Array.isArray(data.entries)) setHistory(data.entries);
+            }
+          });
+        }
+        if (pushBack.length) await pushToCloud(pushBack.map(({ key }) => ({ key, data: buildLocalDoc(key) })));
+        setPendingFlags(attachPendingFlags(await getAllPending()));
+        setLastSyncAt(Date.now());
+        if (alive) setSyncState("done");
+      } else {
+        if (alive) setSyncState("idle");
+      }
+    })();
+
+    const unsub = onAuthChange((session) => {
+      if (!alive) return;
+      if (session) {
+        isAuthedRef.current = true;
+        setSessionUser(session.user);
+        setSyncState("syncing");
+        doFlush();
+        // ulangi pull agar data cloud terbaru muncul
+        setTimeout(async () => {
+          const pull = await pullFromCloud();
+          const { apply } = mergeLocalVsCloud(localTsRef.current, pull.docs);
+          if (apply.length) {
+            apply.forEach(({ key, data }) => {
+              localTsRef.current[key] = Number(data.updated_at) || Date.now();
+              if (key === "settings") {
+                if (data.targets) setTargets(data.targets);
+                if (data.work_days) setWorkDays(data.work_days);
+                if (data.depot_name) setDepotName(data.depot_name);
+                if (data.theme) setTheme(data.theme);
+                if (data.projection_method) setProjectionMethod(data.projection_method);
+                if (typeof data.sidebar_collapsed === "boolean") setSidebarCollapsed(data.sidebar_collapsed);
+              } else if (key === "session") {
+                if (data.raw_rows && data.raw_rows.length) {
+                  setRawRows(data.raw_rows); setFileName(data.file_name || ""); setParseMeta(data.parse_meta || null);
+                }
+              } else if (key === "history") {
+                if (Array.isArray(data.entries)) setHistory(data.entries);
+              }
+            });
+          }
+          setPendingFlags(attachPendingFlags(await getAllPending()));
+          setLastSyncAt(Date.now());
+          if (alive) setSyncState("done");
+        }, 300);
+      } else {
+        isAuthedRef.current = false;
+        setSessionUser(null);
+        setSyncState("idle");
+      }
+    });
+
+    const onOnline = () => { if (alive && isAuthedRef.current) { doFlush(); } };
+    window.addEventListener("online", onOnline);
+
+    return () => {
+      alive = false;
+      unsub();
+      window.removeEventListener("online", onOnline);
+      if (flushTimer) clearTimeout(flushTimer);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* --------------------------- PWA: instal & update --------------------------- */
 
@@ -631,6 +858,7 @@ export default function SalesMonitoringApp() {
       <div className="relative" style={{ zIndex: 1 }}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors}
         theme={theme} setTheme={setTheme} powerSaveMode={powerSaveMode} setPowerSaveMode={setPowerSaveMode} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge} />
+      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} colors={colors} onLoginSuccess={() => {}} sessionUser={sessionUser} onLogout={handleLogout} syncState={syncState} lastSyncAt={lastSyncAt} />
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} colors={colors} />
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
       <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
@@ -664,6 +892,31 @@ export default function SalesMonitoringApp() {
                 <Smartphone size={15} /> <span className="hidden sm:inline">Instal Aplikasi</span>
               </button>
             )}
+            <button onClick={() => setIsLoginOpen(true)}
+              className="sm-btn flex items-center gap-2 px-2.5 py-2.5 rounded-xl text-sm font-semibold relative"
+              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
+              title={sessionUser ? (sessionUser.email || "Akun") : "Masuk / Daftar"}>
+              {sessionUser ? (
+                <UserIcon size={15} style={{ color: colors.mint }} />
+              ) : (
+                <CloudOff size={15} style={{ color: colors.textMuted }} />
+              )}
+              {/* indikator sync: ikon awan kecil */}
+              {sessionUser && (
+                <span className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full" style={{ background: colors.surface }}>
+                  {syncState === "syncing" || syncState === "idle" ? (
+                    <CloudUpload size={11} style={{ color: colors.gold }} />
+                  ) : syncState === "done" ? (
+                    <CheckCircle2 size={11} style={{ color: colors.mint }} />
+                  ) : (
+                    <CloudOff size={11} style={{ color: colors.coral }} />
+                  )}
+                </span>
+              )}
+              {!sessionUser && cloudEnabled && (
+                <span className="hidden sm:inline text-xs" style={{ color: colors.textMuted }}>Masuk</span>
+              )}
+            </button>
             <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
               className="sm-btn flex items-center gap-2 px-2.5 py-2.5 rounded-xl text-sm font-semibold"
               style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
@@ -798,7 +1051,9 @@ export default function SalesMonitoringApp() {
 
         <div className="text-center mt-10 pb-4">
           <p className="text-xs mb-2" style={{ color: colors.textMuted }}>
-            Data diproses langsung di browser Anda — tidak diunggah ke server manapun.
+            {sessionUser
+              ? `Masuk sebagai ${sessionUser.email || "pengguna"} · Sinkronisasi ${syncState === "done" ? "aktif" : syncState === "syncing" ? "berjalan…" : "offline"}`
+              : "Data diproses langsung di browser Anda — tidak diunggah ke server manapun."}
           </p>
           <button onClick={() => setIsAboutOpen(true)} className="sm-btn text-xs font-medium px-3 py-1.5 rounded-lg" style={{ color: colors.textMuted }}>
             Tentang Aplikasi
