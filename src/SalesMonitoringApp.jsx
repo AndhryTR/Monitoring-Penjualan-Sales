@@ -307,6 +307,22 @@ export default function SalesMonitoringApp() {
     if (!supabase) return;
     const pull = await pullFromCloud();
     if (!pull.ok) { setSyncState("error"); setSyncMsg("Gagal menarik data cloud."); return; }
+
+    // Dokumen di CLOUD yang TIDAK ada tapi LOKAL punya data -> push lokal ke
+    // cloud (sumber pertama dari perangkat yang sudah punya data, mis. upload
+    // sebelum login atau dimuat dari IndexedDB).
+    const cloudKeys = new Set(pull.docs.map((d) => d.key));
+    const localHas = {
+      settings: true, // settings selalu dianggap ada (ada default)
+      session: (rawRows && rawRows.length > 0),
+      history: (history && history.length > 0),
+    };
+    for (const k of ["settings", "session", "history"]) {
+      if (!cloudKeys.has(k) && localHas[k]) {
+        await pushToCloud([{ key: k, data: buildLocalDoc(k) }]);
+      }
+    }
+
     const { apply, pushBack } = mergeLocalVsCloud(localTsRef.current, pull.docs);
     if (apply.length) {
       apply.forEach(({ key, data }) => {
