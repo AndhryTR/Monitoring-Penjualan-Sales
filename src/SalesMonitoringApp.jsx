@@ -258,6 +258,7 @@ export default function SalesMonitoringApp() {
   // ref ke flushQueue — diisi di body render tiap kali, dipakai dari effect
   // lifecycle yang didefinisikan sebelum definisi flushQueue.
   const flushQueueRef = useRef(null);
+  const syncNowRef = useRef(null);
 
   // Flush queue -> cloud (dipakai saat ada perubahan & saat koneksi pulih).
   const flushQueue = useCallback(async () => {
@@ -303,6 +304,7 @@ export default function SalesMonitoringApp() {
 
   // Hanya jalankan saat login: tarik cloud, merge LWW, terapkan ke state.
   const runPullAndApply = useCallback(async () => {
+    if (!supabase) return;
     const pull = await pullFromCloud();
     if (!pull.ok) { setSyncState("error"); setSyncMsg("Gagal menarik data cloud."); return; }
     const { apply, pushBack } = mergeLocalVsCloud(localTsRef.current, pull.docs);
@@ -330,8 +332,20 @@ export default function SalesMonitoringApp() {
     if (pushBack.length) {
       await pushToCloud(pushBack.map(({ key, data }) => ({ key, data })));
     }
+    setPendingFlags(attachPendingFlags(await getAllPending()));
     setLastSyncAt(Date.now());
   }, [pullFromCloud, mergeLocalVsCloud, pushToCloud]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Gabungan flush + pull: jalankan setelah login atau saat refresh manual.
+  const syncNow = useCallback(async () => {
+    if (!supabase || !isAuthedRef.current) return;
+    setSyncState("syncing");
+    await flushQueueRef.current?.();
+    await runPullAndApply();
+    await flushQueueRef.current?.();
+    setSyncState("done");
+  }, [runPullAndApply]);
+  syncNowRef.current = syncNow;
 
   // Muat data sesi terakhir (hasil upload/demo sebelumnya) dari IndexedDB saat
   // pertama kali app dibuka. Async, jadi ditampilkan status loading singkat
@@ -396,44 +410,18 @@ export default function SalesMonitoringApp() {
   useEffect(() => {
     let alive = true;
     let flushTimer = null;
-    // utk autorefresh status saat koneksi pulih
-    const doFlush = () => { if (alive && isAuthedRef.current) flushQueueRef.current?.(); };
+    // Pull + flush lengkap — digunakan utk refresh berkala & manual.
+    const doFlush = () => { if (alive && isAuthedRef.current) { flushQueueRef.current?.(); syncNowRef.current?.(); } };
+    const onOnline = () => { if (alive && isAuthedRef.current) doFlush(); };
     (async () => {
       const sess = await getSession();
       if (!alive) return;
       if (sess) {
         isAuthedRef.current = true;
         setSessionUser(sess.user);
-        // baca updated_at lokal untuk pengaturan tersimpan
         const st = loadSettings();
         if (st && st.updated_at) localTsRef.current.settings = Number(st.updated_at);
-        await flushQueueRef.current?.();
-        const pull = await pullFromCloud();
-        const { apply, pushBack } = mergeLocalVsCloud(localTsRef.current, pull.docs);
-        Object.assign(localTsRef.current, {});
-        if (apply.length) {
-          apply.forEach(({ key, data }) => {
-            localTsRef.current[key] = Number(data.updated_at) || Date.now();
-            if (key === "settings") {
-              if (data.targets) setTargets(data.targets);
-              if (data.work_days) setWorkDays(data.work_days);
-              if (data.depot_name) setDepotName(data.depot_name);
-              if (data.theme) setTheme(data.theme);
-              if (data.projection_method) setProjectionMethod(data.projection_method);
-              if (typeof data.sidebar_collapsed === "boolean") setSidebarCollapsed(data.sidebar_collapsed);
-            } else if (key === "session") {
-              if (data.raw_rows && data.raw_rows.length) {
-                setRawRows(data.raw_rows); setFileName(data.file_name || ""); setParseMeta(data.parse_meta || null);
-              }
-            } else if (key === "history") {
-              if (Array.isArray(data.entries)) setHistory(data.entries);
-            }
-          });
-        }
-        if (pushBack.length) await pushToCloud(pushBack.map(({ key }) => ({ key, data: buildLocalDoc(key) })));
-        setPendingFlags(attachPendingFlags(await getAllPending()));
-        setLastSyncAt(Date.now());
-        if (alive) setSyncState("done");
+        await syncNowRef.current?.();
       } else {
         if (alive) setSyncState("idle");
       }
@@ -445,34 +433,8 @@ export default function SalesMonitoringApp() {
         isAuthedRef.current = true;
         setSessionUser(session.user);
         setSyncState("syncing");
-        doFlush();
-        // ulangi pull agar data cloud terbaru muncul
-        setTimeout(async () => {
-          const pull = await pullFromCloud();
-          const { apply } = mergeLocalVsCloud(localTsRef.current, pull.docs);
-          if (apply.length) {
-            apply.forEach(({ key, data }) => {
-              localTsRef.current[key] = Number(data.updated_at) || Date.now();
-              if (key === "settings") {
-                if (data.targets) setTargets(data.targets);
-                if (data.work_days) setWorkDays(data.work_days);
-                if (data.depot_name) setDepotName(data.depot_name);
-                if (data.theme) setTheme(data.theme);
-                if (data.projection_method) setProjectionMethod(data.projection_method);
-                if (typeof data.sidebar_collapsed === "boolean") setSidebarCollapsed(data.sidebar_collapsed);
-              } else if (key === "session") {
-                if (data.raw_rows && data.raw_rows.length) {
-                  setRawRows(data.raw_rows); setFileName(data.file_name || ""); setParseMeta(data.parse_meta || null);
-                }
-              } else if (key === "history") {
-                if (Array.isArray(data.entries)) setHistory(data.entries);
-              }
-            });
-          }
-          setPendingFlags(attachPendingFlags(await getAllPending()));
-          setLastSyncAt(Date.now());
-          if (alive) setSyncState("done");
-        }, 300);
+        flushQueueRef.current?.();
+        syncNowRef.current?.();
       } else {
         isAuthedRef.current = false;
         setSessionUser(null);
@@ -480,12 +442,21 @@ export default function SalesMonitoringApp() {
       }
     });
 
-    const onOnline = () => { if (alive && isAuthedRef.current) { doFlush(); } };
+    // Pull ulang saat tab aktif kembali / koneksi pulih / berkala — supaya
+    // data dari perangkat lain muncul walau app ini sudah terbuka lama.
+    const onVisible = () => { if (!document.hidden) doFlush(); };
+    const onFocus = () => doFlush();
+    const interval = window.setInterval(doFlush, 60000);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
     window.addEventListener("online", onOnline);
 
     return () => {
       alive = false;
       unsub();
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
       window.removeEventListener("online", onOnline);
       if (flushTimer) clearTimeout(flushTimer);
     };
@@ -858,7 +829,7 @@ export default function SalesMonitoringApp() {
       <div className="relative" style={{ zIndex: 1 }}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors}
         theme={theme} setTheme={setTheme} powerSaveMode={powerSaveMode} setPowerSaveMode={setPowerSaveMode} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge} />
-      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} colors={colors} onLoginSuccess={() => {}} sessionUser={sessionUser} onLogout={handleLogout} syncState={syncState} lastSyncAt={lastSyncAt} />
+      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} colors={colors} onLoginSuccess={() => {}} sessionUser={sessionUser} onLogout={handleLogout} syncState={syncState} lastSyncAt={lastSyncAt} onManualSync={() => { syncNowRef.current?.(); }} />
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} colors={colors} />
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
       <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
