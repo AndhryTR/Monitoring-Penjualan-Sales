@@ -149,7 +149,8 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
           ))}
         </div>
         )}
-
+        {!sessionUser && (
+        <>
         {error && (
           <div className="mb-4 flex items-center gap-2 text-sm px-3.5 py-2.5 rounded-xl" style={{ background: colors.coral + "14", color: colors.coral, border: `1px solid ${colors.coral}33` }}>
             <AlertTriangle size={14} className="shrink-0" /> {error}
@@ -253,6 +254,8 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
               {busy ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />} Daftar
             </button>
           </div>
+        )}
+        </>
         )}
       </div>
     </div>
