@@ -340,14 +340,35 @@ export default function SalesMonitoringApp() {
   }, [isEditor]);
 
   // Sinkronisasi MANUAL — hanya via tombol "Sinkronkan Sekarang".
-  //   1. PUSH settings+targets user sendiri ke profiles (ikut pindah device).
-  //   2. TARIK master_sales -> MASUKKAN ke lokal: master MENANG utk tanggal
-  //      yang sama (baris lokal utk tanggal itu dihapus, diganti master).
+  //   1) SETTINGS+TARGETS: last-write-wins per timestamp.
+  //      - lokal lebih baru -> PUSH ke cloud (timpa)
+  //      - cloud lebih baru  -> PULL & terapkan ke lokal
+  //   2) MASTER DATA: tarik, master MENANG utk tanggal yang sama.
   const runSync = useCallback(async () => {
     if (!supabase) return;
-    // 1) settings+targets
-    await pushSettings({ targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed });
-    // 2) master data
+    // --- 1) settings+targets LWW ---
+    const localNow = loadSettings() || {};
+    const localTs = Number(localNow.updated_at) || 0;
+    const localDoc = { targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed };
+    const cloud = await pullSettings();
+    if (!cloud.ok) { setSyncState("error"); setSyncMsg("Gagal menarik pengaturan: " + cloud.reason); return; }
+    const cloudTs = cloud.data ? Number(cloud.data.updated_at) || 0 : 0;
+    if (cloudTs > localTs) {
+      // cloud lebih baru -> terapkan ke lokal
+      const d = cloud.data;
+      if (d.targets) setTargets(d.targets);
+      if (d.work_days) setWorkDays(d.work_days);
+      if (d.depot_name) setDepotName(d.depot_name);
+      if (d.theme) setTheme(d.theme);
+      if (d.projection_method) setProjectionMethod(d.projection_method);
+      if (typeof d.sidebar_collapsed === "boolean") setSidebarCollapsed(d.sidebar_collapsed);
+    } else {
+      // lokal lebih baru (atau cloud kosong) -> push lokal ke cloud
+      await pushSettings(localDoc);
+      // perbarui localDoc utk dipakai saat proses master
+    }
+
+    // --- 2) master data ---
     const res = await fetchAllMasterRows();
     if (!res.ok) { setSyncState("error"); setSyncMsg("Gagal mengambil data master: " + res.reason); return; }
     if (res.rows.length) {
