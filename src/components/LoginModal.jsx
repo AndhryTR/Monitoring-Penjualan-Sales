@@ -11,7 +11,7 @@ import { signInWithIdentifier, signUpAccount, resetPassword } from "../utils/clo
    DAFTAR: username + email + password + konfirmasi (field terpisah).
 ============================================================================ */
 
-export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUser, onLogout, syncState = "idle", lastSyncAt = 0, onManualSync }) {
+export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUser, userRole, onLogout, syncState = "idle", lastSyncAt = 0, onManualSync }) {
   const [tab, setTab] = useState("login");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -127,6 +127,12 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
                     <><CloudOff size={12} style={{ color: colors.coral }} /> Sinkronisasi offline</>
                   )}
                 </div>
+                {userRole && (
+                  <div className="text-[10px] mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold uppercase tracking-wide"
+                    style={{ background: (userRole === "admin" || userRole === "supervisor" ? colors.mint : colors.gold) + "1A", color: (userRole === "admin" || userRole === "supervisor" ? colors.mint : colors.gold) }}>
+                    {userRole === "admin" ? "Admin" : userRole === "supervisor" ? "Supervisor" : "User"}
+                  </div>
+                )}
               </div>
             </div>
             <button onClick={onManualSync} disabled={syncState === "syncing"}
