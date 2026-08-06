@@ -2,14 +2,14 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import sumBy from "lodash/sumBy";
 import {
   X, RefreshCw, Sun, Moon, Cloud, CloudOff, CloudUpload, User as UserIcon,
-  Smartphone, Share, History, Settings,
+  Smartphone, Share, History, Settings, Loader2,
   FileSpreadsheet, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState } from "./utils/storage.js";
 import { supabase, getSession, onAuthChange, signOutAccount } from "./utils/cloud.js";
 import {
-  fetchRole, fetchMasterMaxDate, fetchAllMasterRows, pushMasterRows,
-  deleteMasterRange, resetMaster, pushSettings, pullSettings,
+  fetchRole, fetchMasterMaxDate, fetchAllMasterRows, fetchMasterRowsSince, pushMasterRows,
+  deleteMasterRange, pushSettings, pullSettings,
 } from "./utils/syncEngine.js";
 import { LoginModal } from "./components/LoginModal.jsx";
 import {
@@ -61,10 +61,21 @@ import { THEMES, applyPowerSaveColors } from "./constants/colors.js";
    Modal hapus rentang tanggal di master_sales. Destructive — butuh konfirmasi
    tombol dua-tahap.
 ============================================================================ */
-function RangeDeleteModal({ colors, onClose, onConfirm, masterResult }) {
+function RangeDeleteModal({ colors, onClose, onConfirm }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null); // { ok, message } | null
+
+  const doDelete = async () => {
+    if (!confirm) { setConfirm(true); return; }
+    setConfirm(false); setBusy(true); setResult(null);
+    const res = await onConfirm(from, to);
+    setBusy(false);
+    if (res) setResult({ ok: res.ok, message: res.message });
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein p-4" onClick={onClose}>
       <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
@@ -78,31 +89,44 @@ function RangeDeleteModal({ colors, onClose, onConfirm, masterResult }) {
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div>
             <label className="block text-xs font-semibold mb-1.5" style={{ color: colors.textMuted }}>Dari</label>
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl text-sm outline-none" style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }} />
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} disabled={busy}
+              className="w-full px-3 py-2 rounded-xl text-sm outline-none disabled:opacity-50" style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }} />
           </div>
           <div>
             <label className="block text-xs font-semibold mb-1.5" style={{ color: colors.textMuted }}>Sampai</label>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl text-sm outline-none" style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }} />
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} disabled={busy}
+              className="w-full px-3 py-2 rounded-xl text-sm outline-none disabled:opacity-50" style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }} />
           </div>
         </div>
-        {masterResult && <p className="text-xs mb-3" style={{ color: colors.mint }}>{masterResult}</p>}
+        {/* Feedback hasil hapus — tampil DI DALAM modal sebelum ditutup */}
+        {busy && <p className="text-xs mb-3" style={{ color: colors.textMuted }}><Loader2 size={12} className="animate-spin inline mr-1" />Menghapus…</p>}
+        {result && (
+          <p className="text-xs mb-3 px-3 py-2 rounded-lg" style={{ color: result.ok ? colors.mint : colors.coral, background: (result.ok ? colors.mint : colors.coral) + "14", border: `1px solid ${(result.ok ? colors.mint : colors.coral)}33` }}>
+            {result.message}
+          </p>
+        )}
         <div className="flex gap-2">
-          <button onClick={onClose} className="sm-btn flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold" style={{ border: `1px solid ${colors.glassBorder}`, color: colors.textMuted }}>
-            Batal
+          <button onClick={onClose} disabled={busy} className="sm-btn flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40" style={{ border: `1px solid ${colors.glassBorder}`, color: colors.textMuted }}>
+            {result ? "Selesai" : "Batal"}
           </button>
-          <button onClick={() => { if (!confirm) { setConfirm(true); return; } onConfirm(from, to); setConfirm(false); onClose(); }}
-            disabled={!from || !to}
+          <button onClick={doDelete} disabled={busy || !from || !to}
             className="sm-btn flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
             style={{ background: confirm ? colors.coral : colors.coral + "1A", color: confirm ? "#fff" : colors.coral, border: `1px solid ${colors.coral}44` }}>
-            {confirm ? "Yakin? Klik lagi" : "Hapus"}
+            {busy ? "Menghapus…" : confirm ? "Yakin? Klik lagi" : "Hapus"}
           </button>
         </div>
       </div>
     </div>
   );
 }
+
+// Tanggal maksimum master yang pernah ter-pull di device ini — dipakai utk
+// pull delta (hanya unduh baris baru). Semua user berbagi key lokal sama;
+// karena master bersifat global per depot, dan device hanya menambah baris
+// tanggal baru, menyimpan max tanggal yang sudah ter-unduh cukup akurat.
+const MASTER_MAX_KEY = "smapp:masterMaxLocal";
+function loadMasterMax() { try { return window.localStorage.getItem(MASTER_MAX_KEY) || ""; } catch (_e) { return ""; } }
+function saveMasterMax(d) { try { window.localStorage.setItem(MASTER_MAX_KEY, d || ""); } catch (_e) { /* abaikan */ } }
 
 const createGlobalStyle = (colors, powerSaveMode) => `
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
@@ -329,14 +353,17 @@ export default function SalesMonitoringApp() {
     else setMasterResult("Gagal simpan ke master: " + (res.reason || ""));
   }, [isEditor, rawRows]);
 
-  // Hapus rentang tanggal di master (admin/supervisor).
+  // Hapus rentang tanggal di master (admin/supervisor). Kembalikan hasil
+  // ({ ok, deleted, reason|null }) supaya modal bisa menampilkan feedback
+  // SEBELUM ditutup — bukan langsung tutup tanpa tahu hasil.
   const handleDeleteRange = useCallback(async (dateFrom, dateTo) => {
-    if (!isEditor || !dateFrom || !dateTo) return;
-    setMasterBusy(true); setMasterResult("");
+    if (!isEditor || !dateFrom || !dateTo) return null;
+    setMasterBusy(true);
     const res = await deleteMasterRange(dateFrom, dateTo);
     setMasterBusy(false);
-    if (res.ok) setMasterResult(`Hapus berhasil: ${res.deleted} baris dihapus dari master.`);
-    else setMasterResult("Gagal hapus: " + (res.reason || ""));
+    return res.ok
+      ? { ok: true, message: `Hapus berhasil: ${res.deleted} baris dihapus dari master.` }
+      : { ok: false, message: "Gagal hapus: " + (res.reason || "") };
   }, [isEditor]);
 
   // Sinkronisasi MANUAL — hanya via tombol "Sinkronkan Sekarang".
@@ -368,8 +395,11 @@ export default function SalesMonitoringApp() {
       // perbarui localDoc utk dipakai saat proses master
     }
 
-    // --- 2) master data ---
-    const res = await fetchAllMasterRows();
+    // --- 2) master data (pull delta) ---
+    // Device yang sudah pernah sync hanya menarik baris tanggal BARU
+    // (date > maxLokal). Device baru/kosong: full (semua baris).
+    const localMax = loadMasterMax();
+    const res = localMax ? await fetchMasterRowsSince(localMax) : await fetchAllMasterRows();
     if (!res.ok) { setSyncState("error"); setSyncMsg("Gagal mengambil data master: " + res.reason); return; }
     if (res.rows.length) {
       const masterDates = new Set(res.rows.map((r) => r.date));
@@ -383,6 +413,10 @@ export default function SalesMonitoringApp() {
       setRawRows(merged);
       setFileName("Master data (sinkron)" + (merged.length ? ` · ${merged.length} baris` : ""));
       setParseMeta({ sourceFiles: [], detectedFields: [], missingFields: [], totalDataRows: merged.length });
+      // catat max tanggal yang barusan dimuat utk pull delta berikutnya
+      let max = loadMasterMax();
+      res.rows.forEach((r) => { if (r.date && (!max || r.date > max)) max = r.date; });
+      saveMasterMax(max);
     }
     setLastSyncAt(Date.now());
   }, [targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed, rawRows]);
@@ -823,7 +857,7 @@ export default function SalesMonitoringApp() {
       <div className="relative" style={{ zIndex: 1 }}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors}
         theme={theme} setTheme={setTheme} powerSaveMode={powerSaveMode} setPowerSaveMode={setPowerSaveMode} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge} />
-      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} colors={colors} onLoginSuccess={() => {}} sessionUser={sessionUser} userRole={userRole} onLogout={handleLogout} syncState={syncState} lastSyncAt={lastSyncAt} onManualSync={() => { syncNowRef.current?.(); }} />
+      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} colors={colors} onLoginSuccess={() => {}} sessionUser={sessionUser} userRole={userRole} onLogout={handleLogout} syncState={syncState} lastSyncAt={lastSyncAt} onManualSync={() => { syncNowRef.current?.(); }} syncMsg={syncMsg} />
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} colors={colors} />
       {/* Modal hapus rentang master data (admin) */}
       {masterAction === "range" && (
@@ -831,7 +865,6 @@ export default function SalesMonitoringApp() {
           colors={colors}
           onClose={() => setMasterAction(null)}
           onConfirm={handleDeleteRange}
-          masterResult={masterResult}
         />
       )}
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
