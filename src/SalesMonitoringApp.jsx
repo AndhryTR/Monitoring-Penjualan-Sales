@@ -447,9 +447,14 @@ export default function SalesMonitoringApp() {
   // dikonfirmasi atau data contoh dimuat). Di-skip saat kosong karena reset
   // ditangani secara eksplisit lewat clearSession() di handleReset.
   useEffect(() => {
-    if (rawRows.length) saveSession({ rawRows, fileName, parseMeta });
+    if (!rawRows.length) return;
+    saveSession({ rawRows, fileName, parseMeta });
+    // Tandai timestamp lokal barusan — bikin "session lokal" lebih baru dari
+    // cloud, jadi saat merge LWW data terbaru (hasil upload ini) menang dan
+    // tidak ditimpa versi lama di cloud.
+    localTsRef.current.session = Date.now();
     // Sync data transaksi ke cloud (kalau authed + berubah).
-    if (isAuthedRef.current && rawRows.length) {
+    if (isAuthedRef.current) {
       queuePending("session", { data: buildLocalDoc("session") });
       if (supabase) { flushQueueRef.current?.(); }
     }
