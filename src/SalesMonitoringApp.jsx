@@ -378,7 +378,7 @@ export default function SalesMonitoringApp() {
     }
     setPendingFlags(attachPendingFlags(await getAllPending()));
     setLastSyncAt(Date.now());
-  }, [pullFromCloud, mergeLocalVsCloud, pushToCloud]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pullFromCloud, mergeLocalVsCloud, pushToCloud, buildLocalDoc]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sinkronisasi MANUAL — hanya dipicu tombol "Sinkronkan Sekarang":
   //    1. push data lokal ke cloud (kalau cloud masih kosong untuk dokumen ini)
