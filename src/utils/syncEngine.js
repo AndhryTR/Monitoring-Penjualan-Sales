@@ -1,25 +1,26 @@
 /* ============================================================================
-   SYNC ENGINE — sinkronisasi offline-first lintas perangkat (last-write-wins)
-   Prinsip: LOKAL tetap raja. Semua baca/tulis aplikasi jalan persis seperti
-   sekarang (localStorage + IndexedDB). Ini cuma LAPISAN di bawahnya: sesudah
-   simpan lokal berhasil, tandai "pending sync" di queue IndexedDB, lalu push
-   ke cloud (Supabase) secara berkala. Saat login, tarik data cloud dan banding.
+   SYNC ENGINE — sinkronisasi MANUAL (hanya via tombol "Sinkronkan Sekarang")
+   Arsitektur peran:
+     - admin/supervisor  : bisa tulis MASTER DATA (upload data penjualan global)
+     - user biasa        : baca master, sync settings+targets sendiri
+     - semua user        : sync settings+targets (per-user) ke tabel `profiles`
 
-   KONFLIK: last-write-wins per DOKUMEN. Tiap dokumen punya updated_at (epoch
-   ms) + updated_by (device id). Yang timestamp-nya lebih baru menang; kalau
-   sama, LOKAL menang (device yang sedang aktif).
+   MASTER DATA (tabel master_sales, 1 baris = 1 transaksi):
+     - Sumber data penjualan global per depot
+     - Semua user login BISA BACA (SELECT)
+     - Hanya admin/supervisor BISA TULIS (INSERT/DELETE) via RLS is_editor()
+     - Upload HARIAN = incremental: hanya baris dgn date > max_date master yang
+       dimasukkan (data tgl 1..hari ini di-upload ulang tiap hari, yang sudah
+       ada dilewati). Koreksi data lama = "Hapus Rentang" lalu upload ulang.
 
-   DOKUMEN yang disinkronkan:
-     settings   -> profiles  (1 baris per user: targets, workDays, depotName,
-                               theme, projectionMethod, sidebarCollapsed)
-     session    -> sales_data(1 baris per user: rawRows, fileName, parseMeta)
-     history    -> history   (1 baris per user: entries[])
+   SETTINGS+TARGETS (tabel profiles):
+     - 1 baris per user, kolom jsonb `targets` + kolom pengaturan lain
+     - Saat sync manual: PUSH baris sendiri (overwrite) + PULL kalau device
+       baru/kosong.
 
-   PERANGKAT id: random string di localStorage, tetap sama walau refresh,
-   beda antar perangkat. Dipakai di kolom updated_by untuk log saja.
-
-   Modul ini TIDAK pernah melempar ke pemanggil — kegagalan cloud dinilai
-   sebagai "offline/perlu coba lagi" dan statusnya dicatat di queue.
+   TIDAK ADA sinkronisasi otomatis & tidak ada queue — semuanya hanya terjadi
+   saat user menekan tombol. Modul ini TIDAK pernah melempar ke pemanggil:
+   kegagalan cloud dibungkus jadi { ok:false, reason }.
 ============================================================================ */
 import { supabase } from "./cloud.js";
 
@@ -35,202 +36,154 @@ export function getDeviceId() {
   } catch (_e) { return "dev_unknown"; }
 }
 
-const QUEUE_DB = "smapp-sync-db";
-const QUEUE_STORE = "pending";
+/* ------------------------------ helpers --------------------------------- */
 
-function openQueueDB() {
-  return new Promise((resolve, reject) => {
-    if (typeof indexedDB === "undefined") { reject(new Error("IndexedDB tidak tersedia")); return; }
-    const req = indexedDB.open(QUEUE_DB, 1);
-    req.onupgradeneeded = () => {
-      if (!req.result.objectStoreNames.contains(QUEUE_STORE)) req.result.createObjectStore(QUEUE_STORE, { keyPath: "key" });
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-// Lanjut semua pekerjaan queue + operasi, SUKSES atau GAGAL (gagal = biarkan
-// tertunda, bukan batal). Kembalikan jumlah perubahan yang berhasil.
-async function idbWrite(mode, work) {
-  const db = await openQueueDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(QUEUE_STORE, mode);
-    const store = tx.objectStore(QUEUE_STORE);
-    work(store);
-    tx.oncomplete = () => resolve(true);
-    tx.onerror = () => reject(tx.error);
-  }).finally(() => db.close());
-}
-
-export function queuePending(key, data) {
-  return idbWrite("readwrite", (store) =>
-    store.put({ key, ...data, queuedAt: Date.now() })
-  ).catch(() => false);
-}
-
-export function getPending(key) {
-  if (typeof indexedDB === "undefined") return Promise.resolve(null);
-  return openQueueDB()
-    .then(async (db) => {
-      const result = await new Promise((resolve, reject) => {
-        const tx = db.transaction(QUEUE_STORE, "readonly");
-        const req = tx.objectStore(QUEUE_STORE).get(key);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
-      });
-      db.close();
-      return result;
-    })
-    .catch(() => null);
-}
-
-export function clearPending(key) {
-  return idbWrite("readwrite", (store) => store.delete(key)).catch(() => false);
-}
-
-export function getAllPending() {
-  if (typeof indexedDB === "undefined") return Promise.resolve([]);
-  return openQueueDB()
-    .then(async (db) => {
-      const result = await new Promise((resolve, reject) => {
-        const tx = db.transaction(QUEUE_STORE, "readonly");
-        const req = tx.objectStore(QUEUE_STORE).getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
-      });
-      db.close();
-      return result;
-    })
-    .catch(() => []);
-}
-
-export async function countAllPending() {
-  try { return (await getAllPending()).length; } catch (_e) { return 0; }
-}
-
-/* ------------------------- upsert ke cloud (LWW) ------------------------- */
-
-const nowMs = () => new Date().getTime();
-
-async function upsertRow(table, payload) {
-  const { error } = await supabase.from(table).upsert(payload, { onConflict: "user_id" });
-  if (error) throw error;
-}
-
-// Setiap dokumen: payload di-colok di kolom jsonb tabel masing-masing.
-// PENTING: nama kolom harus SNAKE_CASE persis seperti di setup.sql
-// (depot_name, work_days, ...) — Supabase menolak kolom yang tidak dikenal.
-export async function pushToCloud(docs) {
-  if (!supabase) return { ok: false, reason: "not_configured", pushed: 0 };
+async function currentUser() {
   const { data: sessData } = await supabase.auth.getSession().catch(() => ({ data: null }));
-  const user = sessData?.session?.user || null;
-  if (!user?.id) return { ok: false, reason: "no_session", pushed: 0 };
-  const now = nowMs();
-  let pushed = 0;
-  for (const doc of docs) {
-    const { key, data } = doc;
-    const device = data.updated_by || getDeviceId();
-    const updated_at = data.updated_at || now;
-    try {
-      if (key === "session") {
-        const bytes = new Blob([JSON.stringify(data.rawRows || [])]).size;
-        console.log(`[sync] push session: rows=${(data.rawRows || []).length} payload~${(bytes / 1024 / 1024).toFixed(1)}MB`);
-        if (!(data.rawRows && data.rawRows.length)) {
-          // Session TANPA baris data = tidak ada data. Jangan pernah upsert
-          // (mencegah cloud terisi baris kosong yang "memiliki" dokumen).
-          continue;
-        }
-      }
-      if (key === "settings") {
-        await upsertRow("profiles", {
-          user_id: user.id,
-          targets: data.targets ?? null,
-          work_days: data.workDays ?? null,
-          depot_name: data.depotName ?? null,
-          theme: data.theme ?? null,
-          projection_method: data.projectionMethod ?? null,
-          sidebar_collapsed: data.sidebarCollapsed ?? null,
-          updated_at, updated_by: device,
-        });
-      } else if (key === "session") {
-        await upsertRow("sales_data", {
-          user_id: user.id,
-          file_name: data.fileName ?? null,
-          parse_meta: data.parseMeta ?? null,
-          raw_rows: data.rawRows ?? null,
-          updated_at, updated_by: device,
-        });
-      } else if (key === "history") {
-        await upsertRow("history", {
-          user_id: user.id,
-          entries: data.entries ?? [],
-          updated_at, updated_by: device,
-        });
-      }
-      await clearPending(key);
-      pushed++;
-    } catch (e) {
-      // biarkan di queue, coba lagi nanti
-      console.warn(`[sync] gagal push ${key}:`, e.message);
-    }
+  return sessData?.session?.user || null;
+}
+
+/* -------------------- role & master (admin/supervisor) ------------------- */
+
+// Ambil role user saat ini dari profiles. null kalau belum ada baris.
+export async function fetchRole() {
+  if (!supabase) return null;
+  try {
+    const user = await currentUser();
+    if (!user?.id) return null;
+    const { data } = await supabase.from("profiles").select("role").eq("user_id", user.id).maybeSingle();
+    return data?.role || "user";
+  } catch (_e) { return "user"; }
+}
+
+// Tanggal terakhir (max date) di master_sales. null kalau master kosong.
+export async function fetchMasterMaxDate() {
+  if (!supabase) return null;
+  try {
+    const { data } = await supabase.from("master_sales").select("date").order("date", { ascending: false }).limit(1).maybeSingle();
+    return data?.date || null;
+  } catch (_e) { return null; }
+}
+
+// Ambil SEMUA baris master_sales (untuk sync penuh / device baru).
+export async function fetchAllMasterRows() {
+  if (!supabase) return { ok: false, reason: "not_configured", rows: [] };
+  try {
+    const { data, error } = await supabase.from("master_sales").select("*").order("date", { ascending: true });
+    if (error) return { ok: false, reason: error.message, rows: [] };
+    return { ok: true, rows: data || [] };
+  } catch (e) {
+    return { ok: false, reason: e.message, rows: [] };
   }
-  // Kalau ADA yang gagal, tandai error (bukan "ok") supaya UI tidak menipu.
-  const allOk = pushed === docs.length;
-  return { ok: allOk, reason: allOk ? "ok" : "partial", pushed, total: docs.length };
 }
 
-// Ambil semua dokumen cloud milik user -> array [{key, data}]
-export async function pullFromCloud() {
-  if (!supabase) return { ok: false, reason: "not_configured", docs: [] };
-  const { data: sessData } = await supabase.auth.getSession().catch(() => ({ data: null }));
-  const user = sessData?.session?.user || null;
-  if (!user?.id) return { ok: false, reason: "no_session", docs: [] };
-  const docs = [];
-  const tables = ["profiles", "sales_data", "history"];
-  for (const t of tables) {
-    try {
-      const { data } = await supabase.from(t).select("*").eq("user_id", user.id).maybeSingle();
-      if (!data) continue;
-      if (t === "profiles") docs.push({ key: "settings", data: data });
-      else if (t === "sales_data") docs.push({ key: "session", data: data });
-      else if (t === "history") docs.push({ key: "history", data: data });
-    } catch (e) {
-      console.warn(`[sync] gagal pull ${t}:`, e.message);
+// Insert baris-baris BARU ke master (hanya yang belum ada: date > maxDate).
+// `rows` = array objek { date, salesCode, outletCode, invoiceNo, productCode,
+// group, qty, value, unit } — dipetakan ke kolom snake_case di sini.
+// Kembalikan { ok, inserted, skipped, maxDate, error }.
+export async function pushMasterRows(rows, maxDate) {
+  if (!supabase) return { ok: false, reason: "not_configured", inserted: 0, skipped: 0 };
+  try {
+    const user = await currentUser();
+    if (!user?.id) return { ok: false, reason: "no_session", inserted: 0, skipped: 0 };
+    const newRows = (rows || []).filter((r) => r.date && (!maxDate || r.date > maxDate));
+    const skipped = (rows || []).length - newRows.length;
+    if (!newRows.length) {
+      return { ok: true, inserted: 0, skipped, maxDate };
     }
+    // Batch insert dalam potongan 500 baris (hindari request terlalu besar).
+    let inserted = 0;
+    const CHUNK = 500;
+    for (let i = 0; i < newRows.length; i += CHUNK) {
+      const chunk = newRows.slice(i, i + CHUNK).map((r) => ({
+        date: r.date,
+        sales_code: r.salesCode ?? null,
+        outlet_code: r.outletCode ?? null,
+        invoice_no: r.invoiceNo ?? null,
+        product_code: r.productCode ?? null,
+        group_name: r.group ?? null,
+        qty: r.qty ?? null,
+        value: r.value ?? null,
+        unit: r.unit ?? null,
+        uploaded_by: user.id,
+      }));
+      const { error } = await supabase.from("master_sales").insert(chunk);
+      if (error) throw error;
+      inserted += chunk.length;
+    }
+    // maxDate baru = tanggal terbesar dari data yang barusan dimasukkan.
+    let newMax = maxDate;
+    newRows.forEach((r) => { if (!newMax || r.date > newMax) newMax = r.date; });
+    return { ok: true, inserted, skipped, maxDate: newMax };
+  } catch (e) {
+    return { ok: false, reason: e.message, inserted: 0, skipped: 0 };
   }
-  return { ok: true, reason: "ok", docs: docs };
 }
 
-// LWW merge per dokumen terhadap data LOKAL.
-// `localDocs` = { settings: {...}, session: {...}, history: {...} } (updated_at lokal)
-// Kembalikan { apply: Array<{key, data}> (ambil dari cloud), pushBack: Array<{key, data}> }
-export function mergeLocalVsCloud(localDocs, cloudDocs) {
-  const apply = [];
-  const pushBack = [];
-  cloudDocs.forEach((cd) => {
-    const local = localDocs[cd.key];
-    const cTs = Number(cd.data.updated_at) || 0;
-    const lTs = local ? Number(local.updated_at) || 0 : 0;
-    if (!local) {
-      // tidak ada lokal -> ambil dari cloud
-      apply.push({ key: cd.key, data: cd.data });
-    } else if (cTs > lTs) {
-      apply.push({ key: cd.key, data: cd.data });
-    } else if (lTs > cTs || (lTs === cTs && lTs !== 0)) {
-      // lokal lebih baru (atau sama) -> push balik
-      pushBack.push({ key: cd.key, data: local });
-    } else {
-      // cloud kosong + lokal kosong -> abaikan
-    }
-  });
-  return { apply, pushBack };
+// Hapus rentang tanggal di master. Kembalikan { ok, deleted, error }.
+export async function deleteMasterRange(dateFrom, dateTo) {
+  if (!supabase) return { ok: false, reason: "not_configured", deleted: 0 };
+  try {
+    const { error, count } = await supabase
+      .from("master_sales")
+      .delete({ count: "exact" })
+      .gte("date", dateFrom)
+      .lte("date", dateTo);
+    if (error) return { ok: false, reason: error.message, deleted: 0 };
+    return { ok: true, deleted: count || 0 };
+  } catch (e) {
+    return { ok: false, reason: e.message, deleted: 0 };
+  }
 }
 
-/* ------------------------------ status ringkas ------------------------------ */
-// Ringkas antrian perubahan yang belum terkirim -> { settings, session, history }
-export function attachPendingFlags(allPending) {
-  const flags = { settings: false, session: false, history: false };
-  (allPending || []).forEach((p) => { if (p && p.key) flags[p.key] = true; });
-  return flags;
+// Hapus SEMUA master (reset total). Hanya editor. Kembalikan { ok, deleted }.
+export async function resetMaster() {
+  if (!supabase) return { ok: false, reason: "not_configured", deleted: 0 };
+  try {
+    const { error, count } = await supabase.from("master_sales").delete({ count: "exact" }).neq("id", 0);
+    if (error) return { ok: false, reason: error.message, deleted: 0 };
+    return { ok: true, deleted: count || 0 };
+  } catch (e) {
+    return { ok: false, reason: e.message, deleted: 0 };
+  }
+}
+
+/* --------------------- settings & targets (per-user) --------------------- */
+
+// PUSH settings+targets user sendiri ke profiles (overwrite baris sendiri).
+export async function pushSettings(data) {
+  if (!supabase) return { ok: false, reason: "not_configured" };
+  try {
+    const user = await currentUser();
+    if (!user?.id) return { ok: false, reason: "no_session" };
+    const { error } = await supabase.from("profiles").upsert({
+      user_id: user.id,
+      targets: data.targets ?? null,
+      work_days: data.workDays ?? null,
+      depot_name: data.depotName ?? null,
+      theme: data.theme ?? null,
+      projection_method: data.projectionMethod ?? null,
+      sidebar_collapsed: data.sidebarCollapsed ?? null,
+      updated_at: Date.now(),
+      updated_by: getDeviceId(),
+    }, { onConflict: "user_id" });
+    if (error) return { ok: false, reason: error.message };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: e.message };
+  }
+}
+
+// PULL settings+targets user sendiri dari profiles. null kalau belum ada.
+export async function pullSettings() {
+  if (!supabase) return { ok: false, reason: "not_configured", data: null };
+  try {
+    const user = await currentUser();
+    if (!user?.id) return { ok: false, reason: "no_session", data: null };
+    const { data, error } = await supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle();
+    if (error) return { ok: false, reason: error.message, data: null };
+    return { ok: true, data: data || null };
+  } catch (e) {
+    return { ok: false, reason: e.message, data: null };
+  }
 }
