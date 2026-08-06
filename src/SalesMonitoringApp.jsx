@@ -8,8 +8,8 @@ import {
 import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState } from "./utils/storage.js";
 import { supabase, getSession, onAuthChange, signOutAccount } from "./utils/cloud.js";
 import {
-  getDeviceId, getAllPending,
-  pushToCloud, pullFromCloud, mergeLocalVsCloud, attachPendingFlags,
+  getDeviceId,
+  pushToCloud, pullFromCloud,
 } from "./utils/syncEngine.js";
 import { LoginModal } from "./components/LoginModal.jsx";
 import {
@@ -281,79 +281,65 @@ export default function SalesMonitoringApp() {
     return base;
   }, [targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed, rawRows, fileName, parseMeta, history]);
 
-  // Hanya jalankan saat login: tarik cloud, merge LWW, terapkan ke state.
+  // Sinkronisasi MANUAL — hanya dipicu tombol "Sinkronkan Sekarang".
+  // Pola LOCAL-FIRST (cocok untuk pemakaian satu-user lintas device):
+  //   1. DORONG data lokal ke cloud (overwrite) untuk dokumen yang lokal punya
+  //      data — ini menjamin data terbaru di device ini naik ke cloud, tidak
+  //      pernah ditumpas versi lama.
+  //   2. TARIK dari cloud hanya dokumen yang LOKAL TIDAK punya (device baru /
+  //      kosong) — supaya device yang belum punya data bisa dapat dari cloud.
+  // Tidak ada konflik/timpa-mutual: tiap device mengirim datanya sendiri dan
+  // menerima hanya yang belum dimilikinya.
   const runPullAndApply = useCallback(async () => {
     console.log("[sync] runPullAndApply jalan");
     if (!supabase) return;
-    let pull;
-    try {
-      pull = await pullFromCloud();
-    } catch (e) {
-      console.error("[sync] pullFromCloud THROW:", e);
-      setSyncState("error"); setSyncMsg("Gagal menarik data cloud: " + (e?.message || e));
-      return;
-    }
-    console.log("[sync] pull result ok:", pull?.ok, "reason:", pull?.reason);
+    const pull = await pullFromCloud();
     if (!pull?.ok) { setSyncState("error"); setSyncMsg("Gagal menarik data cloud."); return; }
+    console.log("[sync] pull docs:", pull.docs.map((d) => d.key).join(",") || "(kosong)", "| local rawRows:", rawRows ? rawRows.length : "null");
 
-    // Dokumen di CLOUD yang TIDAK ada (atau kosong) tapi LOKAL punya data ->
-    // push lokal ke cloud. Session dianggap "ada" HANYA kalau raw_rows isi.
-    const sessionCloud = pull.docs.find((d) => d.key === "session");
-    const sessionCloudHasData = !!(sessionCloud && sessionCloud.data && sessionCloud.data.raw_rows && sessionCloud.data.raw_rows.length);
-    console.log("[sync] pull docs:", pull.docs.map((d) => d.key).join(",") || "(kosong)", "| sessionCloudHasData:", sessionCloudHasData, "| local rawRows:", rawRows ? rawRows.length : "null");
-    const cloudKeys = new Set(pull.docs.map((d) => d.key));
-    // Normalisasi docs untuk merge: session cloud KOSONG dianggap tak ada
-    // (jangan sampai merge menimpa data lokal dengan baris kosong).
-    const pullDocsForMerge = pull.docs
-      .filter((d) => !(d.key === "session" && !sessionCloudHasData))
-      .map((d) => (d.key === "session" ? { ...d, data: { ...d.data } } : d));
-
-    if (!sessionCloudHasData) {
-      // baca dari IndexedDB kalau state React belum terisi (race saat app baru
-      // dimuat) — supaya tidak mengirim raw_rows kosong / melewatkan data.
-      let localRows = rawRows;
-      let localFile = fileName;
-      let localMeta = parseMeta;
-      if (!(localRows && localRows.length)) {
-        try {
-          const stored = await loadSession();
-          if (stored && stored.rawRows && stored.rawRows.length) {
-            localRows = stored.rawRows;
-            localFile = stored.fileName || "";
-            localMeta = stored.parseMeta || null;
-          }
-        } catch (_e) { /* abaikan */ }
-      }
-      if (localRows && localRows.length) {
-        // pastikan state terisi (data lama dari IndexedDB)
-        if (!(rawRows && rawRows.length)) {
-          setRawRows(localRows);
-          setFileName(localFile);
-          setParseMeta(localMeta);
-        }
-        await pushToCloud([{ key: "session", data: {
-          rawRows: localRows, fileName: localFile, parseMeta: localMeta,
-          updated_by: getDeviceId(), updated_at: Date.now(),
-        } }]);
-        localTsRef.current.session = Date.now();
-        console.log(`[sync] push session (local-first): rows=${localRows.length}`);
-      }
-    }
+    // --- 1) DORONG lokal ke cloud ---
     const localHas = {
-      settings: true, // settings selalu dianggap ada (ada default)
+      settings: true, // settings selalu dianggap ada (terutama target & depot)
       session: (rawRows && rawRows.length > 0),
       history: (history && history.length > 0),
     };
+    // Session: pastikan state terisi data IndexedDB kalau state kosong.
+    let localRows = rawRows;
+    let localFile = fileName;
+    let localMeta = parseMeta;
+    if (!(localRows && localRows.length)) {
+      try {
+        const stored = await loadSession();
+        if (stored && stored.rawRows && stored.rawRows.length) {
+          localRows = stored.rawRows;
+          localFile = stored.fileName || "";
+          localMeta = stored.parseMeta || null;
+        }
+      } catch (_e) { /* abaikan */ }
+      if (localRows && localRows.length) {
+        setRawRows(localRows); setFileName(localFile); setParseMeta(localMeta);
+      }
+    }
+    localHas.session = !!(localRows && localRows.length);
+
     for (const k of ["settings", "session", "history"]) {
-      if (!cloudKeys.has(k) && localHas[k] && k !== "session") {
-        const res = await pushToCloud([{ key: k, data: buildLocalDoc(k) }]);
-        console.log(`[sync] push ${k}: ok=${res.ok} pushed=${res.pushed} total=${res.total}`);
+      if (!localHas[k]) continue;
+      const doc = k === "session"
+        ? { rawRows: localRows, fileName: localFile, parseMeta: localMeta, updated_by: getDeviceId(), updated_at: Date.now() }
+        : buildLocalDoc(k);
+      try {
+        const res = await pushToCloud([{ key: k, data: doc }]);
+        console.log(`[sync] push ${k}: ok=${res.ok} rows=${k === "session" ? (localRows ? localRows.length : 0) : "-"}`);
+        if (res.ok) localTsRef.current[k] = Date.now();
+      } catch (e) {
+        console.error(`[sync] push ${k} ERROR:`, e.message);
       }
     }
 
-    const { apply, pushBack } = mergeLocalVsCloud(localTsRef.current, pullDocsForMerge);
-    if (apply.length) {
-      apply.forEach(({ key, data }) => {
+    // --- 2) TARIK cloud utk dokumen yang lokal TIDAK punya ---
+    const pullDocs = pull.docs.filter((d) => !localHas[d.key]);
+    if (pullDocs.length) {
+      pullDocs.forEach(({ key, data }) => {
         localTsRef.current[key] = Number(data.updated_at) || Date.now();
         if (key === "settings") {
           if (data.targets) setTargets(data.targets);
@@ -364,21 +350,15 @@ export default function SalesMonitoringApp() {
           if (typeof data.sidebar_collapsed === "boolean") setSidebarCollapsed(data.sidebar_collapsed);
         } else if (key === "session") {
           if (data.raw_rows && data.raw_rows.length) {
-            setRawRows(data.raw_rows);
-            setFileName(data.file_name || "");
-            setParseMeta(data.parse_meta || null);
+            setRawRows(data.raw_rows); setFileName(data.file_name || ""); setParseMeta(data.parse_meta || null);
           }
         } else if (key === "history") {
           if (Array.isArray(data.entries)) setHistory(data.entries);
         }
       });
     }
-    if (pushBack.length) {
-      await pushToCloud(pushBack.map(({ key, data }) => ({ key, data })));
-    }
-    setPendingFlags(attachPendingFlags(await getAllPending()));
     setLastSyncAt(Date.now());
-  }, [pullFromCloud, mergeLocalVsCloud, pushToCloud, buildLocalDoc]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pullFromCloud, pushToCloud, buildLocalDoc]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sinkronisasi MANUAL — hanya dipicu tombol "Sinkronkan Sekarang":
   //    1. push data lokal ke cloud (kalau cloud masih kosong untuk dokumen ini)
