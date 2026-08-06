@@ -5,10 +5,10 @@ import {
   Smartphone, Share, History, Settings,
   FileSpreadsheet, AlertTriangle, CheckCircle2,
 } from "lucide-react";
-import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState, setSyncCallbacks } from "./utils/storage.js";
+import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState } from "./utils/storage.js";
 import { supabase, getSession, onAuthChange, signOutAccount } from "./utils/cloud.js";
 import {
-  getDeviceId, queuePending, getAllPending, countAllPending, clearPending,
+  getDeviceId, getAllPending,
   pushToCloud, pullFromCloud, mergeLocalVsCloud, attachPendingFlags,
 } from "./utils/syncEngine.js";
 import { LoginModal } from "./components/LoginModal.jsx";
@@ -255,29 +255,7 @@ export default function SalesMonitoringApp() {
     history: 0,
   });
   const isAuthedRef = useRef(false);
-  // ref ke flushQueue — diisi di body render tiap kali, dipakai dari effect
-  // lifecycle yang didefinisikan sebelum definisi flushQueue.
-  const flushQueueRef = useRef(null);
   const syncNowRef = useRef(null);
-
-  // Flush queue -> cloud (dipakai saat ada perubahan & saat koneksi pulih).
-  const flushQueue = useCallback(async () => {
-    if (!supabase) return;
-    const sess = await getSession();
-    if (!sess) { setSyncState("offline"); return; }
-    const all = await getAllPending();
-    if (!all.length) { setSyncState("done"); setLastSyncAt(Date.now()); return; }
-    setSyncState("syncing");
-    const res = await pushToCloud(all);
-    if (res.ok) {
-      setSyncState("done"); setLastSyncAt(Date.now());
-      setPendingFlags(attachPendingFlags(await getAllPending()));
-    } else {
-      setSyncState("error");
-      setSyncMsg(`Gagal mengirim ${res.total - res.pushed}/${res.total} perubahan ke cloud.`);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  flushQueueRef.current = flushQueue;
 
   const cloudEnabled = !!supabase;
 
@@ -402,14 +380,14 @@ export default function SalesMonitoringApp() {
     setLastSyncAt(Date.now());
   }, [pullFromCloud, mergeLocalVsCloud, pushToCloud]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Gabungan flush + pull: jalankan setelah login atau saat refresh manual.
+  // Sinkronisasi MANUAL — hanya dipicu tombol "Sinkronkan Sekarang":
+  //    1. push data lokal ke cloud (kalau cloud masih kosong untuk dokumen ini)
+  //    2. tarik data cloud, merge LWW (timestamp lebih baru menang), terapkan.
+  // Tidak ada sinkronisasi otomatis: data hanya berpindah saat user tekan tombol.
   const syncNow = useCallback(async () => {
-    console.log("[sync] syncNow dipanggil, authed:", isAuthedRef.current, "supabase:", !!supabase);
     if (!supabase || !isAuthedRef.current) return;
     setSyncState("syncing");
-    await flushQueueRef.current?.();
     await runPullAndApply();
-    await flushQueueRef.current?.();
     setSyncState("done");
   }, [runPullAndApply]);
   syncNowRef.current = syncNow;
@@ -437,10 +415,6 @@ export default function SalesMonitoringApp() {
   useEffect(() => {
     saveSettings({ theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed, updated_at: Date.now() });
     localTsRef.current.settings = Date.now();
-    if (isAuthedRef.current) {
-      queuePending("settings", { data: buildLocalDoc("settings") });
-      if (supabase) { flushQueueRef.current?.(); }
-    }
   }, [theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Simpan otomatis data transaksi ke IndexedDB tiap kali berubah (setelah upload
@@ -450,41 +424,13 @@ export default function SalesMonitoringApp() {
     if (!rawRows.length) return;
     saveSession({ rawRows, fileName, parseMeta });
     // Tandai timestamp lokal barusan — bikin "session lokal" lebih baru dari
-    // cloud, jadi saat merge LWW data terbaru (hasil upload ini) menang dan
-    // tidak ditimpa versi lama di cloud.
+    // cloud, jadi saat sinkronisasi manual LWW data terbaru menang.
     localTsRef.current.session = Date.now();
-    // Sync data transaksi ke cloud (kalau authed + berubah).
-    if (isAuthedRef.current) {
-      queuePending("session", { data: buildLocalDoc("session") });
-      if (supabase) { flushQueueRef.current?.(); }
-    }
   }, [rawRows, fileName, parseMeta]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync riwayat ke cloud saat berubah.
-  useEffect(() => {
-    if (isAuthedRef.current && history.length) {
-      queuePending("history", { data: buildLocalDoc("history") });
-      if (supabase) { flushQueueRef.current?.(); }
-    }
-  }, [history]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Set callbacks sync ke storage.js: setelah simpan lokal, tandai queue.
-  useEffect(() => {
-    setSyncCallbacks({ markPending: () => {
-      if (!isAuthedRef.current) return;
-      setPendingFlags(attachPendingFlags([])); // trigger refresh ringan
-      flushQueueRef.current?.();
-    } });
-    return () => setSyncCallbacks(null);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Inisialisasi: cek sesi + pasang listener auth + listener online/offline.
+  // Inisialisasi: cek sesi + pasang listener auth.
   useEffect(() => {
     let alive = true;
-    let flushTimer = null;
-    // Pull + flush lengkap — digunakan utk refresh berkala & manual.
-    const doFlush = () => { if (alive && isAuthedRef.current) { flushQueueRef.current?.(); syncNowRef.current?.(); } };
-    const onOnline = () => { if (alive && isAuthedRef.current) doFlush(); };
     (async () => {
       const sess = await getSession();
       if (!alive) return;
@@ -493,7 +439,6 @@ export default function SalesMonitoringApp() {
         setSessionUser(sess.user);
         const st = loadSettings();
         if (st && st.updated_at) localTsRef.current.settings = Number(st.updated_at);
-        await syncNowRef.current?.();
       } else {
         if (alive) setSyncState("idle");
       }
@@ -504,9 +449,6 @@ export default function SalesMonitoringApp() {
       if (session) {
         isAuthedRef.current = true;
         setSessionUser(session.user);
-        setSyncState("syncing");
-        flushQueueRef.current?.();
-        syncNowRef.current?.();
       } else {
         isAuthedRef.current = false;
         setSessionUser(null);
@@ -514,24 +456,7 @@ export default function SalesMonitoringApp() {
       }
     });
 
-    // Pull ulang saat tab aktif kembali / koneksi pulih / berkala — supaya
-    // data dari perangkat lain muncul walau app ini sudah terbuka lama.
-    const onVisible = () => { if (!document.hidden) doFlush(); };
-    const onFocus = () => doFlush();
-    const interval = window.setInterval(doFlush, 60000);
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("online", onOnline);
-
-    return () => {
-      alive = false;
-      unsub();
-      window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("online", onOnline);
-      if (flushTimer) clearTimeout(flushTimer);
-    };
+    return () => { alive = false; unsub(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* --------------------------- PWA: instal & update --------------------------- */
