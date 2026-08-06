@@ -77,6 +77,24 @@ export async function fetchAllMasterRows() {
   }
 }
 
+// Ambil baris master dengan date > maxDateLokal (delta). Untuk sync inkremental:
+// device yang sudah pernah syncing tidak perlu mengunduh ulang seluruh master.
+// Kalau sudah ada baris MASTER dengan tanggal yang sama, tetap dikembalikan
+// (range: date > maxDateLokal). Kosong kalau tak ada perubahan.
+export async function fetchMasterRowsSince(maxDateLokal) {
+  if (!supabase) return { ok: false, reason: "not_configured", rows: [] };
+  try {
+    let q = supabase.from("master_sales").select("*");
+    if (maxDateLokal) q = q.gt("date", maxDateLokal);
+    q = q.order("date", { ascending: true });
+    const { data, error } = await q;
+    if (error) return { ok: false, reason: error.message, rows: [] };
+    return { ok: true, rows: data || [] };
+  } catch (e) {
+    return { ok: false, reason: e.message, rows: [] };
+  }
+}
+
 // Insert baris-baris BARU ke master (hanya yang belum ada: date > maxDate).
 // `rows` = array objek { date, salesCode, outletCode, invoiceNo, productCode,
 // group, qty, value, unit } — dipetakan ke kolom snake_case di sini.
@@ -129,18 +147,6 @@ export async function deleteMasterRange(dateFrom, dateTo) {
       .delete({ count: "exact" })
       .gte("date", dateFrom)
       .lte("date", dateTo);
-    if (error) return { ok: false, reason: error.message, deleted: 0 };
-    return { ok: true, deleted: count || 0 };
-  } catch (e) {
-    return { ok: false, reason: e.message, deleted: 0 };
-  }
-}
-
-// Hapus SEMUA master (reset total). Hanya editor. Kembalikan { ok, deleted }.
-export async function resetMaster() {
-  if (!supabase) return { ok: false, reason: "not_configured", deleted: 0 };
-  try {
-    const { error, count } = await supabase.from("master_sales").delete({ count: "exact" }).neq("id", 0);
     if (error) return { ok: false, reason: error.message, deleted: 0 };
     return { ok: true, deleted: count || 0 };
   } catch (e) {
