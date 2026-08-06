@@ -8,8 +8,8 @@ import {
 import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState } from "./utils/storage.js";
 import { supabase, getSession, onAuthChange, signOutAccount } from "./utils/cloud.js";
 import {
-  getDeviceId,
-  pushToCloud, pullFromCloud,
+  fetchRole, fetchMasterMaxDate, fetchAllMasterRows, pushMasterRows,
+  deleteMasterRange, resetMaster, pushSettings, pullSettings,
 } from "./utils/syncEngine.js";
 import { LoginModal } from "./components/LoginModal.jsx";
 import {
@@ -56,6 +56,53 @@ import { AboutModal } from "./components/modals/AboutModal.jsx";
    Data/mono: JetBrains Mono.
 ============================================================================ */
 import { THEMES, applyPowerSaveColors } from "./constants/colors.js";
+
+/* ============================ RangeDeleteModal (admin) ============================
+   Modal hapus rentang tanggal di master_sales. Destructive — butuh konfirmasi
+   tombol dua-tahap.
+============================================================================ */
+function RangeDeleteModal({ colors, onClose, onConfirm, masterResult }) {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [confirm, setConfirm] = useState(false);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein p-4" onClick={onClose}>
+      <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="disp text-base font-semibold">Hapus Rentang Master</div>
+          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.glassFill }}><X size={16} /></button>
+        </div>
+        <p className="text-xs mb-4" style={{ color: colors.textMuted }}>
+          Hapus baris data master pada rentang tanggal ini. Tindakan permanen.
+        </p>
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: colors.textMuted }}>Dari</label>
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl text-sm outline-none" style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }} />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: colors.textMuted }}>Sampai</label>
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl text-sm outline-none" style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }} />
+          </div>
+        </div>
+        {masterResult && <p className="text-xs mb-3" style={{ color: colors.mint }}>{masterResult}</p>}
+        <div className="flex gap-2">
+          <button onClick={onClose} className="sm-btn flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold" style={{ border: `1px solid ${colors.glassBorder}`, color: colors.textMuted }}>
+            Batal
+          </button>
+          <button onClick={() => { if (!confirm) { setConfirm(true); return; } onConfirm(from, to); setConfirm(false); onClose(); }}
+            disabled={!from || !to}
+            className="sm-btn flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+            style={{ background: confirm ? colors.coral : colors.coral + "1A", color: confirm ? "#fff" : colors.coral, border: `1px solid ${colors.coral}44` }}>
+            {confirm ? "Yakin? Klik lagi" : "Hapus"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const createGlobalStyle = (colors, powerSaveMode) => `
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
@@ -241,140 +288,95 @@ export default function SalesMonitoringApp() {
 
   /* ============================ AKUN & SINKRONISASI ============================ */
   const [sessionUser, setSessionUser] = useState(null);
+  const [userRole, setUserRole] = useState(null); // 'admin'|'supervisor'|'user'|null
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [syncState, setSyncState] = useState("idle"); // idle | syncing | done | error | offline
+  const [syncState, setSyncState] = useState("idle"); // idle | syncing | done | error
   const [syncMsg, setSyncMsg] = useState("");
-  const [pendingFlags, setPendingFlags] = useState({ settings: false, session: false, history: false });
   const [lastSyncAt, setLastSyncAt] = useState(0);
-  const [syncBanner, setSyncBanner] = useState(null); // { type: "info"|"ok"|"err", text }
-
-  // updated_at lokal per dokumen — dipakai perbandingan LWW saat merge.
-  const localTsRef = useRef({
-    settings: Number(persistedSettings?.updated_at) || 0,
-    session: 0,
-    history: 0,
-  });
   const isAuthedRef = useRef(false);
   const syncNowRef = useRef(null);
 
   const cloudEnabled = !!supabase;
+  const isEditor = userRole === "admin" || userRole === "supervisor";
 
-  // Keluar dari akun — state app TIDAK diubah (data lokal tetap utuh);
-  // listener onAuthChange akan set sessionUser=null & syncState=idle.
+  // Keluar dari akun — state app TIDAK diubah (data lokal tetap utuh).
   const handleLogout = useCallback(async () => {
     await signOutAccount();
     setIsLoginOpen(false);
+    setUserRole(null);
   }, []);
 
-  // Bangun "dokumen lokal" berisi data terkini + updated_at + device id.
-  const buildLocalDoc = useCallback((key) => {
-    const base = { updated_by: getDeviceId(), updated_at: localTsRef.current[key] || Date.now() };
-    if (key === "settings") {
-      return { ...base, targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed };
-    }
-    if (key === "session") {
-      return { ...base, rawRows, fileName, parseMeta };
-    }
-    if (key === "history") {
-      return { ...base, entries: history };
-    }
-    return base;
-  }, [targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed, rawRows, fileName, parseMeta, history]);
+  // Muat role user saat login (dari tabel profiles).
+  const refreshRole = useCallback(async () => {
+    if (!supabase || !isAuthedRef.current) return;
+    const role = await fetchRole();
+    setUserRole(role);
+  }, []);
 
-  // Sinkronisasi MANUAL — hanya dipicu tombol "Sinkronkan Sekarang".
-  // Pola LOCAL-FIRST (cocok untuk pemakaian satu-user lintas device):
-  //   1. DORONG data lokal ke cloud (overwrite) untuk dokumen yang lokal punya
-  //      data — ini menjamin data terbaru di device ini naik ke cloud, tidak
-  //      pernah ditumpas versi lama.
-  //   2. TARIK dari cloud hanya dokumen yang LOKAL TIDAK punya (device baru /
-  //      kosong) — supaya device yang belum punya data bisa dapat dari cloud.
-  // Tidak ada konflik/timpa-mutual: tiap device mengirim datanya sendiri dan
-  // menerima hanya yang belum dimilikinya.
-  const runPullAndApply = useCallback(async () => {
-    console.log("[sync] runPullAndApply jalan");
+  const [masterAction, setMasterAction] = useState(null); // 'save'|'range'|'reset'|null
+  const [masterBusy, setMasterBusy] = useState(false);
+  const [masterResult, setMasterResult] = useState("");
+
+  // Simpan data penjualan lokal ke master (admin/supervisor). Incremental:
+  // hanya baris dengan date > max_date master yang dimasukkan.
+  const handleSaveMaster = useCallback(async () => {
+    if (!isEditor || !rawRows.length) return;
+    setMasterBusy(true); setMasterResult("");
+    const maxDate = await fetchMasterMaxDate();
+    const res = await pushMasterRows(rawRows, maxDate);
+    setMasterBusy(false);
+    if (res.ok) setMasterResult(`${res.inserted} baris ditambahkan, ${res.skipped} dilewati (sudah ada).`);
+    else setMasterResult("Gagal simpan ke master: " + (res.reason || ""));
+  }, [isEditor, rawRows]);
+
+  // Hapus rentang tanggal di master (admin/supervisor).
+  const handleDeleteRange = useCallback(async (dateFrom, dateTo) => {
+    if (!isEditor || !dateFrom || !dateTo) return;
+    setMasterBusy(true); setMasterResult("");
+    const res = await deleteMasterRange(dateFrom, dateTo);
+    setMasterBusy(false);
+    if (res.ok) setMasterResult(`Hapus berhasil: ${res.deleted} baris dihapus dari master.`);
+    else setMasterResult("Gagal hapus: " + (res.reason || ""));
+  }, [isEditor]);
+
+  // Sinkronisasi MANUAL — hanya via tombol "Sinkronkan Sekarang".
+  //   1. PUSH settings+targets user sendiri ke profiles (ikut pindah device).
+  //   2. TARIK master_sales -> MASUKKAN ke lokal: master MENANG utk tanggal
+  //      yang sama (baris lokal utk tanggal itu dihapus, diganti master).
+  const runSync = useCallback(async () => {
     if (!supabase) return;
-    const pull = await pullFromCloud();
-    if (!pull?.ok) { setSyncState("error"); setSyncMsg("Gagal menarik data cloud."); return; }
-    console.log("[sync] pull docs:", pull.docs.map((d) => d.key).join(",") || "(kosong)", "| local rawRows:", rawRows ? rawRows.length : "null");
-
-    // --- 1) DORONG lokal ke cloud ---
-    const localHas = {
-      settings: true, // settings selalu dianggap ada (terutama target & depot)
-      session: (rawRows && rawRows.length > 0),
-      history: (history && history.length > 0),
-    };
-    // Session: pastikan state terisi data IndexedDB kalau state kosong.
-    let localRows = rawRows;
-    let localFile = fileName;
-    let localMeta = parseMeta;
-    if (!(localRows && localRows.length)) {
-      try {
-        const stored = await loadSession();
-        if (stored && stored.rawRows && stored.rawRows.length) {
-          localRows = stored.rawRows;
-          localFile = stored.fileName || "";
-          localMeta = stored.parseMeta || null;
-        }
-      } catch (_e) { /* abaikan */ }
-      if (localRows && localRows.length) {
-        setRawRows(localRows); setFileName(localFile); setParseMeta(localMeta);
-      }
-    }
-    localHas.session = !!(localRows && localRows.length);
-
-    for (const k of ["settings", "session", "history"]) {
-      if (!localHas[k]) continue;
-      const doc = k === "session"
-        ? { rawRows: localRows, fileName: localFile, parseMeta: localMeta, updated_by: getDeviceId(), updated_at: Date.now() }
-        : buildLocalDoc(k);
-      try {
-        const res = await pushToCloud([{ key: k, data: doc }]);
-        console.log(`[sync] push ${k}: ok=${res.ok} rows=${k === "session" ? (localRows ? localRows.length : 0) : "-"}`);
-        if (res.ok) localTsRef.current[k] = Date.now();
-      } catch (e) {
-        console.error(`[sync] push ${k} ERROR:`, e.message);
-      }
-    }
-
-    // --- 2) TARIK cloud utk dokumen yang lokal TIDAK punya ---
-    const pullDocs = pull.docs.filter((d) => !localHas[d.key]);
-    if (pullDocs.length) {
-      pullDocs.forEach(({ key, data }) => {
-        localTsRef.current[key] = Number(data.updated_at) || Date.now();
-        if (key === "settings") {
-          if (data.targets) setTargets(data.targets);
-          if (data.work_days) setWorkDays(data.work_days);
-          if (data.depot_name) setDepotName(data.depot_name);
-          if (data.theme) setTheme(data.theme);
-          if (data.projection_method) setProjectionMethod(data.projection_method);
-          if (typeof data.sidebar_collapsed === "boolean") setSidebarCollapsed(data.sidebar_collapsed);
-        } else if (key === "session") {
-          if (data.raw_rows && data.raw_rows.length) {
-            setRawRows(data.raw_rows); setFileName(data.file_name || ""); setParseMeta(data.parse_meta || null);
-          }
-        } else if (key === "history") {
-          if (Array.isArray(data.entries)) setHistory(data.entries);
-        }
-      });
+    // 1) settings+targets
+    await pushSettings({ targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed });
+    // 2) master data
+    const res = await fetchAllMasterRows();
+    if (!res.ok) { setSyncState("error"); setSyncMsg("Gagal mengambil data master: " + res.reason); return; }
+    if (res.rows.length) {
+      const masterDates = new Set(res.rows.map((r) => r.date));
+      const keptLocal = (rawRows || []).filter((r) => !masterDates.has(r.date));
+      const masterMapped = res.rows.map((r) => ({
+        date: r.date, salesCode: r.sales_code, outletCode: r.outlet_code,
+        invoiceNo: r.invoice_no, productCode: r.product_code, group: r.group_name,
+        qty: r.qty, value: r.value, unit: r.unit,
+      }));
+      const merged = [...keptLocal, ...masterMapped];
+      setRawRows(merged);
+      setFileName("Master data (sinkron)" + (merged.length ? ` · ${merged.length} baris` : ""));
+      setParseMeta({ sourceFiles: [], detectedFields: [], missingFields: [], totalDataRows: merged.length });
     }
     setLastSyncAt(Date.now());
-  }, [pullFromCloud, pushToCloud, buildLocalDoc]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed, rawRows]);
 
-  // Sinkronisasi MANUAL — hanya dipicu tombol "Sinkronkan Sekarang":
-  //    1. push data lokal ke cloud (kalau cloud masih kosong untuk dokumen ini)
-  //    2. tarik data cloud, merge LWW (timestamp lebih baru menang), terapkan.
-  // Tidak ada sinkronisasi otomatis: data hanya berpindah saat user tekan tombol.
+  // Sinkronisasi manual hanya dijalankan saat tombol ditekan.
   const syncNow = useCallback(async () => {
     if (!supabase || !isAuthedRef.current) return;
-    setSyncState("syncing");
-    await runPullAndApply();
+    setSyncState("syncing"); setSyncMsg("");
+    await runSync();
     setSyncState("done");
-  }, [runPullAndApply]);
+  }, [runSync]);
   syncNowRef.current = syncNow;
 
   // Muat data sesi terakhir (hasil upload/demo sebelumnya) dari IndexedDB saat
-  // pertama kali app dibuka. Async, jadi ditampilkan status loading singkat
-  // dulu supaya tidak "flash" ke tampilan "Belum ada data" sebelum sempat dicek.
+  // pertama aplikasi dibuka. Async, ditampilkan status loading singkat dulu.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -390,25 +392,17 @@ export default function SalesMonitoringApp() {
   }, []);
 
   // Simpan otomatis setiap kali pengaturan berubah (tema, filter, target,
-  // hari kerja, nama depo) — jadi tidak perlu tombol "simpan" terpisah untuk ini,
-  // beda dengan raw data yang lebih berat dan disimpan terpisah di bawah.
+  // hari kerja, nama depo) — tidak perlu tombol "simpan".
   useEffect(() => {
     saveSettings({ theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed, updated_at: Date.now() });
-    localTsRef.current.settings = Date.now();
-  }, [theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed]);
 
-  // Simpan otomatis data transaksi ke IndexedDB tiap kali berubah (setelah upload
-  // dikonfirmasi atau data contoh dimuat). Di-skip saat kosong karena reset
-  // ditangani secara eksplisit lewat clearSession() di handleReset.
+  // Simpan otomatis data transaksi ke IndexedDB tiap kali berubah.
   useEffect(() => {
-    if (!rawRows.length) return;
-    saveSession({ rawRows, fileName, parseMeta });
-    // Tandai timestamp lokal barusan — bikin "session lokal" lebih baru dari
-    // cloud, jadi saat sinkronisasi manual LWW data terbaru menang.
-    localTsRef.current.session = Date.now();
-  }, [rawRows, fileName, parseMeta]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (rawRows.length) saveSession({ rawRows, fileName, parseMeta });
+  }, [rawRows, fileName, parseMeta]);
 
-  // Inisialisasi: cek sesi + pasang listener auth.
+  // Inisialisasi sesi + pasang listener auth + muat role.
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -417,8 +411,8 @@ export default function SalesMonitoringApp() {
       if (sess) {
         isAuthedRef.current = true;
         setSessionUser(sess.user);
-        const st = loadSettings();
-        if (st && st.updated_at) localTsRef.current.settings = Number(st.updated_at);
+        const role = await fetchRole();
+        if (alive) setUserRole(role);
       } else {
         if (alive) setSyncState("idle");
       }
@@ -429,15 +423,17 @@ export default function SalesMonitoringApp() {
       if (session) {
         isAuthedRef.current = true;
         setSessionUser(session.user);
+        refreshRole();
       } else {
         isAuthedRef.current = false;
         setSessionUser(null);
+        setUserRole(null);
         setSyncState("idle");
       }
     });
 
     return () => { alive = false; unsub(); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [refreshRole]);
 
   /* --------------------------- PWA: instal & update --------------------------- */
 
@@ -806,8 +802,17 @@ export default function SalesMonitoringApp() {
       <div className="relative" style={{ zIndex: 1 }}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors}
         theme={theme} setTheme={setTheme} powerSaveMode={powerSaveMode} setPowerSaveMode={setPowerSaveMode} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge} />
-      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} colors={colors} onLoginSuccess={() => {}} sessionUser={sessionUser} onLogout={handleLogout} syncState={syncState} lastSyncAt={lastSyncAt} onManualSync={() => { syncNowRef.current?.(); }} />
+      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} colors={colors} onLoginSuccess={() => {}} sessionUser={sessionUser} userRole={userRole} onLogout={handleLogout} syncState={syncState} lastSyncAt={lastSyncAt} onManualSync={() => { syncNowRef.current?.(); }} />
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} colors={colors} />
+      {/* Modal hapus rentang master data (admin) */}
+      {masterAction === "range" && (
+        <RangeDeleteModal
+          colors={colors}
+          onClose={() => setMasterAction(null)}
+          onConfirm={handleDeleteRange}
+          masterResult={masterResult}
+        />
+      )}
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
       <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
       <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={(mode) => confirmPreview(mode)} preview={pendingPreview} colors={colors} />
@@ -953,6 +958,27 @@ export default function SalesMonitoringApp() {
         {/* upload */}
         <div className="mb-6 sm-fadeup" style={{ animationDelay: "40ms" }}>
           <UploadDropzone onFile={handleFile} hasData={!!rawRows.length} fileName={fileName} onReset={handleReset} onSample={handleSample} loading={loading} sampleLoading={sampleLoading} colors={colors} />
+
+          {/* Panel admin/supervisor: kelola master data */}
+          {isEditor && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 sm-fadeup">
+              <button onClick={handleSaveMaster} disabled={masterBusy || !rawRows.length}
+                className="sm-btn flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold disabled:opacity-40"
+                style={{ background: colors.mint + "1A", color: colors.mint, border: `1px solid ${colors.mint}44` }}>
+                <CloudUpload size={15} /> Simpan ke Master
+              </button>
+              <button onClick={() => setMasterAction("range")} disabled={masterBusy}
+                className="sm-btn flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold disabled:opacity-40"
+                style={{ background: colors.glassFill, color: colors.coral, border: `1px solid ${colors.coral}33` }}>
+                <AlertTriangle size={15} /> Hapus Rentang
+              </button>
+              {masterResult && (
+                <span className="text-xs" style={{ color: masterResult.startsWith("Gagal") ? colors.coral : colors.mint }}>
+                  {masterResult}
+                </span>
+              )}
+            </div>
+          )}
           {error && (
             <div className="mt-3 flex items-center gap-2 text-sm px-4 py-2.5 rounded-xl" style={{ background: colors.coral + "14", color: colors.coral, border: `1px solid ${colors.coral}33` }}>
               <AlertTriangle size={14} /> {error}
