@@ -17,17 +17,6 @@
    bukan crash.
 ============================================================================ */
 
-/* --- Hook sinkronisasi (di-set oleh SalesMonitoringApp via setSyncCallbacks).
-   storage.js TIDAK import syncEngine langsung (hindari circular dependency);
-   caller menyuntikkan fungsi `markPending(key, data)` yang dipanggil SETELAH
-   simpan lokal berhasil, lalu menyusul push ke cloud. Default no-op: app yang
-   belum punya sync (cloud belum dikonfigurasi) tetap berjalan normal. */
-let markPending = () => {};
-export function setSyncCallbacks(cb) {
-  markPending = cb?.markPending || (() => {});
-}
-const syncDataNow = () => { try { markPending("settings", { at: Date.now() }); } catch (_e) {} };
-
 const SETTINGS_KEY = "smapp:settings:v1";
 const SETTINGS_VERSION = 1;
 
@@ -47,7 +36,6 @@ export function saveSettings(settings) {
   try {
     const payload = JSON.stringify({ _v: SETTINGS_VERSION, ...settings });
     window.localStorage.setItem(SETTINGS_KEY, payload);
-    syncDataNow(); // tandai pending sync settings
     return true;
   } catch (e) {
     console.warn("Gagal menyimpan pengaturan ke localStorage:", e);
@@ -133,7 +121,6 @@ export function saveHistory(history) {
   try {
     const trimmed = (history || []).slice(0, HISTORY_MAX_ENTRIES);
     window.localStorage.setItem(HISTORY_KEY, JSON.stringify({ _v: HISTORY_VERSION, entries: trimmed }));
-    try { markPending("history", { at: Date.now() }); } catch (_e) {} // tandai pending sync history
     return true;
   } catch (e) {
     console.warn("Gagal menyimpan riwayat periode:", e);
@@ -188,7 +175,6 @@ export async function saveSession({ rawRows, fileName, parseMeta }) {
       tx.onerror = () => reject(tx.error);
     });
     db.close();
-    try { markPending("session", { at: Date.now() }); } catch (_e) {} // tandai pending sync session
     return true;
   } catch (e) {
     console.warn("Gagal menyimpan data sesi ke IndexedDB:", e);
