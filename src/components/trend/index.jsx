@@ -8,6 +8,8 @@ import { SectionTitle, createChartTooltipStyle } from "../ui/index.jsx";
 import { MultiSelect } from "../ui/MultiSelect.jsx";
 import { ACH_TIERS } from "../../constants/thresholds.js";
 import { captureChartImage, exportTrendExcel, exportTrendPDF } from "../../utils/trendExport.js";
+import { computeBaseGrowth } from "../../utils/comparisonBase.js";
+import { BaseSelector } from "../ui/BaseSelector.jsx";
 
 const LINE_COLOR_KEYS = ["gold", "mint", "violet", "blue", "coral"];
 const MAX_DEFAULT_LINES = 5;
@@ -120,7 +122,7 @@ function TrendExportMenu({ colors, disabled, busy, onExportExcel, onExportPdf })
    (periode aktif + snapshot riwayat terpilih). Beda dengan PeriodComparisonCard
    (Main Report) yang cuma 1 vs 1 — ini untuk melihat tren beberapa bulan.
 ============================================================================ */
-export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPeriodPicker, selectedCount, depotName }) {
+export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPeriodPicker, selectedCount, depotName, comparisonBase = "prev", onBaseChange }) {
   const [metric, setMetric] = useState("value"); // "value" | "ao"
   const chartRef = useRef(null);
   const [exportBusy, setExportBusy] = useState(null); // null | "excel" | "pdf"
@@ -161,7 +163,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
     setExportBusy("excel");
     try {
       const chartImage = chartRef.current ? await captureChartImage(chartRef.current, colors.surface) : null;
-      exportTrendExcel(comparisonData, effectiveSelectedNames, { depotName, chartImage });
+      exportTrendExcel(comparisonData, effectiveSelectedNames, { depotName, chartImage, comparisonBase });
     } finally {
       setExportBusy(null);
     }
@@ -172,7 +174,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
     setExportBusy("pdf");
     try {
       const chartImage = chartRef.current ? await captureChartImage(chartRef.current, colors.surface) : null;
-      exportTrendPDF(comparisonData, effectiveSelectedNames, { depotName, chartImage });
+      exportTrendPDF(comparisonData, effectiveSelectedNames, { depotName, chartImage, comparisonBase });
     } finally {
       setExportBusy(null);
     }
@@ -201,6 +203,21 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
 
   const { periods, bySales, totalsSeries } = comparisonData;
 
+  // Growth per sales dihitung ulang sesuai opsi pembanding (comparisonBase).
+  // `series` = nilai kronologis per periode (skip missing) utk value & ao.
+  const growthBySales = useMemo(() => {
+    const map = new Map();
+    bySales.forEach((s) => {
+      const valSeries = s.series.filter((pt) => !pt.missing).map((pt) => pt.value);
+      const aoSeries = s.series.filter((pt) => !pt.missing).map((pt) => pt.ao);
+      map.set(s.code, {
+        growthValue: computeBaseGrowth(valSeries, comparisonBase).growth,
+        growthAo: computeBaseGrowth(aoSeries, comparisonBase).growth,
+      });
+    });
+    return map;
+  }, [bySales, comparisonBase]);
+
   return (
     <div className="sm-page-enter">
       {isAutoTrend && (
@@ -214,6 +231,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <SectionTitle title="Tren Periode" sub={`Membandingkan ${periods.length} periode · Value & AO per sales`} icon={TrendingUp} colors={colors} accent={colors.mint} />
         <div className="flex items-center gap-2">
+          <BaseSelector value={comparisonBase} onChange={onBaseChange || (() => {})} colors={colors} />
           <div className="flex p-1 rounded-xl" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
             <button onClick={() => setMetric("value")}
               className="sm-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5"
@@ -320,7 +338,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
                     </td>
                   ))}
                   <td className="text-right px-3 py-2 whitespace-nowrap">
-                    <GrowthTag growth={metric === "value" ? s.growthValue : s.growthAo} colors={colors} />
+                    <GrowthTag growth={metric === "value" ? (growthBySales.get(s.code)?.growthValue ?? null) : (growthBySales.get(s.code)?.growthAo ?? null)} colors={colors} />
                   </td>
                 </tr>
               ))}

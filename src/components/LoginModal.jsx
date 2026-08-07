@@ -11,7 +11,7 @@ import { signInWithIdentifier, signUpAccount, resetPassword } from "../utils/clo
    DAFTAR: username + email + password + konfirmasi (field terpisah).
 ============================================================================ */
 
-export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUser, userRole, onLogout, syncState = "idle", lastSyncAt = 0, onManualSync }) {
+export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUser, userRole, onLogout, syncState = "idle", lastSyncAt = 0, onManualSync, syncMsg = "" }) {
   const [tab, setTab] = useState("login");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -135,6 +135,13 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
                 )}
               </div>
             </div>
+            {/* Pesan error/hasil sinkronisasi — supaya kegagalan sync terlihat */}
+            {syncMsg && (
+              <div className="text-xs px-3 py-2 rounded-lg"
+                style={{ color: colors.coral, background: colors.coral + "14", border: `1px solid ${colors.coral}33` }}>
+                {syncMsg}
+              </div>
+            )}
             <button onClick={onManualSync} disabled={syncState === "syncing"}
               className="sm-btn w-full px-3 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5"
               style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>

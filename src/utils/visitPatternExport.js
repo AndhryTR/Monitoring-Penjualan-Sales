@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx-js-style";
 import { dateStrToLocalDate, todayLocalDateStr } from "./excelParse.js";
+import { fmtRp } from "./formatters.js";
 
 /* ============================================================================
    EXPORT POLA KUNJUNGAN KE EXCEL
@@ -80,7 +81,10 @@ export function exportVisitPatternExcel(pattern, salesName, depotName) {
     setCell(r, 3, o.avgIntervalDays !== null ? Math.round(o.avgIntervalDays * 10) / 10 : "-");
     const dateSet = new Set(o.visitDates);
     dates.forEach((d, di) => {
-      setCell(r, 4 + di, dateSet.has(d) ? "X" : "", { fill: dateSet.has(d) ? VISIT_FILL : undefined, bold: dateSet.has(d) });
+      const has = dateSet.has(d);
+      const val = has ? (o.valueByDate ? o.valueByDate.get(d) : undefined) : undefined;
+      const display = has ? (val === undefined || val === null ? "" : fmtRp(val)) : "";
+      setCell(r, 4 + di, display, { fill: has ? VISIT_FILL : undefined, bold: has, align: "center" });
     });
   });
 

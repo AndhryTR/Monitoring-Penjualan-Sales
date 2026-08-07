@@ -43,9 +43,17 @@ export function computeVisitPattern(rawRows, salesCode, dateFrom, dateTo, overdu
   rows.forEach((r) => {
     if (!r.outletCode) return;
     if (!byOutlet.has(r.outletCode)) {
-      byOutlet.set(r.outletCode, { outletCode: r.outletCode, outletName: r.outletName || r.outletCode, dateSet: new Set() });
+      byOutlet.set(r.outletCode, {
+        outletCode: r.outletCode,
+        outletName: r.outletName || r.outletCode,
+        dateSet: new Set(),
+        valueByDate: new Map(), // tanggal -> total value kunjungan hari itu
+      });
     }
-    byOutlet.get(r.outletCode).dateSet.add(r.date);
+    const o = byOutlet.get(r.outletCode);
+    o.dateSet.add(r.date);
+    const v = Number(r.value || 0);
+    o.valueByDate.set(r.date, (o.valueByDate.get(r.date) || 0) + v);
   });
 
   const outlets = Array.from(byOutlet.values()).map((o) => {
@@ -74,6 +82,7 @@ export function computeVisitPattern(rawRows, salesCode, dateFrom, dateTo, overdu
       outletCode: o.outletCode,
       outletName: o.outletName,
       visitDates,
+      valueByDate: o.valueByDate,
       totalVisits,
       firstVisit,
       lastVisit,

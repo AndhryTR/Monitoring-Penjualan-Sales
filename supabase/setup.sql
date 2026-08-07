@@ -4,6 +4,13 @@
 -- (https://supabase.com/dashboard/project/yykrlapoodqjeuwjrssw/sql/new)
 -- Aman dijalankan ulang (pakai CREATE OR REPLACE / IF NOT EXISTS).
 --
+-- PENTING (pengaman role S1): SETELAH blok ini dijalankan, kolom `role` di
+-- profiles TIDAK BISA diubah lewat anon/authenticated (revoke + trigger).
+-- Pastikan dulu role admin/supervisor kamu sudah di-set via SQL Editor
+-- (service role), mis.:
+--   update public.profiles set role = 'admin' where username = 'nama_kamu';
+-- Jalankan update tsb SEBELUM atau SESUDAH blok ini — service role tetap bisa.
+--
 -- Skema ini menggantikan desain lama (sales_data per-user) dengan:
 --   profiles    -> per-user (target, pengaturan, + kolom `role`)
 --   master_sales-> dataset transaksi GLOBAL per depot (1 baris = 1 transaksi)
@@ -44,11 +51,16 @@ create table if not exists public.master_sales (
   id bigserial primary key,
   date text not null,
   sales_code text,
+  sales_name text,
   outlet_code text,
+  outlet_name text,
   invoice_no text,
   product_code text,
+  product_name text,
   group_name text,
   qty numeric,
+  qty_karton numeric,
+  unconvertible boolean,
   value numeric,
   unit text,
   uploaded_by uuid references auth.users(id) on delete set null,
@@ -58,13 +70,26 @@ create index if not exists idx_master_sales_date on public.master_sales (date);
 create index if not exists idx_master_sales_sales on public.master_sales (sales_code);
 create index if not exists idx_master_sales_inv on public.master_sales (invoice_no);
 
+-- Unik per transaksi: mencegah duplikat saat re-push parsial (H1).
+-- Kombinasi (date, sales, outlet, invoice, produk) = 1 garis transaksi nyata.
+-- WAJIB ada utk `on conflict do nothing` di pushMasterRows (idempoten).
+create unique index if not exists uq_master_sales_trans
+  on public.master_sales (date, sales_code, outlet_code, invoice_no, product_code);
+
+-- Migrasi: tambah kolom nama (kalau tabel sudah pernah dibuat tanpa kolom ini)
+alter table public.master_sales add column if not exists sales_name text;
+alter table public.master_sales add column if not exists outlet_name text;
+alter table public.master_sales add column if not exists product_name text;
+alter table public.master_sales add column if not exists qty_karton numeric;
+alter table public.master_sales add column if not exists unconvertible boolean;
+
 -- ----------------------------------------------------------------------------
 -- 3) TRIGGER PROFIL OTOMATIS SAAT REGISTRASI (role default 'user')
 -- ----------------------------------------------------------------------------
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
-security definer set search_path = public
+security definer set search_path = pg_catalog, public
 as $$
 begin
   insert into public.profiles (user_id, username)
@@ -84,7 +109,7 @@ create trigger on_auth_user_created
 create or replace function public.get_email_by_username(p_username text)
 returns text
 language sql
-security definer set search_path = public
+security definer set search_path = pg_catalog, public
 stable
 as $$
   select u.email
@@ -99,7 +124,7 @@ $$;
 create or replace function public.is_editor()
 returns boolean
 language sql
-security definer set search_path = public
+security definer set search_path = pg_catalog, public
 stable
 as $$
   select coalesce((
@@ -126,6 +151,40 @@ create policy "profiles insert own" on public.profiles
 drop policy if exists "profiles update own" on public.profiles;
 create policy "profiles update own" on public.profiles
   for update using (auth.uid() = user_id);
+
+-- ----------------------------------------------------------------------------
+-- PENGAMAN ROLE (S1): cegah self-escalation role.
+--   1) Kolom `role` tak boleh ditulis oleh anon/authenticated langsung.
+--      (Hanya bisa diubah manual via SQL Editor oleh pemilik project —
+--      per rancangan: role di-set manual di DB.)
+--   2) Trigger lapis ganda: tolak INSERT/UPDATE kalau nilai `role` berubah
+--      dari default 'user' oleh koneksi biasa (bukan service_role).
+-- ----------------------------------------------------------------------------
+revoke update (role) on public.profiles from anon, authenticated;
+revoke insert (role) on public.profiles from anon, authenticated;
+
+create or replace function public.prevent_role_change()
+returns trigger
+language plpgsql
+security definer set search_path = pg_catalog, public
+as $$
+begin
+  -- Service role (dashboard/manual SQL) bebas; cegah hanya sesi user biasa.
+  if auth.role() = 'service_role' then
+    return new;
+  end if;
+  -- Tolak kalau kolom role diubah nilainya (INSERT: bukan default; UPDATE: beda).
+  if new.role is distinct from coalesce(old.role, 'user') then
+    raise exception 'Perubahan role tidak diizinkan';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_prevent_role_change on public.profiles;
+create trigger trg_prevent_role_change
+  before insert or update on public.profiles
+  for each row execute function public.prevent_role_change();
 
 -- master_sales: semua user login boleh baca
 drop policy if exists "master_sales select authed" on public.master_sales;

@@ -5,6 +5,15 @@ import html2canvas from "html2canvas";
 import { fmtRp, fmtNum, fmtPct } from "./formatters.js";
 import { todayLocalDateStr } from "./excelParse.js";
 import { ACH_TIERS } from "../constants/thresholds.js";
+import { computeBaseGrowth } from "./comparisonBase.js";
+
+/* Hitung growth utk satu sales sesuai opsi pembanding (baseMode).
+   Deret nilai diambil dari s.series (per periode, skip missing), lalu
+   baseline ditentukan via computeBaseGrowth (prev/avg3/avg6/yoy). */
+function growthFor(s, metric, baseMode) {
+  const series = s.series.filter((pt) => !pt.missing).map((pt) => (metric === "value" ? pt.value : pt.ao));
+  return computeBaseGrowth(series, baseMode).growth;
+}
 
 /* ============================================================================
    EXPORT TREN PERIODE
@@ -97,7 +106,7 @@ function achGradientColor(pct) {
 }
 
 /** Membangun 1 sheet (Value ATAU AO) untuk sales & periode terpilih. */
-function buildTrendSheet(XLSX_ws_helpers, { periods, salesRows, metric, depotName, periodRangeLabel }) {
+function buildTrendSheet(XLSX_ws_helpers, { periods, salesRows, metric, depotName, periodRangeLabel, comparisonBase = "prev" }) {
   const ws = {};
   const merges = [];
   let lastRow = 0;
@@ -169,7 +178,7 @@ function buildTrendSheet(XLSX_ws_helpers, { periods, salesRows, metric, depotNam
         fill: ach === null ? undefined : achGradientColor(ach),
       });
     });
-    const growth = metric === "value" ? s.growthValue : s.growthAo;
+    const growth = growthFor(s, metric, comparisonBase);
     setCell(r, growthCol, growth === null || growth === undefined ? "-" : growth, {
       bold: true, align: "center",
       numFmt: growth === null || growth === undefined ? undefined : XL_NUMFMT_PCT,
@@ -195,14 +204,14 @@ function buildTrendSheet(XLSX_ws_helpers, { periods, salesRows, metric, depotNam
  * `chartImage` disediakan — didownload bersamaan.
  */
 export function exportTrendExcel(comparisonData, selectedNames, opts = {}) {
-  const { depotName, chartImage } = opts;
+  const { depotName, chartImage, comparisonBase = "prev" } = opts;
   const { periods, bySales } = comparisonData;
   const salesRows = filterSelectedSales(bySales, selectedNames);
   const periodRangeLabel = periods.length ? `${periods[0].label} — ${periods[periods.length - 1].label}` : "-";
 
   const wb = XLSX.utils.book_new();
-  const wsValue = buildTrendSheet(XLSX, { periods, salesRows, metric: "value", depotName, periodRangeLabel });
-  const wsAo = buildTrendSheet(XLSX, { periods, salesRows, metric: "ao", depotName, periodRangeLabel });
+  const wsValue = buildTrendSheet(XLSX, { periods, salesRows, metric: "value", depotName, periodRangeLabel, comparisonBase });
+  const wsAo = buildTrendSheet(XLSX, { periods, salesRows, metric: "ao", depotName, periodRangeLabel, comparisonBase });
   XLSX.utils.book_append_sheet(wb, wsValue, "Value");
   XLSX.utils.book_append_sheet(wb, wsAo, "AO");
 
@@ -277,7 +286,7 @@ function drawTrendSectionTitle(doc, text, y) {
 }
 
 /** Menambahkan 1 tabel Value ATAU AO ke dokumen, mulai dari posisi y. Mengembalikan y setelah tabel. */
-function drawTrendTable(doc, { periods, salesRows, metric, y }) {
+function drawTrendTable(doc, { periods, salesRows, metric, y, comparisonBase = "prev" }) {
   const metricLabel = metric === "value" ? "Value" : "AO";
   y = drawTrendSectionTitle(doc, `Detail ${metricLabel} per Sales`, y);
 
@@ -292,7 +301,7 @@ function drawTrendTable(doc, { periods, salesRows, metric, y }) {
       const valStr = metric === "value" ? fmtRp(val) : fmtNum(val);
       cells.push(`${valStr}\n${ach === null ? "-" : fmtPct(ach)}`);
     });
-    const growth = metric === "value" ? s.growthValue : s.growthAo;
+    const growth = growthFor(s, metric, comparisonBase);
     cells.push(growth === null || growth === undefined ? "-" : fmtPct(Math.abs(growth)) + (growth >= 0 ? " ▲" : " ▼"));
     return cells;
   });
@@ -305,7 +314,7 @@ function drawTrendTable(doc, { periods, salesRows, metric, y }) {
       return metric === "value" ? pt.ach : pt.achAo;
     })
   );
-  const growthByRow = salesRows.map((s) => (metric === "value" ? s.growthValue : s.growthAo));
+  const growthByRow = salesRows.map((s) => growthFor(s, metric, comparisonBase));
 
   autoTable(doc, {
     startY: y,
@@ -340,7 +349,7 @@ function drawTrendTable(doc, { periods, salesRows, metric, y }) {
  * yang dipilih di chart.
  */
 export function exportTrendPDF(comparisonData, selectedNames, opts = {}) {
-  const { depotName, chartImage } = opts;
+  const { depotName, chartImage, comparisonBase = "prev" } = opts;
   const { periods, bySales } = comparisonData;
   const salesRows = filterSelectedSales(bySales, selectedNames);
   const periodRangeLabel = periods.length ? `${periods[0].label} — ${periods[periods.length - 1].label}` : "-";
@@ -359,10 +368,10 @@ export function exportTrendPDF(comparisonData, selectedNames, opts = {}) {
   }
 
   if (y > 240) { doc.addPage(); y = 20; }
-  y = drawTrendTable(doc, { periods, salesRows, metric: "value", y });
+  y = drawTrendTable(doc, { periods, salesRows, metric: "value", y, comparisonBase });
 
   if (y > 240) { doc.addPage(); y = 20; }
-  y = drawTrendTable(doc, { periods, salesRows, metric: "ao", y });
+  y = drawTrendTable(doc, { periods, salesRows, metric: "ao", y, comparisonBase });
 
   drawTrendFooter(doc);
   doc.save(`Tren_Periode_${todayLocalDateStr()}.pdf`);

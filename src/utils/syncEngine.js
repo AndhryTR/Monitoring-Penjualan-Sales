@@ -124,6 +124,8 @@ export async function fetchMasterRowsSince(maxDateLokal) {
 // Kembalikan { ok, inserted, skipped, maxDate, error }.
 export async function pushMasterRows(rows, maxDate) {
   if (!supabase) return { ok: false, reason: "not_configured", inserted: 0, skipped: 0 };
+  let inserted = 0; // di-deklare di luar try: tetap akurat walau partial fail
+  let newMax = maxDate;
   try {
     const user = await currentUser();
     if (!user?.id) return { ok: false, reason: "no_session", inserted: 0, skipped: 0 };
@@ -133,31 +135,41 @@ export async function pushMasterRows(rows, maxDate) {
       return { ok: true, inserted: 0, skipped, maxDate };
     }
     // Batch insert dalam potongan 500 baris (hindari request terlalu besar).
-    let inserted = 0;
+    // `on conflict do nothing` di unique key transaksi -> re-push idempoten:
+    // baris yang sudah ada dari push parsial sebelumnya tidak jadi duplikat.
     const CHUNK = 500;
     for (let i = 0; i < newRows.length; i += CHUNK) {
       const chunk = newRows.slice(i, i + CHUNK).map((r) => ({
         date: r.date,
         sales_code: r.salesCode ?? null,
+        sales_name: r.salesName ?? null,
         outlet_code: r.outletCode ?? null,
+        outlet_name: r.outletName ?? null,
         invoice_no: r.invoiceNo ?? null,
         product_code: r.productCode ?? null,
+        product_name: r.productName ?? null,
         group_name: r.group ?? null,
         qty: r.qty ?? null,
+        qty_karton: r.qtyKarton ?? null,
+        unconvertible: r.unconvertible ?? null,
         value: r.value ?? null,
         unit: r.unit ?? null,
         uploaded_by: user.id,
       }));
-      const { error } = await supabase.from("master_sales").insert(chunk);
-      if (error) throw error;
-      inserted += chunk.length;
+      const { count } = await supabase
+        .from("master_sales")
+        .upsert(chunk, { onConflict: "date,sales_code,outlet_code,invoice_no,product_code", ignoreDuplicates: true, count: "exact" });
+      // `count` = jumlah baris yang BENAR-BENAR ter-insert (yang konflik dilewati).
+      inserted += (count != null ? count : chunk.length);
+      // Advance maxDate dari chunk yang berhasil masuk (yg nyata di DB).
+      chunk.forEach((r) => { if (!newMax || r.date > newMax) newMax = r.date; });
     }
-    // maxDate baru = tanggal terbesar dari data yang barusan dimasukkan.
-    let newMax = maxDate;
-    newRows.forEach((r) => { if (!newMax || r.date > newMax) newMax = r.date; });
     return { ok: true, inserted, skipped, maxDate: newMax };
   } catch (e) {
-    return { ok: false, reason: e.message, inserted: 0, skipped: 0 };
+    // Partial failure: chunk sebelumnya sudah tercommit. Report yang akurat
+    // (inserted benar, maxDate sudah maju) + `partial:true` — jangan re-push
+    // seluruhnya (unique index utk idempoten), tapi caller wajib cek.
+    return { ok: false, reason: e.message, inserted, skipped: 0, maxDate: newMax, partial: true };
   }
 }
 

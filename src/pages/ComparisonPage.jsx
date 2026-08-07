@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { GitCompareArrows, Users, Package, Store, Wallet } from "lucide-react";
 import { MultiSelect } from "../components/ui/MultiSelect.jsx";
 import { SectionTitle } from "../components/ui/index.jsx";
+import { BaseSelector } from "../components/ui/BaseSelector.jsx";
 import { PeriodPicker } from "../components/comparison/PeriodPicker.jsx";
 import { MetricToggle } from "../components/comparison/MetricToggle.jsx";
 import { MatrixKpiTotal } from "../components/comparison/MatrixKpiTotal.jsx";
@@ -9,12 +10,13 @@ import { GroupedBarChart, periodColorPicker } from "../components/comparison/Gro
 import { MatrixTable } from "../components/comparison/MatrixTable.jsx";
 import {
   computePeriodAggs, buildSalesMatrix, buildGroupMatrix,
-  buildOutletMatrix, collectOutletOptions, COMPARISON_METRICS, rowTotal, computeGrowth,
+  buildOutletMatrix, collectOutletOptions, COMPARISON_METRICS, rowTotal,
 } from "../utils/comparison.js";
 import { saveCompareState, loadCompareState } from "../utils/storage.js";
 import { fmtRp, fmtPct } from "../utils/formatters.js";
 import { exportComparisonExcel } from "../utils/comparisonExport.js";
 import { captureChartImage } from "../utils/trendExport.js";
+import { computeBaseGrowth } from "../utils/comparisonBase.js";
 import { Download } from "lucide-react";
 
 /* ============================================================================
@@ -34,7 +36,7 @@ const MODES = [
   { key: "outlet", label: "Outlet", icon: Store },
 ];
 
-export function ComparisonPage({ rawRows, targets, colors, workDays, depotName }) {
+export function ComparisonPage({ rawRows, targets, colors, workDays, depotName, comparisonBase = "prev", onBaseChange }) {
   const [exportBusy, setExportBusy] = useState(false);
   const chartRef = useRef(null);
   // State di-restore dari localStorage (tab ini di-unmount tiap pindah tab —
@@ -97,13 +99,28 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, depotName }
     return buildOutletMatrix(periodAggs, selectedKeys);
   }, [mode, periodAggs, selectedEntities, selectedKeys]);
 
-  // ---- KPI total + sortir + growth ----
+  // ---- KPI total + sortir + growth (sesuai opsi pembanding) ----
   const kpiRows = useMemo(() => {
     const withTotal = rowTotal(matrix.rows, metric);
     return withTotal
-      .map((r) => ({ ...r, growth: computeGrowth(r, metric) }))
+      .map((r) => {
+        // Series nilai metrik per periode (skip sel kosong) utk baseline growth.
+        const vals = r.cells
+          .filter((c) => c.exists)
+          .map((c, i) => {
+            const idx = r.cells.indexOf(c);
+            if (metric === "qty") return r.qtyByPeriod && r.qtyByPeriod[idx] ? r.qtyByPeriod[idx].qty : null;
+            if (metric === "ach") return c.ach;
+            if (metric === "deviasi") return c.deviasi;
+            if (metric === "ao") return c.ao;
+            return c.value;
+          })
+          .filter((v) => v != null);
+        const growth = computeBaseGrowth(vals, comparisonBase).growth;
+        return { ...r, growth };
+      })
       .sort((a, b) => b._total - a._total);
-  }, [matrix.rows, metric]);
+  }, [matrix.rows, metric, comparisonBase]);
 
   // ---- Chart data ----
   const chartData = useMemo(() => {
@@ -205,6 +222,8 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, depotName }
         <div className="sm-card p-4">
           <div className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: colors.textMuted }}>Metrik</div>
           <MetricToggle metric={metric} onChange={setMetric} colors={colors} mode={mode} />
+          <div className="text-xs uppercase tracking-wider font-semibold mt-4 mb-2" style={{ color: colors.textMuted }}>Pembanding Growth</div>
+          <BaseSelector value={comparisonBase} onChange={onBaseChange || (() => {})} colors={colors} />
           <p className="text-xs mt-3" style={{ color: colors.textMuted }}>
             {metric === "ach" || metric === "deviasi"
               ? "ACH & Deviasi hanya dihitung untuk periode 1 bulan kalender penuh (target berlaku per bulan). Sub-rentang parsial ditampilkan '—'."

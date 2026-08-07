@@ -316,6 +316,8 @@ export default function SalesMonitoringApp() {
   // disimpan lintas sesi seperti pengaturan lain, konsisten dengan preferensi
   // user yang sifatnya "cara pandang data", bukan data itu sendiri.
   const [projectionMethod, setProjectionMethod] = useState(persistedSettings?.projectionMethod ?? "linear");
+  // Opsi pembanding growth di tab Tren Periode & Perbandingan.
+  const [comparisonBase, setComparisonBase] = useState(persistedSettings?.comparisonBase ?? "prev");
 
   /* ============================ AKUN & SINKRONISASI ============================ */
   const [sessionUser, setSessionUser] = useState(null);
@@ -355,8 +357,13 @@ export default function SalesMonitoringApp() {
     setMasterBusy(true); setMasterResult("");
     const maxDate = await fetchMasterMaxDate();
     const res = await pushMasterRows(rawRows, maxDate);
+    // Advance masterMax walau partial/gagal — baris yang sudah ter-commit tak
+    // perlu di-push lagi (dicegah duplikat juga oleh unique index). Kalau
+    // res.maxDate != null, catat supaya next sync tidak re-fetch semuanya.
+    if (res.maxDate) saveMasterMax(res.maxDate);
     setMasterBusy(false);
     if (res.ok) setMasterResult(`${res.inserted} baris ditambahkan, ${res.skipped} dilewati (sudah ada).`);
+    else if (res.partial) setMasterResult(`Simpan sebagian berhasil (${res.inserted} baris). Terjadi error: ${res.reason || ""} — baris sisanya coba lagi.`);
     else setMasterResult("Gagal simpan ke master: " + (res.reason || ""));
   }, [isEditor, rawRows]);
 
@@ -391,13 +398,13 @@ export default function SalesMonitoringApp() {
   //      - cloud lebih baru  -> PULL & terapkan ke lokal
   //   2) MASTER DATA: tarik, master MENANG utk tanggal yang sama.
   const runSync = useCallback(async () => {
-    if (!supabase) return;
+    if (!supabase) return { ok: false, reason: "not_configured" };
     // --- 1) settings+targets LWW ---
     const localNow = loadSettings() || {};
     const localTs = Number(localNow.updated_at) || 0;
     const localDoc = { targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed };
     const cloud = await pullSettings();
-    if (!cloud.ok) { setSyncState("error"); setSyncMsg("Gagal menarik pengaturan: " + cloud.reason); return; }
+    if (!cloud.ok) { setSyncState("error"); setSyncMsg("Gagal menarik pengaturan: " + cloud.reason); return { ok: false, reason: cloud.reason }; }
     const cloudTs = cloud.data ? Number(cloud.data.updated_at) || 0 : 0;
     if (cloudTs > localTs) {
       // cloud lebih baru -> terapkan ke lokal
@@ -410,8 +417,8 @@ export default function SalesMonitoringApp() {
       if (typeof d.sidebar_collapsed === "boolean") setSidebarCollapsed(d.sidebar_collapsed);
     } else {
       // lokal lebih baru (atau cloud kosong) -> push lokal ke cloud
-      await pushSettings(localDoc);
-      // perbarui localDoc utk dipakai saat proses master
+      const pushRes = await pushSettings(localDoc);
+      if (!pushRes?.ok) { setSyncState("error"); setSyncMsg("Gagal menyimpan pengaturan: " + (pushRes?.reason || "unknown")); return { ok: false, reason: pushRes?.reason }; }
     }
 
     // --- 2) master data (pull delta) ---
@@ -419,33 +426,53 @@ export default function SalesMonitoringApp() {
     // (date > maxLokal). Device baru/kosong: full (semua baris).
     const localMax = loadMasterMax();
     const res = localMax ? await fetchMasterRowsSince(localMax) : await fetchAllMasterRows();
-    if (!res.ok) { setSyncState("error"); setSyncMsg("Gagal mengambil data master: " + res.reason); return; }
+    if (!res.ok) { setSyncState("error"); setSyncMsg("Gagal mengambil data master: " + res.reason); return { ok: false, reason: res.reason }; }
     if (res.rows.length) {
-      const masterDates = new Set(res.rows.map((r) => r.date));
-      const keptLocal = (rawRows || []).filter((r) => !masterDates.has(r.date));
-      const masterMapped = res.rows.map((r) => ({
-        date: r.date, salesCode: r.sales_code, outletCode: r.outlet_code,
-        invoiceNo: r.invoice_no, productCode: r.product_code, group: r.group_name,
-        qty: r.qty, value: r.value, unit: r.unit,
-      }));
-      const merged = [...keptLocal, ...masterMapped];
+      // Index master berdasarkan key unik transaksi (Mencegah data loss per tanggal)
+      const masterKeyed = new Map(res.rows.map(r => [
+        `${r.date}|${r.sales_code}|${r.outlet_code}|${r.invoice_no}|${r.product_code}`,
+        {
+          date: r.date, salesCode: r.sales_code, salesName: r.sales_name,
+          outletCode: r.outlet_code, outletName: r.outlet_name,
+          invoiceNo: r.invoice_no, productCode: r.product_code, productName: r.product_name,
+          group: r.group_name, qty: r.qty, qtyKarton: r.qty_karton, unconvertible: r.unconvertible,
+          value: r.value, unit: r.unit,
+        }
+      ]));
+
+      // 1. Update/Overwrite lokal dengan data master yang ada (Master = Otoritas)
+      // 2. Pertahankan baris lokal yang tidak ada di master (data tambahan lokal)
+      const merged = rawRows.map(r => {
+        const k = `${r.date}|${r.salesCode}|${r.outletCode}|${r.invoiceNo}|${r.productCode}`;
+        return masterKeyed.has(k) ? masterKeyed.get(k) : r;
+      });
+
+      // 3. Tambahkan baris master baru yang tidak ada di lokal
+      const localKeys = new Set(rawRows.map(r => `${r.date}|${r.salesCode}|${r.outletCode}|${r.invoiceNo}|${r.productCode}`));
+      for (const [k, mRow] of masterKeyed) {
+        if (!localKeys.has(k)) merged.push(mRow);
+      }
+
       setRawRows(merged);
       setFileName("Master data (sinkron)" + (merged.length ? ` · ${merged.length} baris` : ""));
       setParseMeta({ sourceFiles: [], detectedFields: [], missingFields: [], totalDataRows: merged.length });
-      // catat max tanggal yang barusan dimuat utk pull delta berikutnya
+      
+      // catat max tanggal
       let max = loadMasterMax();
       res.rows.forEach((r) => { if (r.date && (!max || r.date > max)) max = r.date; });
       saveMasterMax(max);
     }
     setLastSyncAt(Date.now());
+    return { ok: true };
   }, [targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed, rawRows]);
 
   // Sinkronisasi manual hanya dijalankan saat tombol ditekan.
   const syncNow = useCallback(async () => {
     if (!supabase || !isAuthedRef.current) return;
     setSyncState("syncing"); setSyncMsg("");
-    await runSync();
-    setSyncState("done");
+    const result = await runSync();
+    // Hanya "done" kalau benar sukses — jangan timpa state error.
+    if (result?.ok) setSyncState("done");
   }, [runSync]);
   syncNowRef.current = syncNow;
 
@@ -468,8 +495,8 @@ export default function SalesMonitoringApp() {
   // Simpan otomatis setiap kali pengaturan berubah (tema, filter, target,
   // hari kerja, nama depo) — tidak perlu tombol "simpan".
   useEffect(() => {
-    saveSettings({ theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed, updated_at: Date.now() });
-  }, [theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, sidebarCollapsed]);
+    saveSettings({ theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, comparisonBase, sidebarCollapsed, updated_at: Date.now() });
+  }, [theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, comparisonBase, sidebarCollapsed]);
 
   // Simpan otomatis data transaksi ke IndexedDB tiap kali berubah.
   useEffect(() => {
@@ -1089,10 +1116,10 @@ export default function SalesMonitoringApp() {
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} />}
             {activeTab === "outlet" && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} rawRows={rawRows} targets={targets} depotName={depotName} />}
-            {activeTab === "compare" && <ComparisonPage rawRows={rawRows} targets={targets} colors={colors} workDays={workDays} depotName={depotName} />}
+            {activeTab === "compare" && <ComparisonPage rawRows={rawRows} targets={targets} colors={colors} workDays={workDays} depotName={depotName} comparisonBase={comparisonBase} onBaseChange={setComparisonBase} />}
             {activeTab === "transactions" && <TransactionsPage agg={aggFinal} colors={colors} onOutletDrilldown={openOutletDetail} />}
             {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
-            {activeTab === "trend" && <TrendPeriodePage comparisonData={finalTrendComparisonData} isAutoTrend={isAutoTrend} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} depotName={depotName} />}
+            {activeTab === "trend" && <TrendPeriodePage comparisonData={finalTrendComparisonData} isAutoTrend={isAutoTrend} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} depotName={depotName} comparisonBase={comparisonBase} onBaseChange={setComparisonBase} />}
           </>
         )}
 
