@@ -66,12 +66,27 @@ export async function fetchMasterMaxDate() {
 }
 
 // Ambil SEMUA baris master_sales (untuk sync penuh / device baru).
+// Pagination loop — Supabase/PostgREST default membatasi 1000 baris/request,
+// jadi tanpa .range() cuma dapat 1000 pertama. Loop ini mengambil SEMUA.
 export async function fetchAllMasterRows() {
   if (!supabase) return { ok: false, reason: "not_configured", rows: [] };
   try {
-    const { data, error } = await supabase.from("master_sales").select("*").order("date", { ascending: true });
-    if (error) return { ok: false, reason: error.message, rows: [] };
-    return { ok: true, rows: data || [] };
+    const all = [];
+    const PAGE = 1000;
+    let from = 0;
+    for (;;) {
+      const { data, error } = await supabase
+        .from("master_sales")
+        .select("*")
+        .order("date", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) return { ok: false, reason: error.message, rows: all };
+      if (!data || data.length === 0) break;
+      all.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    return { ok: true, rows: all };
   } catch (e) {
     return { ok: false, reason: e.message, rows: [] };
   }
@@ -79,17 +94,25 @@ export async function fetchAllMasterRows() {
 
 // Ambil baris master dengan date > maxDateLokal (delta). Untuk sync inkremental:
 // device yang sudah pernah syncing tidak perlu mengunduh ulang seluruh master.
-// Kalau sudah ada baris MASTER dengan tanggal yang sama, tetap dikembalikan
-// (range: date > maxDateLokal). Kosong kalau tak ada perubahan.
+// Juga pagination penuh (bisa >1000 baris tanggal baru).
 export async function fetchMasterRowsSince(maxDateLokal) {
   if (!supabase) return { ok: false, reason: "not_configured", rows: [] };
   try {
-    let q = supabase.from("master_sales").select("*");
-    if (maxDateLokal) q = q.gt("date", maxDateLokal);
-    q = q.order("date", { ascending: true });
-    const { data, error } = await q;
-    if (error) return { ok: false, reason: error.message, rows: [] };
-    return { ok: true, rows: data || [] };
+    const all = [];
+    const PAGE = 1000;
+    let from = 0;
+    for (;;) {
+      let q = supabase.from("master_sales").select("*");
+      if (maxDateLokal) q = q.gt("date", maxDateLokal);
+      q = q.order("date", { ascending: true }).range(from, from + PAGE - 1);
+      const { data, error } = await q;
+      if (error) return { ok: false, reason: error.message, rows: all };
+      if (!data || data.length === 0) break;
+      all.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    return { ok: true, rows: all };
   } catch (e) {
     return { ok: false, reason: e.message, rows: [] };
   }
