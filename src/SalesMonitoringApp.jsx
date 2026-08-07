@@ -66,12 +66,13 @@ function RangeDeleteModal({ colors, onClose, onConfirm }) {
   const [to, setTo] = useState("");
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [alsoLocal, setAlsoLocal] = useState(false);
   const [result, setResult] = useState(null); // { ok, message } | null
 
   const doDelete = async () => {
     if (!confirm) { setConfirm(true); return; }
     setConfirm(false); setBusy(true); setResult(null);
-    const res = await onConfirm(from, to);
+    const res = await onConfirm(from, to, alsoLocal);
     setBusy(false);
     if (res) setResult({ ok: res.ok, message: res.message });
   };
@@ -98,6 +99,12 @@ function RangeDeleteModal({ colors, onClose, onConfirm }) {
               className="w-full px-3 py-2 rounded-xl text-sm outline-none disabled:opacity-50" style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }} />
           </div>
         </div>
+        {/* Opsi: hapus juga dari data lokal */}
+        <label className="flex items-center gap-2 text-xs mb-4 cursor-pointer" style={{ color: colors.text }}>
+          <input type="checkbox" checked={alsoLocal} onChange={(e) => setAlsoLocal(e.target.checked)} disabled={busy}
+            className="w-4 h-4 accent-[--sm-mint] disabled:opacity-50" />
+          Juga hapus dari data lokal perangkat ini
+        </label>
         {/* Feedback hasil hapus — tampil DI DALAM modal sebelum ditutup */}
         {busy && <p className="text-xs mb-3" style={{ color: colors.textMuted }}><Loader2 size={12} className="animate-spin inline mr-1" />Menghapus…</p>}
         {result && (
@@ -353,18 +360,30 @@ export default function SalesMonitoringApp() {
     else setMasterResult("Gagal simpan ke master: " + (res.reason || ""));
   }, [isEditor, rawRows]);
 
-  // Hapus rentang tanggal di master (admin/supervisor). Kembalikan hasil
-  // ({ ok, deleted, reason|null }) supaya modal bisa menampilkan feedback
-  // SEBELUM ditutup — bukan langsung tutup tanpa tahu hasil.
-  const handleDeleteRange = useCallback(async (dateFrom, dateTo) => {
+  // Hapus rentang tanggal di master (admin/supervisor) + opsional data lokal.
+  // Kembalikan hasil ({ ok, message|null }) supaya modal bisa menampilkan
+  // feedback SEBELUM ditutup.
+  const handleDeleteRange = useCallback(async (dateFrom, dateTo, alsoLocal) => {
     if (!isEditor || !dateFrom || !dateTo) return null;
     setMasterBusy(true);
     const res = await deleteMasterRange(dateFrom, dateTo);
     setMasterBusy(false);
-    return res.ok
-      ? { ok: true, message: `Hapus berhasil: ${res.deleted} baris dihapus dari master.` }
-      : { ok: false, message: "Gagal hapus: " + (res.reason || "") };
-  }, [isEditor]);
+    let msg;
+    if (res.ok) msg = `Hapus berhasil: ${res.deleted} baris dihapus dari master.`;
+    else return { ok: false, message: "Gagal hapus: " + (res.reason || "") };
+    // Opsional: hapus juga baris lokal pada rentang tanggal tsb
+    if (alsoLocal && rawRows.length) {
+      const before = rawRows.length;
+      const kept = rawRows.filter((r) => !(r.date >= dateFrom && r.date <= dateTo));
+      const removed = before - kept.length;
+      setRawRows(kept);
+      if (removed > 0) {
+        setFileName((cur) => (cur && cur.includes("·") ? cur.replace(/· \d+ baris$/, `· ${kept.length} baris`) : cur));
+      }
+      msg += ` ${removed} baris lokal dihapus.`;
+    }
+    return { ok: true, message: msg };
+  }, [isEditor, rawRows]);
 
   // Sinkronisasi MANUAL — hanya via tombol "Sinkronkan Sekarang".
   //   1) SETTINGS+TARGETS: last-write-wins per timestamp.
