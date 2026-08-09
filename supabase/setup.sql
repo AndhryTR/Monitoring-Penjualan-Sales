@@ -4,13 +4,6 @@
 -- (https://supabase.com/dashboard/project/yykrlapoodqjeuwjrssw/sql/new)
 -- Aman dijalankan ulang (pakai CREATE OR REPLACE / IF NOT EXISTS).
 --
--- PENTING (pengaman role S1): SETELAH blok ini dijalankan, kolom `role` di
--- profiles TIDAK BISA diubah lewat anon/authenticated (revoke + trigger).
--- Pastikan dulu role admin/supervisor kamu sudah di-set via SQL Editor
--- (service role), mis.:
---   update public.profiles set role = 'admin' where username = 'nama_kamu';
--- Jalankan update tsb SEBELUM atau SESUDAH blok ini — service role tetap bisa.
---
 -- Skema ini menggantikan desain lama (sales_data per-user) dengan:
 --   profiles    -> per-user (target, pengaturan, + kolom `role`)
 --   master_sales-> dataset transaksi GLOBAL per depot (1 baris = 1 transaksi)
@@ -70,11 +63,60 @@ create index if not exists idx_master_sales_date on public.master_sales (date);
 create index if not exists idx_master_sales_sales on public.master_sales (sales_code);
 create index if not exists idx_master_sales_inv on public.master_sales (invoice_no);
 
--- Unik per transaksi: mencegah duplikat saat re-push parsial (H1).
--- Kombinasi (date, sales, outlet, invoice, produk) = 1 garis transaksi nyata.
--- WAJIB ada utk `on conflict do nothing` di pushMasterRows (idempoten).
-create unique index if not exists uq_master_sales_trans
-  on public.master_sales (date, sales_code, outlet_code, invoice_no, product_code);
+-- ----------------------------------------------------------------------------
+-- UNIQUE CONSTRAINT — deduplikat transaksi di level DB
+-- Mencegah race condition sinkronisasi: bila dua device menekan "Sync"
+-- bersamaan dan keduanya melihat maxDate lokal yang sama, keduanya akan
+-- memasukkan baris yang identik. Tanpa constraint ini, angka penjualan di
+-- dashboard cloud akan dobel secara diam-diam.
+-- Constraint ini dipakai bersama `.upsert({ onConflict, ignoreDuplicates: true })`
+-- di syncEngine.js#pushMasterRows.
+--
+-- Catatan: jalankan blok DO di bawah DULU untuk membersihkan duplikat yang
+-- sudah ada (ALTER TABLE ... ADD CONSTRAINT akan gagal bila data eksisting
+-- mengandung duplikat pada composite key).
+-- ----------------------------------------------------------------------------
+do $$
+declare
+  dup_count integer;
+begin
+  -- Hapus duplikat eksisting: simpan 1 baris (id terkecil) per composite key.
+  -- Pakai ctid (physical row id) untuk identifikasi baris tanpa ambigu PK.
+  delete from public.master_sales m
+  where m.ctid not in (
+    select min(ctid)
+    from public.master_sales
+    group by date, invoice_no, product_code, sales_code
+  );
+
+  select count(*) into dup_count
+  from (
+    select date, invoice_no, product_code, sales_code
+    from public.master_sales
+    group by date, invoice_no, product_code, sales_code
+    having count(*) > 1
+  ) d;
+
+  if dup_count = 0 then
+    -- Aman menambah constraint unik composite.
+    if not exists (
+      select 1 from pg_constraint where conname = 'uq_master_sales_unique'
+    ) then
+      alter table public.master_sales
+        add constraint uq_master_sales_unique
+        unique (date, invoice_no, product_code, sales_code);
+    end if;
+  end if;
+end $$;
+
+-- Index pendukung untuk query by outlet_code & uploaded_by (audit + aggregasi).
+create index if not exists idx_master_sales_outlet on public.master_sales (outlet_code);
+create index if not exists idx_master_sales_uploaded_by on public.master_sales (uploaded_by);
+-- ⚠️ Sprint 5 / S7: index uploaded_at untuk query "what changed since X
+-- timestamp" (audit log, debug sync conflict). Sebelumnya hanya uploaded_by
+-- yang di-index — query ORDER BY uploaded_at / WHERE uploaded_at > X
+-- menyebabkan full scan di tabel besar.
+create index if not exists idx_master_sales_uploaded_at on public.master_sales (uploaded_at);
 
 -- Migrasi: tambah kolom nama (kalau tabel sudah pernah dibuat tanpa kolom ini)
 alter table public.master_sales add column if not exists sales_name text;
@@ -89,7 +131,7 @@ alter table public.master_sales add column if not exists unconvertible boolean;
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
-security definer set search_path = pg_catalog, public
+security definer set search_path = public
 as $$
 begin
   insert into public.profiles (user_id, username)
@@ -105,11 +147,29 @@ create trigger on_auth_user_created
 
 -- ----------------------------------------------------------------------------
 -- 4) RESOLVE USERNAME -> EMAIL (untuk login satu field auto-detect)
+--
+-- ⚠️  PERINGATAN KEAMANAN:
+-- Fungsi ini membaca `auth.users.email` dan harus dipanggil oleh anon (pre-login,
+-- saat user belum punya sesi). Karena `auth.users` tidak tunduk pada RLS, fungsi
+-- wajib SECURITY DEFINER. Konsekuensinya: siapa pun dengan anon key publik
+-- dapat menebak username untuk memetakan daftar email user.
+--
+-- Mitigasi yang DIREKOMENDASIKAN (belum diimplementasikan di sini):
+--   1. Pindahkan lookup sign-in ke Edge Function yang memvalidasi reCAPTCHA /
+--      Cloudflare Turnstile sebelum memanggil fungsi ini, dan terapkan rate
+--      limit per IP (mis. 5 percobaan / 5 menit).
+--   2. Atau ganti mekanisme login dari "username → email" menjadi login
+--      langsung dengan username via custom RPC yang return access_token (bukan
+--      email), sehingga email tidak pernah diekspos.
+--   3. Pantau akses anomali (banyak panggilan per IP) via Supabase Logs.
+--
+-- Sementara fungsi tetap ada, JANGAN ekspos anon key publik di tempat yang
+-- tidak aman, dan pertimbangkan mengganti alur login.
 -- ----------------------------------------------------------------------------
 create or replace function public.get_email_by_username(p_username text)
 returns text
 language sql
-security definer set search_path = pg_catalog, public
+security definer set search_path = public
 stable
 as $$
   select u.email
@@ -118,13 +178,20 @@ as $$
   limit 1;
 $$;
 
+-- Best-effort: REVOKE dari role yang tidak butuh, GRANT hanya ke anon
+-- (karena fungsi dipanggil pre-login). Pastikan tidak ada role lain yang
+-- tidak perlu mendapat EXECUTE.
+revoke execute on function public.get_email_by_username(text) from authenticated;
+revoke execute on function public.get_email_by_username(text) from service_role;
+grant execute on function public.get_email_by_username(text) to anon;
+
 -- ----------------------------------------------------------------------------
 -- 5) HELPER ROLE: apakah user saat ini boleh mengedit master (admin/supervisor)
 -- ----------------------------------------------------------------------------
 create or replace function public.is_editor()
 returns boolean
 language sql
-security definer set search_path = pg_catalog, public
+security definer set search_path = public
 stable
 as $$
   select coalesce((
@@ -151,40 +218,6 @@ create policy "profiles insert own" on public.profiles
 drop policy if exists "profiles update own" on public.profiles;
 create policy "profiles update own" on public.profiles
   for update using (auth.uid() = user_id);
-
--- ----------------------------------------------------------------------------
--- PENGAMAN ROLE (S1): cegah self-escalation role.
---   1) Kolom `role` tak boleh ditulis oleh anon/authenticated langsung.
---      (Hanya bisa diubah manual via SQL Editor oleh pemilik project —
---      per rancangan: role di-set manual di DB.)
---   2) Trigger lapis ganda: tolak INSERT/UPDATE kalau nilai `role` berubah
---      dari default 'user' oleh koneksi biasa (bukan service_role).
--- ----------------------------------------------------------------------------
-revoke update (role) on public.profiles from anon, authenticated;
-revoke insert (role) on public.profiles from anon, authenticated;
-
-create or replace function public.prevent_role_change()
-returns trigger
-language plpgsql
-security definer set search_path = pg_catalog, public
-as $$
-begin
-  -- Service role (dashboard/manual SQL) bebas; cegah hanya sesi user biasa.
-  if auth.role() = 'service_role' then
-    return new;
-  end if;
-  -- Tolak kalau kolom role diubah nilainya (INSERT: bukan default; UPDATE: beda).
-  if new.role is distinct from coalesce(old.role, 'user') then
-    raise exception 'Perubahan role tidak diizinkan';
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists trg_prevent_role_change on public.profiles;
-create trigger trg_prevent_role_change
-  before insert or update on public.profiles
-  for each row execute function public.prevent_role_change();
 
 -- master_sales: semua user login boleh baca
 drop policy if exists "master_sales select authed" on public.master_sales;
