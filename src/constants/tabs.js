@@ -8,28 +8,24 @@ import {
    Definisi tab dashboard. shortLabel dipakai di bottom navigation mobile,
    label dipakai di top tab bar desktop. Ikon dari lucide-react.
 
-   group:
-   - "primary" → selalu terlihat langsung di bottom nav mobile
-   - "more"    → dikelompokkan di menu "Lainnya" (mobile) supaya nav tidak sesak
+   ⚠️ Sprint 13 / MN1: sebelumnya ada split PRIMARY_TABS/MORE_TABS (group:
+   "primary" vs "more") — sekarang MobileBottomNav pakai horizontal scroll
+   untuk SEMUA tab, jadi split tersebut tidak terpakai lagi. Dihapus.
 
-   Catatan: TABS/PRIMARY_TABS/MORE_TABS ini KHUSUS MOBILE (bottom nav) — desktop
-   sekarang pakai SIDEBAR_SECTIONS di bawah (sidebar kiri, bukan tab bar lagi).
+   Desktop pakai SIDEBAR_SECTIONS di bawah (sidebar kiri, bukan tab bar lagi).
 ============================================================================ */
 export const TABS = [
-  { key: "executive",    label: "Executive Summary", shortLabel: "Ringkasan", icon: Gauge,           group: "primary" },
-  { key: "main",         label: "Main Report",      shortLabel: "Main",      icon: LayoutDashboard, group: "primary" },
-  { key: "sales",        label: "Sales Report",     shortLabel: "Sales",     icon: UserRound,       group: "primary" },
-  { key: "product",      label: "Product Report",   shortLabel: "Produk",    icon: Boxes,           group: "primary" },
-  { key: "focus",        label: "Product Focus",    shortLabel: "Fokus",     icon: Crosshair,       group: "more" },
-  { key: "outlet",       label: "Analisis Outlet",  shortLabel: "Outlet",    icon: Store,           group: "more" },
-  { key: "trend",        label: "Tren Periode",     shortLabel: "Tren",      icon: TrendingUp,      group: "more" },
-  { key: "compare",      label: "Perbandingan",     shortLabel: "Banding",   icon: GitCompareArrows, group: "more" },
-  { key: "transactions", label: "Transaksi",        shortLabel: "Transaksi", icon: Receipt,         group: "more" },
-  { key: "quality",      label: "Catatan Data",     shortLabel: "Catatan",   icon: ClipboardList,   group: "more" },
+  { key: "executive",    label: "Executive Summary", shortLabel: "Ringkasan", icon: Gauge },
+  { key: "main",         label: "Main Report",      shortLabel: "Main",      icon: LayoutDashboard },
+  { key: "sales",        label: "Sales Report",     shortLabel: "Sales",     icon: UserRound },
+  { key: "product",      label: "Product Report",   shortLabel: "Produk",    icon: Boxes },
+  { key: "focus",        label: "Product Focus",    shortLabel: "Fokus",     icon: Crosshair },
+  { key: "outlet",       label: "Analisis Outlet",  shortLabel: "Outlet",    icon: Store },
+  { key: "trend",        label: "Tren Periode",     shortLabel: "Tren",      icon: TrendingUp },
+  { key: "compare",      label: "Perbandingan",     shortLabel: "Banding",   icon: GitCompareArrows },
+  { key: "transactions", label: "Transaksi",        shortLabel: "Transaksi", icon: Receipt },
+  { key: "quality",      label: "Catatan Data",     shortLabel: "Catatan",   icon: ClipboardList },
 ];
-
-export const PRIMARY_TABS = TABS.filter((t) => t.group === "primary");
-export const MORE_TABS = TABS.filter((t) => t.group === "more");
 
 /* ============================================================================
    SIDEBAR SECTIONS (desktop, md: ke atas)

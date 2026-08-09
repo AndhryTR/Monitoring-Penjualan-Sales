@@ -4,14 +4,16 @@ import {
 } from "recharts";
 import { UserRound, Boxes, CalendarClock, Download } from "lucide-react";
 import { fmtRp, fmtNum } from "../utils/formatters.js";
-import { exportSalesScorecardPDF } from "../utils/pdfExport.js";
+// ⚠️ Sprint 5 / S3: pdfExport.js & reportExcelExport.js tidak di-import saat
+// initial bundle. Mereka berat (jspdf ~600KB, xlsx-js-style ~620KB). Sekarang
+// di-load lazy via dynamic import() saat user benar-benar klik Export button.
+// save: ~1.2MB dari initial bundle.
 import { getLastDaySalesMap } from "../utils/aggregation.js";
 import { DataTable } from "../components/ui/DataTable.jsx";
-import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
+import { SectionTitle, DrilldownButton, AchBarChartTooltip } from "../components/ui/index.jsx";
 import { Leaderboard } from "../components/cards/index.jsx";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { ACH_TIERS } from "../constants/thresholds.js";
-import { exportSalesReportExcel } from "../utils/reportExcelExport.js";
 
 /* ============================================================================
    TAB: SALES REPORT
@@ -27,7 +29,14 @@ function formatDateIDShort(dateStr) {
 
 export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName }) {
   const rows = agg.bySales;
-  const handleExportScorecard = (salesRow) => exportSalesScorecardPDF(salesRow, agg, { workDays, depotName });
+  // ⚠️ Sprint 5 / S3: dynamic import di handler — bundle pdfExport &
+  // reportExcelExport (~1.2MB total) hanya di-load saat user klik Export.
+  // Sebelumnya: static import → keduanya ada di initial bundle walau user
+  // mungkin tidak pernah klik Export.
+  const handleExportScorecard = async (salesRow) => {
+    const { exportSalesScorecardPDF } = await import("../utils/pdfExport.js");
+    exportSalesScorecardPDF(salesRow, agg, { workDays, depotName });
+  };
   const groupRows = useMemo(() => rows.flatMap((sm) => sm.groups.map((g) => ({
     salesName: sm.name, groupName: g.name, value: g.realisasiValue, ao: g.realisasiAo, predicate: g.predicate,
   }))), [rows]);
@@ -51,26 +60,19 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
     };
   }), [rows, lastDaySalesMap, agg.meta.lastDate]);
   const lastDateLabel = agg.meta.lastDate ? formatDateIDShort(agg.meta.lastDate) : "Hari Terakhir";
-  const handleExportExcel = () => exportSalesReportExcel(agg, groupRows, totalVsLastDayRows, {
-    depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
-  });
-
-  // Custom Tooltip untuk menyesuaikan warna teks dengan warna bar
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      const barColor = data.ach >= ACH_TIERS.onPace ? colors.mint : data.ach >= ACH_TIERS.warning ? colors.gold : colors.coral;
-      return (
-        <div className="p-3" style={{ background: colors.modalBg, backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)", border: `1px solid ${colors.modalBorder}`, borderRadius: 10, fontSize: 12, boxShadow: colors.glassShadow }}>
-          <div className="font-semibold mb-1" style={{ color: colors.text }}>{label}</div>
-          <div className="mono font-semibold" style={{ color: barColor }}>
-            Realisasi: {fmtRp(data.realisasiValue)}
-          </div>
-        </div>
-      );
-    }
-    return null;
+  const handleExportExcel = async () => {
+    const { exportSalesReportExcel } = await import("../utils/reportExcelExport.js");
+    exportSalesReportExcel(agg, groupRows, totalVsLastDayRows, {
+      depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
+    });
   };
+
+  // ⚠️ Bug fix (Sprint 3 / P4): sebelumnya `CustomTooltip` didefinisikan DI DALAM
+  // body komponen. Setiap render produce new function ref → Recharts anggap
+  // new component type → `<Tooltip content={<CustomTooltip />}>` unmount+remount
+  // subtree di setiap render. Fix: pakai shared `AchBarChartTooltip` yang sudah
+  // di-hoist ke module scope di components/ui/index.jsx, pass `colors` lewat
+  // props. Hilangkan duplikasi dengan ProductReportPage.
 
   return (
     <div className="sm-page-enter">
@@ -89,7 +91,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
           <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} horizontal={false} />
           <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
           <YAxis type="category" dataKey="name" width={160} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: colors.glassSubtle }} />
+          <Tooltip content={<AchBarChartTooltip colors={colors} />} cursor={{ fill: colors.glassSubtle }} />
           <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
             {rows.map((r, i) => <Cell key={i} fill={r.ach >= ACH_TIERS.onPace ? colors.mint : r.ach >= ACH_TIERS.warning ? colors.gold : colors.coral} />)}
           </Bar>

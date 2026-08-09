@@ -1,6 +1,9 @@
 import * as XLSX from "xlsx-js-style";
 import { todayLocalDateStr } from "./excelParse.js";
-import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT1, achGradientColor } from "./excelExport.js";
+// ⚠️ Sprint 4 / Q1: import dari xlsxStyle.js (sebelumnya dari excelExport.js,
+// yang re-export dari xlsxStyle.js — sekarang langsung dari sumber supaya
+// tidak ada indirection).
+import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT, achGradientColor, makeSheetBuilder } from "./xlsxStyle.js";
 import { COMPARISON_METRICS, cellMetric } from "./comparison.js";
 
 /* ============================================================================
@@ -16,35 +19,8 @@ import { COMPARISON_METRICS, cellMetric } from "./comparison.js";
    kolom terakhir, konsisten dengan tabel di layar.
 ============================================================================ */
 
-function makeSheetBuilder() {
-  const ws = {};
-  const merges = [];
-  let lastRow = 0, lastCol = 0;
-  const setCell = (r, c, value, style = {}) => {
-    const ref = XLSX.utils.encode_cell({ r: r - 1, c: c - 1 });
-    const isNum = typeof value === "number";
-    const cellObj = { v: value === null || value === undefined ? "" : value, t: isNum ? "n" : "s" };
-    cellObj.s = {
-      font: { bold: !!style.bold, sz: style.size || 10, name: "Calibri", color: { rgb: style.color || "000000" } },
-      alignment: { horizontal: style.align || (isNum ? "right" : "left"), vertical: "center", wrapText: !!style.wrap },
-      border: { top: { style: "thin", color: { rgb: "D9D9D9" } }, bottom: { style: "thin", color: { rgb: "D9D9D9" } },
-        left: { style: "thin", color: { rgb: "D9D9D9" } }, right: { style: "thin", color: { rgb: "D9D9D9" } } },
-    };
-    if (style.fill) cellObj.s.fill = { patternType: "solid", fgColor: { rgb: style.fill } };
-    if (style.numFmt) cellObj.s.numFmt = style.numFmt;
-    ws[ref] = cellObj;
-    if (r > lastRow) lastRow = r;
-    if (c > lastCol) lastCol = c;
-  };
-  const merge = (r1, c1, r2, c2) => merges.push({ s: { r: r1 - 1, c: c1 - 1 }, e: { r: r2 - 1, c: c2 - 1 } });
-  const finalize = (colWidths) => {
-    ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(lastRow, 1) - 1, c: Math.max(lastCol, 1) - 1 } });
-    ws["!merges"] = merges;
-    if (colWidths) ws["!cols"] = colWidths.map((w) => ({ wch: w }));
-    return ws;
-  };
-  return { setCell, merge, finalize, getLastRow: () => lastRow };
-}
+// makeSheetBuilder sekarang di-import dari utils/xlsxStyle.js (Sprint 4 / Q1).
+// Wrapper ini dihapus, kode langsung pakai versi shared di xlsxStyle.js.
 
 const MODE_LABEL = { sales: "Sales", group: "Grup Produk", outlet: "Outlet" };
 
@@ -98,7 +74,7 @@ export function exportComparisonExcel(kpiRows, periods, opts = {}) {
   let r = HROW2 + 1;
   kpiRows.forEach((row) => {
     b.setCell(r, 1, row.name, { bold: true });
-    const numFmt = isPct ? XL_NUMFMT_PCT1 : isMoney ? XL_NUMFMT_MONEY : XL_NUMFMT_INT;
+    const numFmt = isPct ? XL_NUMFMT_PCT : isMoney ? XL_NUMFMT_MONEY : XL_NUMFMT_INT;
     let col = 2;
     row.cells.forEach((cell, i) => {
       if (!cell.exists) {
@@ -113,7 +89,7 @@ export function exportComparisonExcel(kpiRows, periods, opts = {}) {
       if (addAchCol) {
         const ach = cell.ach;
         b.setCell(r, col + 1, ach === null || ach === undefined ? "-" : ach, {
-          numFmt: ach === null || ach === undefined ? undefined : XL_NUMFMT_PCT1,
+          numFmt: ach === null || ach === undefined ? undefined : XL_NUMFMT_PCT,
           align: "center", bold: true,
           fill: ach === null || ach === undefined ? undefined : achGradientColor(ach),
         });
@@ -123,7 +99,7 @@ export function exportComparisonExcel(kpiRows, periods, opts = {}) {
     b.setCell(r, c, row._total, { bold: true, numFmt, align: "right" });
     const g = row.growth;
     b.setCell(r, growthCol, g === null || g === undefined ? "-" : g, {
-      bold: true, align: "center", numFmt: g === null || g === undefined ? undefined : XL_NUMFMT_PCT1,
+      bold: true, align: "center", numFmt: g === null || g === undefined ? undefined : XL_NUMFMT_PCT,
       color: g === null || g === undefined ? undefined : (g >= 0 ? "059669" : "DC2626"),
     });
     r++;

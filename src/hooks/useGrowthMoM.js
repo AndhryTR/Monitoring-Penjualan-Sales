@@ -42,7 +42,8 @@ export function useGrowthMoM(comparison, rawRows, targets, workDays, salesCodes)
           return (latestAgg.totals.realisasiValue - prevValue) / prevValue;
         }
       }
-    } catch (_) {
+    } catch {
+      // ⚠️ Sprint 5 / S4: optional catch binding — _ tidak dipakai di body.
       // Silently fail — fallback ke null
     }
     return null;

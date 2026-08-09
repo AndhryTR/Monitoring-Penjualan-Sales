@@ -30,7 +30,9 @@ const SESSION_VERSION = 1;
 
 const HISTORY_KEY = "smapp:history:v1";
 const HISTORY_VERSION = 1;
-const HISTORY_MAX_ENTRIES = 8;
+// ⚠️ Sprint 5 / S1: import HISTORY_MAX_ENTRIES dari constants/thresholds.js
+// (sebelumnya dideklarasi lokal di sini — duplikat dengan constants).
+import { HISTORY_MAX_ENTRIES } from "../constants/thresholds.js";
 
 export function saveSettings(settings) {
   try {
@@ -214,4 +216,22 @@ export async function clearSession() {
   } catch (e) {
     return false;
   }
+}
+
+/* ---------------------- Master data max date (localStorage) ---------------------- *
+ * ⚠️ Sprint 6 / R2: dipindah dari SalesMonitoringApp.jsx (sebelumnya inline
+ * ~3 baris di sana). Dipakai oleh syncEngine untuk pull delta (hanya unduh
+ * baris dengan date > maxDate yang pernah ter-pull di device ini).
+ */
+
+const MASTER_MAX_KEY = "smapp:masterMaxLocal";
+
+export function loadMasterMax() {
+  try { return window.localStorage.getItem(MASTER_MAX_KEY) || ""; }
+  catch { return ""; }
+}
+
+export function saveMasterMax(d) {
+  try { window.localStorage.setItem(MASTER_MAX_KEY, d || ""); }
+  catch { /* abaikan — kalau localStorage diblokir (private mode), sync tetap jalan walau delta tidak efisien */ }
 }

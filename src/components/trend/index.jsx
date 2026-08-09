@@ -6,13 +6,18 @@ import { TrendingUp, ArrowUpRight, ArrowDownRight, History, Users, Wallet, Spark
 import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
 import { SectionTitle, createChartTooltipStyle } from "../ui/index.jsx";
 import { MultiSelect } from "../ui/MultiSelect.jsx";
-import { ACH_TIERS } from "../../constants/thresholds.js";
-import { captureChartImage, exportTrendExcel, exportTrendPDF } from "../../utils/trendExport.js";
+import { ACH_TIERS, MAX_DEFAULT_TREND_LINES } from "../../constants/thresholds.js";
+// ⚠️ Sprint 5 / S3: trendExport.js (exportTrendExcel, exportTrendPDF) tidak
+// di-import static — berat (~1.2MB gabung jspdf+xlsx-js-style+html2canvas).
+// captureChartImage tetap static karena dipakai untuk screenshot chart saat
+// export (perlu tersedia sebelum user klik). Export functions lazy-load.
+import { captureChartImage } from "../../utils/trendExport.js";
 import { computeBaseGrowth } from "../../utils/comparisonBase.js";
 import { BaseSelector } from "../ui/BaseSelector.jsx";
 
 const LINE_COLOR_KEYS = ["gold", "mint", "violet", "blue", "coral"];
-const MAX_DEFAULT_LINES = 5;
+// MAX_DEFAULT_LINES sebelumnya didefinisikan lokal — sekarang import dari
+// constants/thresholds.js sebagai MAX_DEFAULT_TREND_LINES (Sprint 5 / S1).
 
 // Warna tambahan di luar 5 warna tema utama (gold/mint/violet/blue/coral),
 // dipakai saat sales yang dipilih lebih dari 5 supaya tiap garis tetap punya
@@ -138,7 +143,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
   // ubah lewat MultiSelect.
   const effectiveSelectedNames = useMemo(() => {
     if (selectedNames.length > 0 || !comparisonData) return selectedNames;
-    return comparisonData.bySales.slice(0, MAX_DEFAULT_LINES).map((s) => s.name);
+    return comparisonData.bySales.slice(0, MAX_DEFAULT_TREND_LINES).map((s) => s.name);
   }, [selectedNames, comparisonData]);
 
   const chartData = useMemo(() => {
@@ -163,7 +168,15 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
     setExportBusy("excel");
     try {
       const chartImage = chartRef.current ? await captureChartImage(chartRef.current, colors.surface) : null;
+      // ⚠️ Sprint 5 / S3: lazy-load trendExport.js (~1.2MB).
+      const { exportTrendExcel } = await import("../../utils/trendExport.js");
       exportTrendExcel(comparisonData, effectiveSelectedNames, { depotName, chartImage, comparisonBase });
+    } catch (e) {
+      // ⚠️ Bug fix (H12): captureChartImage / exportTrendExcel bisa throw
+      // (mis. SecurityError dari canvas tainted). Tanpa catch, error propagate
+      // sebagai unhandled rejection dan user tidak dapat feedback.
+      console.warn("Export Excel gagal:", e);
+      alert("Export Excel gagal: " + (e?.message || String(e)));
     } finally {
       setExportBusy(null);
     }
@@ -174,11 +187,40 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
     setExportBusy("pdf");
     try {
       const chartImage = chartRef.current ? await captureChartImage(chartRef.current, colors.surface) : null;
+      // ⚠️ Sprint 5 / S3: lazy-load trendExport.js (~1.2MB).
+      const { exportTrendPDF } = await import("../../utils/trendExport.js");
       exportTrendPDF(comparisonData, effectiveSelectedNames, { depotName, chartImage, comparisonBase });
+    } catch (e) {
+      // ⚠️ Bug fix (H12): sama dengan handleExportExcel di atas.
+      console.warn("Export PDF gagal:", e);
+      alert("Export PDF gagal: " + (e?.message || String(e)));
     } finally {
       setExportBusy(null);
     }
   };
+
+  // Growth per sales dihitung ulang sesuai opsi pembanding (comparisonBase).
+  // `series` = nilai kronologis per periode (skip missing) utk value & ao.
+  //
+  // ⚠️ Aturan Hooks: useMemo ini HARUS dipanggil SEBELUM early return di bawah.
+  // Jika diletakkan setelah conditional return, jumlah hook antar render tidak
+  // konsisten saat `comparisonData` transisi dari null → valid → React crash
+  // dengan error "Rendered more hooks than during the previous render".
+  // Guard di dalam body memastikan nilai selalu konsisten (empty Map saat data
+  // belum tersedia), dan tidak ada hook yang skip.
+  const growthBySales = useMemo(() => {
+    const map = new Map();
+    if (!comparisonData || comparisonData.periods.length < 2) return map;
+    comparisonData.bySales.forEach((s) => {
+      const valSeries = s.series.filter((pt) => !pt.missing).map((pt) => pt.value);
+      const aoSeries = s.series.filter((pt) => !pt.missing).map((pt) => pt.ao);
+      map.set(s.code, {
+        growthValue: computeBaseGrowth(valSeries, comparisonBase).growth,
+        growthAo: computeBaseGrowth(aoSeries, comparisonBase).growth,
+      });
+    });
+    return map;
+  }, [comparisonData, comparisonBase]);
 
   if (!comparisonData || comparisonData.periods.length < 2) {
     return (
@@ -202,21 +244,6 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
   }
 
   const { periods, bySales, totalsSeries } = comparisonData;
-
-  // Growth per sales dihitung ulang sesuai opsi pembanding (comparisonBase).
-  // `series` = nilai kronologis per periode (skip missing) utk value & ao.
-  const growthBySales = useMemo(() => {
-    const map = new Map();
-    bySales.forEach((s) => {
-      const valSeries = s.series.filter((pt) => !pt.missing).map((pt) => pt.value);
-      const aoSeries = s.series.filter((pt) => !pt.missing).map((pt) => pt.ao);
-      map.set(s.code, {
-        growthValue: computeBaseGrowth(valSeries, comparisonBase).growth,
-        growthAo: computeBaseGrowth(aoSeries, comparisonBase).growth,
-      });
-    });
-    return map;
-  }, [bySales, comparisonBase]);
 
   return (
     <div className="sm-page-enter">

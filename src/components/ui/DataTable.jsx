@@ -9,7 +9,7 @@ import { fmtNum } from "../../utils/formatters.js";
    baris jadi kartu dengan kolom pertama sebagai judul, kolom data sisanya
    dalam grid 2-kolom label-value, dan kolom aksi sebagai footer.
 ============================================================================ */
-export function DataTable({ columns, rows, initialSortKey, colors, searchable, searchKeys, searchPlaceholder, pageSize, mobileTitleKey, mobileSubtitleKey, mobileCornerKey }) {
+export function DataTable({ columns, rows, initialSortKey, colors, searchable, searchKeys, searchPlaceholder, pageSize, mobileTitleKey, mobileSubtitleKey, mobileCornerKey, rowKey }) {
   const [sortKey, setSortKey] = useState(initialSortKey || columns[0].key);
   const [sortDir, setSortDir] = useState("desc");
   const [query, setQuery] = useState("");
@@ -133,7 +133,12 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
           </thead>
           <tbody>
             {visibleRows.map((row, i) => (
-              <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.glassBorder}`, background: i % 2 === 1 ? colors.glassSubtle : "transparent" }}>
+              // ⚠️ Sprint 4 / K2: stable key — pakai rowKey prop bila disupply,
+              // fallback ke composite dari row values (bukan array index).
+              // Sort/filter/scroll reorder rows; index-based key causes React
+              // reuse DOM for wrong row, breaking future row-level state
+              // (focus, transitions, expandable rows, etc.).
+              <tr key={rowKey ? row[rowKey] : (row.code || row.name || row.salesName || row.productName || `r-${i}`)} className="sm-row" style={{ borderTop: `1px solid ${colors.glassBorder}`, background: i % 2 === 1 ? colors.glassSubtle : "transparent" }}>
                 {columns.map((c) => (
                   <td key={c.key} className="px-4 py-3 whitespace-nowrap">
                     {c.render ? c.render(row) : row[c.key]}
@@ -162,7 +167,8 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
           <div>
             {visibleRows.map((row, i) => (
               <div
-                key={i}
+                // ⚠️ Sprint 4 / K2: stable key (mirip dengan table view di atas).
+                key={rowKey ? row[rowKey] : (row.code || row.name || row.salesName || row.productName || `r-${i}`)}
                 className="px-4 py-3.5"
                 style={{ borderTop: i === 0 ? "none" : `1px solid ${colors.glassBorder}` }}
               >

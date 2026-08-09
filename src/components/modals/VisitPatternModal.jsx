@@ -2,8 +2,10 @@ import { useState, useMemo, useEffect } from "react";
 import { CalendarDays, X, Download, AlertTriangle, Info } from "lucide-react";
 import { fmtNum } from "../../utils/formatters.js";
 import { computeVisitPattern } from "../../utils/visitPattern.js";
-import { exportVisitPatternExcel } from "../../utils/visitPatternExport.js";
+// ⚠️ Sprint 5 / S3: visitPatternExport.js lazy-loaded (~620KB).
 import { getLatestDataDate, addDays } from "../../utils/datePresets.js";
+import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
+import { VISIT_PATTERN_MAX_DAYS } from "../../constants/thresholds.js";
 
 /* ============================================================================
    VISIT PATTERN MODAL — "Pola Kunjungan Historis"
@@ -33,6 +35,10 @@ export function VisitPatternModal({ isOpen, onClose, rawRows, targets, colors, d
     if (!salesCode || !dateFrom || !dateTo) return null;
     return computeVisitPattern(rawRows, salesCode, dateFrom, dateTo);
   }, [rawRows, salesCode, dateFrom, dateTo]);
+
+  // ⚠️ Sprint 4 / A1+A2: lock background scroll + Escape tutup modal.
+  useScrollLock(isOpen);
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
   const salesName = targets.find((t) => t.code === salesCode)?.name || "";
@@ -102,7 +108,11 @@ export function VisitPatternModal({ isOpen, onClose, rawRows, targets, colors, d
                     </span>
                   )}
                 </div>
-                <button onClick={() => exportVisitPatternExcel(pattern, salesName, depotName)}
+                <button onClick={async () => {
+                    // ⚠️ Sprint 5 / S3: lazy-load visitPatternExport.js (~620KB).
+                    const { exportVisitPatternExcel } = await import("../../utils/visitPatternExport.js");
+                    exportVisitPatternExcel(pattern, salesName, depotName);
+                  }}
                   className="sm-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
                   style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
                   <Download size={13} /> Export Excel
@@ -151,7 +161,9 @@ function VisitOutletRow({ outlet: o, colors }) {
 }
 
 function VisitHeatmap({ pattern, colors }) {
-  const MAX_DAYS = 45;
+  // ⚠️ Sprint 5 / S1: import dari constants/thresholds.js
+  // (sebelumnya dideklarasi lokal sebagai magic number 45).
+  const MAX_DAYS = VISIT_PATTERN_MAX_DAYS;
   const { dates, wasClipped } = useMemo(() => {
     const out = [];
     const cur = new Date(pattern.dateFrom + "T00:00:00");

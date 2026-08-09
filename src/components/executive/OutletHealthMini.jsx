@@ -25,7 +25,11 @@ function OutletStackedBar({ active, atRisk, dormant, total, colors }) {
 }
 
 export function OutletHealthMini({ outletSummary, colors }) {
-  const { total, active, atRisk, dormant } = outletSummary;
+  // ⚠️ Bug fix (Sprint 3 / P3): sebelumnya `const { total, active, atRisk, dormant } = outletSummary;`
+  // tanpa default — bila outletSummary === undefined/null (mis. parent belum
+  // selesai computeOutletAnalysis), destructure crash. Fix: default ke object
+  // kosong, dengan semua field default 0.
+  const { total = 0, active = 0, atRisk = 0, dormant = 0 } = outletSummary || {};
   const activePct = total > 0 ? (active / total) * 100 : 0;
 
   if (total === 0) {

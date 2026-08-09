@@ -4,12 +4,13 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
 import {
-  Target, TrendingUp, TrendingDown, Sparkles, Users, Boxes,
+  Target, TrendingUp, TrendingDown, Sparkles, Users,
   CalendarDays, LayoutDashboard,
 } from "lucide-react";
 import { fmtRp, fmtNum } from "../utils/formatters.js";
 import { dateKey, computeAggregates } from "../utils/aggregation.js";
-import { KpiCard } from "../components/KpiCard.jsx";
+import { ACH_TIERS } from "../constants/thresholds.js";
+import { KpiBigCard } from "../components/KpiBigCard.jsx";
 import { PaceStrip } from "../components/PaceStrip.jsx";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
@@ -18,46 +19,181 @@ import { ProjectionCard, PeriodComparisonCard } from "../components/cards/index.
 import { InsightBanner } from "../components/executive/InsightBanner.jsx";
 
 /* ============================================================================
-   TAB: MAIN REPORT
-   Pace strip + alerts + comparison + 6 KPI + proyeksi + 2 chart + tabel sales.
+   TAB: MAIN REPORT — REDESIGN (Sprint 11)
+   ⚠️ Sebelumnya: 6 KPI card di grid-cols-6 (cramped, angka tumpah).
+   Sekarang: 6 KpiBigCard di grid-cols-3 (2 baris × 3 kolom) dengan:
+   - Mini sparkline / progress bar per card
+   - Delta vs kemarin/bulan lalu
+   - Contextual hints ("Pace: X hari", "Perlu Rp X/hari")
+   - Card 6 diganti: Target AO → Proyeksi Akhir Bulan (lebih actionable)
 ============================================================================ */
 export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison, projectionMethod, onProjectionMethodChange, dataQualityNotes, onNavigate, rawRows, targets, filters }) {
   const uniqueDaysInData = useMemo(() => new Set(agg.filteredRows.map(r => dateKey(r.date))).size, [agg.filteredRows]);
   const t = agg.totals;
-  // Calculate time gone based on unique work days found in the data vs total work days in the month.
   const timeGone = workDays ? Math.min(1, uniqueDaysInData / workDays) : 0;
 
-  // Kumulatif bulanan dari seluruh dataset (raw), ikut filter sales & grup
-  // (TANPA rentang tanggal), ambil max 12 bulan terakhir yang ADA datanya.
-  // computeAggregates dipanggil dengan filters tanpa dateFrom/dateTo supaya
-  // rentang tidak membatasi bulan yang tampil, tapi sales/grup tetap berlaku.
+  // Kumulatif bulanan untuk sparkline Target Value card
   const monthlyCumulative = useMemo(() => {
     if (!rawRows || !rawRows.length) return [];
     const aggAll = computeAggregates(rawRows, targets, { ...filters, dateFrom: "", dateTo: "" }, null);
     const months = (aggAll.monthly || []).sort((a, b) => a.month.localeCompare(b.month));
-    // Bulan hanya yang ADA datanya, kronologis, max 12 terakhir.
     return months.slice(-12);
   }, [rawRows, targets, filters]);
+
+  // Daily values untuk sparkline Realisasi card
+  const dailyValues = useMemo(() => agg.daily.map(d => d.value), [agg.daily]);
+
+  // Delta realisasi: hari terakhir vs hari sebelumnya
+  const realisasiDelta = useMemo(() => {
+    if (agg.daily.length < 2) return null;
+    const last = agg.daily[agg.daily.length - 1].value;
+    const prev = agg.daily[agg.daily.length - 2].value;
+    return last - prev;
+  }, [agg.daily]);
+
+  // Delta AO: hari terakhir vs hari sebelumnya
+  const aoDelta = useMemo(() => {
+    if (agg.daily.length < 2) return null;
+    const last = agg.daily[agg.daily.length - 1].ao;
+    const prev = agg.daily[agg.daily.length - 2].ao;
+    return last - prev;
+  }, [agg.daily]);
+
+  // Deviasi: sisa target per hari
+  const sisaHari = workDays ? Math.max(0, workDays - uniqueDaysInData) : 0;
+  const sisaTarget = (t.targetValue || 0) - (t.realisasiValue || 0);
+  const perluPerHari = sisaHari > 0 ? sisaTarget / sisaHari : 0;
+
+  // Pace status
+  const isAhead = t.ach !== null && t.ach >= timeGone;
+
+  // ACH progress gradient (merah → kuning → hijau)
+  const achGradient = `linear-gradient(90deg, ${colors.coral}, ${colors.gold}, ${colors.mint})`;
+
   return (
     <div className="sm-page-enter">
-      <PaceStrip timeGonePct={timeGone} achPct={t.ach} colors={colors} />
+      <PaceStrip
+        timeGonePct={timeGone}
+        achPct={t.ach}
+        colors={colors}
+        targetValue={t.targetValue}
+        realisasiValue={t.realisasiValue}
+        workDays={workDays}
+        uniqueDays={uniqueDaysInData}
+      />
       {(agg.alerts.length > 0 || dataQualityNotes) && (
         <div className="mb-6">
           <InsightBanner alerts={agg.alerts} dataQualityNotes={dataQualityNotes} colors={colors} onNavigate={onNavigate} onDrilldown={onDrilldown} />
         </div>
       )}
       <PeriodComparisonCard comparison={comparison} colors={colors} onClear={onClearComparison} />
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-        <KpiCard label="Target Value" value={t.targetValue} isMoney icon={Target} accent={colors.blue} delay={0} colors={colors} />
-        <KpiCard label="Realisasi Value" value={t.realisasiValue} isMoney icon={TrendingUp} accent={colors.mint} delay={40} colors={colors} trend={agg.daily.map((d) => d.value)} />
-        <KpiCard label="Achievement" value={t.ach} isPct icon={Sparkles} accent={colors.gold} delay={80} colors={colors} />
-        <KpiCard label="Deviasi Value" value={t.deviasiValue} isMoney icon={TrendingDown} accent={colors.coral} delay={120} colors={colors} />
-        <KpiCard label="Active Outlet" value={t.realisasiAo} icon={Users} accent={colors.violet} delay={160} colors={colors} />
-        <KpiCard label="Target AO" value={t.targetAo} icon={Boxes} accent={colors.textMuted} delay={200} colors={colors} />
+
+      {/* ===== KPI GRID: 3-kolom × 2-baris ===== */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+
+        {/* Row 1: KPI Utama */}
+        {/* Card 1: Target Value */}
+        <KpiBigCard
+          label="Target Value"
+          value={t.targetValue}
+          isMoney
+          icon={Target}
+          accent={colors.blue}
+          colors={colors}
+          variant="sparkline"
+          sparkData={monthlyCumulative.map(m => m.value)}
+          footerLabel={monthlyCumulative.length > 1 ? `${monthlyCumulative.length} bulan terakhir` : (monthlyCumulative.length === 1 ? monthlyCumulative[0].month : "Belum ada history")}
+          footerDelta={monthlyCumulative.length >= 2 ? `${((monthlyCumulative[monthlyCumulative.length-1].value / monthlyCumulative[monthlyCumulative.length-2].value - 1) * 100).toFixed(1)}%` : null}
+          footerDeltaType={monthlyCumulative.length >= 2 ? (monthlyCumulative[monthlyCumulative.length-1].value >= monthlyCumulative[monthlyCumulative.length-2].value ? "pos" : "neg") : "neutral"}
+          delay={0}
+        />
+
+        {/* Card 2: Realisasi Value */}
+        <KpiBigCard
+          label="Realisasi Value"
+          value={t.realisasiValue}
+          isMoney
+          icon={TrendingUp}
+          accent={colors.mint}
+          colors={colors}
+          variant="sparkline"
+          sparkData={dailyValues}
+          footerLabel={agg.daily.length > 0 ? `${agg.meta.uniqueDays} hari data` : "Belum ada data"}
+          footerDelta={realisasiDelta !== null ? (realisasiDelta >= 0 ? `+${fmtRp(realisasiDelta)}` : fmtRp(realisasiDelta)) : null}
+          footerDeltaType={realisasiDelta !== null ? (realisasiDelta >= 0 ? "pos" : "neg") : "neutral"}
+          delay={40}
+        />
+
+        {/* Card 3: Achievement */}
+        <KpiBigCard
+          label="Achievement"
+          value={t.ach}
+          isPct
+          icon={Sparkles}
+          accent={colors.gold}
+          colors={colors}
+          variant="progress"
+          progressValue={t.ach}
+          progressGradient={achGradient}
+          footerLabel={`Pace: ${uniqueDaysInData} dari ${workDays || 0} HK`}
+          footerDelta={isAhead === null ? null : (isAhead ? "Di atas pace" : "Di bawah pace")}
+          footerDeltaType={isAhead === null ? "neutral" : (isAhead ? "pos" : "neg")}
+          delay={80}
+        />
+
+        {/* Row 2: KPI Sekunder */}
+        {/* Card 4: Deviasi Value */}
+        <KpiBigCard
+          label="Deviasi Value"
+          value={t.deviasiValue}
+          isMoney
+          icon={TrendingDown}
+          accent={colors.coral}
+          colors={colors}
+          variant="none"
+          footerLabel={`Sisa HK: ${sisaHari} hari`}
+          footerDelta={sisaHari > 0 && sisaTarget > 0 ? `Perlu ${fmtRp(perluPerHari)}/hari` : "Target tercapai"}
+          footerDeltaType={sisaTarget > 0 ? "neg" : "pos"}
+          delay={120}
+        />
+
+        {/* Card 5: Active Outlet (AO) */}
+        <KpiBigCard
+          label="Active Outlet (AO)"
+          value={`${fmtNum(t.realisasiAo)} / ${fmtNum(t.targetAo)}`}
+          isPlain
+          icon={Users}
+          accent={colors.violet}
+          colors={colors}
+          variant="bar"
+          progressValue={t.targetAo ? t.realisasiAo / t.targetAo : 0}
+          footerLabel={t.targetAo ? `ACH AO: ${((t.realisasiAo / t.targetAo) * 100).toFixed(1)}%` : "-"}
+          footerDelta={aoDelta !== null ? (aoDelta >= 0 ? `+${aoDelta} outlet` : `${aoDelta} outlet`) : null}
+          footerDeltaType={aoDelta !== null ? (aoDelta >= 0 ? "pos" : "neg") : "neutral"}
+          delay={160}
+        />
+
+        {/* Card 6: Proyeksi Akhir Bulan (mengganti Target AO) */}
+        <KpiBigCard
+          label="Proyeksi Akhir Bulan"
+          value={agg.projection.projectedValue}
+          isMoney
+          icon={TrendingUp}
+          accent={colors.blue}
+          colors={colors}
+          variant="sparkline"
+          sparkData={dailyValues.length > 0 ? [...dailyValues, agg.projection.projectedValue] : []}
+          footerLabel={`Metode: ${projectionMethod === "linear" ? "Linear" : projectionMethod === "trend7" ? "Tren 7 Hari" : "Pola Hari Kerja"}`}
+          footerDelta={agg.projection.projectedAch !== null ? `ACH: ${(agg.projection.projectedAch * 100).toFixed(0)}%` : null}
+          footerDeltaType={agg.projection.projectedAch !== null ? (agg.projection.projectedAch >= ACH_TIERS.onPace ? "pos" : "neg") : "neutral"}
+          delay={200}
+        />
       </div>
 
+      {/* Projection card (existing, untuk detail metode proyeksi) */}
       <ProjectionCard projection={agg.projection} totals={t} colors={colors} method={projectionMethod} onMethodChange={onProjectionMethodChange} />
 
+      {/* Charts: Tren Harian + Kumulatif Bulanan */}
       <div className="grid lg:grid-cols-2 gap-6 mb-8">
         <div className="sm-card p-5 sm-fadeup">
           <SectionTitle title="Tren Harian" sub="Realisasi value per tanggal" icon={CalendarDays} colors={colors} accent={colors.gold} />
@@ -97,6 +233,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
         </div>
       </div>
 
+      {/* Tabel ringkasan sales */}
       <SectionTitle title="Ringkasan Semua Sales" icon={Users} colors={colors} accent={colors.blue} />
       <DataTable
         colors={colors}

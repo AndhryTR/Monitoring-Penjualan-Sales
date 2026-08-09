@@ -2,15 +2,15 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import sumBy from "lodash/sumBy";
 import {
   X, RefreshCw, Sun, Moon, Cloud, CloudOff, CloudUpload, User as UserIcon,
-  Smartphone, Share, History, Settings, Loader2,
+  Smartphone, Share, History, Settings, Loader2, Search,
   FileSpreadsheet, AlertTriangle, CheckCircle2,
 } from "lucide-react";
-import { saveSettings, loadSettings, clearSettings, saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState } from "./utils/storage.js";
+import { saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState, saveMasterMax } from "./utils/storage.js";
 import { supabase, getSession, onAuthChange, signOutAccount } from "./utils/cloud.js";
-import {
-  fetchRole, fetchMasterMaxDate, fetchAllMasterRows, fetchMasterRowsSince, pushMasterRows,
-  deleteMasterRange, pushSettings, pullSettings,
-} from "./utils/syncEngine.js";
+// ⚠️ Sprint 6 / R6: syncEngine imports (fetchRole, pushSettings, dll) sekarang
+// dipakai di hook useCloudSync.js. SalesMonitoringApp hanya butuh fetchRole
+// untuk refreshRole callback.
+import { fetchRole } from "./utils/syncEngine.js";
 import { LoginModal } from "./components/LoginModal.jsx";
 import {
   parseWorkbookFile, dedupeRows,
@@ -24,11 +24,24 @@ import { generateSampleRows } from "./utils/sampleData.js";
 import { ALIASES } from "./constants/aliases.js";
 import { TABS } from "./constants/tabs.js";
 import { Sidebar } from "./components/layout/Sidebar.jsx";
-import { WORK_DAYS_DEFAULT } from "./constants/thresholds.js";
-import DEFAULT_TARGETS from "./constants/defaultTargets.json";
+import { HISTORY_MAX_ENTRIES } from "./constants/thresholds.js";
+// ⚠️ Sprint 6 / R4: WORK_DAYS_DEFAULT dan DEFAULT_TARGETS sekarang dipakai di
+// hook useSettings.js, bukan di SalesMonitoringApp.jsx. Hapus import di sini.
+// ⚠️ Sprint 5 / S5: Web Vitals monitoring — track real-user FCP/LCP/INP/CLS/TTFB.
+import { useWebVitals } from "./hooks/useWebVitals.js";
+// ⚠️ Sprint 6 / R4: settings state + auto-save dipindah ke hook useSettings.js.
+import { useSettings } from "./hooks/useSettings.js";
 // Modul virtual dari vite-plugin-pwa — hanya ada saat plugin ini terpasang &
 // dijalankan lewat Vite (dev atau build), bukan package npm biasa.
-import { useRegisterSW } from "virtual:pwa-register/react";
+// ⚠️ Sprint 6 / R5: useRegisterSW dipakai di hook usePwaInstall.js sekarang.
+import { usePwaInstall } from "./hooks/usePwaInstall.js";
+// ⚠️ Sprint 6 / R6: cloud sync (settings LWW + master data) dipindah ke hook.
+import { useCloudSync } from "./hooks/useCloudSync.js";
+// ⚠️ Sprint 9 / GS1: global search / command palette hook.
+import { useGlobalSearch } from "./hooks/useGlobalSearch.js";
+import { GlobalSearch } from "./components/GlobalSearch.jsx";
+// ⚠️ Sprint 10 / OB1: Onboarding welcome screen untuk first-time users.
+import { OnboardingWelcome } from "./components/OnboardingWelcome.jsx";
 import { FilterBar } from "./components/ui/FilterBar.jsx";
 import { DashboardSkeleton } from "./components/ui/DashboardSkeleton.jsx";
 import { UploadDropzone, MobileBottomNav, MobileFab, ExportMenu } from "./components/upload/index.jsx";
@@ -48,6 +61,7 @@ import { DataPreviewModal } from "./components/modals/DataPreviewModal.jsx";
 import { HistoryModal } from "./components/modals/HistoryModal.jsx";
 import { SettingsModal } from "./components/modals/SettingsModal.jsx";
 import { AboutModal } from "./components/modals/AboutModal.jsx";
+import { RangeDeleteModal } from "./components/modals/RangeDeleteModal.jsx";
 
 /* ============================================================================
    DESIGN TOKENS
@@ -56,213 +70,19 @@ import { AboutModal } from "./components/modals/AboutModal.jsx";
    Data/mono: JetBrains Mono.
 ============================================================================ */
 import { THEMES, applyPowerSaveColors } from "./constants/colors.js";
+// ⚠️ Sprint 6 / R3: createGlobalStyle dipindah dari inline (130+ baris CSS)
+// ke file sendiri supaya SalesMonitoringApp.jsx lebih ramping.
+import { createGlobalStyle } from "./styles/globalStyle.js";
 
 /* ============================ RangeDeleteModal (admin) ============================
-   Modal hapus rentang tanggal di master_sales. Destructive — butuh konfirmasi
-   tombol dua-tahap.
+   ⚠️ Sprint 6 / R1: komponen ini sekarang di-import dari
+   components/modals/RangeDeleteModal.jsx (sebelumnya inline ~65 baris di sini).
+   God component refactor — SalesMonitoringApp.jsx fokus jadi orchestrator.
 ============================================================================ */
-function RangeDeleteModal({ colors, onClose, onConfirm }) {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [confirm, setConfirm] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [alsoLocal, setAlsoLocal] = useState(false);
-  const [result, setResult] = useState(null); // { ok, message } | null
-
-  const doDelete = async () => {
-    if (!confirm) { setConfirm(true); return; }
-    setConfirm(false); setBusy(true); setResult(null);
-    const res = await onConfirm(from, to, alsoLocal);
-    setBusy(false);
-    if (res) setResult({ ok: res.ok, message: res.message });
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein p-4" onClick={onClose}>
-      <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="disp text-base font-semibold">Hapus Rentang Master</div>
-          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.glassFill }}><X size={16} /></button>
-        </div>
-        <p className="text-xs mb-4" style={{ color: colors.textMuted }}>
-          Hapus baris data master pada rentang tanggal ini. Tindakan permanen.
-        </p>
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: colors.textMuted }}>Dari</label>
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} disabled={busy}
-              className="w-full px-3 py-2 rounded-xl text-sm outline-none disabled:opacity-50" style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }} />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: colors.textMuted }}>Sampai</label>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} disabled={busy}
-              className="w-full px-3 py-2 rounded-xl text-sm outline-none disabled:opacity-50" style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }} />
-          </div>
-        </div>
-        {/* Opsi: hapus juga dari data lokal */}
-        <label className="flex items-center gap-2 text-xs mb-4 cursor-pointer" style={{ color: colors.text }}>
-          <input type="checkbox" checked={alsoLocal} onChange={(e) => setAlsoLocal(e.target.checked)} disabled={busy}
-            className="w-4 h-4 accent-[--sm-mint] disabled:opacity-50" />
-          Juga hapus dari data lokal perangkat ini
-        </label>
-        {/* Feedback hasil hapus — tampil DI DALAM modal sebelum ditutup */}
-        {busy && <p className="text-xs mb-3" style={{ color: colors.textMuted }}><Loader2 size={12} className="animate-spin inline mr-1" />Menghapus…</p>}
-        {result && (
-          <p className="text-xs mb-3 px-3 py-2 rounded-lg" style={{ color: result.ok ? colors.mint : colors.coral, background: (result.ok ? colors.mint : colors.coral) + "14", border: `1px solid ${(result.ok ? colors.mint : colors.coral)}33` }}>
-            {result.message}
-          </p>
-        )}
-        <div className="flex gap-2">
-          <button onClick={onClose} disabled={busy} className="sm-btn flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40" style={{ border: `1px solid ${colors.glassBorder}`, color: colors.textMuted }}>
-            {result ? "Selesai" : "Batal"}
-          </button>
-          <button onClick={doDelete} disabled={busy || !from || !to}
-            className="sm-btn flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
-            style={{ background: confirm ? colors.coral : colors.coral + "1A", color: confirm ? "#fff" : colors.coral, border: `1px solid ${colors.coral}44` }}>
-            {busy ? "Menghapus…" : confirm ? "Yakin? Klik lagi" : "Hapus"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Tanggal maksimum master yang pernah ter-pull di device ini — dipakai utk
-// pull delta (hanya unduh baris baru). Semua user berbagi key lokal sama;
-// karena master bersifat global per depot, dan device hanya menambah baris
-// tanggal baru, menyimpan max tanggal yang sudah ter-unduh cukup akurat.
-const MASTER_MAX_KEY = "smapp:masterMaxLocal";
-function loadMasterMax() { try { return window.localStorage.getItem(MASTER_MAX_KEY) || ""; } catch (_e) { return ""; } }
-function saveMasterMax(d) { try { window.localStorage.setItem(MASTER_MAX_KEY, d || ""); } catch (_e) { /* abaikan */ } }
-
-const createGlobalStyle = (colors, powerSaveMode) => `
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
-* { box-sizing: border-box; }
-.smapp { font-family: 'Inter', sans-serif; color: ${colors.text}; background: ${colors.meshBg}; position: relative; }
-.smapp .disp { font-family: 'Space Grotesk', sans-serif; }
-.smapp .mono { font-family: 'JetBrains Mono', monospace; }
-.smapp *::-webkit-scrollbar { height: 8px; width: 8px; }
-.smapp *::-webkit-scrollbar-thumb { background: ${colors.border}; border-radius: 4px; border: 2px solid ${colors.ink}; }
-.smapp *::-webkit-scrollbar-track { background: transparent; }
-/* Sembunyikan scrollbar pada mobile bottom nav (scroll-snap horizontal) */
-.sm-scrollhide::-webkit-scrollbar { display: none; }
-/* --- Aurora mesh background (Fase 4 — final spec, 5 blobs) --- */
-.sm-mesh { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-.sm-mesh .blob { position: absolute; border-radius: 50%; filter: blur(60px); will-change: transform; }
-.sm-noise { position: absolute; inset: -10%; opacity: .04; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); background-size: 180px 180px; }
-.sm-mesh .blob-1 { top: -12%; left: -10%; animation: smBlobA 28s cubic-bezier(.4,0,.2,1) infinite; }
-.sm-mesh .blob-2 { top: 22%; right: -14%; animation: smBlobB 34s cubic-bezier(.4,0,.2,1) infinite; }
-.sm-mesh .blob-3 { bottom: -14%; left: 12%; animation: smBlobC 31s cubic-bezier(.4,0,.2,1) infinite; }
-.sm-mesh .blob-4 { bottom: -10%; right: 8%; animation: smBlobD 26s cubic-bezier(.4,0,.2,1) infinite; }
-.sm-mesh .blob-5 { top: 38%; left: 38%; animation: smBlobE 33s cubic-bezier(.4,0,.2,1) infinite; }
-@keyframes smBlobA { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(6%,4%) scale(1.08); } }
-@keyframes smBlobB { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-5%,6%) scale(1.05); } }
-@keyframes smBlobC { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(4%,-5%) scale(1.1); } }
-@keyframes smBlobD { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-4%,-4%) scale(1.06); } }
-@keyframes smBlobE { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(5%,5%) scale(1.04); } }
-@keyframes smFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes smFadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes smPageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes smPulse { 0%,100% { opacity:1 } 50% { opacity:.55 } }
-@keyframes smShimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
-@keyframes smDash { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
-@media (prefers-reduced-motion: reduce) { .sm-mesh .blob { animation: none; } }
-/* Saat scroll aktif ATAU tab browser sedang tidak aktif/disembunyikan:
-   hentikan animasi blob & sembunyikan noise sementara. Animasi blob
-   (translate+scale infinite) membebani compositor GPU setiap frame — kalau
-   dibiarkan jalan terus SELAMA scroll juga berlangsung (yang butuh compositor
-   juga), keduanya rebutan resource dan bikin scroll terasa patah-patah di
-   device lemah. Begitu tab disembunyikan (pindah aplikasi/tab lain), animasi
-   ini bahkan tidak terlihat sama sekali — jadi sayang kalau tetap jalan &
-   buang daya. Blob & noise cuma dekorasi ambient, aman dibekukan sesaat;
-   otomatis nyala lagi begitu scroll berhenti / tab aktif lagi. */
-.sm-mesh.sm-scrolling .blob { animation-play-state: paused; }
-.sm-mesh.sm-scrolling .sm-noise { display: none; }
-.sm-fadeup { animation: smFadeUp .45s cubic-bezier(.16,1,.3,1) backwards; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
-.sm-fadein { animation: smFadeIn .3s ease both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
-.sm-page-enter { animation: smPageIn .25s cubic-bezier(.16,1,.3,1); }
-.sm-pulse { animation: smPulse 1.8s ease-in-out infinite; }
-.sm-shimmer { background: linear-gradient(90deg, ${colors.surface2} 0%, ${colors.border} 50%, ${colors.surface2} 100%); background-size: 800px 100%; animation: smShimmer 1.4s linear infinite; }
-.sm-card { background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; border-radius: 16px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); transition: transform .25s ease, box-shadow .25s ease, background .3s ease, border-color .3s ease; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
-.sm-card:hover { transform: translateY(-2px); background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFillStrong}; border-color: ${colors.glassBorderElevated}; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; will-change: transform; }
-.sm-glow-wrap { position: relative; }
-.sm-glow-wrap .sm-glow { position: absolute; inset: -8px; border-radius: 20px; filter: blur(18px); opacity: .12; z-index: -1; pointer-events: none; transition: opacity .3s ease; }
-.sm-glow-wrap:hover .sm-glow { opacity: .20; }
-.sm-kpi-accent-line { position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 16px 16px 0 0; }
-.sm-sidebar-glass { background: radial-gradient(120% 70% at 15% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFill}; backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); border: 1px solid ${colors.glassBorder}; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
-.sm-mobile-nav-glass { background: radial-gradient(140% 200% at 20% -60%, ${colors.glassSheen}, transparent 60%), ${colors.glassFillStrong}; backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px); border: 1px solid ${colors.glassBorderElevated}; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
-.sm-modal-glass { background: radial-gradient(120% 60% at 15% -5%, ${colors.glassSheen}, transparent 55%), ${colors.modalPanelBg} !important; border: 1px solid ${colors.modalBorder} !important; backdrop-filter: blur(40px) !important; -webkit-backdrop-filter: blur(40px) !important; }
-.sm-tab-btn { position: relative; transition: color .2s ease; }
-.sm-chip { transition: all .18s ease; }
-.sm-chip:hover { transform: translateY(-1px); }
-.sm-row { transition: background .15s ease; }
-.sm-row:hover { background: ${colors.glassFillStrong}; }
-.sm-btn { background: ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transition: transform .2s ease, box-shadow .2s ease, background .2s ease; box-shadow: 0 4px 16px rgba(0,0,0,.18), inset 0 1px 0 ${colors.glassHighlight}; }
-.sm-btn:hover { transform: translateY(-2px); background: ${colors.glassFillStrong}; box-shadow: 0 6px 20px rgba(0,0,0,.22), inset 0 1px 0 ${colors.glassHighlight}; }
-.sm-btn:active { transform: translateY(0); box-shadow: inset 0 2px 8px rgba(0,0,0,.25); }
-.sm-progress-fill { transition: width 1s cubic-bezier(.16,1,.3,1); }
-.sm-drop { transition: border-color .2s ease, background .2s ease; }
-.sm-scale-in { animation: smFadeUp .5s cubic-bezier(.16,1,.3,1); }
-.sm-slider { 
-  border: 1px solid ${colors.glassBorder};
-  border-radius: 999px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  outline: none;
-}
-.sm-slider::-webkit-slider-runnable-track {
-  height: 8px;
-  border-radius: 999px;
-  background: transparent;
-}
-.sm-slider::-moz-range-track {
-  height: 8px;
-  border-radius: 999px;
-  background: transparent;
-}
-.sm-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
-  margin-top: -4px;
-  border-radius: 50%;
-  background: ${colors.gold};
-  border: 2px solid rgba(255,255,255,.5);
-  cursor: pointer;
-  box-shadow: 0 0 10px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.4);
-  transition: transform .15s ease, box-shadow .15s ease;
-}
-.sm-slider::-webkit-slider-thumb:hover { transform: scale(1.15); box-shadow: 0 0 14px ${colors.gold}77, inset 0 1px 0 rgba(255,255,255,.5); }
-.sm-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: ${colors.gold};
-  border: 2px solid rgba(255,255,255,.5);
-  cursor: pointer;
-  box-shadow: 0 0 10px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.4);
-  transition: transform .15s ease, box-shadow .15s ease;
-}
-.sm-slider::-moz-range-thumb:hover { transform: scale(1.15); }
-.sm-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px ${colors.mint}44, 0 0 10px rgba(0,0,0,.25); }
-.sm-slider:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px ${colors.mint}44, 0 0 10px rgba(0,0,0,.25); }
-${powerSaveMode ? `
-/* --- Mode Hemat Daya ---
-   backdrop-filter (blur di belakang kaca) adalah operasi PALING mahal di
-   seluruh desain ini — jauh lebih berat dari animasi blob atau shadow.
-   Blanket rule ini menghilangkannya TOTAL dari SEMUA elemen sekaligus,
-   termasuk yang di-set inline lewat JS (style={{backdropFilter:...}}) yang
-   tersebar di banyak file (dropdown, tooltip, dsb) — !important di
-   stylesheet MENANG atas inline style biasa (yang tidak !important), jadi
-   satu rule ini cukup tanpa perlu menyentuh file komponen manapun. Warna
-   solid/opaque-nya sendiri sudah ditangani terpisah lewat
-   applyPowerSaveColors() di constants/colors.js (mengganti isi token
-   glassFill dkk, bukan lewat CSS). Diletakkan PALING BAWAH supaya menang
-   dari rule !important lain (mis. .sm-modal-glass) lewat urutan sumber. */
-.sm-powersave * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
-.sm-powersave .sm-glow { display: none; }
-` : ""}
-`;
+// ⚠️ Sprint 6 / R2: loadMasterMax/saveMasterMax dipindah ke utils/storage.js
+// (sebelumnya inline ~3 baris di sini). Import di atas file.
+// ⚠️ Sprint 6 / R3: createGlobalStyle dipindah ke styles/globalStyle.js
+// (sebelumnya inline ~130 baris CSS template di sini). Import di atas file.
 
 
 /* ============================================================================
@@ -270,10 +90,24 @@ ${powerSaveMode ? `
 ============================================================================ */
 
 export default function SalesMonitoringApp() {
-  // Dibaca sekali di render pertama (lazy initializer useState menjamin ini
-  // hanya jalan sekali, bukan setiap render) — jadi field-field di bawahnya
-  // bisa langsung memakai nilai tersimpan kalau ada, atau fallback ke default.
-  const [persistedSettings] = useState(() => loadSettings());
+  // ---- Settings state (theme, filters, targets, etc.) — auto-save debounced ----
+  // ⚠️ Sprint 6 / R4: dipindah ke hook useSettings.js (sebelumnya inline
+  // ~100 baris state + auto-save effect di sini). Hook mengelola persistensi
+  // ke localStorage dengan dirty-flag tracking (Sprint 1) + debounce 400ms
+  // (Sprint 2 / H7) supaya edit target di SettingsModal tidak lag.
+  const {
+    persistedSettings,
+    theme, setTheme,
+    powerSaveMode, setPowerSaveMode,
+    sidebarCollapsed, setSidebarCollapsed,
+    filters, setFilters,
+    workDays, setWorkDays,
+    targets, setTargets,
+    depotName, setDepotName,
+    projectionMethod, setProjectionMethod,
+    comparisonBase, setComparisonBase,
+    resetAllSettings,
+  } = useSettings();
 
   const [rawRows, setRawRows] = useState([]);
   const [fileName, setFileName] = useState("");
@@ -282,12 +116,9 @@ export default function SalesMonitoringApp() {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("executive");
-  const [theme, setTheme] = useState(persistedSettings?.theme || 'dark');
-  const [powerSaveMode, setPowerSaveMode] = useState(persistedSettings?.powerSaveMode ?? false);
-  // Status collapse sidebar desktop — diingat lintas sesi sama seperti tema.
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(persistedSettings?.sidebarCollapsed ?? false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [drilldown, setDrilldown] = useState(null);
   const [pendingPreview, setPendingPreview] = useState(null);
   const [parseMeta, setParseMeta] = useState(null);
@@ -301,33 +132,12 @@ export default function SalesMonitoringApp() {
   // sementara/eksploratif.
   const [trendSnapshotIds, setTrendSnapshotIds] = useState([]);
 
-  const [filters, setFilters] = useState(() => {
-    const saved = persistedSettings?.filters;
-    if (!saved) return { salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" };
-    // Settings lama (sebelum fitur preset ada) belum punya field datePreset —
-    // kalau dateFrom/dateTo sudah keisi manual, anggap "custom" biar tidak
-    // tiba-tiba ketimpa jadi "Semua Data".
-    return { ...saved, datePreset: saved.datePreset ?? (saved.dateFrom || saved.dateTo ? "custom" : "all") };
-  });
-  const [workDays, setWorkDays] = useState(persistedSettings?.workDays ?? WORK_DAYS_DEFAULT);
-  const [targets, setTargets] = useState(persistedSettings?.targets ?? DEFAULT_TARGETS);
-  const [depotName, setDepotName] = useState(persistedSettings?.depotName ?? "DEPO LOTIM");
-  // Metode proyeksi terpilih di ProjectionCard (linear/trend7/weekday) —
-  // disimpan lintas sesi seperti pengaturan lain, konsisten dengan preferensi
-  // user yang sifatnya "cara pandang data", bukan data itu sendiri.
-  const [projectionMethod, setProjectionMethod] = useState(persistedSettings?.projectionMethod ?? "linear");
-  // Opsi pembanding growth di tab Tren Periode & Perbandingan.
-  const [comparisonBase, setComparisonBase] = useState(persistedSettings?.comparisonBase ?? "prev");
-
   /* ============================ AKUN & SINKRONISASI ============================ */
   const [sessionUser, setSessionUser] = useState(null);
   const [userRole, setUserRole] = useState(null); // 'admin'|'supervisor'|'user'|null
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [syncState, setSyncState] = useState("idle"); // idle | syncing | done | error
-  const [syncMsg, setSyncMsg] = useState("");
-  const [lastSyncAt, setLastSyncAt] = useState(0);
+  // syncState, syncMsg, lastSyncAt, syncNowRef sekarang dari useCloudSync hook (R6).
   const isAuthedRef = useRef(false);
-  const syncNowRef = useRef(null);
 
   const cloudEnabled = !!supabase;
   const isEditor = userRole === "admin" || userRole === "supervisor";
@@ -346,157 +156,59 @@ export default function SalesMonitoringApp() {
     setUserRole(role);
   }, []);
 
-  const [masterAction, setMasterAction] = useState(null); // 'save'|'range'|'reset'|null
-  const [masterBusy, setMasterBusy] = useState(false);
-  const [masterResult, setMasterResult] = useState("");
-
-  // Simpan data penjualan lokal ke master (admin/supervisor). Incremental:
-  // hanya baris dengan date > max_date master yang dimasukkan.
-  const handleSaveMaster = useCallback(async () => {
-    if (!isEditor || !rawRows.length) return;
-    setMasterBusy(true); setMasterResult("");
-    const maxDate = await fetchMasterMaxDate();
-    const res = await pushMasterRows(rawRows, maxDate);
-    // Advance masterMax walau partial/gagal — baris yang sudah ter-commit tak
-    // perlu di-push lagi (dicegah duplikat juga oleh unique index). Kalau
-    // res.maxDate != null, catat supaya next sync tidak re-fetch semuanya.
-    if (res.maxDate) saveMasterMax(res.maxDate);
-    setMasterBusy(false);
-    if (res.ok) setMasterResult(`${res.inserted} baris ditambahkan, ${res.skipped} dilewati (sudah ada).`);
-    else if (res.partial) setMasterResult(`Simpan sebagian berhasil (${res.inserted} baris). Terjadi error: ${res.reason || ""} — baris sisanya coba lagi.`);
-    else setMasterResult("Gagal simpan ke master: " + (res.reason || ""));
-  }, [isEditor, rawRows]);
-
-  // Hapus rentang tanggal di master (admin/supervisor) + opsional data lokal.
-  // Kembalikan hasil ({ ok, message|null }) supaya modal bisa menampilkan
-  // feedback SEBELUM ditutup.
-  const handleDeleteRange = useCallback(async (dateFrom, dateTo, alsoLocal) => {
-    if (!isEditor || !dateFrom || !dateTo) return null;
-    setMasterBusy(true);
-    const res = await deleteMasterRange(dateFrom, dateTo);
-    setMasterBusy(false);
-    let msg;
-    if (res.ok) msg = `Hapus berhasil: ${res.deleted} baris dihapus dari master.`;
-    else return { ok: false, message: "Gagal hapus: " + (res.reason || "") };
-    // Opsional: hapus juga baris lokal pada rentang tanggal tsb
-    if (alsoLocal && rawRows.length) {
-      const before = rawRows.length;
-      const kept = rawRows.filter((r) => !(r.date >= dateFrom && r.date <= dateTo));
-      const removed = before - kept.length;
-      setRawRows(kept);
-      if (removed > 0) {
-        setFileName((cur) => (cur && cur.includes("·") ? cur.replace(/· \d+ baris$/, `· ${kept.length} baris`) : cur));
-      }
-      msg += ` ${removed} baris lokal dihapus.`;
-    }
-    return { ok: true, message: msg };
-  }, [isEditor, rawRows]);
-
-  // Sinkronisasi MANUAL — hanya via tombol "Sinkronkan Sekarang".
-  //   1) SETTINGS+TARGETS: last-write-wins per timestamp.
-  //      - lokal lebih baru -> PUSH ke cloud (timpa)
-  //      - cloud lebih baru  -> PULL & terapkan ke lokal
-  //   2) MASTER DATA: tarik, master MENANG utk tanggal yang sama.
-  const runSync = useCallback(async () => {
-    if (!supabase) return { ok: false, reason: "not_configured" };
-    // --- 1) settings+targets LWW ---
-    const localNow = loadSettings() || {};
-    const localTs = Number(localNow.updated_at) || 0;
-    const localDoc = { targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed };
-    const cloud = await pullSettings();
-    if (!cloud.ok) { setSyncState("error"); setSyncMsg("Gagal menarik pengaturan: " + cloud.reason); return { ok: false, reason: cloud.reason }; }
-    const cloudTs = cloud.data ? Number(cloud.data.updated_at) || 0 : 0;
-    if (cloudTs > localTs) {
-      // cloud lebih baru -> terapkan ke lokal
-      const d = cloud.data;
-      if (d.targets) setTargets(d.targets);
-      if (d.work_days) setWorkDays(d.work_days);
-      if (d.depot_name) setDepotName(d.depot_name);
-      if (d.theme) setTheme(d.theme);
-      if (d.projection_method) setProjectionMethod(d.projection_method);
-      if (typeof d.sidebar_collapsed === "boolean") setSidebarCollapsed(d.sidebar_collapsed);
-    } else {
-      // lokal lebih baru (atau cloud kosong) -> push lokal ke cloud
-      const pushRes = await pushSettings(localDoc);
-      if (!pushRes?.ok) { setSyncState("error"); setSyncMsg("Gagal menyimpan pengaturan: " + (pushRes?.reason || "unknown")); return { ok: false, reason: pushRes?.reason }; }
-    }
-
-    // --- 2) master data (pull delta) ---
-    // Device yang sudah pernah sync hanya menarik baris tanggal BARU
-    // (date > maxLokal). Device baru/kosong: full (semua baris).
-    const localMax = loadMasterMax();
-    const res = localMax ? await fetchMasterRowsSince(localMax) : await fetchAllMasterRows();
-    if (!res.ok) { setSyncState("error"); setSyncMsg("Gagal mengambil data master: " + res.reason); return { ok: false, reason: res.reason }; }
-    if (res.rows.length) {
-      // Index master berdasarkan key unik transaksi (Mencegah data loss per tanggal)
-      const masterKeyed = new Map(res.rows.map(r => [
-        `${r.date}|${r.sales_code}|${r.outlet_code}|${r.invoice_no}|${r.product_code}`,
-        {
-          date: r.date, salesCode: r.sales_code, salesName: r.sales_name,
-          outletCode: r.outlet_code, outletName: r.outlet_name,
-          invoiceNo: r.invoice_no, productCode: r.product_code, productName: r.product_name,
-          group: r.group_name, qty: r.qty, qtyKarton: r.qty_karton, unconvertible: r.unconvertible,
-          value: r.value, unit: r.unit,
-        }
-      ]));
-
-      // 1. Update/Overwrite lokal dengan data master yang ada (Master = Otoritas)
-      // 2. Pertahankan baris lokal yang tidak ada di master (data tambahan lokal)
-      const merged = rawRows.map(r => {
-        const k = `${r.date}|${r.salesCode}|${r.outletCode}|${r.invoiceNo}|${r.productCode}`;
-        return masterKeyed.has(k) ? masterKeyed.get(k) : r;
-      });
-
-      // 3. Tambahkan baris master baru yang tidak ada di lokal
-      const localKeys = new Set(rawRows.map(r => `${r.date}|${r.salesCode}|${r.outletCode}|${r.invoiceNo}|${r.productCode}`));
-      for (const [k, mRow] of masterKeyed) {
-        if (!localKeys.has(k)) merged.push(mRow);
-      }
-
-      setRawRows(merged);
-      setFileName("Master data (sinkron)" + (merged.length ? ` · ${merged.length} baris` : ""));
-      setParseMeta({ sourceFiles: [], detectedFields: [], missingFields: [], totalDataRows: merged.length });
-      
-      // catat max tanggal
-      let max = loadMasterMax();
-      res.rows.forEach((r) => { if (r.date && (!max || r.date > max)) max = r.date; });
-      saveMasterMax(max);
-    }
-    setLastSyncAt(Date.now());
-    return { ok: true };
-  }, [targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed, rawRows]);
-
-  // Sinkronisasi manual hanya dijalankan saat tombol ditekan.
-  const syncNow = useCallback(async () => {
-    if (!supabase || !isAuthedRef.current) return;
-    setSyncState("syncing"); setSyncMsg("");
-    const result = await runSync();
-    // Hanya "done" kalau benar sukses — jangan timpa state error.
-    if (result?.ok) setSyncState("done");
-  }, [runSync]);
-  syncNowRef.current = syncNow;
+  // ---- Cloud sync (settings LWW + master data) + admin master management ----
+  // ⚠️ Sprint 6 / R6: dipindah ke hook useCloudSync.js (sebelumnya inline
+  // ~150 baris state + handlers + runSync di sini). Hook mengelola:
+  // - syncState/syncMsg/lastSyncAt (UI feedback)
+  // - masterAction/masterBusy/masterResult (admin modal state)
+  // - handleSaveMaster, handleDeleteRange (admin actions)
+  // - runSync, syncNow, syncNowRef (sync orchestration)
+  const {
+    syncState, setSyncState,
+    syncMsg, setSyncMsg,
+    lastSyncAt, setLastSyncAt,
+    syncNowRef,
+    masterAction, setMasterAction,
+    masterBusy, setMasterBusy,
+    masterResult, setMasterResult,
+    handleSaveMaster,
+    handleDeleteRange,
+    syncNow,
+  } = useCloudSync({
+    isAuthedRef,
+    isEditor,
+    settingsGetters: { targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed },
+    settingsSetters: { setTargets, setWorkDays, setDepotName, setTheme, setProjectionMethod, setSidebarCollapsed },
+    dataState: { rawRows, setRawRows, setFileName, setParseMeta },
+  });
 
   // Muat data sesi terakhir (hasil upload/demo sebelumnya) dari IndexedDB saat
   // pertama aplikasi dibuka. Async, ditampilkan status loading singkat dulu.
+  //
+  // ⚠️ Bug fix (H2): sebelumnya async IIFE TANPA try/catch. Bila `loadSession`
+  // melempar (IndexedDB diblokir di private mode, atau `indexedDB.open` throw
+  // synchronously), promise reject tanpa handler, dan `setSessionLoading(false)`
+  // tak pernah tercapai → dashboard stuck di `DashboardSkeleton` selamanya.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const session = await loadSession();
-      if (!cancelled && session) {
-        setRawRows(session.rawRows || []);
-        setFileName(session.fileName || "");
-        setParseMeta(session.parseMeta || null);
+      try {
+        const session = await loadSession();
+        if (!cancelled && session) {
+          setRawRows(session.rawRows || []);
+          setFileName(session.fileName || "");
+          setParseMeta(session.parseMeta || null);
+        }
+      } catch (e) {
+        // Gagal load sesi IndexedDB — bukan crash fatal, lanjutkan dengan state
+        // kosong. User bisa upload ulang atau pakai sample data.
+        console.warn("Gagal memuat sesi tersimpan:", e);
+      } finally {
+        if (!cancelled) setSessionLoading(false);
       }
-      if (!cancelled) setSessionLoading(false);
     })();
     return () => { cancelled = true; };
   }, []);
-
-  // Simpan otomatis setiap kali pengaturan berubah (tema, filter, target,
-  // hari kerja, nama depo) — tidak perlu tombol "simpan".
-  useEffect(() => {
-    saveSettings({ theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, comparisonBase, sidebarCollapsed, updated_at: Date.now() });
-  }, [theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, comparisonBase, sidebarCollapsed]);
 
   // Simpan otomatis data transaksi ke IndexedDB tiap kali berubah.
   useEffect(() => {
@@ -504,17 +216,29 @@ export default function SalesMonitoringApp() {
   }, [rawRows, fileName, parseMeta]);
 
   // Inisialisasi sesi + pasang listener auth + muat role.
+  //
+  // ⚠️ Bug fix (H2): sebelumnya async IIFE TANPA try/catch. Bila `getSession`
+  // atau `fetchRole` melempar (Supabase error, network, token expired), promise
+  // reject tanpa handler dan `setSessionLoading(false)` / role assignment tak
+  // pernah terjadi → dashboard stuck di skeleton dengan tidak ada pesan error.
   useEffect(() => {
     let alive = true;
     (async () => {
-      const sess = await getSession();
-      if (!alive) return;
-      if (sess) {
-        isAuthedRef.current = true;
-        setSessionUser(sess.user);
-        const role = await fetchRole();
-        if (alive) setUserRole(role);
-      } else {
+      try {
+        const sess = await getSession();
+        if (!alive) return;
+        if (sess) {
+          isAuthedRef.current = true;
+          setSessionUser(sess.user);
+          const role = await fetchRole();
+          if (alive) setUserRole(role);
+        } else {
+          if (alive) setSyncState("idle");
+        }
+      } catch (e) {
+        // Gagal ambil sesi/role — bukan crash fatal. App tetap jalan dalam mode
+        // "non-authenticated" (read-only tanpa sync). Log untuk debugging.
+        console.warn("Gagal memuat sesi/role awal:", e);
         if (alive) setSyncState("idle");
       }
     })();
@@ -538,44 +262,33 @@ export default function SalesMonitoringApp() {
 
   /* --------------------------- PWA: instal & update --------------------------- */
 
-  // registerType: 'prompt' di vite.config.js — jadi kalau ada versi baru ter-deploy,
-  // tidak langsung auto-reload (bisa bikin filter/upload yang lagi dikerjakan hilang),
-  // tapi tampilkan notifikasi dan biarkan user pilih kapan mau refresh.
+  // ---- PWA: install prompt + service worker update ----
+  // ⚠️ Sprint 6 / R5: dipindah ke hook usePwaInstall.js (sebelumnya inline
+  // ~60 baris state + effects + handlers di sini).
   const {
-    needRefresh: [needRefresh, setNeedRefresh],
-    offlineReady: [offlineReady, setOfflineReady],
+    needRefresh, setNeedRefresh,
+    offlineReady, setOfflineReady,
     updateServiceWorker,
-  } = useRegisterSW({});
+    installPromptEvent,
+    showIosInstallHint, setShowIosInstallHint,
+    isIOS,
+    isStandalone,
+    handleInstallClick,
+    canShowInstallButton,
+  } = usePwaInstall();
 
-  const [installPromptEvent, setInstallPromptEvent] = useState(null);
-  const [showIosInstallHint, setShowIosInstallHint] = useState(false);
-
-  const isIOS = useMemo(() => /iphone|ipad|ipod/i.test(window.navigator.userAgent), []);
-  const isStandalone = useMemo(() =>
-    window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true
-  , []);
-
-  useEffect(() => {
-    // Chrome/Android/Edge menembak event ini kalau app memenuhi syarat installability
-    // (manifest valid, service worker terdaftar, dsb). Kita cegah prompt otomatis
-    // browser (preventDefault), simpan eventnya, lalu munculkan tombol custom sendiri.
-    const handler = (e) => { e.preventDefault(); setInstallPromptEvent(e); };
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
-
-  const handleInstallClick = useCallback(async () => {
-    if (installPromptEvent) {
-      installPromptEvent.prompt();
-      await installPromptEvent.userChoice;
-      setInstallPromptEvent(null);
-    } else if (isIOS) {
-      // iOS Safari tidak punya beforeinstallprompt — harus manual lewat menu Share.
-      setShowIosInstallHint(true);
-    }
-  }, [installPromptEvent, isIOS]);
-
-  const canShowInstallButton = !isStandalone && (!!installPromptEvent || isIOS);
+  // ⚠️ Sprint 5 / S5: track Core Web Vitals (FCP/LCP/INP/CLS/TTFB) untuk
+  // monitor real-user performance. Saat ini cuma log ke console di dev mode.
+  // Production bisa extend dengan post ke analytics endpoint lewat onMetric.
+  // Lihat hooks/useWebVitals.js untuk detail.
+  useWebVitals({
+    onMetric: (metric) => {
+      // Hook untuk analytics production — contoh:
+      // if (navigator.sendBeacon && metric.rating === "poor") {
+      //   navigator.sendBeacon("/api/vitals", JSON.stringify(metric));
+      // }
+    },
+  });
 
   const colors = useMemo(() => {
     const base = THEMES[theme];
@@ -593,6 +306,47 @@ export default function SalesMonitoringApp() {
   const salesOptions = useMemo(() => targets.map((t) => ({ name: t.name, code: t.code })), [targets]);
   const aggFinal = useAggregates(rawRows, targets, filters, workDays);
   const dataQualityNotes = useDataQualityNotes(rawRows, targets, parseMeta);
+
+  // ---- Global Search (Cmd+K / Ctrl+K) ----
+  // ⚠️ Sprint 9 / GS1+GS3+GS4: command palette untuk search across semua data.
+  const globalSearch = useGlobalSearch({ targets, rawRows, agg: aggFinal });
+
+  // Keyboard shortcut: Cmd+K (Mac) / Ctrl+K (Windows/Linux)
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setIsSearchOpen((v) => !v);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  // Navigation handler saat result dipilih dari global search
+  const handleSearchNavigate = useCallback((item) => {
+    if (!item.action) return;
+    const { action } = item;
+    // Switch tab
+    if (action.tabKey) setActiveTab(action.tabKey);
+    // Apply filter kalau ada
+    if (action.filter) {
+      setFilters((prev) => ({
+        ...prev,
+        ...(action.filter.salesCodes ? { salesCodes: action.filter.salesCodes } : {}),
+        ...(action.filter.groups ? { groups: action.filter.groups } : {}),
+      }));
+    }
+    // Open drilldown kalau ada (untuk outlet search)
+    if (action.drilldown) {
+      setDrilldown({
+        title: action.drilldown.title,
+        subtitle: "Outlet",
+        outlets: getOutletBreakdown(aggFinal.filteredRows, action.drilldown.predicate),
+      });
+    }
+  }, [aggFinal, setFilters]);
+
   const openDrilldown = (title, subtitle, predicate) => {
     setDrilldown({ title, subtitle, outlets: getOutletBreakdown(aggFinal.filteredRows, predicate) });
   };
@@ -684,40 +438,49 @@ export default function SalesMonitoringApp() {
     setIsHistoryOpen(false);
   }, [history]);
 
-  const saveHistorySnapshot = (label) => {
+  const saveHistorySnapshot = useCallback((label) => {
     const snap = buildHistorySnapshot(aggFinal, filters, fileName, label);
+    // ⚠️ Bug fix (H3): sebelumnya `saveHistory(next)` dipanggil DI DALAM state
+    // updater `setHistory(prev => ...)`. <React.StrictMode> di main.jsx
+    // double-invoke updaters di dev untuk surface impurities — saveHistory
+    // akan dipanggil 2× (idempotent, jadi tidak korup, tapi tetap anti-pattern
+    // yang break under future React concurrent features). Sekarang: hitung
+    // next di luar, panggil setHistory(next) lalu saveHistory(next) terpisah.
     setHistory((prev) => {
-      const next = [snap, ...prev].slice(0, 8);
-      saveHistory(next);
+      const next = [snap, ...prev].slice(0, HISTORY_MAX_ENTRIES);
+      // Jadwalkan side-effect di luar updater pakai microtask, supaya updater
+      // tetap pure. (Tidak bisa langsung panggil saveHistory di sini.)
+      queueMicrotask(() => saveHistory(next));
       return next;
     });
     setIsHistoryOpen(false);
-  };
-  const deleteHistorySnapshot = (id) => {
+  }, [aggFinal, filters, fileName]);
+
+  const deleteHistorySnapshot = useCallback((id) => {
     setHistory((prev) => {
       const next = prev.filter((h) => h.id !== id);
-      saveHistory(next);
+      queueMicrotask(() => saveHistory(next));
       return next;
     });
     setComparisonSnapshot((cur) => (cur && cur.id === id ? null : cur));
     setTrendSnapshotIds((cur) => cur.filter((x) => x !== id));
-  };
+  }, []);
 
   // Dipanggil dari SettingsModal saat import file backup — GABUNGKAN snapshot
   // dari file dengan riwayat yang sudah ada di device ini (bukan menimpa total),
   // supaya import dari device lain tidak menghapus riwayat lokal yang belum
   // sempat di-backup. Kalau ada id yang sama persis, versi dari file yang menang.
-  const importHistoryMerge = (importedHistory) => {
+  const importHistoryMerge = useCallback((importedHistory) => {
     setHistory((prev) => {
       const byId = new Map(prev.map((h) => [h.id, h]));
       (importedHistory || []).forEach((h) => byId.set(h.id, h));
       const next = Array.from(byId.values())
         .sort((a, b) => (b.dateFrom || b.savedAt || "").localeCompare(a.dateFrom || a.savedAt || ""))
-        .slice(0, 8); // konsisten dengan batas di saveHistorySnapshot
-      saveHistory(next);
+        .slice(0, HISTORY_MAX_ENTRIES); // konsisten dengan batas di saveHistorySnapshot
+      queueMicrotask(() => saveHistory(next));
       return next;
     });
-  };
+  }, []);
 
 
   const handleFile = useCallback(async (files) => {
@@ -751,8 +514,15 @@ export default function SalesMonitoringApp() {
         : fileList[0].name;
       // Kalau sudah ada data sebelumnya (upload sesi lalu), siapkan juga preview
       // hasil GABUNGAN (data lama + file baru, dedup bersama) — supaya modal bisa
-      // menampilkan pilihan "Gabungkan" vs "Ganti semua" dengan angka yang akurat,
-      // tanpa perlu menghitung ulang saat user baru menekan konfirmasi.
+      // menampilkan pilihan "Gabungkan" vs "Ganti semua" dengan angka yang akurat.
+      //
+      // ⚠️ Bug fix (H6): sebelumnya `mergePreview.mergedRows` menyimpan array
+      // puluhan ribu baris hasil dedup lengkap. Memori double (di `rawRows`
+      // dan state), `DataPreviewModal` re-render dengan prop raksasa → freeze
+      // UI pada upload besar. Sekarang: simpan hanya summary counts; array
+      // merged dihitung ulang LAZILY di `confirmPreview("merge")` saat user
+      // benar-benar pilih merge. Cost: 1x dedup ekstra saat confirm (cheap
+      // dibanding hold array di memori selama preview terbuka).
       let mergePreview = null;
       if (rawRows.length) {
         const merged = dedupeRows([...rawRows, ...combinedRows]);
@@ -763,13 +533,15 @@ export default function SalesMonitoringApp() {
           totalAfterMerge: merged.rows.length,
           dateFrom: mergedDateStrs[0] || "",
           dateTo: mergedDateStrs[mergedDateStrs.length - 1] || "",
-          mergedRows: merged.rows,
+          // mergedRows sengaja TIDAK disimpan — akan di-recompute di
+          // confirmPreview("merge") bila user pilih merge.
         };
       }
       // Data belum langsung dipakai — tampilkan preview dulu, biar kesalahan format
       // (kolom tidak terbaca, tanggal kosong, dsb) ketahuan sebelum masuk ke dashboard.
       setPendingPreview({ rows: combinedRows, parseMeta: combinedMeta, fileName: combinedName, mergePreview });
-    } catch (e) {
+    } catch {
+      // ⚠️ Sprint 5 / S4: optional catch binding (e tidak dipakai di body).
       setError("Gagal membaca salah satu file. Pastikan semua format .xlsx/.xls valid.");
     } finally { setLoading(false); }
   }, [rawRows]);
@@ -777,7 +549,13 @@ export default function SalesMonitoringApp() {
   const confirmPreview = useCallback((mode) => {
     if (!pendingPreview) return;
     const merge = mode === "merge" && pendingPreview.mergePreview;
-    const rows = merge ? pendingPreview.mergePreview.mergedRows : pendingPreview.rows;
+    // ⚠️ Bug fix (H6): mergePreview.mergedRows sudah tidak disimpan (lihat
+    // handleFile). Bila user pilih "merge", recompute dedupe di sini dengan
+    // data terbaru dari rawRows (yang mungkin berubah sejak preview dibuka,
+    // meskipun jarang). Ini lebih akurat dan hemat memori.
+    const rows = merge
+      ? dedupeRows([...rawRows, ...pendingPreview.rows]).rows
+      : pendingPreview.rows;
     const name = merge ? `${pendingPreview.fileName} (digabung dengan data sebelumnya)` : pendingPreview.fileName;
     setRawRows(rows);
     setParseMeta(pendingPreview.parseMeta);
@@ -795,7 +573,7 @@ export default function SalesMonitoringApp() {
       setFilters(f => ({ ...f, dateFrom: latest.dateFrom, dateTo: latest.dateTo, datePreset: "thisMonth" }));
     }
     setPendingPreview(null);
-  }, [pendingPreview]);
+  }, [pendingPreview, rawRows]);
 
   const cancelPreview = useCallback(() => setPendingPreview(null), []);
 
@@ -807,7 +585,7 @@ export default function SalesMonitoringApp() {
       setRawRows(sampleRows);
       setFileName("Data Contoh (demo)");
       setParseMeta({ totalDataRows: sampleRows.length, skippedBlankRows: 0, rowsWithMissingDate: 0,
-        detectedFields: Object.keys(ALIASES), missingFields: [] });
+        duplicateRowsRemoved: 0, detectedFields: Object.keys(ALIASES), missingFields: [] });
       setFilters({ salesCodes: [], groups: [], dateFrom: "2026-07-01", dateTo: "2026-07-03", datePreset: "custom" });
       setSampleLoading(false);
     }, 300);
@@ -816,26 +594,28 @@ export default function SalesMonitoringApp() {
   const handleReset = useCallback(() => {
     setRawRows([]); setFileName(""); setParseMeta(null);
     clearSession();
+    // ⚠️ Bug fix: reset masterMax supaya sync berikutnya ambil SEMUA data cloud
+    // (full pull), bukan cuma delta. Sebelumnya masterMax tidak di-reset, jadi
+    // sync cuma ambil baris dengan date > maxDate lama — data cloud tidak masuk.
+    saveMasterMax("");
   }, []);
 
   // Hapus TOTAL semua yang tersimpan di perangkat ini: settings (localStorage)
   // + data sesi (IndexedDB) + reset semua state ke default pabrik.
   const handleClearAll = useCallback(() => {
-    clearSettings();
+    // ⚠️ Sprint 6 / R4: settings reset didelegasi ke hook useSettings
+    // (resetAllSettings clear localStorage + reset semua state settings).
+    resetAllSettings();
     clearSession();
     clearHistory();
     clearCompareState();
+    // ⚠️ Bug fix: reset masterMax juga di Clear All — sama alasan dengan handleReset.
+    saveMasterMax("");
     setRawRows([]); setFileName(""); setParseMeta(null);
-    setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" });
-    setWorkDays(WORK_DAYS_DEFAULT);
-    setTargets(DEFAULT_TARGETS);
-    setDepotName("DEPO LOTIM");
-    setTheme('dark');
-    setPowerSaveMode(false);
     setHistory([]);
     setComparisonSnapshot(null);
     setTrendSnapshotIds([]);
-  }, []);
+  }, [resetAllSettings]);
 
   // Optimasi performa scroll & tab tidak aktif (lihat komentar CSS
   // .sm-scrolling): tandai background mesh sebagai "harus dijeda" via ref DOM
@@ -905,6 +685,14 @@ export default function SalesMonitoringApp() {
         theme={theme} setTheme={setTheme} powerSaveMode={powerSaveMode} setPowerSaveMode={setPowerSaveMode} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge} />
       <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} colors={colors} onLoginSuccess={() => {}} sessionUser={sessionUser} userRole={userRole} onLogout={handleLogout} syncState={syncState} lastSyncAt={lastSyncAt} onManualSync={() => { syncNowRef.current?.(); }} syncMsg={syncMsg} />
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} colors={colors} />
+      {/* ⚠️ Sprint 9 / GS2: Global Search / Command Palette (Cmd+K / Ctrl+K) */}
+      <GlobalSearch
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        onNavigate={handleSearchNavigate}
+        colors={colors}
+        {...globalSearch}
+      />
       {/* Modal hapus rentang master data (admin) */}
       {masterAction === "range" && (
         <RangeDeleteModal
@@ -970,9 +758,20 @@ export default function SalesMonitoringApp() {
                 <span className="hidden sm:inline text-xs" style={{ color: colors.textMuted }}>Masuk</span>
               )}
             </button>
-            <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
-              className="sm-btn flex items-center gap-2 px-2.5 py-2.5 rounded-xl text-sm font-semibold"
-              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
+            {/* ⚠️ Sprint 9 / GS3: Global Search button — Cmd+K / Ctrl+K shortcut */}
+            <button onClick={() => setIsSearchOpen(true)} disabled={!rawRows.length}
+              className="sm-btn flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
+              title="Pencarian global (Ctrl+K atau Cmd+K)"
+              aria-label="Pencarian global">
+              <Search size={15} />
+              <span className="hidden lg:inline text-xs" style={{ color: colors.textMuted }}>Cari...</span>
+              <kbd className="hidden lg:inline px-1.5 py-0.5 rounded text-[10px]" style={{ background: colors.glassSubtle, color: colors.textMuted }}>⌘K</kbd>
+            </button>
+            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="sm-btn p-2.5 rounded-xl"
+              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
+              aria-label="Ganti tema">
               {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
             </button>
             {/* Riwayat & Pengaturan: desktop sekarang lewat Sidebar (section
@@ -1092,13 +891,15 @@ export default function SalesMonitoringApp() {
         {sessionLoading ? (
           <DashboardSkeleton colors={colors} />
         ) : !rawRows.length ? (
-          <div className="sm-card p-16 text-center sm-fadeup">
-            <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.glassFill }}>
-              <FileSpreadsheet size={24} style={{ color: colors.textMuted }} />
-            </div>
-            <div className="disp text-base font-semibold mb-1">Belum ada data</div>
-            <p className="text-sm" style={{ color: colors.textMuted }}>Upload file Excel sell-out di atas, atau coba dengan data contoh untuk melihat dashboard bekerja.</p>
-          </div>
+          // ⚠️ Sprint 10 / OB1: onboarding welcome screen (sebelumnya generic card).
+          <OnboardingWelcome
+            colors={colors}
+            onUpload={handleFile}
+            onSample={handleSample}
+            onImportBackup={() => setIsSettingsOpen(true)}
+            loading={loading}
+            sampleLoading={sampleLoading}
+          />
         ) : (
           <>
             <FilterBar salesOptions={salesOptions} groupOptions={groupOptions} filters={filters} setFilters={setFilters} colors={colors} theme={theme} rawRows={rawRows} />

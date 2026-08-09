@@ -1,95 +1,84 @@
 import { useMemo } from "react";
 import { Gauge, Users, Crosshair, Package, Store, Target } from "lucide-react";
-import { CompactKpiGrid } from "../components/executive/CompactKpiGrid.jsx";
+import { SnapshotHariIni } from "../components/executive/SnapshotHariIni.jsx";
+import { QuickActions } from "../components/executive/QuickActions.jsx";
 import { MiniLeaderboard } from "../components/executive/MiniLeaderboard.jsx";
 import { FocusProductMini } from "../components/executive/FocusProductMini.jsx";
 import { FocusGroupMini } from "../components/executive/FocusGroupMini.jsx";
 import { GroupMiniSummary } from "../components/executive/GroupMiniSummary.jsx";
 import { OutletHealthMini } from "../components/executive/OutletHealthMini.jsx";
-import { InsightBanner } from "../components/executive/InsightBanner.jsx";
 import { SectionCard } from "../components/executive/SectionCard.jsx";
+import { EmptyState } from "../components/ui/EmptyState.jsx";
 import { computeOutletAnalysis } from "../utils/aggregation.js";
-import { useGrowthMoM } from "../hooks/useGrowthMoM.js";
+// ⚠️ Sprint 16: useGrowthMoM tidak lagi dipakai di Executive Summary —
+// Growth MoM card dihapus bersama CompactKpiGrid. Dipakai di Main Report saja.
 import { OUTLET_DEFAULT_THRESHOLDS } from "../constants/thresholds.js";
 
 /* ============================================================================
-   EXECUTIVE SUMMARY PAGE
-   Halaman ringkasan eksekutif sekali-lihat untuk manajer/supervisor.
+   EXECUTIVE SUMMARY PAGE — REDESIGN (Sprint 16)
+   ⚠️ Diferensiasi tajam dengan Main Report:
+   - SEBELUMNYA: CompactKpiGrid (8 KPI duplikasi) + InsightBanner (duplikasi)
+   - SEKARANG: "Snapshot Hari Ini" (4 card performance hari terakhir) +
+     Quick Actions bar + komponen unique (leaderboard, focus, outlet health)
 
-   Menampilkan:
-   1. CompactKpiGrid — 8 KPI ringkas (target, realisasi, ACH, deviasi, dll)
-   2. MiniLeaderboard — Top 3 + bottom 2 sales
-   3. FocusProductMini — Ringkasan produk fokus (on track, at risk, critical)
-   4. GroupMiniSummary — Top 4 grup produk + bar mini
-   5. OutletHealthMini — Distribusi status outlet (aktif/berisiko/dormant)
-   6. InsightBanner — Alerts + data quality issues terintegrasi
+   InsightBanner DIHAPUS dari sini — sekarang hanya ada di Main Report.
+   CompactKpiGrid DIHAPUS — KPI lengkap ada di Main Report.
 
-   Growth MoM: lihat hooks/useGrowthMoM.js untuk detail cascade-nya.
+   Yang tetap (unique ke Executive):
+   - MiniLeaderboard, FocusProductMini, FocusGroupMini, GroupMiniSummary,
+     OutletHealthMini, Growth MoM
 ============================================================================ */
 
-export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, comparison, dataQualityNotes, onNavigate, rawRows, targets, filters }) {
-  // ==========================================================================
-  // DERIVED DATA
-  // ==========================================================================
+export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, comparison, onNavigate, rawRows, targets, filters }) {
+  // ⚠️ Sprint 16: dataQualityNotes tidak lagi dipakai di sini — InsightBanner
+  // hanya ada di Main Report sekarang. Tetap di props untuk backward-compat.
 
-  const growth = useGrowthMoM(comparison, rawRows, targets, workDays, filters?.salesCodes);
-
-  // Kesehatan outlet — dihitung dari filteredRows
   const outletHealthSummary = useMemo(() => {
     try {
       return computeOutletAnalysis(agg.filteredRows, agg.meta, OUTLET_DEFAULT_THRESHOLDS).summary;
-    } catch (_) {
+    } catch {
       return { total: 0, active: 0, atRisk: 0, dormant: 0 };
     }
   }, [agg.filteredRows, agg.meta]);
 
-  // ==========================================================================
-  // EMPTY STATE
-  // ==========================================================================
-
   if (!agg.filteredRows.length) {
     return (
-      <div className="sm-page-enter">
-        <div className="sm-card p-16 text-center">
-          <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.glassFill }}>
-            <Gauge size={24} style={{ color: colors.textMuted }} />
-          </div>
-          <div className="disp text-base font-semibold mb-1">Executive Summary</div>
-          <p className="text-sm" style={{ color: colors.textMuted }}>
-            Upload data sell-out untuk melihat ringkasan eksekutif di sini, atau buka tab <b>Main Report</b> untuk dashboard lengkap.
-          </p>
-        </div>
-      </div>
+      <EmptyState
+        icon={Gauge}
+        title="Executive Summary"
+        description="Upload data sell-out untuk melihat snapshot hari ini, leaderboard sales, status outlet, dan produk fokus dalam satu halaman."
+        actionLabel="Buka Main Report"
+        onAction={() => onNavigate?.("main")}
+        hint="Atau upload file Excel di area upload di bagian atas halaman."
+        colors={colors}
+      />
     );
   }
 
-  // ==========================================================================
-  // LAYOUT
-  // ==========================================================================
-
   return (
     <div className="sm-page-enter space-y-6">
-      {/* Periode label */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="disp text-lg font-bold" style={{ color: colors.text }}>Executive Summary</h2>
           <p className="text-xs" style={{ color: colors.textMuted }}>
             {agg.meta.firstDate && agg.meta.lastDate
               ? `${agg.meta.firstDate} — ${agg.meta.lastDate} · ${agg.meta.uniqueDays} hari data`
-              : "Ringkasan pencapaian sales, produk, dan outlet"}
+              : "Ringkasan performa sales, produk, dan outlet"}
           </p>
         </div>
       </div>
 
-      {/* 1. KPI Grid */}
-      <CompactKpiGrid agg={agg} growth={growth} workDays={workDays} colors={colors} />
+      {/* 1. Snapshot Hari Ini — 4 card performance hari terakhir */}
+      <SnapshotHariIni agg={agg} workDays={workDays} colors={colors} />
 
-      {/* 2. Insight Banner — muncul jika ada issues */}
-      {(agg.alerts.length > 0 || dataQualityNotes) && (
-        <InsightBanner alerts={agg.alerts} dataQualityNotes={dataQualityNotes} colors={colors} onNavigate={onNavigate} onDrilldown={onDrilldown} />
-      )}
+      {/* 2. Quick Actions bar */}
+      <QuickActions
+        colors={colors}
+        onViewDetail={() => onNavigate?.("main")}
+      />
 
-      {/* 3. Grid panel: Leaderboard + Focus (baris 1) */}
+      {/* 3. Grid: Leaderboard + FocusProduct (baris 1) */}
       <div className="grid md:grid-cols-2 gap-5">
         <SectionCard
           title="Performa Sales"
@@ -114,7 +103,7 @@ export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, compa
         </SectionCard>
       </div>
 
-      {/* 4. Grid panel: Grup Produk + Outlet Health (baris 2) */}
+      {/* 4. Grid: Grup Produk + Outlet Health (baris 2) */}
       <div className="grid md:grid-cols-2 gap-5">
         <SectionCard
           title="Grup Produk"
@@ -139,9 +128,7 @@ export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, compa
         </SectionCard>
       </div>
 
-      {/* 5. Grup Fokus — full-width di bawah grid. Highlight grup yang
-          ditandai fokus di Pengaturan (tanpa target baru — ACH pakai target
-          grup existing). */}
+      {/* 5. Grup Fokus — full width */}
       <SectionCard
         title="Grup Fokus"
         icon={Target}

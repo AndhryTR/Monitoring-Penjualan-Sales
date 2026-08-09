@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { fmtNum } from "../../utils/formatters.js";
 import { FIELD_LABELS } from "../../constants/aliases.js";
+import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
 
 /* ============================================================================
    DATA PREVIEW MODAL
@@ -19,6 +20,9 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors 
   const [mode, setMode] = useState(hasMergeOption ? "merge" : "replace");
   // Reset pilihan ke default setiap kali preview baru muncul (file baru dipilih)
   useEffect(() => { setMode(hasMergeOption ? "merge" : "replace"); }, [preview, hasMergeOption]);
+  // ⚠️ Sprint 4 / A1+A2: lock background scroll + Escape tutup modal.
+  useScrollLock(isOpen);
+  useEscapeKey(isOpen, onCancel);
 
   if (!isOpen || !preview) return null;
   const { rows, parseMeta, fileName, mergePreview } = preview;
@@ -117,7 +121,8 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors 
               <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>{parseMeta.sourceFiles.length} File Digabung</div>
               <div className="space-y-1.5">
                 {parseMeta.sourceFiles.map((sf, i) => (
-                  <div key={i} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ background: colors.glassFill }}>
+                  // ⚠️ Sprint 4 / K3: stable key dari file name (bukan index).
+                  <div key={sf.name || `sf-${i}`} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ background: colors.glassFill }}>
                     <span className="truncate flex-1">{sf.name}</span>
                     <span className="mono text-xs" style={{ color: colors.textMuted }}>{fmtNum(sf.rowCount)} baris</span>
                   </div>

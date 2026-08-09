@@ -56,7 +56,12 @@ function GrowthKpiItem({ growth, colors, delay }) {
 }
 
 function ProjectionKpiItem({ proj, colors, delay }) {
-  const accent = proj?.projectedAch !== null && proj?.projectedAch >= ACH_TIERS.onPace ? colors.mint : colors.gold;
+  // ⚠️ Bug fix (Sprint 3 / P3): sebelumnya pakai `proj?.projectedAch !== null`
+  // — bila proj === undefined, proj?.projectedAch === undefined, dan
+  // `undefined !== null` adalah true, jadi truthy branch `fmtPct(proj.projectedAch)`
+  // jalan dan throw "Cannot read properties of undefined".
+  // Fix: pakai `!= null` (loose equality) yang mencakup undefined DAN null.
+  const accent = proj?.projectedAch != null && proj?.projectedAch >= ACH_TIERS.onPace ? colors.mint : colors.gold;
   return (
     <div className="sm-fadeup min-w-0" style={{ animationDelay: `${delay}ms` }}>
       <div className="sm-card p-3.5 min-w-0 h-full" style={{ position: "relative", overflow: "hidden" }}>
@@ -66,7 +71,7 @@ function ProjectionKpiItem({ proj, colors, delay }) {
             Proyeksi ACH
           </div>
           <div className="disp text-base md:text-lg font-bold" style={{ color: accent }}>
-            {proj?.projectedAch !== null ? fmtPct(proj.projectedAch) : "-"}
+            {proj?.projectedAch != null ? fmtPct(proj.projectedAch) : "-"}
           </div>
         </div>
       </div>

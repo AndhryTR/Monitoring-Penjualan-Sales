@@ -1,46 +1,18 @@
 import * as XLSX from "xlsx-js-style";
 import { todayLocalDateStr } from "./excelParse.js";
-import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT1, achGradientColor } from "./excelExport.js";
+// ⚠️ Sprint 4 / Q1: import langsung dari xlsxStyle.js (sebelumnya dari
+// excelExport.js + duplikat makeSheetBuilder inline). Sekarang shared.
+import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT1, achGradientColor, makeSheetBuilder } from "./xlsxStyle.js";
 
 /* ============================================================================
    EXPORT EXCEL — Sales Report, Product Report, Product Focus, Analisis Outlet
    Setiap fungsi di sini membangun workbook yang isinya PERSIS mencerminkan
    tabel yang sudah tampil di layar pada halaman masing-masing — bukan format
-   baru. Style (header fill, border, gradient ACH) reuse dari excelExport.js
+   baru. Style (header fill, border, gradient ACH) reuse dari xlsxStyle.js
    supaya semua file export terasa konsisten satu sama lain.
 ============================================================================ */
 
-// Helper setCell/merge generik — dipakai bersama oleh ke-4 fungsi export di
-// bawah, sama polanya dengan yang dipakai excelExport.js/trendExport.js.
-function makeSheetBuilder() {
-  const ws = {};
-  const merges = [];
-  let lastRow = 0, lastCol = 0;
-  const setCell = (r, c, value, style = {}) => {
-    const ref = XLSX.utils.encode_cell({ r: r - 1, c: c - 1 });
-    const isNum = typeof value === "number";
-    const cellObj = { v: value === null || value === undefined ? "" : value, t: isNum ? "n" : "s" };
-    cellObj.s = {
-      font: { bold: !!style.bold, sz: style.size || 10, name: "Calibri", color: { rgb: style.color || "000000" } },
-      alignment: { horizontal: style.align || (isNum ? "right" : "left"), vertical: "center", wrapText: !!style.wrap },
-      border: { top: { style: "thin", color: { rgb: "D9D9D9" } }, bottom: { style: "thin", color: { rgb: "D9D9D9" } },
-        left: { style: "thin", color: { rgb: "D9D9D9" } }, right: { style: "thin", color: { rgb: "D9D9D9" } } },
-    };
-    if (style.fill) cellObj.s.fill = { patternType: "solid", fgColor: { rgb: style.fill } };
-    if (style.numFmt) cellObj.s.numFmt = style.numFmt;
-    ws[ref] = cellObj;
-    if (r > lastRow) lastRow = r;
-    if (c > lastCol) lastCol = c;
-  };
-  const merge = (r1, c1, r2, c2) => merges.push({ s: { r: r1 - 1, c: c1 - 1 }, e: { r: r2 - 1, c: c2 - 1 } });
-  const finalize = (colWidths) => {
-    ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(lastRow, 1) - 1, c: Math.max(lastCol, 1) - 1 } });
-    ws["!merges"] = merges;
-    if (colWidths) ws["!cols"] = colWidths.map((w) => ({ wch: w }));
-    return ws;
-  };
-  return { setCell, merge, finalize, getLastRow: () => lastRow };
-}
+// makeSheetBuilder di-import dari utils/xlsxStyle.js (Sprint 4 / Q1).
 
 function writeTitleBlock(b, title, subtitle, colCount) {
   b.setCell(1, 1, title, { bold: true, size: 13, color: XL_COLORS.navy });

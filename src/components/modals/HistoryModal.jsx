@@ -3,6 +3,7 @@ import { History, X, Check } from "lucide-react";
 import { fmtRp } from "../../utils/formatters.js";
 import { MAX_TREND_PERIODS } from "../../constants/thresholds.js";
 import { SectionTitle } from "../ui/index.jsx";
+import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
 
 /* ============================================================================
    HISTORY MODAL
@@ -18,6 +19,9 @@ export function HistoryModal({ isOpen, onClose, history, onSave, onApply, onDele
   const [label, setLabel] = useState("");
   const [checked, setChecked] = useState([]);
   useEffect(() => { if (isOpen) { setLabel(defaultLabel || ""); setChecked([]); } }, [isOpen, defaultLabel]);
+  // ⚠️ Sprint 4 / A1+A2: lock background scroll + Escape tutup modal.
+  useScrollLock(isOpen);
+  useEscapeKey(isOpen, onClose);
   if (!isOpen) return null;
 
   const toggle = (id) => {

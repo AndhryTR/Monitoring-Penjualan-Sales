@@ -5,6 +5,9 @@ import html2canvas from "html2canvas";
 import { fmtRp, fmtNum, fmtPct } from "./formatters.js";
 import { todayLocalDateStr } from "./excelParse.js";
 import { ACH_TIERS } from "../constants/thresholds.js";
+// ⚠️ Sprint 4 / Q1: XL_* constants + achGradientColor dipusatkan ke
+// utils/xlsxStyle.js supaya tidak duplikat di 4 file export.
+import { XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT, XL_COLORS, achGradientColor } from "./xlsxStyle.js";
 import { computeBaseGrowth } from "./comparisonBase.js";
 
 /* Hitung growth utk satu sales sesuai opsi pembanding (baseMode).
@@ -56,10 +59,30 @@ function filterSelectedSales(bySales, selectedNames) {
  * hitam/putih polos yang tidak sesuai tema.
  * Mengembalikan { dataUrl, width, height } (width/height = ukuran natural
  * canvas hasil capture, dipakai buat menjaga rasio saat ditempel ke PDF).
+ *
+ * ⚠️ Bug fix (H12): sebelumnya `canvas.toDataURL("image/png")` TANPA try/catch.
+ * Bila ada gambar di DOM yang tidak punya header CORS (mis. dari domain
+ * eksternal tanpa `crossorigin` attr), canvas jadi "tainted" dan `toDataURL`
+ * melempar `SecurityError` yang tak tertangkap → export hang diam-diam.
+ * Sekarang: catch SecurityError + error umum lainnya, throw error dengan
+ * pesan user-friendly supaya caller (handler di trend/index.jsx) bisa surface
+ * ke UI.
  */
 export async function captureChartImage(node, backgroundColor) {
   const canvas = await html2canvas(node, { scale: 2, backgroundColor, useCORS: true });
-  return { dataUrl: canvas.toDataURL("image/png"), width: canvas.width, height: canvas.height };
+  let dataUrl;
+  try {
+    dataUrl = canvas.toDataURL("image/png");
+  } catch (e) {
+    // SecurityError = tainted canvas (gambar cross-origin tanpa CORS headers).
+    // Biasanya tidak terjadi untuk chart recharts (SVG inline), tapi bisa terjadi
+    // bila ada <img> di dalam node yang di-capture.
+    if (e && /security/i.test(e.name || e.message || "")) {
+      throw new Error("Capture gagal: canvas tainted oleh gambar cross-origin. Pastikan semua gambar di area yang di-capture berasal dari domain yang sama atau punya header CORS.");
+    }
+    throw new Error("Capture gambar gagal: " + (e?.message || String(e)));
+  }
+  return { dataUrl, width: canvas.width, height: canvas.height };
 }
 
 function downloadDataUrl(dataUrl, filename) {
@@ -75,35 +98,10 @@ function downloadDataUrl(dataUrl, filename) {
    EXCEL (.xlsx + .png terpisah untuk chart)
 ----------------------------------------------------------------------------- */
 
-const XL_NUMFMT_MONEY = '_(* #,##0_);_(* \\(#,##0\\);_(* "-"??_);_(@_)';
-const XL_NUMFMT_INT = "#,##0";
-const XL_NUMFMT_PCT = "0.0%";
-const XL_COLORS = { headerFill: "111827", mint: "059669", coral: "DC2626", textMuted: "6B7280" };
-
-// Gradien pencapaian: 0% merah -> 70% kuning -> 100%+ hijau, selaras ACH_TIERS.
-const ACH_GRADIENT_STOPS = [
-  { pct: 0, rgb: [248, 105, 107] },
-  { pct: ACH_TIERS.warning, rgb: [255, 235, 132] },
-  { pct: ACH_TIERS.onPace, rgb: [99, 190, 123] },
-];
-
-function achGradientColor(pct) {
-  if (pct === null || pct === undefined || Number.isNaN(pct)) return null;
-  const p = Math.max(0, pct);
-  const stops = ACH_GRADIENT_STOPS;
-  let lo = stops[0], hi = stops[stops.length - 1];
-  for (let i = 0; i < stops.length - 1; i++) {
-    if (p >= stops[i].pct && p <= stops[i + 1].pct) { lo = stops[i]; hi = stops[i + 1]; break; }
-    if (p > stops[stops.length - 1].pct) { lo = stops[stops.length - 1]; hi = stops[stops.length - 1]; }
-  }
-  const range = hi.pct - lo.pct;
-  const t = range > 0 ? Math.min(1, Math.max(0, (p - lo.pct) / range)) : 1;
-  const hex = (n) => Math.round(n).toString(16).padStart(2, "0").toUpperCase();
-  const r = lo.rgb[0] + (hi.rgb[0] - lo.rgb[0]) * t;
-  const g = lo.rgb[1] + (hi.rgb[1] - lo.rgb[1]) * t;
-  const b = lo.rgb[2] + (hi.rgb[2] - lo.rgb[2]) * t;
-  return `${hex(r)}${hex(g)}${hex(b)}`;
-}
+// Catatan: XL_NUMFMT_*, XL_COLORS, ACH_GRADIENT_STOPS, achGradientColor
+// sebelumnya diduplikasi di sini. Sekarang di-import dari utils/xlsxStyle.js
+// (Sprint 4 / Q1) — single source of truth, perubahan rule ACH otomatis
+// ter-propagate ke semua modul export.
 
 /** Membangun 1 sheet (Value ATAU AO) untuk sales & periode terpilih. */
 function buildTrendSheet(XLSX_ws_helpers, { periods, salesRows, metric, depotName, periodRangeLabel, comparisonBase = "prev" }) {
@@ -263,6 +261,23 @@ function drawTrendHeader(doc, { depotName, subtitle }) {
   return 34;
 }
 
+/**
+ * Helper page-break untuk trend export — mirror dari ensureSpace di pdfExport.js.
+ *
+ * ⚠️ Bug fix (H10): sebelumnya pakai `if (y > 240) { doc.addPage(); y = 20; }`
+ * yang TIDAK pernah panggil drawTrendHeader lagi. Halaman lanjutan kehilangan
+ * letterhead (depot name, title, subtitle) → konteks hilang di multi-page report.
+ */
+function ensureTrendSpace(doc, y, needed, headerOpts) {
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const remaining = pageHeight - y - 10;
+  if (remaining < needed) {
+    doc.addPage();
+    return drawTrendHeader(doc, headerOpts);
+  }
+  return y;
+}
+
 function drawTrendFooter(doc) {
   const pageCount = doc.internal.getNumberOfPages();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -367,10 +382,13 @@ export function exportTrendPDF(comparisonData, selectedNames, opts = {}) {
     y += imgH + 8;
   }
 
-  if (y > 240) { doc.addPage(); y = 20; }
+  // ⚠️ Bug fix (H10): pakai ensureTrendSpace untuk redraw header di page-break.
+  const trendHeaderOpts = { depotName, subtitle: `Periode: ${periodRangeLabel}  ·  ${salesRows.length} sales dipilih` };
+
+  y = ensureTrendSpace(doc, y, 40, trendHeaderOpts);
   y = drawTrendTable(doc, { periods, salesRows, metric: "value", y, comparisonBase });
 
-  if (y > 240) { doc.addPage(); y = 20; }
+  y = ensureTrendSpace(doc, y, 40, trendHeaderOpts);
   y = drawTrendTable(doc, { periods, salesRows, metric: "ao", y, comparisonBase });
 
   drawTrendFooter(doc);

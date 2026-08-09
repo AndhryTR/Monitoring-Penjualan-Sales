@@ -6,33 +6,26 @@ import { fmtRp, fmtNum } from "../utils/formatters.js";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { ACH_TIERS } from "../constants/thresholds.js";
 import { DataTable } from "../components/ui/DataTable.jsx";
-import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
-import { exportProductReportExcel } from "../utils/reportExcelExport.js";
+import { SectionTitle, DrilldownButton, AchBarChartTooltip } from "../components/ui/index.jsx";
+// ⚠️ Sprint 5 / S3: reportExcelExport.js lazy-loaded di handler Export (heavy ~620KB).
 
 /* ============================================================================
    TAB: PRODUCT REPORT
    Bar chart vertical per grup produk + tabel detail grup.
 ============================================================================ */
 export function ProductReportPage({ agg, colors, onDrilldown, depotName }) {
-  const handleExport = () => exportProductReportExcel(agg.byGroup, {
-    depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
-  });
-  // Custom Tooltip yang sama untuk Product Report
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      const barColor = data.ach >= ACH_TIERS.onPace ? colors.mint : data.ach >= ACH_TIERS.warning ? colors.gold : colors.coral;
-      return (
-        <div className="p-3" style={{ background: colors.modalBg, backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)", border: `1px solid ${colors.modalBorder}`, borderRadius: 10, fontSize: 12, boxShadow: colors.glassShadow }}>
-          <div className="font-semibold mb-1" style={{ color: colors.text }}>{label}</div>
-          <div className="mono font-semibold" style={{ color: barColor }}>
-            Realisasi: {fmtRp(data.realisasiValue)}
-          </div>
-        </div>
-      );
-    }
-    return null;
+  const handleExport = async () => {
+    const { exportProductReportExcel } = await import("../utils/reportExcelExport.js");
+    exportProductReportExcel(agg.byGroup, {
+      depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
+    });
   };
+  // ⚠️ Bug fix (Sprint 3 / P4): sebelumnya `CustomTooltip` didefinisikan DI DALAM
+  // body komponen. Setiap render produce new function ref → Recharts anggap
+  // new component type → `<Tooltip content={<CustomTooltip />}>` unmount+remount
+  // subtree di setiap render. Fix: pakai shared `AchBarChartTooltip` yang sudah
+  // di-hoist ke module scope di components/ui/index.jsx, pass `colors` lewat
+  // props. Hilangkan duplikasi dengan SalesReportPage.
 
   return (
     <div className="sm-page-enter">
@@ -42,7 +35,7 @@ export function ProductReportPage({ agg, colors, onDrilldown, depotName }) {
           <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} horizontal={false} />
           <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
           <YAxis type="category" dataKey="name" width={170} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: colors.glassSubtle }} />
+          <Tooltip content={<AchBarChartTooltip colors={colors} />} cursor={{ fill: colors.glassSubtle }} />
           <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
             {agg.byGroup.map((r, i) => <Cell key={i} fill={r.ach >= ACH_TIERS.onPace ? colors.mint : r.ach >= ACH_TIERS.warning ? colors.gold : colors.coral} />)}
           </Bar>

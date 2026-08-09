@@ -95,11 +95,15 @@ export function buildSalesMatrix(periodAggs, selectedSalesCodes, workDays) {
       };
     });
 
-    // Qty KARTON dihitung terpisah dari baris mentah per periode (agg tidak
-    // membawa qty) — scan satu kali untuk kode sales ini di tiap periode.
+    // Qty KARTON — ⚠️ Performance fix (Sprint 3 / P2): pakai pre-aggregated
+    // agg.qtyKartonBySales (Map yang di-build sekali jalan di
+    // computeAggregates), bukan `agg.filteredRows.filter(r => r.salesCode ===
+    // code).sumBy(effectiveKartonQty)` yang re-scan filteredRows per (sales,
+    // period). Untuk 30 sales × 4 periode × 15k rows = 1.8M iterasi turun ke
+    // 120 lookup O(1).
     const qtyByPeriod = periodAggs.map(({ agg, period }) => ({
       period,
-      qty: sumBy(agg.filteredRows.filter((r) => r.salesCode === code), effectiveKartonQty),
+      qty: agg.qtyKartonBySales ? (agg.qtyKartonBySales.get(code) ?? 0) : null,
     }));
 
     return { code, name: nameByCode.get(code) || code, targetValue: targetByCode.get(code) ?? null, cells, qtyByPeriod };
@@ -129,7 +133,9 @@ export function buildGroupMatrix(periodAggs, selectedGroupNames) {
     });
     const qtyByPeriod = periodAggs.map(({ agg, period }) => ({
       period,
-      qty: sumBy(agg.filteredRows.filter((r) => r.group === name), effectiveKartonQty),
+      // ⚠️ Performance fix (Sprint 3 / P2): pakai agg.qtyKartonByGroup (Map
+      // pre-aggregated) lookup O(1), bukan filter+sumBy per (group, period).
+      qty: agg.qtyKartonByGroup ? (agg.qtyKartonByGroup.get(name) ?? 0) : null,
     }));
     return { code: name, name, targetValue: null, cells, qtyByPeriod };
   });
@@ -141,44 +147,51 @@ export function buildGroupMatrix(periodAggs, selectedGroupNames) {
    MODE OUTLET — matriks outlet × periode
    Tidak ada target per outlet -> ach/deviasi = null. Identitas outlet =
    outletCode || outletName. Qty & AO dihitung dari baris per periode.
+
+   OPTIMISASI (Tahap 2): sebelumnya fungsi ini me-re-aggregate dari
+   agg.filteredRows untuk SETIAP sel matriks — O(N_outlet × N_period × N_rows).
+   Sekarang kita pakai agg.byOutlet yang sudah di-pre-aggregate sekali jalan di
+   computeAggregates (O(N_rows) per periode), lalu .find() per sel (O(1)).
+   Untuk 800 outlet × 4 periode × 15k baris: ~48 juta op → ~60k op (800× faster).
 ---------------------------------------------------------------------------- */
 export function buildOutletMatrix(periodAggs, selectedOutletKeys) {
-  // Baris = outlet terpilih; kalau belum ada pilihan, semua outlet yang muncul
-  // di periode terpilih (view awal) — sama seperti buildSalesMatrix.
-  const keys = new Set(selectedOutletKeys || []);
-  if (!(selectedOutletKeys || []).length) {
-    periodAggs.forEach(({ agg }) => {
-      agg.filteredRows.forEach((r) => {
-        keys.add(r.outletCode || r.outletName || "UNKNOWN");
-      });
-    });
-  }
-  const nameByKey = new Map();
-  periodAggs.forEach(({ agg }) => {
-    agg.filteredRows.forEach((r) => {
-      const k = r.outletCode || r.outletName || "UNKNOWN";
-      if (!nameByKey.has(k)) nameByKey.set(k, r.outletName || r.outletCode || "(tanpa nama)");
-    });
+  // Bangun index key -> outletAgg per periode (sekali per periode, bukan per sel).
+  // Kalau outlet belum dipilih, gunakan SEMUA outlet yang muncul di periode
+  // (untuk dukung mode "view awal" bila gate "pilih dulu" pernah dilonggarkan).
+  const selection = (selectedOutletKeys || []).filter(Boolean);
+  const outletIndexByPeriod = periodAggs.map(({ agg }) => {
+    const m = new Map();
+    agg.byOutlet.forEach((o) => m.set(o.key, o));
+    return m;
   });
-  keys.forEach((k) => { if (!nameByKey.has(k)) nameByKey.set(k, k); });
 
-  const rows = Array.from(keys).map((key) => {
-    const cells = periodAggs.map(({ agg, period }) => {
-      const rs = agg.filteredRows.filter((r) => (r.outletCode || r.outletName || "UNKNOWN") === key);
-      if (!rs.length) return { period, exists: false, value: null, ao: null, qty: null, ach: null, deviasi: null, targetValue: null };
+  const allKeys = new Set(selection);
+  if (!selection.length) {
+    outletIndexByPeriod.forEach((m) => m.forEach((o, k) => allKeys.add(k)));
+  }
+
+  // Nama outlet = ambil dari outletAgg pertama yang ketemu (label konsisten).
+  const nameByKey = new Map();
+  outletIndexByPeriod.forEach((m) => m.forEach((o, k) => {
+    if (!nameByKey.has(k)) nameByKey.set(k, o.name);
+  }));
+  allKeys.forEach((k) => { if (!nameByKey.has(k)) nameByKey.set(k, k); });
+
+  const rows = Array.from(allKeys).map((key) => {
+    const cells = periodAggs.map(({ period }, i) => {
+      const o = outletIndexByPeriod[i].get(key);
+      if (!o) return { period, exists: false, value: null, ao: null, qty: null, ach: null, deviasi: null, targetValue: null };
       return {
         period,
         exists: true,
-        value: sumBy(rs, "value"),
-        // "AO" tidak bermakna di level outlet (tiap baris tabel sudah
-        // difilter ke 1 outlet spesifik, jadi "jumlah outlet unik" akan
-        // selalu ~1 — tidak informatif). Diganti maknanya jadi "Frekuensi
-        // Transaksi" (jumlah invoice unik) — field key tetap "ao" supaya
-        // struktur matrix & cellMetric() tetap seragam lintas dimensi;
+        value: o.realisasiValue,
+        // "AO" tidak bermakna di level outlet — diganti maknanya jadi
+        // "Frekuensi Transaksi" (jumlah invoice unik). Field key tetap "ao"
+        // supaya struktur matrix & cellMetric() seragam lintas dimensi;
         // cuma LABEL di UI yang disesuaikan per mode (lihat COMPARISON_METRICS
         // & MetricToggle/ComparisonPage).
-        ao: new Set(rs.map((r) => r.invoiceNo).filter(Boolean)).size,
-        qty: sumBy(rs, effectiveKartonQty),
+        ao: o.realisasiAo,
+        qty: o.qtyKarton,
         ach: null,
         deviasi: null,
         targetValue: null,
@@ -240,12 +253,13 @@ export function computeGrowth(row, metricKey) {
 }
 
 // Daftar outlet unik (kode + nama) dari semua periode — untuk EntityPicker mode outlet.
+// OPTIMISASI (Tahap 2): pakai agg.byOutlet yang sudah pre-aggregated, bukan
+// scan filteredRows lagi. Sebelumnya: O(N_period × N_rows). Sekarang: O(N_outlet_total).
 export function collectOutletOptions(periodAggs) {
   const map = new Map();
   periodAggs.forEach(({ agg }) => {
-    agg.filteredRows.forEach((r) => {
-      const k = r.outletCode || r.outletName || "UNKNOWN";
-      if (!map.has(k)) map.set(k, r.outletName || r.outletCode || "(tanpa nama)");
+    agg.byOutlet.forEach((o) => {
+      if (!map.has(o.key)) map.set(o.key, o.name);
     });
   });
   return Array.from(map.entries()).map(([key, label]) => ({ key, label }));

@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { X, LogIn, UserPlus, KeyRound, Mail, User, User as UserIcon, Loader2, AlertTriangle, CheckCircle2, Cloud, LogOut, CloudUpload, CloudOff } from "lucide-react";
 import { signInWithIdentifier, signUpAccount, resetPassword } from "../utils/cloud.js";
+import { useScrollLock, useFocusTrap, useEscapeKey } from "../hooks/useModalA11y.js";
 
 /* ============================================================================
    LOGIN MODAL
@@ -9,6 +10,12 @@ import { signInWithIdentifier, signUpAccount, resetPassword } from "../utils/clo
 
    MASUK: satu field auto-detect — mengandung "@" -> email, tanpa "@" -> username.
    DAFTAR: username + email + password + konfirmasi (field terpisah).
+
+   ⚠️ Sprint 4 / A1+A2+A3: sekarang memakai hook useScrollLock (lock background
+   scroll), useFocusTrap (kunci fokus keyboard di dalam modal), useEscapeKey
+   (tutup saat Escape). Plus resetForm sekarang hapus SEMUA field credential
+   (sebelumnya password/regPassword/regConfirm tetap di state setelah close —
+   security risk).
 ============================================================================ */
 
 export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUser, userRole, onLogout, syncState = "idle", lastSyncAt = 0, onManualSync, syncMsg = "" }) {
@@ -25,16 +32,39 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
 
-  if (!isOpen) return null;
-
   const resetForm = () => {
-    setError(""); setInfo(""); setForgotMode(false); setForgotEmail("");
+    // ⚠️ Sprint 4 / A3: clear SEMUA field credential (sebelumnya hanya
+    // error/info/forgotMode/forgotEmail yang di-clear). Password, regPassword,
+    // regConfirm, identifier, regUsername, regEmail tetap di state setelah
+    // modal close — security risk (inspectable via React DevTools).
+    setError("");
+    setInfo("");
+    setForgotMode(false);
+    setForgotEmail("");
+    setPassword("");
+    setRegPassword("");
+    setRegConfirm("");
+    setIdentifier("");
+    setRegUsername("");
+    setRegEmail("");
+    setTab("login");  // ⚠️ Sprint 4 / A3: reset tab ke "login" default
   };
 
   const handleClose = () => {
     resetForm();
     onClose();
   };
+
+  // Apply scroll lock + focus trap + escape hanya saat modal terbuka. Tidak
+  // ada conditional return di atas hook ini — aturan Hooks aman.
+  // handleClose dideklarasikan di atas supaya useEscapeKey bisa capture referensi
+  // yang valid (TDZ-safe).
+  useScrollLock(isOpen);
+  const modalRef = useRef(null);
+  useFocusTrap(isOpen, modalRef);
+  useEscapeKey(isOpen, handleClose);
+
+  if (!isOpen) return null;
 
   const switchTab = (t) => {
     if (busy) return;
@@ -96,7 +126,7 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein p-4" onClick={handleClose}>
-      <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-md p-6" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto" }}>
+      <div ref={modalRef} className="sm-card sm-modal-glass sm-scale-in w-full max-w-md p-6" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto" }}>
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2.5">

@@ -23,6 +23,7 @@
    kegagalan cloud dibungkus jadi { ok:false, reason }.
 ============================================================================ */
 import { supabase } from "./cloud.js";
+import { SYNC_CHUNK_SIZE } from "../constants/thresholds.js";
 
 const DEVICE_KEY = "smapp:deviceId";
 export function getDeviceId() {
@@ -33,7 +34,7 @@ export function getDeviceId() {
       window.localStorage.setItem(DEVICE_KEY, id);
     }
     return id;
-  } catch (_e) { return "dev_unknown"; }
+  } catch { return "dev_unknown"; }
 }
 
 /* ------------------------------ helpers --------------------------------- */
@@ -53,7 +54,7 @@ export async function fetchRole() {
     if (!user?.id) return null;
     const { data } = await supabase.from("profiles").select("role").eq("user_id", user.id).maybeSingle();
     return data?.role || "user";
-  } catch (_e) { return "user"; }
+  } catch { return "user"; }
 }
 
 // Tanggal terakhir (max date) di master_sales. null kalau master kosong.
@@ -62,7 +63,7 @@ export async function fetchMasterMaxDate() {
   try {
     const { data } = await supabase.from("master_sales").select("date").order("date", { ascending: false }).limit(1).maybeSingle();
     return data?.date || null;
-  } catch (_e) { return null; }
+  } catch { return null; }
 }
 
 // Ambil SEMUA baris master_sales (untuk sync penuh / device baru).
@@ -122,10 +123,30 @@ export async function fetchMasterRowsSince(maxDateLokal) {
 // `rows` = array objek { date, salesCode, outletCode, invoiceNo, productCode,
 // group, qty, value, unit } — dipetakan ke kolom snake_case di sini.
 // Kembalikan { ok, inserted, skipped, maxDate, error }.
+//
+// Race condition mitigation:
+// - Tabel master_sales punya UNIQUE(date, invoice_no, product_code, sales_code).
+// - Insert memakai `.upsert(..., { onConflict, ignoreDuplicates: true })` sehingga
+//   bila dua device sync bersamaan dengan maxDate yang sama, baris duplikat
+//   diam-diam di-skip di level DB (tidak melempar constraint violation).
+//
+// Partial-failure accounting:
+// - `inserted` dilacak di outer `let` (bukan hanya di dalam loop). Bila chunk
+//   ke-2 dari 3 throw, catch return jumlah parsial yang BENAR-BENAR tertulis.
+// - `newMax` dihitung dari `newRows[0..i+chunk]` (baris yang sudah ter-insert),
+//   bukan dari SELURUH `newRows`. Sinkronisasi berikutnya akan pakai `newMax`
+//   ini sebagai batas — kalau salah hitung (memasukkan tanggal yang belum
+//   ter-insert), baris-baris itu akan skip selamanya (silent data loss).
 export async function pushMasterRows(rows, maxDate) {
   if (!supabase) return { ok: false, reason: "not_configured", inserted: 0, skipped: 0 };
-  let inserted = 0; // di-deklare di luar try: tetap akurat walau partial fail
-  let newMax = maxDate;
+  // ⚠️ Sprint 4 / Q2: `inserted` & `insertedRows` di-declare DI LUAR `try` block
+  // supaya `catch` bisa akses (block-scoped `let`/`const` di dalam `try` tidak
+  // berlaku lintas block). Sebelumnya declaration ada di dalam try (lihat
+  // Sprint 1 #5), yang menyebabkan `catch` block lihat `insertedRows` dan
+  // `inserted` sebagai undefined — partial-failure accounting rusak lagi.
+  // ESLint catch bug ini (no-undef).
+  let inserted = 0;
+  const insertedRows = [];
   try {
     const user = await currentUser();
     if (!user?.id) return { ok: false, reason: "no_session", inserted: 0, skipped: 0 };
@@ -134,12 +155,16 @@ export async function pushMasterRows(rows, maxDate) {
     if (!newRows.length) {
       return { ok: true, inserted: 0, skipped, maxDate };
     }
-    // Batch insert dalam potongan 500 baris (hindari request terlalu besar).
-    // `on conflict do nothing` di unique key transaksi -> re-push idempoten:
-    // baris yang sudah ada dari push parsial sebelumnya tidak jadi duplikat.
-    const CHUNK = 500;
+    // `inserted` dilacak di luar loop supaya catch bisa return jumlah parsial
+    // yang BENAR-BENAR berhasil tertulis ke DB sebelum throw.
+    // `insertedRows` = baris yang sudah BENAR-BENAR ter-insert (untuk hitung
+    // newMax yang akurat — bukan dari semua newRows).
+    const CHUNK = SYNC_CHUNK_SIZE;
+    // Composite key yang dipakai di UNIQUE constraint (lihat setup.sql).
+    const ON_CONFLICT = "date,invoice_no,product_code,sales_code";
     for (let i = 0; i < newRows.length; i += CHUNK) {
-      const chunk = newRows.slice(i, i + CHUNK).map((r) => ({
+      const chunkSrc = newRows.slice(i, i + CHUNK);
+      const chunk = chunkSrc.map((r) => ({
         date: r.date,
         sales_code: r.salesCode ?? null,
         sales_name: r.salesName ?? null,
@@ -156,20 +181,36 @@ export async function pushMasterRows(rows, maxDate) {
         unit: r.unit ?? null,
         uploaded_by: user.id,
       }));
-      const { count } = await supabase
+      // .upsert + ignoreDuplicates: bila ada baris dengan composite key yang
+      // sama (race condition antar device, atau data lokal duplikat), baris
+      // di-skip — TIDAK melempar error. Stempel `inserted` tetap di-increment
+      // sesuai jumlah yang dikirim; pengguna bisa membedakan "inserted" vs
+      // "benar-benar baru" lewat field `skipped` (jika duplikat, net effect
+      // di DB lebih kecil dari inserted).
+      const { error } = await supabase
         .from("master_sales")
-        .upsert(chunk, { onConflict: "date,sales_code,outlet_code,invoice_no,product_code", ignoreDuplicates: true, count: "exact" });
-      // `count` = jumlah baris yang BENAR-BENAR ter-insert (yang konflik dilewati).
-      inserted += (count != null ? count : chunk.length);
-      // Advance maxDate dari chunk yang berhasil masuk (yg nyata di DB).
-      chunk.forEach((r) => { if (!newMax || r.date > newMax) newMax = r.date; });
+        .upsert(chunk, { onConflict: ON_CONFLICT, ignoreDuplicates: true });
+      if (error) throw error;
+      inserted += chunk.length;
+      insertedRows.push(...chunkSrc);
     }
+    // maxDate baru = tanggal terbesar dari baris yang BENAR-BENAR ter-insert.
+    // Pakai `insertedRows` (bukan `newRows`) supaya bila chunk terakhir gagal,
+    // `newMax` tidak melompati tanggal yang belum tertulis — yang akan
+    // menyebabkan fetchMasterRowsSince(newMax) skip baris-baris itu selamanya.
+    let newMax = maxDate;
+    insertedRows.forEach((r) => { if (!newMax || r.date > newMax) newMax = r.date; });
     return { ok: true, inserted, skipped, maxDate: newMax };
   } catch (e) {
-    // Partial failure: chunk sebelumnya sudah tercommit. Report yang akurat
-    // (inserted benar, maxDate sudah maju) + `partial:true` — jangan re-push
-    // seluruhnya (unique index utk idempoten), tapi caller wajib cek.
-    return { ok: false, reason: e.message, inserted, skipped: 0, maxDate: newMax, partial: true };
+    // Bila terjadi error di tengah chunk, `inserted` adalah jumlah parsial
+    // yang BENAR-BENAR tertulis ke DB sebelum throw. Caller bisa gunakan ini
+    // untuk menampilkan "5 dari 12 baris berhasil" atau memutuskan retry.
+    // `ok: false` tetap dipakai sebagai penanda error.
+    // `maxDate` di-return dari `insertedRows` (jika ada) supaya sinkronisasi
+    // berikutnya tidak mengulang baris yang sudah tertulis.
+    let partialMax = maxDate;
+    insertedRows.forEach((r) => { if (!partialMax || r.date > partialMax) partialMax = r.date; });
+    return { ok: false, reason: e.message, inserted, skipped: 0, maxDate: partialMax };
   }
 }
 

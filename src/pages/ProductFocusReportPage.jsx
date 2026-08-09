@@ -5,7 +5,7 @@ import { AchBadge } from "../components/AchBadge.jsx";
 import { MultiSelect } from "../components/ui/MultiSelect.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
-import { exportProductFocusExcel } from "../utils/reportExcelExport.js";
+// ⚠️ Sprint 5 / S3: reportExcelExport.js lazy-loaded di handler Export (~620KB).
 
 /* ============================================================================
    TAB: PRODUCT FOCUS
@@ -23,9 +23,12 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown, depotName }) 
   // ---- View: Produk Fokus (konten lama) ----
   const focusNames = useMemo(() => Array.from(new Set(agg.focusRows.map((f) => f.name))), [agg.focusRows]);
   const productRows = focusFilter.length ? agg.focusRows.filter((f) => focusFilter.includes(f.name)) : agg.focusRows;
-  const handleExportProduct = () => exportProductFocusExcel(productRows, {
-    depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
-  });
+  const handleExportProduct = async () => {
+    const { exportProductFocusExcel } = await import("../utils/reportExcelExport.js");
+    exportProductFocusExcel(productRows, {
+      depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
+    });
+  };
 
   // ---- View: Grup Fokus ----
   const groupNames = useMemo(() => Array.from(new Set(agg.focusGroupRows.map((g) => g.name))), [agg.focusGroupRows]);

@@ -1,4 +1,6 @@
 import { Store } from "lucide-react";
+import { fmtRp } from "../../utils/formatters.js";
+import { ACH_TIERS } from "../../constants/thresholds.js";
 
 /* ============================================================================
    SECTIONTITLE
@@ -48,5 +50,33 @@ export const createChartTooltipStyle = (colors) => ({
   fontSize: 12,
   boxShadow: colors.glassShadow,
 });
+
+/* ============================================================================
+   ACH BAR CHART TOOLTIP
+   Custom tooltip untuk bar chart vertikal yang menampilkan realisasi per
+   entitas (sales / group) dengan warna teks mengikuti tier ACH.
+
+   ⚠️ Bug fix (Sprint 3 / P4): sebelumnya `CustomTooltip` didefinisikan DI DALAM
+   body komponen SalesReportPage & ProductReportPage. Setiap render produce
+   new function ref → Recharts anggap new component type → `<Tooltip content={<CustomTooltip />}>`
+   unmount+remount subtree di setiap render. Fix: hoist ke module scope (sini),
+   komponen pass `colors` lewat props. Dua duplikat di Sales & Product report
+   dihilangkan — sekarang shared component tunggal.
+============================================================================ */
+export function AchBarChartTooltip({ active, payload, label, colors }) {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    const barColor = data.ach >= ACH_TIERS.onPace ? colors.mint : data.ach >= ACH_TIERS.warning ? colors.gold : colors.coral;
+    return (
+      <div className="p-3" style={{ background: colors.modalBg, backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)", border: `1px solid ${colors.modalBorder}`, borderRadius: 10, fontSize: 12, boxShadow: colors.glassShadow }}>
+        <div className="font-semibold mb-1" style={{ color: colors.text }}>{label}</div>
+        <div className="mono font-semibold" style={{ color: barColor }}>
+          Realisasi: {fmtRp(data.realisasiValue)}
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
 
 export { CustomSlider } from "./CustomSlider.jsx";

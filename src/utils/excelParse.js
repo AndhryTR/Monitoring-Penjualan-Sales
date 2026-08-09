@@ -46,7 +46,11 @@ export function excelValueToDateStr(v) {
     const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
     // Format umum "DD/MM/YYYY" atau "DD-MM-YYYY" (format tanggal Indonesia).
-    const slashMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    // ⚠️ Sprint 4 / Q2: escape `\/` dan `\-` di dalam character class tidak
+    // perlu — dalam [...] slash dan dash tidak perlu escape kecuali di posisi
+    // tertentu. ESLint flag `no-useless-escape`. Letakkan dash di AWAL class
+    // supaya tidak perlu escape sama sekali.
+    const slashMatch = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
     if (slashMatch) {
       const [, day, month, year] = slashMatch;
       return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -87,6 +91,12 @@ export function parseWorkbookFile(file) {
             rows: [],
             parseMeta: {
               sheetName, totalDataRows: 0, skippedBlankRows: 0, rowsWithMissingDate: 0,
+              // duplicateRowsRemoved: default 0 — di-set oleh caller setelah
+              // dedupeRows() dijalankan. Tanpa default ini, parseMeta dari
+              // upload single-file yang tidak melewati combinedMeta (mis.
+              // sample data, master sync) tidak punya field ini, dan
+              // useDataQualityNotes menampilkan 0 lewat fallback `|| 0`.
+              duplicateRowsRemoved: 0,
               detectedFields: [], missingFields: Object.keys(ALIASES),
             },
           });
@@ -124,7 +134,7 @@ export function parseWorkbookFile(file) {
         }
         resolve({
           rows: attachKartonQty(rows),
-          parseMeta: { sheetName, totalDataRows: aoa.length - 1, skippedBlankRows, rowsWithMissingDate, detectedFields, missingFields },
+          parseMeta: { sheetName, totalDataRows: aoa.length - 1, skippedBlankRows, rowsWithMissingDate, duplicateRowsRemoved: 0, detectedFields, missingFields },
         });
       } catch (err) { reject(err); }
     };

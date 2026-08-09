@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Users, Package, CalendarDays, RefreshCw, Filter, X, ChevronDown } from "lucide-react";
 import { MultiSelect } from "./MultiSelect.jsx";
 import { getDatePresetOptions, resolveDatePreset, getDatePresetLabel } from "../../utils/datePresets.js";
@@ -53,6 +54,11 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
       return;
     }
     const resolved = resolveDatePreset(key, rawRows);
+    // ⚠️ Bug fix (Sprint 3 / P3): sebelumnya tidak null-check `resolved`. Bila
+    // rawRows kosong atau preset tidak dikenali, resolveDatePreset return null
+    // → `resolved.dateFrom` throw TypeError. FilterBar global → crash blocking
+    // seluruh app saat user pilih preset sebelum data ter-upload.
+    if (!resolved) return;
     setFilters((f) => ({ ...f, dateFrom: resolved.dateFrom, dateTo: resolved.dateTo, datePreset: key }));
   };
 
@@ -166,8 +172,14 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
         {filterContent}
       </div>
 
-      {/* Mobile: bottom sheet */}
-      {mobileOpen && (
+      {/* Mobile: bottom sheet — ⚠️ Bug fix (Sprint 3 / P6): sebelumnya
+          mobile sheet dirender inline (tanpa createPortal). Bila ada ancestor
+          dengan `transform`/`will-change` (mis. .sm-fadeup/.sm-card di
+          SalesMonitoringApp), `position: fixed` menjadi relatif ke ancestor
+          itu, bukan viewport → sheet mispositioned / partial hidden. Fix:
+          portal ke document.body supaya selalu relatif viewport, konsisten
+          dengan ExportMenu (lihat komponen/upload/index.jsx). */}
+      {mobileOpen && createPortal(
         <div
           className="md:hidden fixed inset-0 z-50 flex items-end sm-fadein"
           onClick={() => setMobileOpen(false)}
@@ -225,7 +237,8 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
               Terapkan Filter
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

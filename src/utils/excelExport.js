@@ -1,6 +1,9 @@
 import * as XLSX from "xlsx-js-style";
 import { dateStrToLocalDate, todayLocalDateStr } from "./excelParse.js";
-import { ACH_TIERS } from "../constants/thresholds.js";
+// ⚠️ Sprint 4 / Q1: XL_* constants + achGradientColor dipusatkan ke
+// utils/xlsxStyle.js supaya tidak duplikat di 4 file export. SetCell tetap
+// inline di sini karena pattern-nya spesifik (ada `blank` helper).
+import { XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT, XL_COLORS, XL_TIER_FILL, achGradientColor, sanitizeFilename } from "./xlsxStyle.js";
 
 /* ============================================================================
    EXCEL EXPORT
@@ -12,41 +15,13 @@ import { ACH_TIERS } from "../constants/thresholds.js";
    tanpa perubahan behavior — hanya lokasi file saja.
 ============================================================================ */
 
-export const XL_NUMFMT_MONEY = '_(* #,##0_);_(* \\(#,##0\\);_(* "-"??_);_(@_)';
-export const XL_NUMFMT_INT = "#,##0";
-export const XL_NUMFMT_PCT = "0.00%";
-export const XL_NUMFMT_PCT1 = "0.0%";
-export const XL_COLORS = { headerCyan: "6DD9FF", headerPurple: "7030A0", mint: "4BFF9C", yellowTier: "FFFF00", gold: "FFC000", navy: "002060" };
-export const XL_TIER_FILL = { mint: XL_COLORS.mint, amber: XL_COLORS.yellowTier, violet: XL_COLORS.gold };
-
-// Titik warna gradien pencapaian: 0% merah -> 70% kuning -> 100%+ hijau,
-// selaras dengan ACH_TIERS yang dipakai di UI live app (70% = waspada,
-// 100% = target tercapai). Interpolasi RGB linear di antara titik-titik ini,
-// bukan lompat diskrit — jadi 85% akan terlihat warna transisi kuning-hijau.
-const ACH_GRADIENT_STOPS = [
-  { pct: 0, rgb: [248, 105, 107] },   // merah pastel
-  { pct: ACH_TIERS.warning, rgb: [255, 235, 132] }, // kuning pastel
-  { pct: ACH_TIERS.onPace, rgb: [99, 190, 123] },  // hijau pastel
-];
-
-export function achGradientColor(pct) {
-  if (pct === null || pct === undefined || Number.isNaN(pct)) return null;
-  const p = Math.max(0, pct); // klem batas bawah di 0% (ach negatif tidak masuk akal)
-  const stops = ACH_GRADIENT_STOPS;
-  // Cari 2 titik yang mengapit `p` (kalau p >= titik terakhir, dianggap solid hijau)
-  let lo = stops[0], hi = stops[stops.length - 1];
-  for (let i = 0; i < stops.length - 1; i++) {
-    if (p >= stops[i].pct && p <= stops[i + 1].pct) { lo = stops[i]; hi = stops[i + 1]; break; }
-    if (p > stops[stops.length - 1].pct) { lo = stops[stops.length - 1]; hi = stops[stops.length - 1]; }
-  }
-  const range = hi.pct - lo.pct;
-  const t = range > 0 ? Math.min(1, Math.max(0, (p - lo.pct) / range)) : 1;
-  const hex = (n) => Math.round(n).toString(16).padStart(2, "0").toUpperCase();
-  const r = lo.rgb[0] + (hi.rgb[0] - lo.rgb[0]) * t;
-  const g = lo.rgb[1] + (hi.rgb[1] - lo.rgb[1]) * t;
-  const b = lo.rgb[2] + (hi.rgb[2] - lo.rgb[2]) * t;
-  return `${hex(r)}${hex(g)}${hex(b)}`;
-}
+// Re-export untuk backward-compat dengan modul lain yang import dari sini.
+// (sebelumnya reportExcelExport.js & comparisonExport.js import XL_* dan
+// achGradientColor dari sini — sekarang semua dari xlsxStyle.js, tapi kita
+// tetap re-export supaya tidak break import lama.)
+export { XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT, XL_COLORS, XL_TIER_FILL, achGradientColor, sanitizeFilename };
+// PCT1 alias (lama) — tetap re-export untuk kompat
+export const XL_NUMFMT_PCT1 = XL_NUMFMT_PCT;
 
 export function exportToExcel(agg, targets, opts) {
   const { workDays, depotName } = opts || {};

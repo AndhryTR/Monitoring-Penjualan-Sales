@@ -2,6 +2,10 @@ import html2canvas from "html2canvas";
 import { fmtRp, fmtNum, fmtPct } from "./formatters.js";
 import { dateStrToLocalDate } from "./excelParse.js";
 import { ACH_TIERS } from "../constants/thresholds.js";
+// ⚠️ Sprint 4 / Q1: achGradientColor (versi HTML hex dengan "#") dipusatkan ke
+// utils/xlsxStyle.js sebagai `achGradientColorHex`. Sebelumnya diduplikasi di
+// sini persis sama body-nya — single source of truth sekarang.
+import { achGradientColorHex as achGradientColor } from "./xlsxStyle.js";
 
 /* ============================================================================
    IMAGE EXPORT
@@ -51,29 +55,9 @@ const XL_COLORS_HTML = {
 };
 const XL_TIER_FILL_HTML = { mint: XL_COLORS_HTML.mint, amber: XL_COLORS_HTML.yellowTier, violet: XL_COLORS_HTML.gold };
 
-// Gradien pencapaian — duplikat persis dari excelExport.js (lihat komentar di sana).
-const ACH_GRADIENT_STOPS = [
-  { pct: 0, rgb: [248, 105, 107] },
-  { pct: ACH_TIERS.warning, rgb: [255, 235, 132] },
-  { pct: ACH_TIERS.onPace, rgb: [99, 190, 123] },
-];
-function achGradientColor(pct) {
-  if (pct === null || pct === undefined || Number.isNaN(pct)) return null;
-  const p = Math.max(0, pct);
-  const stops = ACH_GRADIENT_STOPS;
-  let lo = stops[0], hi = stops[stops.length - 1];
-  for (let i = 0; i < stops.length - 1; i++) {
-    if (p >= stops[i].pct && p <= stops[i + 1].pct) { lo = stops[i]; hi = stops[i + 1]; break; }
-    if (p > stops[stops.length - 1].pct) { lo = stops[stops.length - 1]; hi = stops[stops.length - 1]; }
-  }
-  const range = hi.pct - lo.pct;
-  const t = range > 0 ? Math.min(1, Math.max(0, (p - lo.pct) / range)) : 1;
-  const hex = (n) => Math.round(n).toString(16).padStart(2, "0").toUpperCase();
-  const r = lo.rgb[0] + (hi.rgb[0] - lo.rgb[0]) * t;
-  const g = lo.rgb[1] + (hi.rgb[1] - lo.rgb[1]) * t;
-  const b = lo.rgb[2] + (hi.rgb[2] - lo.rgb[2]) * t;
-  return `#${hex(r)}${hex(g)}${hex(b)}`;
-}
+// achGradientColor (versi HTML hex dengan "#") sekarang di-import dari
+// utils/xlsxStyle.js sebagai `achGradientColorHex`, alias-kan ke nama lama.
+// Sebelumnya: ACH_GRADIENT_STOPS + achGradientColor diduplikasi persis di sini.
 
 function esc(s) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -83,6 +67,14 @@ function esc(s) {
    Fungsi generik: render HTML string di elemen tersembunyi, screenshot pakai
    html2canvas, download sebagai PNG/JPEG. `scale: 2` supaya teks tetap tajam
    walau di-zoom (setara retina/HiDPI).
+
+   ⚠️ Bug fix (H12): sebelumnya `canvas.toDataURL(mime, ...)` TANPA try/catch.
+   Bila ada gambar di HTML yang di-capture tidak punya header CORS (mis. dari
+   domain eksternal tanpa `crossorigin`), canvas jadi "tainted" dan `toDataURL`
+   melempar `SecurityError` yang tak tertangkap → export hang diam-diam tanpa
+   feedback ke user. Sekarang: catch SecurityError + error umum, throw dengan
+   pesan user-friendly supaya caller bisa surface ke UI. Container tetap
+   di-cleanup di `finally` block.
 ---------------------------------------------------------------------------- */
 export async function exportHtmlAsImage(html, filenameBase, format = "png") {
   const container = document.createElement("div");
@@ -96,7 +88,15 @@ export async function exportHtmlAsImage(html, filenameBase, format = "png") {
   try {
     const canvas = await html2canvas(container, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
     const mime = format === "jpeg" ? "image/jpeg" : "image/png";
-    const dataUrl = canvas.toDataURL(mime, format === "jpeg" ? 0.92 : undefined);
+    let dataUrl;
+    try {
+      dataUrl = canvas.toDataURL(mime, format === "jpeg" ? 0.92 : undefined);
+    } catch (e) {
+      if (e && /security/i.test(e.name || e.message || "")) {
+        throw new Error("Export gambar gagal: canvas tainted oleh gambar cross-origin. Pastikan semua gambar di template berasal dari domain yang sama atau pakai data URL.");
+      }
+      throw new Error("Export gambar gagal: " + (e?.message || String(e)));
+    }
     const a = document.createElement("a");
     a.href = dataUrl;
     a.download = `${filenameBase}.${format === "jpeg" ? "jpg" : "png"}`;

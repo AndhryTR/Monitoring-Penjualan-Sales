@@ -14,7 +14,10 @@ import {
 } from "../utils/comparison.js";
 import { saveCompareState, loadCompareState } from "../utils/storage.js";
 import { fmtRp, fmtPct } from "../utils/formatters.js";
-import { exportComparisonExcel } from "../utils/comparisonExport.js";
+// ⚠️ Sprint 5 / S3: comparisonExport.js lazy-loaded di handler Export (~620KB).
+// captureChartImage dari trendExport.js hanya dipakai untuk chart screenshot —
+// masih static karena trendExport.js juga punya exportTrendExcel/PDF yang
+// dipakai di tempat lain (tidak bisa di-code-split perlu jalan).
 import { captureChartImage } from "../utils/trendExport.js";
 import { computeBaseGrowth } from "../utils/comparisonBase.js";
 import { Download } from "lucide-react";
@@ -43,21 +46,56 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, depotName, 
   // tanpa persist, semua pilihan hilang saat kembali). Lazy init: baca sekali
   // di mount; guard pakai useRef supaya "Clear All" yang dipicu dari luar
   // (halaman lain) tidak ter-overwrite oleh persist effect yang terlambat.
-  const savedRef = useRef(loadCompareState() || {});
-  const [mode, setMode] = useState(savedRef.current.mode || "sales");
-  const [selectedEntities, setSelectedEntities] = useState(savedRef.current.selectedEntities || []);
-  const [periods, setPeriods] = useState(savedRef.current.periods || []);
-  const [metric, setMetric] = useState("value");
+  //
+  // ---- PER-MODE SELECTION STORAGE ----
+  // Sebelumnya: selectedEntities tunggal + tombol mode onClick pakai
+  // setSelectedEntities([]) -> ganti mode mengosongkan pilihan mode lain,
+  // dan save effect langsung menimpa localStorage dgn array kosong. Akibatnya
+  // pilihan outlet "selalu hilang" begitu user ganti mode (tombol Sales/Grup/
+  // Outlet yang di-style sebagai tab). Fix: simpan selection PER mode, ganti
+  // mode hanya swap tampilan, tidak clear. Backward-compat: kalau load state
+  // lama (selectedEntities tunggal), migrate ke selectedByMode[mode].
+  //
+  // ⚠️ Bug fix (Sprint 3 / P7): sebelumnya `const savedRef = useRef(loadCompareState() || {});`
+  // — argumen ke useRef di-evaluate di SETIAP render meski hanya nilai pertama
+  // yang di-retained. loadCompareState() baca localStorage (synchronous I/O)
+  // di setiap render — minor cost tapi boros. Fix: lazy init via useState
+  // initializer (cuma jalan sekali saat mount).
+  const [saved] = useState(() => loadCompareState() || {});
+  const migrateSaved = (saved) => {
+    if (saved?.selectedByMode) return saved.selectedByMode;
+    // Legacy: selectedEntities tunggal — asumsikan milik mode yg aktif saat itu.
+    const legacy = saved?.selectedEntities || [];
+    const byMode = { sales: [], group: [], outlet: [] };
+    if (legacy.length && saved?.mode && byMode[saved.mode] != null) {
+      byMode[saved.mode] = legacy;
+    }
+    return byMode;
+  };
+  const [mode, setMode] = useState(saved.mode || "sales");
+  const [selectedByMode, setSelectedByMode] = useState(() => migrateSaved(saved));
+  const [periods, setPeriods] = useState(saved.periods || []);
+  const [metric, setMetric] = useState(saved.metric || "value");
+
+  // Helper derive: ambil selection untuk mode aktif.
+  const selectedEntities = selectedByMode[mode] || [];
+  // Helper setter: update selection untuk mode aktif saja, mode lain tetap.
+  const updateSelectedEntities = (next) => {
+    setSelectedByMode((prev) => ({ ...prev, [mode]: typeof next === "function" ? next(prev[mode] || []) : next }));
+  };
 
   // Simpan otomatis setiap kali pilihan berubah — supaya pilihan tetap ada
   // saat pindah tab lalu kembali (karena tab di-unmount).
   useEffect(() => {
-    saveCompareState({ mode, selectedEntities, periods });
-  }, [mode, selectedEntities, periods]);
+    saveCompareState({ mode, selectedByMode, periods, metric });
+  }, [mode, selectedByMode, periods, metric]);
 
   // Nama -> kode sales (picker memakai nama, agregasi memakai kode).
   const salesCodeByName = useMemo(() => Object.fromEntries(targets.map((t) => [t.name, t.code])), [targets]);
-  const salesKeys = mode === "sales" ? selectedEntities.map((n) => salesCodeByName[n] || n) : [];
+  // ⚠️ Bug fix (Sprint 3 / P5): sebelumnya `const salesKeys = mode === "sales" ? selectedEntities.map((n) => salesCodeByName[n] || n) : [];`
+  // — inline derivation produce new array ref every render → invalidate
+  // periodAggs useMemo yang depend on `salesKeys`. Fix: wrap in useMemo.
+  const salesKeys = useMemo(() => mode === "sales" ? selectedEntities.map((n) => salesCodeByName[n] || n) : [], [mode, selectedEntities, salesCodeByName]);
 
   // ---- Agregat per periode (hanya periode yang dipilih user) ----
   // Sales mode wajib filter pakai KODE — nama tidak cocok dengan r.salesCode
@@ -81,16 +119,28 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, depotName, 
   }, [targets, rawRows]);
   const outletOptions = useMemo(() => collectOutletOptions(periodAggs).map((o) => ({ label: o.label, key: o.key })), [periodAggs]);
 
-  const entityOptions = mode === "sales" ? salesOptions.map((o) => o.label) : mode === "group" ? groupOptions : outletOptions.map((o) => o.label);
+  // ⚠️ Bug fix (Sprint 3 / P5): sebelumnya `const entityOptions = mode === "sales" ? ... : mode === "group" ? ... : ...;`
+  // — inline ternary produce new array every render → kalahkan memoization
+  // MultiSelect yang menerima `options` prop. Fix: wrap in useMemo.
+  const entityOptions = useMemo(() => {
+    if (mode === "sales") return salesOptions.map((o) => o.label);
+    if (mode === "group") return groupOptions;
+    return outletOptions.map((o) => o.label);
+  }, [mode, salesOptions, groupOptions, outletOptions]);
   // Konversi label -> kode untuk mode outlet (label bisa dobel antar outlet).
   const outletKeyByLabel = useMemo(() => {
     const m = new Map();
     outletOptions.forEach((o) => m.set(o.label, o.key));
     return m;
   }, [outletOptions]);
-  const selectedKeys = mode === "sales"
-    ? selectedEntities.map((n) => salesCodeByName[n] || n)
-    : mode === "outlet" ? selectedEntities.map((l) => outletKeyByLabel.get(l) || l) : selectedEntities;
+  // ⚠️ Bug fix (Sprint 3 / P5): sebelumnya `const selectedKeys = mode === "sales" ? ... : mode === "outlet" ? ... : selectedEntities;`
+  // — inline derivation produce new array every render → invalidate matrix
+  // useMemo. Fix: wrap in useMemo.
+  const selectedKeys = useMemo(() => {
+    if (mode === "sales") return selectedEntities.map((n) => salesCodeByName[n] || n);
+    if (mode === "outlet") return selectedEntities.map((l) => outletKeyByLabel.get(l) || l);
+    return selectedEntities;
+  }, [mode, selectedEntities, salesCodeByName, outletKeyByLabel]);
 
   // ---- Matriks sesuai mode (sales pakai KODE, bukan nama) ----
   const matrix = useMemo(() => {
@@ -99,27 +149,46 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, depotName, 
     return buildOutletMatrix(periodAggs, selectedKeys);
   }, [mode, periodAggs, selectedEntities, selectedKeys]);
 
-  // ---- KPI total + sortir + growth (sesuai opsi pembanding) ----
+  // ---- KPI: nilai periode TERAKHIR (current) + sortir + growth ----
+  // Value yang ditampilkan di kartu KPI = nilai metrik pada periode TERAKHIR
+  // yang punya data (bukan Σ semua periode), supaya KONSISTEN dengan growth
+  // badge di bawahnya — growth selalu membandingkan titik terakhir vs baseline
+  // (prev / avg3 / avg6 / yoy). Sebelumnya kartu menampilkan Σ semua periode
+  // sehingga angka besar di atas tidak ada hubungannya dengan % di bawahnya.
+  //
+  // Catatan: _total (dari rowTotal) tetap dihitung karena dipakai oleh
+  // comparisonExport.js sebagai kolom "Total" di file Excel — di sana Σ semua
+  // periode memang kontekstual dan bermanfaat untuk analisis.
   const kpiRows = useMemo(() => {
     const withTotal = rowTotal(matrix.rows, metric);
     return withTotal
       .map((r) => {
-        // Series nilai metrik per periode (skip sel kosong) utk baseline growth.
-        const vals = r.cells
-          .filter((c) => c.exists)
-          .map((c, i) => {
-            const idx = r.cells.indexOf(c);
-            if (metric === "qty") return r.qtyByPeriod && r.qtyByPeriod[idx] ? r.qtyByPeriod[idx].qty : null;
-            if (metric === "ach") return c.ach;
-            if (metric === "deviasi") return c.deviasi;
-            if (metric === "ao") return c.ao;
-            return c.value;
+        // Pasangan {v, label} untuk sel yang ADA datanya, urut kronologis sesuai
+        // urutan periode di picker. Label dipakai utk sub-caption periode di kartu.
+        const pairs = r.cells
+          .map((c, idx) => {
+            if (!c.exists) return null;
+            let v;
+            if (metric === "qty") v = r.qtyByPeriod && r.qtyByPeriod[idx] ? r.qtyByPeriod[idx].qty : null;
+            else if (metric === "ach") v = c.ach;
+            else if (metric === "deviasi") v = c.deviasi;
+            else if (metric === "ao") v = c.ao;
+            else v = c.value;
+            if (v === null || v === undefined || Number.isNaN(v)) return null;
+            return { v, label: c.period?.label };
           })
-          .filter((v) => v != null);
+          .filter(Boolean);
+        const vals = pairs.map((p) => p.v);
+        const last = pairs.length ? pairs[pairs.length - 1] : null;
         const growth = computeBaseGrowth(vals, comparisonBase).growth;
-        return { ...r, growth };
+        return {
+          ...r,
+          _current: last ? last.v : null,
+          _currentPeriodLabel: last ? last.label : null,
+          growth,
+        };
       })
-      .sort((a, b) => b._total - a._total);
+      .sort((a, b) => (b._current ?? -Infinity) - (a._current ?? -Infinity));
   }, [matrix.rows, metric, comparisonBase]);
 
   // ---- Chart data ----
@@ -146,7 +215,19 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, depotName, 
   // jadi labelnya disesuaikan jadi "Frekuensi Transaksi" khusus mode outlet.
   const metricLabel = mode === "outlet" && metric === "ao" ? "Frekuensi Transaksi" : metricMeta.label;
   const pickColor = periodColorPicker(colors);
-  const ready = periods.length >= 2 && kpiRows.length >= 2;
+
+  // ---- GATE "pilih dulu" khusus mode OUTLET ----
+  // Mode sales/grup: jumlah entitas kecil (5–20), aman menampilkan semua sbg
+  // view awal saat user belum memilih (kpiRows.length >= 2 cukup).
+  // Mode outlet: jumlahnya bisa ratusan/ribuan. Kalau auto-tampilkan semua,
+  // KPI cards + chart + table langsung dirender utk semua outlet → UI freeze
+  // ratusan ms-detik. Solusi: mode outlet WAJIB user pilih minimal 2 outlet
+  // sebelum apa pun dirender. Empty-state existing sudah menyampaikan pesan ini.
+  const ready = periods.length >= 2 && (
+    mode === "outlet"
+      ? selectedEntities.length >= 2
+      : kpiRows.length >= 2
+  );
 
   // Rentang label untuk subtitle export (dari periode pertama & terakhir).
   const rangeLabel = periods.length
@@ -163,6 +244,8 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, depotName, 
       } catch (e) {
         console.error("Gagal menangkap grafik:", e);
       }
+      // ⚠️ Sprint 5 / S3: lazy-load comparisonExport.js (~620KB) saat user klik Export.
+      const { exportComparisonExcel } = await import("../utils/comparisonExport.js");
       exportComparisonExcel(kpiRows, periods, {
         depotName: depotName || "DEPO LOTIM",
         mode,
@@ -191,7 +274,7 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, depotName, 
             const Icon = m.icon;
             const on = mode === m.key;
             return (
-              <button key={m.key} onClick={() => { setMode(m.key); setSelectedEntities([]); }}
+              <button key={m.key} onClick={() => setMode(m.key)}
                 className="sm-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5"
                 style={{ background: on ? colors.glassFillStrong : "transparent", color: on ? colors.mint : colors.textMuted }}>
                 <Icon size={13} /> {m.label}
@@ -204,7 +287,7 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, depotName, 
           icon={mode === "sales" ? Users : mode === "group" ? Package : Store}
           options={entityOptions}
           selected={selectedEntities}
-          onChange={setSelectedEntities}
+          onChange={updateSelectedEntities}
           placeholder={`Cari ${mode === "sales" ? "sales" : mode === "group" ? "grup" : "outlet"}...`}
           colors={colors}
           fullWidth
@@ -245,7 +328,9 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, depotName, 
           <p className="text-sm" style={{ color: colors.textMuted }}>
             {periods.length < 2
               ? "Pilih minimal 2 periode untuk membandingkan."
-              : "Pilih minimal 2 entitas (sales/grup/outlet)."}
+              : mode === "outlet" && selectedEntities.length < 2
+                ? `Pilih minimal 2 outlet untuk membandingkan (terpilih ${selectedEntities.length}). Karena jumlah outlet bisa sangat banyak, daftar tidak dimuat otomatis.`
+                : "Pilih minimal 2 entitas (sales/grup/outlet)."}
           </p>
         </div>
       ) : (
@@ -256,7 +341,8 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, depotName, 
               <MatrixKpiTotal
                 key={r.code}
                 label={r.name}
-                value={r._total}
+                value={r._current}
+                periodLabel={r._currentPeriodLabel}
                 growth={r.growth}
                 isMoney={metricMeta.money}
                 isPct={metricMeta.pct}

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Store, X, Search } from "lucide-react";
 import sumBy from "lodash/sumBy";
 import { fmtRp, fmtNum } from "../../utils/formatters.js";
+import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
 
 /* ============================================================================
    OUTLET DRILLDOWN MODAL
@@ -14,6 +15,9 @@ export function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets
   // Reset pencarian setiap kali modal dibuka untuk konteks (sales/grup/fokus) yang baru,
   // supaya query lama dari drilldown sebelumnya tidak nyangkut.
   useEffect(() => { if (isOpen) setQuery(""); }, [isOpen, title]);
+  // ⚠️ Sprint 4 / A1+A2: lock background scroll + Escape tutup modal.
+  useScrollLock(isOpen);
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -76,7 +80,8 @@ export function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets
                 </thead>
                 <tbody>
                   {filteredOutlets.map((o, i) => (
-                    <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
+                    // ⚠️ Sprint 4 / K3: stable key dari outletCode (bukan index).
+                    <tr key={o.outletCode || o.outletName || `o-${i}`} className="sm-row" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
                       <td className="px-3 py-2">{o.outletName}</td>
                       <td className="px-3 py-2 mono text-right">{fmtRp(o.value)}</td>
                       <td className="px-3 py-2 mono text-center">{fmtNum(o.qty)}</td>

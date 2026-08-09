@@ -322,17 +322,98 @@ export function computeAggregates(rows, targets, filters, workDays) {
       ? targets.filter((t) => filters.salesCodes.includes(t.code))
       : targets;
 
+    // ---- SINGLE-PASS INDEX BUILD ----
+    // ⚠️ Performance fix (Sprint 3 / P1): sebelumnya setiap consumer (bySales,
+    // byGroup, focusRows, focusGroupRows, byOutlet, daily, monthly) melakukan
+    // forEach sendiri atas `filtered`. Total loop = 6 × N. Sekarang satu loop
+    // bangun semua Map index sekaligus, consumer cukup lookup O(1).
+    //
+    // Index yang dibangun:
+    //   rowsBySales       — Map<salesCode, Array<row>>
+    //   rowsByGroup       — Map<groupName, Array<row>>
+    //   rowsBySalesGroup  — Map<salesCode|groupName, Array<row>> (composite key)
+    //   outletMap         — Map<outletKey, agg> (realisasi + ao + qtyKarton)
+    //   dailyMap          — Object<dateKey, {date, value, outlets:Set}>
+    //   monthlyMap        — Object<monthKey, value>
+    //   aoUniqueOutlets   — Set<salesCode|outletCode> (untuk totalRealisasiAo)
+    //   uniqueDateStrs    — Set<dateStr> (untuk meta.firstDate/lastDate)
+    const EMPTY_ARRAY = [];
+    const rowsBySales = new Map();
+    const rowsByGroup = new Map();
+    const rowsBySalesGroup = new Map();
+    const outletMap = new Map();
+    const dailyMap = {};
+    const monthlyMap = {};
+    const aoUniqueOutlets = new Set();
+    const uniqueDateStrsSet = new Set();
+    const pushTo = (map, key, row) => {
+      let arr = map.get(key);
+      if (!arr) { arr = []; map.set(key, arr); }
+      arr.push(row);
+    };
+    filtered.forEach((r) => {
+      // bySales
+      if (r.salesCode) pushTo(rowsBySales, r.salesCode, r);
+      // byGroup
+      if (r.group) pushTo(rowsByGroup, r.group, r);
+      // composite sales|group
+      if (r.salesCode && r.group) pushTo(rowsBySalesGroup, r.salesCode + "|" + r.group, r);
+      // byOutlet
+      const ok = r.outletCode || r.outletName || "UNKNOWN";
+      let o = outletMap.get(ok);
+      if (!o) {
+        o = {
+          key: ok,
+          name: r.outletName || r.outletCode || "(tanpa nama)",
+          value: 0,
+          qtyKarton: 0,
+          invoiceSet: new Set(),
+        };
+        outletMap.set(ok, o);
+      }
+      o.value += r.value || 0;
+      o.qtyKarton += effectiveKartonQty(r);
+      if (r.invoiceNo) o.invoiceSet.add(r.invoiceNo);
+      // daily
+      const dk = dateKey(r.date);
+      if (!dailyMap[dk]) dailyMap[dk] = { date: dk, value: 0, outlets: new Set() };
+      dailyMap[dk].value += r.value;
+      if (r.outletCode) dailyMap[dk].outlets.add(r.outletCode);
+      // monthly
+      const mk = monthKey(r.date);
+      monthlyMap[mk] = (monthlyMap[mk] || 0) + r.value;
+      // aoUniqueOutlets (untuk totalRealisasiAo)
+      if (r.salesCode && r.outletCode) aoUniqueOutlets.add(r.salesCode + "|" + r.outletCode);
+      // uniqueDateStrs (untuk meta)
+      if (r.date) uniqueDateStrsSet.add(r.date);
+    });
+
     // per sales
+    //
+    // ⚠️ Performance fix (Sprint 3 / P1): sebelumnya pakai nested
+    // `filtered.filter(r => r.salesCode === t.code)` untuk SETIAP target
+    // sales, lalu di dalamnya `rs.filter(r => r.group === g.name)` untuk
+    // SETIAP grup, lalu `rs.filter(r => matchFocus(r, f))` untuk SETIAP fokus.
+    // Kompleksitas: O(N_sales × N_groups × N_rows + N_sales × N_focus × N_rows)
+    // — untuk 15k rows × 30 sales × 10 groups × 5 focus = ~6.75M + ~2.25M iterasi.
+    //
+    // Sekarang: bangun Map index sekali jalan (single pass over `filtered`),
+    // lalu lookup O(1) per sales / grup / (sales,grup). Fokus item tetap perlu
+    // scan per-sales rows (matchFocus tidak bisa di-index), tapi hanya scan
+    // rows untuk sales itu (bukan seluruh `filtered`) — total cost turun
+    // signifikan.
     const bySales = relevantTargets.map((t) => {
-      const rs = filtered.filter((r) => r.salesCode === t.code);
+      const rs = rowsBySales.get(t.code) || EMPTY_ARRAY;
       const value = sumBy(rs, "value");
       const ao = new Set(rs.map((r) => r.outletCode)).size;
       const ach = t.total.value ? value / t.total.value : null;
       const achAo = t.total.ao ? ao / t.total.ao : null;
 
-      // Breakdown per grup produk milik sales ini — dipakai untuk export baris-per-baris.
+      // Breakdown per grup produk milik sales ini — pakai rowsBySalesGroup
+      // (Map<salesCode|groupName, Array<row>>) yang sudah dibangun di
+      // single-pass loop di atas.
       const groups = t.groups.map((g) => {
-        const grs = rs.filter((r) => r.group === g.name);
+        const grs = rowsBySalesGroup.get(t.code + "|" + g.name) || EMPTY_ARRAY;
         const gValue = sumBy(grs, "value");
         const gAo = new Set(grs.map((r) => r.outletCode)).size;
         return {
@@ -344,7 +425,9 @@ export function computeAggregates(rows, targets, filters, workDays) {
         };
       });
 
-      // Breakdown per produk fokus milik sales ini — sejajar dengan `groups` di atas.
+      // Breakdown per produk fokus — matchFocus tidak bisa di-index (custom
+      // predicate), jadi tetap scan rs. Tapi rs sudah kecil (hanya rows
+      // untuk sales ini), bukan seluruh `filtered`.
       const focus = t.focus.map((f) => {
         const frs = rs.filter((r) => matchFocus(r, f));
         const realisasi = sumBy(frs, effectiveKartonQty);
@@ -364,7 +447,9 @@ export function computeAggregates(rows, targets, filters, workDays) {
     const totalTargetValue = sumBy(bySales, "targetValue");
     const totalTargetAo = sumBy(bySales, "targetAo");
     const totalRealisasiValue = sumBy(bySales, "realisasiValue");
-    const totalRealisasiAo = new Set(filtered.map((r) => r.salesCode + "|" + r.outletCode)).size;
+    // ⚠️ Performance fix (Sprint 3 / P1): pakai aoUniqueOutlets yang sudah
+    // di-build di single-pass loop, bukan scan filtered lagi + build N string.
+    const totalRealisasiAo = aoUniqueOutlets.size;
     const overallAch = totalTargetValue ? totalRealisasiValue / totalTargetValue : null;
 
     // by group (respecting the group filter list of allowed groups, else all groups present in targets ∪ data)
@@ -377,7 +462,9 @@ export function computeAggregates(rows, targets, filters, workDays) {
     const byGroup = groupNames.map((gname) => {
       const targetValue = sumBy(relevantTargets, (t) => sumBy(t.groups.filter((g) => g.name === gname), "value"));
       const targetAo = sumBy(relevantTargets, (t) => sumBy(t.groups.filter((g) => g.name === gname), "ao"));
-      const rs = filtered.filter((r) => r.group === gname);
+      // ⚠️ Performance fix (Sprint 3 / P1): pakai rowsByGroup lookup O(1),
+      // bukan `filtered.filter(r => r.group === gname)` O(N) per group.
+      const rs = rowsByGroup.get(gname) || EMPTY_ARRAY;
       const value = sumBy(rs, "value");
       const ao = new Set(rs.map((r) => r.outletCode)).size;
       const ach = targetValue ? value / targetValue : null;
@@ -386,35 +473,39 @@ export function computeAggregates(rows, targets, filters, workDays) {
         predicate: (row) => row.group === gname };
     }).sort((a, b) => b.realisasiValue - a.realisasiValue);
 
-    // daily series
-    const dailyMap = {};
-    filtered.forEach((r) => {
-      const k = dateKey(r.date);
-      if (!dailyMap[k]) dailyMap[k] = { date: k, value: 0, outlets: new Set() };
-      dailyMap[k].value += r.value;
-      dailyMap[k].outlets.add(r.outletCode);
-    });
+    // by outlet — pakai outletMap yang sudah di-build di single-pass loop.
+    // Field dibuat seragam dengan byGroup/bySales supaya struktur matrix
+    // perbandingan tetap konsisten.
+    const byOutlet = Array.from(outletMap.values()).map((o) => ({
+      key: o.key,
+      name: o.name,
+      realisasiValue: o.value,
+      // "AO" di level outlet = frekuensi transaksi (jumlah invoice unik),
+      // BUKAN jumlah outlet unik. Lihat komentar di comparison.js
+      // buildOutletMatrix untuk alasan label "Frekuensi Transaksi".
+      realisasiAo: o.invoiceSet.size,
+      qtyKarton: o.qtyKarton,
+    }));
+
+    // daily series — pakai dailyMap yang sudah di-build di single-pass loop.
     const daily = Object.values(dailyMap)
       .map((d) => ({ date: d.date, value: d.value, ao: d.outlets.size }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // monthly (cumulative) series
-    const monthlyMap = {};
-    filtered.forEach((r) => {
-      const k = monthKey(r.date);
-      monthlyMap[k] = (monthlyMap[k] || 0) + r.value;
-    });
+    // monthly (cumulative) series — pakai monthlyMap yang sudah di-build.
     const monthly = Object.entries(monthlyMap).map(([m, v]) => ({ month: m, value: v })).sort((a, b) => a.month.localeCompare(b.month));
 
-    // focus products
+    // focus products — pakai rowsBySales lookup. matchFocus tetap per-scan
+    // per-sales rows, tapi bukan seluruh `filtered`.
     const focusRows = [];
     relevantTargets.forEach((t) => {
+      const rs = rowsBySales.get(t.code) || EMPTY_ARRAY;
       t.focus.forEach((f) => {
-        const rs = filtered.filter((r) => r.salesCode === t.code && matchFocus(r, f));
-        const realisasi = sumBy(rs, effectiveKartonQty);
+        const frs = rs.filter((r) => matchFocus(r, f));
+        const realisasi = sumBy(frs, effectiveKartonQty);
         const pct = f.target ? realisasi / f.target : null;
-        const hasUnconvertible = rs.some((r) => r.unconvertible);
-        const unit = resolveFocusUnit(rs);
+        const hasUnconvertible = frs.some((r) => r.unconvertible);
+        const unit = resolveFocusUnit(frs);
         focusRows.push({ salesCode: t.code, salesName: t.name, name: f.name, target: f.target, realisasi, pct, hasUnconvertible, unit,
           predicate: (row) => row.salesCode === t.code && matchFocus(row, f) });
       });
@@ -423,11 +514,13 @@ export function computeAggregates(rows, targets, filters, workDays) {
     // focus groups — grup yang ditandai `focus: true` di Pengaturan (highlight
     // grup existing, tanpa target baru). Data reuse dari perhitungan grup yang
     // sudah ada; cuma di-flatten jadi baris global (paralel `focusRows`).
+    // ⚠️ Performance fix (Sprint 3 / P1): pakai rowsBySalesGroup lookup O(1),
+    // bukan `filtered.filter(r => r.salesCode === t.code && r.group === g.name)` O(N) per (sales, group).
     const focusGroupRows = [];
     relevantTargets.forEach((t) => {
       t.groups.forEach((g) => {
         if (!g.focus) return;
-        const rs = filtered.filter((r) => r.salesCode === t.code && r.group === g.name);
+        const rs = rowsBySalesGroup.get(t.code + "|" + g.name) || EMPTY_ARRAY;
         const gValue = sumBy(rs, "value");
         const gAo = new Set(rs.map((r) => r.outletCode)).size;
         focusGroupRows.push({
@@ -444,7 +537,8 @@ export function computeAggregates(rows, targets, filters, workDays) {
     focusGroupRows.sort((a, b) => (b.ach ?? -1) - (a.ach ?? -1) || b.realisasiValue - a.realisasiValue);
 
     // Info tanggal untuk header laporan (BULAN, SD HARI INI, tanggal "per")
-    const uniqueDateStrs = Array.from(new Set(filtered.map((r) => r.date).filter(Boolean))).sort();
+    // — pakai uniqueDateStrsSet yang sudah di-build di single-pass loop.
+    const uniqueDateStrs = Array.from(uniqueDateStrsSet).sort();
     const meta = {
       firstDate: uniqueDateStrs[0] || null,
       lastDate: uniqueDateStrs[uniqueDateStrs.length - 1] || null,
@@ -487,8 +581,32 @@ export function computeAggregates(rows, targets, filters, workDays) {
       });
     }
 
+    // ---- Pre-aggregated qty KARTON per sales & per group ----
+    // ⚠️ Performance fix (Sprint 3 / P2): sebelumnya buildSalesMatrix &
+    // buildGroupMatrix di comparison.js me-re-scan filteredRows untuk setiap
+    // (sales × periode) dan (group × periode) — O(N_sales × N_period × N_rows)
+    // + O(N_group × N_period × N_rows). Untuk 30 sales × 4 periode × 15k rows
+    // = 1.8M iterasi per matrix rebuild, freeze UI saat tab Perbandingan dibuka.
+    //
+    // Sekarang: qtyKarton di-pre-aggregate sekali jalan di sini, ekspos sebagai
+    // Map di output `agg`. Matrix builder cukup lookup O(1) per (sales, period).
+    // Catatan: qtyKartonBySales berisi total qty KARTON untuk sales itu di
+    // SELURUH filteredRows (bukan per period). Untuk comparison matrix yang
+    // per periode, matrix builder akan iterate periodAggs dan akses
+    // periodAggs[i].qtyKartonBySales.get(code) — sama O(1) per cell.
+    const qtyKartonBySales = new Map();
+    const qtyKartonByGroup = new Map();
+    filtered.forEach((r) => {
+      const q = effectiveKartonQty(r);
+      if (r.salesCode) qtyKartonBySales.set(r.salesCode, (qtyKartonBySales.get(r.salesCode) || 0) + q);
+      if (r.group) qtyKartonByGroup.set(r.group, (qtyKartonByGroup.get(r.group) || 0) + q);
+    });
+
     return {
-      filteredRows: filtered, bySales, byGroup, daily, monthly, focusRows, focusGroupRows, meta, projection, alerts,
+      filteredRows: filtered, bySales, byGroup, byOutlet, daily, monthly, focusRows, focusGroupRows, meta, projection, alerts,
+      // Pre-aggregated qty KARTON per entity — dipakai oleh buildSalesMatrix &
+      // buildGroupMatrix di comparison.js untuk hindari re-scan filteredRows.
+      qtyKartonBySales, qtyKartonByGroup,
       totals: { targetValue: totalTargetValue, targetAo: totalTargetAo, realisasiValue: totalRealisasiValue,
         realisasiAo: totalRealisasiAo, ach: overallAch,
         deviasiValue: totalTargetValue ? totalTargetValue - totalRealisasiValue : null },

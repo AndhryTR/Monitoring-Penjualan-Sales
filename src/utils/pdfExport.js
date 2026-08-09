@@ -70,6 +70,32 @@ function drawHeader(doc, { depotName, title, subtitle }) {
   return 34;
 }
 
+/**
+ * Helper page-break: cek apakah `y + needed` masih muat di halaman aktif.
+ * Bila tidak muat, tambah halaman baru + redraw letterhead header, lalu
+ * return Y baru (34 = posisi setelah header). Bila masih muat, return y as-is.
+ *
+ * ⚠️ Bug fix (H10): sebelumnya pakai pola `if (y > 250) { doc.addPage(); y = 20; }`
+ * yang TIDAK pernah panggil drawHeader lagi. Halaman lanjutan kehilangan
+ * letterhead (depot name, title, subtitle) → konteks hilang di multi-page report.
+ *
+ * @param {object} doc - jsPDF instance
+ * @param {number} y - posisi Y saat ini
+ * @param {number} needed - tinggi mm yang dibutuhkan untuk content berikutnya
+ * @param {object} headerOpts - { depotName, title, subtitle } untuk redraw header
+ * @returns {number} Y baru (34 bila baru addPage, atau y as-is)
+ */
+function ensureSpace(doc, y, needed, headerOpts) {
+  const pageHeight = doc.internal.pageSize.getHeight();
+  // Sisa ruang = tinggi halaman - y - margin bawah (10mm untuk footer).
+  const remaining = pageHeight - y - 10;
+  if (remaining < needed) {
+    doc.addPage();
+    return drawHeader(doc, headerOpts);
+  }
+  return y;
+}
+
 /** Menggambar footer (nomor halaman + timestamp) di SEMUA halaman yang sudah dibuat. */
 function drawFooterOnAllPages(doc) {
   const pageCount = doc.internal.getNumberOfPages();
@@ -163,7 +189,11 @@ export function exportSummaryPDF(agg, targets, opts) {
   y = doc.lastAutoTable.finalY + 8;
 
   // ---- Rekap per grup produk ----
-  if (y > 250) { doc.addPage(); y = 20; }
+  // ⚠️ Bug fix (H10): sebelumnya `if (y > 250) { doc.addPage(); y = 20; }`
+  // tanpa redraw header → halaman lanjutan kehilangan letterhead. Sekarang
+  // pakai ensureSpace yang redraw header di halaman baru.
+  const summaryHeaderOpts = { depotName, title: "LAPORAN RINGKASAN MONITORING PENJUALAN", subtitle: `${periodLabel}  ·  ${sdInfo}` };
+  y = ensureSpace(doc, y, 40, summaryHeaderOpts);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10.5);
   doc.text("Rekap per Grup Produk", 14, y);
@@ -265,7 +295,9 @@ function drawScorecardPage(doc, salesRow, agg, opts, rank, totalSales) {
 
   // ---- Breakdown produk fokus (kalau ada) ----
   if (salesRow.focus && salesRow.focus.length) {
-    if (y > 255) { doc.addPage(); y = 20; }
+    // ⚠️ Bug fix (H10): pakai ensureSpace untuk redraw header di page-break.
+    const scorecardHeaderOpts = { depotName, title: "SCORECARD PENCAPAIAN SALES", subtitle: `${periodLabel}  ·  ${sdInfo}` };
+    y = ensureSpace(doc, y, 40, scorecardHeaderOpts);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(...COLORS.text);
@@ -367,7 +399,9 @@ export function exportSalesGroupComparisonPDF(agg, opts) {
   // "header" bervisual (tint gold, bold) diikuti baris grup polos di bawahnya,
   // berulang untuk tiap sales, tanpa jarak/putus antar-blok. rowMeta paralel
   // dipakai di didParseCell untuk tahu baris mana yang perlu di-highlight.
-  if (y > 250) { doc.addPage(); y = 20; }
+  // ⚠️ Bug fix (H10): pakai ensureSpace untuk redraw header di page-break.
+  const comparisonHeaderOpts = { depotName, title: "LAPORAN PERBANDINGAN PENCAPAIAN SALES", subtitle: `Grup: ${groupLabel}  ·  ${periodLabel}` };
+  y = ensureSpace(doc, y, 40, comparisonHeaderOpts);
   y = drawSectionTitle(doc, "Rekap per Sales — Total Periode", y);
   const sortedSales = [...agg.bySales].sort((a, b) => (b.ach ?? -1) - (a.ach ?? -1));
 
@@ -421,7 +455,11 @@ export function exportSalesGroupComparisonPDF(agg, opts) {
   // Target/Ach%/Deviasi — app ini tidak punya konsep target harian).
   const lastDateRows = agg.meta.lastDate ? agg.filteredRows.filter((r) => r.date === agg.meta.lastDate) : [];
 
-  if (y > 250) { doc.addPage(); y = 20; }
+  // ⚠️ Bug fix (H10): pakai ensureSpace untuk redraw header di page-break
+  // (sebelumnya pola lama `if (y > 250) { doc.addPage(); y = 20; }` tidak
+  // redraw header). Pakai 40mm sebagai estimasi tinggi section title + header
+  // tabel + minimal 1 baris data.
+  y = ensureSpace(doc, y, 40, comparisonHeaderOpts);
   y = drawSectionTitle(doc, `Pencapaian Hari Terakhir — ${formatDateID(agg.meta.lastDate)}`, y);
 
   if (lastDateRows.length === 0) {

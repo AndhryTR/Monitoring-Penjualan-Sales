@@ -10,7 +10,7 @@ import { computeOutletAnalysis } from "../utils/aggregation.js";
 import { KpiCard } from "../components/KpiCard.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, createChartTooltipStyle } from "../components/ui/index.jsx";
-import { exportOutletAnalysisExcel } from "../utils/reportExcelExport.js";
+// ⚠️ Sprint 5 / S3: reportExcelExport.js lazy-loaded di handler Export.
 import { VisitPatternModal } from "../components/modals/VisitPatternModal.jsx";
 
 /* ============================================================================
@@ -50,9 +50,12 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
     { name: "Berisiko", value: summary.atRisk, fill: colors.gold },
     { name: "Dormant", value: summary.dormant, fill: colors.coral },
   ];
-  const handleExport = () => exportOutletAnalysisExcel(list, summary, {
-    depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
-  });
+  const handleExport = async () => {
+    const { exportOutletAnalysisExcel } = await import("../utils/reportExcelExport.js");
+    exportOutletAnalysisExcel(list, summary, {
+      depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
+    });
+  };
 
   return (
     <div className="sm-page-enter">

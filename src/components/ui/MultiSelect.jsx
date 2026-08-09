@@ -10,11 +10,18 @@ export function MultiSelect({ label, icon: Icon, options, selected, onChange, pl
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef(null);
+  // ⚠️ Sprint 4 / M2: gate listener pada `open` — sebelumnya `useEffect(..., [])`
+  // memasang mousedown listener untuk SELURUH lifetime komponen, walau dropdown
+  // tertutup. Dengan multiple MultiSelect instances (FilterBar 2, TransactionFilters
+  // 1, ComparisonPage 1), setiap klik page menjalankan N redundant DOM-contains
+  // checks. Sekarang: hanya pasang saat open, cleanup saat close — pola sama
+  // dengan TrendExportMenu & BaseSelector.
   useEffect(() => {
+    if (!open) return;
     const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, []);
+  }, [open]);
   const filtered = options.filter((o) => o.toLowerCase().includes(q.toLowerCase()));
   const toggle = (o) => onChange(selected.includes(o) ? selected.filter((x) => x !== o) : [...selected, o]);
   return (

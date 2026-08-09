@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Plus, Trash2, CalendarRange, ChevronDown } from "lucide-react";
 import { getDatePresetOptions, resolveDatePreset, getDatePresetLabel } from "../../utils/datePresets.js";
+import { MAX_PERIODS } from "../../constants/thresholds.js";
 
 /* ============================================================================
    PERIODPICKER
@@ -105,7 +106,8 @@ export function PeriodPicker({ periods, onChange, colors, rawRows }) {
 
   const removePeriod = (id) => onChange(periods.filter((p) => p.id !== id));
 
-  const isFull = periods.length >= 8;
+  // ⚠️ Sprint 5 / S1: batas MAX_PERIODS dari constants (sebelumnya magic 8).
+  const isFull = periods.length >= MAX_PERIODS;
 
   return (
     // z-30 saat dropdown terbuka: .sm-card punya will-change:transform (stacking

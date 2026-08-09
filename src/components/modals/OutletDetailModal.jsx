@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Store, X, Search } from "lucide-react";
 import { fmtRp, fmtNum } from "../../utils/formatters.js";
 import { OutletStatusBadge } from "../../pages/OutletAnalysisPage.jsx";
+import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
 
 /* ============================================================================
    OUTLET DETAIL MODAL
@@ -12,6 +13,9 @@ import { OutletStatusBadge } from "../../pages/OutletAnalysisPage.jsx";
 export function OutletDetailModal({ isOpen, onClose, outlet, products, colors }) {
   const [query, setQuery] = useState("");
   useEffect(() => { if (isOpen) setQuery(""); }, [isOpen, outlet]);
+  // ⚠️ Sprint 4 / A1+A2: lock background scroll + Escape tutup modal.
+  useScrollLock(isOpen);
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen || !outlet) return null;
 
@@ -80,7 +84,8 @@ export function OutletDetailModal({ isOpen, onClose, outlet, products, colors })
               </thead>
               <tbody>
                 {filtered.map((p, i) => (
-                  <tr key={i} className="sm-row" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
+                  // ⚠️ Sprint 4 / K3: stable key dari productName (bukan index).
+                  <tr key={p.productName || p.productCode || `p-${i}`} className="sm-row" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
                     <td className="px-3 py-2">{p.productName}</td>
                     <td className="px-3 py-2 text-xs" style={{ color: colors.textMuted }}>{p.group}</td>
                     <td className="px-3 py-2 mono text-right">{fmtRp(p.value)}</td>
