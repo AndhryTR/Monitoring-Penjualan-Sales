@@ -147,23 +147,41 @@ export async function pushMasterRows(rows, maxDate) {
   // ESLint catch bug ini (no-undef).
   let inserted = 0;
   const insertedRows = [];
+  // ⚠️ Sprint 16h: declare skipped + localDupCount DI LUAR try block supaya
+  // catch bisa akses (sama seperti inserted + insertedRows).
+  let skipped = 0;
+  let localDupCount = 0;
   try {
     const user = await currentUser();
     if (!user?.id) return { ok: false, reason: "no_session", inserted: 0, skipped: 0 };
-    // ⚠️ Bug fix: sebelumnya filter `r.date > maxDate` — baris dengan tanggal
-    // SAMA atau LEBIH KECIL dari maxDate dihilangkan, bahkan kalau belum pernah
-    // di-upload ke cloud (mis. user tambah transaksi tanggal lama di file baru).
-    // Akibatnya: baris baru di tanggal lama tidak pernah masuk ke cloud →
-    // realisasi value di client lebih kecil dari cloud.
-    //
-    // Fix: kirim SEMUA baris (yang punya date) ke cloud. Dedup dilakukan di
-    // level DB via upsert + composite key (date|invoice_no|product_code|sales_code).
+    // ⚠️ Bug fix: kirim SEMUA baris (yang punya date) ke cloud. Dedup dilakukan
+    // di level DB via upsert + composite key (date|invoice_no|product_code|sales_code).
     // Baris yang sudah ada di cloud akan di-skip (ignoreDuplicates: true),
     // baris baru akan di-insert.
-    const newRows = (rows || []).filter((r) => r.date);
-    const skipped = (rows || []).length - newRows.length;
+    const allRows = (rows || []).filter((r) => r.date);
+    skipped = (rows || []).length - allRows.length;
+
+    // ⚠️ Bug fix (Sprint 16h): dedup LOKAL sebelum kirim ke cloud.
+    // Sebelumnya, kalau data lokal punya duplikat internal (mis. baris #100
+    // dan #600 punya composite key sama), chunk pertama sukses insert, tapi
+    // chunk kedua kena constraint violation — `ON CONFLICT DO NOTHING` hanya
+    // skip baris yang conflict dengan baris yang SUDAH ADA di DB sebelum batch,
+    // BUKAN dengan baris lain dalam batch yang sama.
+    // Fix: dedup lokal dulu dengan 7-field composite key, kirim hanya baris unik.
+    const seenKeys = new Set();
+    const newRows = [];
+    for (const r of allRows) {
+      const key = `${r.date}|${r.invoiceNo || ""}|${r.productCode || ""}|${r.salesCode || ""}|${r.outletCode || ""}|${r.qty ?? ""}|${r.value ?? ""}`;
+      if (seenKeys.has(key)) {
+        localDupCount++;
+        continue;
+      }
+      seenKeys.add(key);
+      newRows.push(r);
+    }
+
     if (!newRows.length) {
-      return { ok: true, inserted: 0, skipped, maxDate };
+      return { ok: true, inserted: 0, skipped: skipped + localDupCount, maxDate };
     }
     // `inserted` dilacak di luar loop supaya catch bisa return jumlah parsial
     // yang BENAR-BENAR berhasil tertulis ke DB sebelum throw.
@@ -211,7 +229,7 @@ export async function pushMasterRows(rows, maxDate) {
     // menyebabkan fetchMasterRowsSince(newMax) skip baris-baris itu selamanya.
     let newMax = maxDate;
     insertedRows.forEach((r) => { if (!newMax || r.date > newMax) newMax = r.date; });
-    return { ok: true, inserted, skipped, maxDate: newMax };
+    return { ok: true, inserted, skipped: skipped + localDupCount, maxDate: newMax };
   } catch (e) {
     // Bila terjadi error di tengah chunk, `inserted` adalah jumlah parsial
     // yang BENAR-BENAR tertulis ke DB sebelum throw. Caller bisa gunakan ini
@@ -221,7 +239,7 @@ export async function pushMasterRows(rows, maxDate) {
     // berikutnya tidak mengulang baris yang sudah tertulis.
     let partialMax = maxDate;
     insertedRows.forEach((r) => { if (!partialMax || r.date > partialMax) partialMax = r.date; });
-    return { ok: false, reason: e.message, inserted, skipped: 0, maxDate: partialMax };
+    return { ok: false, reason: e.message, inserted, skipped: skipped + localDupCount, maxDate: partialMax };
   }
 }
 
