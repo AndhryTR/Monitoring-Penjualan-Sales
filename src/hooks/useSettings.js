@@ -117,6 +117,39 @@ export function useSettings() {
   // Fix: set updated_at ke 0 (epoch) supaya cloudTs > localTs → sync PULL dari
   // cloud, bukan push. lastSavedSettingsRef di-reset ke null supaya next save
   // isFirstSave=true → pakai persistedSettings.updated_at (yang 0).
+  // ⚠️ Sprint 14 / H16: terapkan settings dari cloud ke state + localStorage
+  // dengan `updated_at = cloudTs` persis (BUKAN Date.now()).
+  //
+  // TANPA ini, auto-save effect melihat snapshot berubah (state baru dari
+  // cloud) → menulis ke localStorage dengan updated_at = Date.now() → sync
+  // LWW berikutnya mengira lokal lebih baru → push balik → cloud updated_at
+  // baru → pull lagi… **ping-pong tak berujung** saat auto-sync settings
+  // berjalan. Dengan menulis updated_at = cloudTs dan me-set
+  // lastSavedSettingsRef ke serialized hasil, auto-save effect melihat
+  // snapshot IDENTIK → tidak menulis, tidak bump, tidak re-push.
+  const applyCloudSettings = (doc, cloudTs) => {
+    const ts = Number(cloudTs) || 0;
+    if (doc.targets) setTargets(doc.targets);
+    if (doc.work_days) setWorkDays(doc.work_days);
+    if (doc.depot_name) setDepotName(doc.depot_name);
+    if (doc.theme) setTheme(doc.theme);
+    if (doc.projection_method) setProjectionMethod(doc.projection_method);
+    if (typeof doc.sidebar_collapsed === "boolean") setSidebarCollapsed(doc.sidebar_collapsed);
+    // Tulis direct ke localStorage dengan ts cloud — auto-save tidak menyentuh
+    // bidang ini lagi (filters & comparisonBase TIDAK ikut sync cloud; nilai
+    // mereka tetap dari localStorage/state yang sudah ada — tidak di-overwrite).
+    const snapshot = {
+      theme: doc.theme ?? theme, powerSaveMode,
+      filters, workDays: doc.work_days ?? workDays, targets: doc.targets ?? targets,
+      depotName: doc.depot_name ?? depotName,
+      projectionMethod: doc.projection_method ?? projectionMethod,
+      comparisonBase,
+      sidebarCollapsed: typeof doc.sidebar_collapsed === "boolean" ? doc.sidebar_collapsed : sidebarCollapsed,
+    };
+    saveSettings({ ...snapshot, updated_at: ts });
+    lastSavedSettingsRef.current = JSON.stringify(snapshot);
+  };
+
   const resetAllSettings = () => {
     setTheme("dark");
     setPowerSaveMode(false);
@@ -166,5 +199,6 @@ export function useSettings() {
     projectionMethod, setProjectionMethod,
     comparisonBase, setComparisonBase,
     resetAllSettings,
+    applyCloudSettings,
   };
 }

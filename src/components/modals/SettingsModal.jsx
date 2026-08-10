@@ -30,15 +30,26 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
   // ChangesPreview panel. Bila false, tombol Simpan langsung commit (fast path).
   const [showChangesPreview, setShowChangesPreview] = useState(false);
 
+  // ⚠️ Sprint 14 / H18 (bug "modal reset tiap 3 detik"): effect SEBELUMNYA dépend
+  // pada [isOpen, targets, workDays, depotName]. Setiap auto-sync mengubah
+  // referensi objek props (nilai identik, cuma objek baru dari parse JSON
+  // cloud), effect re-run → setActiveSection("general") + setLocalTargets(...)
+  // → tab paksa balik ke "Umum" dan edit yang belum disimpan ditimpa cloud.
+  // Fix: init local state HANYA saat modal dibuka (transisi isOpen false→true),
+  // jangan depend pada props — nilai local bertahan selama modal terbuka.
+  const isOpenRef = useRef(isOpen);
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !isOpenRef.current) {
       setLocalTargets(targets);
       setLocalWorkDays(workDays);
       setLocalDepotName(depotName);
       setActiveSection("general");
       setShowChangesPreview(false);
     }
-  }, [isOpen, targets, workDays, depotName]);
+    isOpenRef.current = isOpen;
+    // isOpenRef di-update di body — eslint-disable untuk exhaustive-deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   useScrollLock(isOpen);
   useEscapeKey(isOpen, onClose);
@@ -47,6 +58,14 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
   // ⚠️ Sprint 7 / D3: bandingkan localTargets dengan targets (props original)
   // untuk detect apa yang berubah. Dipakai untuk ChangesPreview panel.
   // ⚠️ Aturan Hooks: useMemo HARUS dipanggil SEBELUM conditional return.
+  // ⚠️ Sprint 14 / H19 (bug "ubah fokus saja tidak terdeteksi"): perbandingan
+  // group/fokus SEBELUMNYA pakai `length` (jumlah item) — user yang cuma
+  // toggle fokus grup existing, ubah keyword/name/target fokus, atau ubah
+  // value/ao/name grup TANPA menambah/menghapus item → diff = 0 → "Tidak ada
+  // perubahan" → tombol "Konfirmasi & Simpan" disabled. Fix: bandingkan ISI
+  // tiap elemen (element-wise key), bukan panjangnya.
+  const groupsKey = (g) => JSON.stringify([g.name ?? "", g.value ?? 0, g.ao ?? 0, g.focus ?? false]);
+  const focusKey = (f) => JSON.stringify([f.name ?? "", f.target ?? 0, f.keyword ?? "", f.unit ?? "", f.matchType ?? "contains"]);
   const changes = useMemo(() => {
     if (!isOpen || !showChangesPreview) return null;
     const changedSales = [];
@@ -66,20 +85,30 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
       }
       const valueDiff = (localT.total.value || 0) - (origT.total.value || 0);
       const aoDiff = (localT.total.ao || 0) - (origT.total.ao || 0);
-      const groupsDiff = localT.groups.length - origT.groups.length;
-      const focusDiff = localT.focus.length - origT.focus.length;
+      // H19: diff per-elemen — item yang key-nya berubah dihitung sebagai
+      // ditambah/dihapus. `.length` tidak cukup (lihat komentar di atas).
+      const origGroupKeys = new Set(origT.groups.map(groupsKey));
+      const localGroupKeys = new Set(localT.groups.map(groupsKey));
+      let gAdd = 0; let gRem = 0;
+      localT.groups.forEach((g) => { if (!origGroupKeys.has(groupsKey(g))) gAdd++; });
+      origT.groups.forEach((g) => { if (!localGroupKeys.has(groupsKey(g))) gRem++; });
+      const origFocusKeys = new Set(origT.focus.map(focusKey));
+      const localFocusKeys = new Set(localT.focus.map(focusKey));
+      let fAdd = 0; let fRem = 0;
+      localT.focus.forEach((f) => { if (!origFocusKeys.has(focusKey(f))) fAdd++; });
+      origT.focus.forEach((f) => { if (!localFocusKeys.has(focusKey(f))) fRem++; });
 
-      if (valueDiff !== 0 || aoDiff !== 0 || groupsDiff !== 0 || focusDiff !== 0) {
+      if (valueDiff !== 0 || aoDiff !== 0 || gAdd > 0 || gRem > 0 || fAdd > 0 || fRem > 0) {
         changedSales.push({
           code: localT.code, name: localT.name, type: "modified",
-          valueDiff, aoDiff, groupsDiff, focusDiff,
+          valueDiff, aoDiff, groupsDiff: gAdd - gRem, focusDiff: fAdd - fRem,
         });
         totalValueDiff += valueDiff;
         totalAoDiff += aoDiff;
-        if (groupsDiff > 0) groupsAdded += groupsDiff;
-        else groupsRemoved += -groupsDiff;
-        if (focusDiff > 0) focusAdded += focusDiff;
-        else focusRemoved += -focusDiff;
+        groupsAdded += gAdd;
+        groupsRemoved += gRem;
+        focusAdded += fAdd;
+        focusRemoved += fRem;
       }
     });
 

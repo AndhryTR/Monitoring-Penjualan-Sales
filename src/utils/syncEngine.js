@@ -119,16 +119,67 @@ export async function fetchMasterRowsSince(maxDateLokal) {
   }
 }
 
+/* ---------------------- master pull & merge (all users) ------------------ */
+
+// Petakan baris master_sales (snake_case) ke bentuk lokal (camelCase).
+const mapMasterRow = (r) => ({
+  date: r.date, salesCode: r.sales_code, salesName: r.sales_name,
+  outletCode: r.outlet_code, outletName: r.outlet_name,
+  invoiceNo: r.invoice_no, productCode: r.product_code, productName: r.product_name,
+  group: r.group_name, qty: r.qty, qtyKarton: r.qty_karton, unconvertible: r.unconvertible,
+  value: r.value, unit: r.unit,
+});
+
+// Gabungkan master yang baru di-pull ke data lokal. MASTER MENANG utk tanggal
+// yang sama: baris lokal dengan tanggal yang ada di master dibuang, diganti
+// data master. Kembalikan { merged, maxDate }.
+// ⚠️ Sprint 14 / H17: di-extract dari useCloudSync (dulu inline di runSync)
+// supaya dipakai ulang oleh tombol "Sinkronkan Data Penjualan" yang mandiri.
+export function mergeMasterRows(rawRows, masterRows) {
+  const masterRowsArr = masterRows || [];
+  const masterDates = new Set(masterRowsArr.map((r) => r.date));
+  const keptLocal = (rawRows || []).filter((r) => !masterDates.has(r.date));
+  const masterMapped = masterRowsArr.map(mapMasterRow);
+  let max = loadMasterMax();
+  masterRowsArr.forEach((r) => { if (r.date && (!max || r.date > max)) max = r.date; });
+  return { merged: [...keptLocal, ...masterMapped], maxDate: max };
+}
+
 // Insert baris-baris BARU ke master (hanya yang belum ada: date > maxDate).
 // `rows` = array objek { date, salesCode, outletCode, invoiceNo, productCode,
 // group, qty, value, unit } — dipetakan ke kolom snake_case di sini.
-// Kembalikan { ok, inserted, skipped, maxDate, error }.
+// Kembalikan { ok, inserted, skipped, dupInternal, dupSkipped, maxDate, error }.
+//
+// ⚠️ Sprint 14 / H12 (duplikat dalam file): UNIQUE constraint DB adalah
+// (date, invoice_no, product_code, sales_code) — TANPA qty/value. Key dedupe
+// lokal di excelParse.js (date|invoiceNo|productCode|qty|value) TIDAK sama,
+// jadi dua baris dengan date/invoice/product/sales sama tapi qty beda lolos
+// parse, lalu di-upload. ignoreDuplicates di DB menolaknya diam-diam dan
+// `inserted += chunk.length` (yang lama) melaporkan jumlah yang dikirim —
+// bukan yang benar-benar masuk → selisih "73126 ditambahkan" vs 71351 di DB.
+// Fix: pre-scan SEMUA baris dengan key DB yang sama persis, hitung dupInternal
+// (tidak dikirim), sisanya upload dengan count:"exact" supaya `inserted` =
+// jumlah yang BENAR² masuk DB, selisihnya jadi dupSkipped.
 //
 // Race condition mitigation:
 // - Tabel master_sales punya UNIQUE(date, invoice_no, product_code, sales_code).
 // - Insert memakai `.upsert(..., { onConflict, ignoreDuplicates: true })` sehingga
 //   bila dua device sync bersamaan dengan maxDate yang sama, baris duplikat
 //   diam-diam di-skip di level DB (tidak melempar constraint violation).
+//
+// ⚠️ Bug fix (H13): `inserted` sebelumnya dihitung sebagai `chunk.length` — SEMUA
+// baris yang dikirim dianggap masuk, padahal `.upsert` + `ignoreDuplicates`
+// TIDAK menghitung. Dua penyebab baris hilang:
+//   H11 — baris yang sudah ADA di DB dari sync/upload sebelumnya ditolak
+//         ON CONFLICT (duplikat lintas-upload).
+//   H12 — duplikat di DALAM file upload itu sendiri: dedupe lokal app pakai
+//         key (date|invoice|product|qty|value, tanpa salesCode) BERBEDA dari
+//         UNIQUE DB (date|invoice|product|sales_code). Baris dengan
+//         date|invoice|product sama tapi qty/value/salesCode beda lolos dedupe
+//         lokal, tapi ditolak DB. Terjadi walau DB kosong.
+// Sekarang: `.upsert` pakai `count: "exact"` (PostgREST return jumlah baris
+// yang BENAR² ter-insert) + pre-scan dengan key UNIQUE DB sebelum upload
+// (baris konflik dalam file dihitung `dupInternal`, tidak dikirim).
 //
 // Partial-failure accounting:
 // - `inserted` dilacak di outer `let` (bukan hanya di dalam loop). Bila chunk
@@ -138,7 +189,7 @@ export async function fetchMasterRowsSince(maxDateLokal) {
 //   ini sebagai batas — kalau salah hitung (memasukkan tanggal yang belum
 //   ter-insert), baris-baris itu akan skip selamanya (silent data loss).
 export async function pushMasterRows(rows, maxDate) {
-  if (!supabase) return { ok: false, reason: "not_configured", inserted: 0, skipped: 0 };
+  if (!supabase) return { ok: false, reason: "not_configured", inserted: 0, skipped: 0, dupInternal: 0, dupSkipped: 0 };
   // ⚠️ Sprint 4 / Q2: `inserted` & `insertedRows` di-declare DI LUAR `try` block
   // supaya `catch` bisa akses (block-scoped `let`/`const` di dalam `try` tidak
   // berlaku lintas block). Sebelumnya declaration ada di dalam try (lihat
@@ -146,51 +197,41 @@ export async function pushMasterRows(rows, maxDate) {
   // `inserted` sebagai undefined — partial-failure accounting rusak lagi.
   // ESLint catch bug ini (no-undef).
   let inserted = 0;
+  let dupSkipped = 0;
   const insertedRows = [];
-  // ⚠️ Sprint 16h: declare skipped + localDupCount DI LUAR try block supaya
-  // catch bisa akses (sama seperti inserted + insertedRows).
-  let skipped = 0;
-  let localDupCount = 0;
   try {
     const user = await currentUser();
-    if (!user?.id) return { ok: false, reason: "no_session", inserted: 0, skipped: 0 };
-    // ⚠️ Bug fix: kirim SEMUA baris (yang punya date) ke cloud. Dedup dilakukan
-    // di level DB via upsert + composite key (date|invoice_no|product_code|sales_code).
-    // Baris yang sudah ada di cloud akan di-skip (ignoreDuplicates: true),
-    // baris baru akan di-insert.
-    const allRows = (rows || []).filter((r) => r.date);
-    skipped = (rows || []).length - allRows.length;
-
-    // ⚠️ Bug fix (Sprint 16h): dedup LOKAL sebelum kirim ke cloud.
-    // Sebelumnya, kalau data lokal punya duplikat internal (mis. baris #100
-    // dan #600 punya composite key sama), chunk pertama sukses insert, tapi
-    // chunk kedua kena constraint violation — `ON CONFLICT DO NOTHING` hanya
-    // skip baris yang conflict dengan baris yang SUDAH ADA di DB sebelum batch,
-    // BUKAN dengan baris lain dalam batch yang sama.
-    // Fix: dedup lokal dulu dengan 7-field composite key, kirim hanya baris unik.
-    const seenKeys = new Set();
-    const newRows = [];
-    for (const r of allRows) {
-      const key = `${r.date}|${r.invoiceNo || ""}|${r.productCode || ""}|${r.salesCode || ""}|${r.outletCode || ""}|${r.qty ?? ""}|${r.value ?? ""}`;
-      if (seenKeys.has(key)) {
-        localDupCount++;
-        continue;
-      }
-      seenKeys.add(key);
-      newRows.push(r);
+    if (!user?.id) return { ok: false, reason: "no_session", inserted: 0, skipped: 0, dupInternal: 0, dupSkipped: 0 };
+    let newRows = (rows || []).filter((r) => r.date && (!maxDate || r.date > maxDate));
+    const skipped = (rows || []).length - newRows.length;
+    if (!newRows.length) {
+      return { ok: true, inserted: 0, skipped, dupInternal: 0, dupSkipped: 0, maxDate };
     }
 
+    // ⚠️ H12: pre-scan key yang SAMA dengan UNIQUE DB (date|invoice|product|
+    // salesCode). Baris konflik DALAM file dihitung `dupInternal` & tidak
+    // dikirim — pesan hasil akurat, tidak ada baris hilang diam-diam.
+    const dbKey = (r) => `${r.date}|${r.invoiceNo ?? ""}|${r.productCode ?? ""}|${r.salesCode ?? ""}`;
+    const seen = new Set();
+    const uniqueRows = [];
+    let dupInternal = 0;
+    for (const r of newRows) {
+      const k = dbKey(r);
+      if (seen.has(k)) { dupInternal++; continue; }
+      seen.add(k);
+      uniqueRows.push(r);
+    }
+    newRows = uniqueRows;
     if (!newRows.length) {
-      return { ok: true, inserted: 0, skipped: skipped + localDupCount, maxDate };
+      return { ok: true, inserted: 0, skipped, dupInternal, dupSkipped: 0, maxDate };
     }
     // `inserted` dilacak di luar loop supaya catch bisa return jumlah parsial
     // yang BENAR-BENAR berhasil tertulis ke DB sebelum throw.
     // `insertedRows` = baris yang sudah BENAR-BENAR ter-insert (untuk hitung
     // newMax yang akurat — bukan dari semua newRows).
     const CHUNK = SYNC_CHUNK_SIZE;
-    // ⚠️ Sprint 16f: composite key 7-field — konsisten dengan unique constraint
-    // di setup.sql dan dedupeRows() di excelParse.js.
-    const ON_CONFLICT = "date,invoice_no,product_code,sales_code,outlet_code,qty,value";
+    // Composite key yang dipakai di UNIQUE constraint (lihat setup.sql).
+    const ON_CONFLICT = "date,invoice_no,product_code,sales_code";
     for (let i = 0; i < newRows.length; i += CHUNK) {
       const chunkSrc = newRows.slice(i, i + CHUNK);
       const chunk = chunkSrc.map((r) => ({
@@ -212,15 +253,18 @@ export async function pushMasterRows(rows, maxDate) {
       }));
       // .upsert + ignoreDuplicates: bila ada baris dengan composite key yang
       // sama (race condition antar device, atau data lokal duplikat), baris
-      // di-skip — TIDAK melempar error. Stempel `inserted` tetap di-increment
-      // sesuai jumlah yang dikirim; pengguna bisa membedakan "inserted" vs
-      // "benar-benar baru" lewat field `skipped` (jika duplikat, net effect
-      // di DB lebih kecil dari inserted).
-      const { error } = await supabase
+      // di-skip — TIDAK melempar error. `count: "exact"` membuat response
+      // memuat jumlah baris yang BENAR-BENAR di-insert (yang di-skip tidak
+      // dihitung) — dipakai untuk `inserted` yang akurat, bukan chunk.length.
+      const { error, count } = await supabase
         .from("master_sales")
-        .upsert(chunk, { onConflict: ON_CONFLICT, ignoreDuplicates: true });
+        .upsert(chunk, { onConflict: ON_CONFLICT, ignoreDuplicates: true, count: "exact" });
       if (error) throw error;
-      inserted += chunk.length;
+      // count bisa undefined kalau server/header tidak mendukung — fallback
+      // ke chunk.length (perilaku lama) supaya tidak crash.
+      const chunkInserted = typeof count === "number" ? count : chunk.length;
+      inserted += chunkInserted;
+      dupSkipped += chunk.length - chunkInserted;
       insertedRows.push(...chunkSrc);
     }
     // maxDate baru = tanggal terbesar dari baris yang BENAR-BENAR ter-insert.
@@ -229,7 +273,7 @@ export async function pushMasterRows(rows, maxDate) {
     // menyebabkan fetchMasterRowsSince(newMax) skip baris-baris itu selamanya.
     let newMax = maxDate;
     insertedRows.forEach((r) => { if (!newMax || r.date > newMax) newMax = r.date; });
-    return { ok: true, inserted, skipped: skipped + localDupCount, maxDate: newMax };
+    return { ok: true, inserted, skipped, dupInternal, dupSkipped, maxDate: newMax };
   } catch (e) {
     // Bila terjadi error di tengah chunk, `inserted` adalah jumlah parsial
     // yang BENAR-BENAR tertulis ke DB sebelum throw. Caller bisa gunakan ini
@@ -239,7 +283,7 @@ export async function pushMasterRows(rows, maxDate) {
     // berikutnya tidak mengulang baris yang sudah tertulis.
     let partialMax = maxDate;
     insertedRows.forEach((r) => { if (!partialMax || r.date > partialMax) partialMax = r.date; });
-    return { ok: false, reason: e.message, inserted, skipped: skipped + localDupCount, maxDate: partialMax };
+    return { ok: false, reason: e.message, inserted, skipped: 0, dupInternal, dupSkipped, maxDate: partialMax };
   }
 }
 

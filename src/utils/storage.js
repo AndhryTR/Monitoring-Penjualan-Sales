@@ -235,3 +235,21 @@ export function saveMasterMax(d) {
   try { window.localStorage.setItem(MASTER_MAX_KEY, d || ""); }
   catch { /* abaikan — kalau localStorage diblokir (private mode), sync tetap jalan walau delta tidak efisien */ }
 }
+
+/* ---------------------- Terakhir sync master (localStorage) ---------------------- *
+ * ⚠️ Sprint 14 / H15: timestamp terakhir kali data master berhasil di-pull
+ * (tombol "Sinkronkan Data Penjualan"). Dipersist terpisah dari settings
+ * supaya tampil "Terakhir sync: …" di modal walau app sudah dibuka ulang.
+ */
+
+const MASTER_SYNC_AT_KEY = "smapp:masterSyncAt";
+
+export function loadLastMasterSyncAt() {
+  try { return Number(window.localStorage.getItem(MASTER_SYNC_AT_KEY)) || 0; }
+  catch { return 0; }
+}
+
+export function saveLastMasterSyncAt(ts) {
+  try { window.localStorage.setItem(MASTER_SYNC_AT_KEY, String(ts || 0)); }
+  catch { /* abaikan — non-kritikal */ }
+}

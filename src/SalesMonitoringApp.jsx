@@ -107,6 +107,7 @@ export default function SalesMonitoringApp() {
     projectionMethod, setProjectionMethod,
     comparisonBase, setComparisonBase,
     resetAllSettings,
+    applyCloudSettings,
   } = useSettings();
 
   const [rawRows, setRawRows] = useState([]);
@@ -136,7 +137,8 @@ export default function SalesMonitoringApp() {
   const [sessionUser, setSessionUser] = useState(null);
   const [userRole, setUserRole] = useState(null); // 'admin'|'supervisor'|'user'|null
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  // syncState, syncMsg, lastSyncAt, syncNowRef sekarang dari useCloudSync hook (R6).
+  // ⚠️ Sprint 14 / H15: settingsSyncState/Msg/lastSettingsSyncAt (otomatis) &
+  // masterSyncState/Msg/lastMasterSyncAt (manual) dari useCloudSync hook.
   const isAuthedRef = useRef(false);
 
   const cloudEnabled = !!supabase;
@@ -156,29 +158,34 @@ export default function SalesMonitoringApp() {
     setUserRole(role);
   }, []);
 
-  // ---- Cloud sync (settings LWW + master data) + admin master management ----
-  // ⚠️ Sprint 6 / R6: dipindah ke hook useCloudSync.js (sebelumnya inline
-  // ~150 baris state + handlers + runSync di sini). Hook mengelola:
-  // - syncState/syncMsg/lastSyncAt (UI feedback)
+  // ---- Cloud sync (settings LWW otomatis + master data manual) ----
+  // ⚠️ Sprint 14 / H15: dipisah jadi dua alur — settings (otomatis: login,
+  // perubahan, fokus) vs master (tombol manual). Hook mengelola:
+  // - settingsSyncState/Msg/lastSettingsSyncAt (UI feedback, otomatis)
+  // - masterSyncState/Msg/lastMasterSyncAt (UI feedback, tombol manual)
   // - masterAction/masterBusy/masterResult (admin modal state)
   // - handleSaveMaster, handleDeleteRange (admin actions)
-  // - runSync, syncNow, syncNowRef (sync orchestration)
+  // - settingsSyncNowRef (dipanggil saat login sukses), syncMasterNow (tombol)
   const {
-    syncState, setSyncState,
-    syncMsg, setSyncMsg,
-    lastSyncAt, setLastSyncAt,
-    syncNowRef,
+    settingsSyncState, setSettingsSyncState,
+    settingsSyncMsg, setSettingsSyncMsg,
+    lastSettingsSyncAt, setLastSettingsSyncAt,
+    settingsSyncNowRef,
+    masterSyncState, setMasterSyncState,
+    masterSyncMsg, setMasterSyncMsg,
+    lastMasterSyncAt, setLastMasterSyncAt,
+    syncMasterNow,
     masterAction, setMasterAction,
     masterBusy, setMasterBusy,
     masterResult, setMasterResult,
     handleSaveMaster,
     handleDeleteRange,
-    syncNow,
   } = useCloudSync({
     isAuthedRef,
     isEditor,
     settingsGetters: { targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed },
     settingsSetters: { setTargets, setWorkDays, setDepotName, setTheme, setProjectionMethod, setSidebarCollapsed },
+    settingsApplier: applyCloudSettings,
     dataState: { rawRows, setRawRows, setFileName, setParseMeta },
   });
 
@@ -232,14 +239,17 @@ export default function SalesMonitoringApp() {
           setSessionUser(sess.user);
           const role = await fetchRole();
           if (alive) setUserRole(role);
+          // ⚠️ Sprint 14 / H15: sync settings otomatis saat login (bukan
+          // sinkronisasi manual). Master data TIDAK otomatis — via tombol.
+          if (alive) settingsSyncNowRef.current?.();
         } else {
-          if (alive) setSyncState("idle");
+          if (alive) setSettingsSyncState("idle");
         }
       } catch (e) {
         // Gagal ambil sesi/role — bukan crash fatal. App tetap jalan dalam mode
         // "non-authenticated" (read-only tanpa sync). Log untuk debugging.
         console.warn("Gagal memuat sesi/role awal:", e);
-        if (alive) setSyncState("idle");
+        if (alive) setSettingsSyncState("idle");
       }
     })();
 
@@ -249,11 +259,13 @@ export default function SalesMonitoringApp() {
         isAuthedRef.current = true;
         setSessionUser(session.user);
         refreshRole();
+        // ⚠️ Sprint 14 / H15: sync settings otomatis saat login.
+        settingsSyncNowRef.current?.();
       } else {
         isAuthedRef.current = false;
         setSessionUser(null);
         setUserRole(null);
-        setSyncState("idle");
+        setSettingsSyncState("idle");
       }
     });
 
@@ -683,7 +695,7 @@ export default function SalesMonitoringApp() {
       <div className="relative" style={{ zIndex: 1 }}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors}
         theme={theme} setTheme={setTheme} powerSaveMode={powerSaveMode} setPowerSaveMode={setPowerSaveMode} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge} />
-      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} colors={colors} onLoginSuccess={() => {}} sessionUser={sessionUser} userRole={userRole} onLogout={handleLogout} syncState={syncState} lastSyncAt={lastSyncAt} onManualSync={() => { syncNowRef.current?.(); }} syncMsg={syncMsg} />
+      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} colors={colors} onLoginSuccess={() => {}} sessionUser={sessionUser} userRole={userRole} onLogout={handleLogout} settingsSyncState={settingsSyncState} settingsSyncMsg={settingsSyncMsg} lastSettingsSyncAt={lastSettingsSyncAt} onRetrySettings={() => { settingsSyncNowRef.current?.(); }} masterSyncState={masterSyncState} masterSyncMsg={masterSyncMsg} lastMasterSyncAt={lastMasterSyncAt} onMasterSync={syncMasterNow} />
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} colors={colors} />
       {/* ⚠️ Sprint 9 / GS2: Global Search / Command Palette (Cmd+K / Ctrl+K) */}
       <GlobalSearch
@@ -742,15 +754,17 @@ export default function SalesMonitoringApp() {
               ) : (
                 <CloudOff size={15} style={{ color: colors.textMuted }} />
               )}
-              {/* indikator sync: ikon awan kecil */}
+              {/* indikator sync: ikon awan kecil — settings (otomatis) atao master (manual) yang sedang/berhasil/gagal */}
               {sessionUser && (
                 <span className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full" style={{ background: colors.surface }}>
-                  {syncState === "syncing" || syncState === "idle" ? (
+                  {settingsSyncState === "syncing" || masterSyncState === "syncing" ? (
                     <CloudUpload size={11} style={{ color: colors.gold }} />
-                  ) : syncState === "done" ? (
+                  ) : settingsSyncState === "error" || masterSyncState === "error" ? (
+                    <CloudOff size={11} style={{ color: colors.coral }} />
+                  ) : settingsSyncState === "done" ? (
                     <CheckCircle2 size={11} style={{ color: colors.mint }} />
                   ) : (
-                    <CloudOff size={11} style={{ color: colors.coral }} />
+                    <CloudOff size={11} style={{ color: colors.textMuted }} />
                   )}
                 </span>
               )}
@@ -927,7 +941,7 @@ export default function SalesMonitoringApp() {
         <div className="text-center mt-10 pb-4">
           <p className="text-xs mb-2" style={{ color: colors.textMuted }}>
             {sessionUser
-              ? `Masuk sebagai ${sessionUser.email || "pengguna"} · Sinkronisasi ${syncState === "done" ? "aktif" : syncState === "syncing" ? "berjalan…" : "offline"}`
+              ? `Masuk sebagai ${sessionUser.email || "pengguna"} · Sinkronisasi ${settingsSyncState === "error" || masterSyncState === "error" ? "gagal" : settingsSyncState === "syncing" || masterSyncState === "syncing" ? "berjalan…" : settingsSyncState === "done" || masterSyncState === "done" ? "aktif" : "offline"}`
               : "Data diproses langsung di browser Anda — tidak diunggah ke server manapun."}
           </p>
           <button onClick={() => setIsAboutOpen(true)} className="sm-btn text-xs font-medium px-3 py-1.5 rounded-lg" style={{ color: colors.textMuted }}>

@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { X, LogIn, UserPlus, KeyRound, Mail, User, User as UserIcon, Loader2, AlertTriangle, CheckCircle2, Cloud, LogOut, CloudUpload, CloudOff } from "lucide-react";
+import { X, LogIn, UserPlus, KeyRound, Mail, User, User as UserIcon, Loader2, AlertTriangle, CheckCircle2, Cloud, LogOut, CloudUpload, CloudOff, CloudDownload, RefreshCw } from "lucide-react";
 import { signInWithIdentifier, signUpAccount, resetPassword } from "../utils/cloud.js";
 import { useScrollLock, useFocusTrap, useEscapeKey } from "../hooks/useModalA11y.js";
 
@@ -18,7 +18,7 @@ import { useScrollLock, useFocusTrap, useEscapeKey } from "../hooks/useModalA11y
    security risk).
 ============================================================================ */
 
-export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUser, userRole, onLogout, syncState = "idle", lastSyncAt = 0, onManualSync, syncMsg = "" }) {
+export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUser, userRole, onLogout, settingsSyncState = "idle", settingsSyncMsg = "", lastSettingsSyncAt = 0, onRetrySettings, masterSyncState = "idle", masterSyncMsg = "", lastMasterSyncAt = 0, onMasterSync }) {
   const [tab, setTab] = useState("login");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -32,7 +32,7 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
 
-  const resetForm = () => {
+  const clearCredFields = () => {
     // ⚠️ Sprint 4 / A3: clear SEMUA field credential (sebelumnya hanya
     // error/info/forgotMode/forgotEmail yang di-clear). Password, regPassword,
     // regConfirm, identifier, regUsername, regEmail tetap di state setelah
@@ -47,6 +47,14 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
     setIdentifier("");
     setRegUsername("");
     setRegEmail("");
+  };
+
+  // ⚠️ Bug fix (H14): resetForm TIDAK boleh dipakai dari switchTab — `setTab`
+  // di dalamnya meng-override tab tujuan dalam batch update React yang sama,
+  // jadi tab "Daftar" tidak pernah aktif. switchTab sekarang pakai
+  // clearCredFields saja (tidak menyentuh tab).
+  const resetForm = () => {
+    clearCredFields();
     setTab("login");  // ⚠️ Sprint 4 / A3: reset tab ke "login" default
   };
 
@@ -66,9 +74,11 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
 
   if (!isOpen) return null;
 
+  // Switch tab — clear field credential TANPA reset tab (resetForm set tab ke
+  // "login" dan batched update React akan membatalkan pilihan tab baru).
   const switchTab = (t) => {
     if (busy) return;
-    setTab(t); resetForm();
+    setTab(t); clearCredFields();
   };
 
   const handleLogin = async () => {
@@ -149,12 +159,14 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold truncate" style={{ color: colors.text }}>{sessionUser.email || "Pengguna"}</div>
                 <div className="text-[11px] mt-0.5 flex items-center gap-1.5" style={{ color: colors.textMuted }}>
-                  {syncState === "syncing" ? (
+                  {settingsSyncState === "syncing" ? (
                     <><CloudUpload size={12} style={{ color: colors.gold }} /> Sinkronisasi berjalan…</>
-                  ) : syncState === "done" ? (
-                    <><CheckCircle2 size={12} style={{ color: colors.mint }} /> Tersinkron{lastSyncAt ? ` · ${new Date(lastSyncAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}` : ""}</>
+                  ) : settingsSyncState === "done" ? (
+                    <><CheckCircle2 size={12} style={{ color: colors.mint }} /> Tersinkron otomatis{lastSettingsSyncAt ? ` · ${new Date(lastSettingsSyncAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}` : ""}</>
+                  ) : settingsSyncState === "error" ? (
+                    <><CloudOff size={12} style={{ color: colors.coral }} /> Gagal sinkronisasi pengaturan</>
                   ) : (
-                    <><CloudOff size={12} style={{ color: colors.coral }} /> Sinkronisasi offline</>
+                    <><CloudOff size={12} style={{ color: colors.coral }} /> Belum tersinkron</>
                   )}
                 </div>
                 {userRole && (
@@ -165,18 +177,48 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
                 )}
               </div>
             </div>
-            {/* Pesan error/hasil sinkronisasi — supaya kegagalan sync terlihat */}
-            {syncMsg && (
+            {/* Pesan error hasil sinkronisasi PENGATURAN — supaya kegagalan terlihat */}
+            {settingsSyncMsg && (
               <div className="text-xs px-3 py-2 rounded-lg"
                 style={{ color: colors.coral, background: colors.coral + "14", border: `1px solid ${colors.coral}33` }}>
-                {syncMsg}
+                {settingsSyncMsg}
               </div>
             )}
-            <button onClick={onManualSync} disabled={syncState === "syncing"}
-              className="sm-btn w-full px-3 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5"
-              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
-              {syncState === "syncing" ? <Loader2 size={15} className="animate-spin" /> : <CloudUpload size={15} style={{ color: colors.mint }} />} Sinkronkan Sekarang
-            </button>
+
+            {/* ---- Blok 1: Pengaturan (otomatis, tanpa tombol) ---- */}
+            <div className="p-3.5 rounded-xl" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="text-xs font-semibold" style={{ color: colors.text }}>Pengaturan & Target</div>
+                {settingsSyncState === "error" && (
+                  <button onClick={onRetrySettings} className="text-[11px] font-medium hover:underline inline-flex items-center gap-1" style={{ color: colors.mint }}>
+                    <RefreshCw size={11} /> coba lagi
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px]" style={{ color: colors.textMuted }}>
+                Tersinkron otomatis saat login, ada perubahan, atau aplikasi dibuka kembali.
+              </p>
+            </div>
+
+            {/* ---- Blok 2: Data Penjualan (tombol manual) ---- */}
+            <div className="p-3.5 rounded-xl" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
+              <div className="text-xs font-semibold mb-1.5" style={{ color: colors.text }}>Data Penjualan (Master)</div>
+              {masterSyncMsg && (
+                <div className="text-xs px-3 py-2 rounded-lg mb-2"
+                  style={{ color: masterSyncState === "error" ? colors.coral : colors.mint, background: (masterSyncState === "error" ? colors.coral : colors.mint) + "14", border: `1px solid ${(masterSyncState === "error" ? colors.coral : colors.mint)}33` }}>
+                  {masterSyncMsg}
+                </div>
+              )}
+              <button onClick={onMasterSync} disabled={masterSyncState === "syncing" || settingsSyncState === "syncing"}
+                className="sm-btn w-full px-3 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5"
+                style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
+                {masterSyncState === "syncing" ? <Loader2 size={15} className="animate-spin" /> : <CloudDownload size={15} style={{ color: colors.mint }} />} Sinkronkan Data Penjualan
+              </button>
+              <p className="text-[11px] mt-1.5" style={{ color: colors.textMuted }}>
+                {lastMasterSyncAt ? `Terakhir: ${new Date(lastMasterSyncAt).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}` : "Belum pernah disinkronkan."}
+              </p>
+            </div>
+
             <button onClick={onLogout}
               className="sm-btn w-full px-3 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5"
               style={{ background: colors.coral + "14", color: colors.coral, border: `1px solid ${colors.coral}33` }}>
