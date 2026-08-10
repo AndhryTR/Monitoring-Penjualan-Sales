@@ -136,18 +136,21 @@ export function useCloudSync({
     const res = hasLocalMax ? await fetchMasterRowsSince(localMax) : await fetchAllMasterRows();
     if (!res.ok) { setSyncState("error"); setSyncMsg("Gagal mengambil data master: " + res.reason); return; }
     if (res.rows.length) {
-      // ⚠️ Bug fix: dedup berbasis COMPOSITE KEY (date|invoice_no|product_code|sales_code),
-      // bukan per-tanggal saja. Sebelumnya, semua baris lokal yang tanggalnya ada di
-      // master cloud dihapus — termasuk transaksi yang berbeda (outlet/produk lain) di
-      // tanggal yang sama. Akibatnya: realisasi value di HP lebih kecil dari cloud karena
-      // transaksi lokal yang unik hilang.
-      // Sekarang: hanya baris lokal yang composite key-nya sama persis dengan baris
-      // cloud yang dihapus (duplikat). Baris lokal dengan transaksi berbeda tetap dipertahankan.
+      // ⚠️ Bug fix: dedup berbasis COMPOSITE KEY 7-field
+      // (date|invoice_no|product_code|sales_code|outlet_code|qty|value),
+      // konsisten dengan unique constraint DB dan dedupeRows() lokal.
+      // Sebelumnya, semua baris lokal yang tanggalnya ada di master cloud
+      // dihapus — termasuk transaksi yang berbeda (outlet/produk lain) di
+      // tanggal yang sama. Akibatnya: realisasi value di HP lebih kecil dari
+      // cloud karena transaksi lokal yang unik hilang.
+      // Sekarang: hanya baris lokal yang composite key-nya sama persis dengan
+      // baris cloud yang dihapus (duplikat). Baris lokal dengan transaksi
+      // berbeda tetap dipertahankan.
       const masterKeys = new Set(res.rows.map((r) =>
-        `${r.date}|${r.invoice_no || ""}|${r.product_code || ""}|${r.sales_code || ""}`
+        `${r.date}|${r.invoice_no || ""}|${r.product_code || ""}|${r.sales_code || ""}|${r.outlet_code || ""}|${r.qty ?? ""}|${r.value ?? ""}`
       ));
       const keptLocal = (rawRows || []).filter((r) =>
-        !masterKeys.has(`${r.date}|${r.invoiceNo || ""}|${r.productCode || ""}|${r.salesCode || ""}`)
+        !masterKeys.has(`${r.date}|${r.invoiceNo || ""}|${r.productCode || ""}|${r.salesCode || ""}|${r.outletCode || ""}|${r.qty ?? ""}|${r.value ?? ""}`)
       );
       const masterMapped = res.rows.map((r) => ({
         date: r.date, salesCode: r.sales_code, salesName: r.sales_name,
