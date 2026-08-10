@@ -150,7 +150,17 @@ export async function pushMasterRows(rows, maxDate) {
   try {
     const user = await currentUser();
     if (!user?.id) return { ok: false, reason: "no_session", inserted: 0, skipped: 0 };
-    const newRows = (rows || []).filter((r) => r.date && (!maxDate || r.date > maxDate));
+    // ⚠️ Bug fix: sebelumnya filter `r.date > maxDate` — baris dengan tanggal
+    // SAMA atau LEBIH KECIL dari maxDate dihilangkan, bahkan kalau belum pernah
+    // di-upload ke cloud (mis. user tambah transaksi tanggal lama di file baru).
+    // Akibatnya: baris baru di tanggal lama tidak pernah masuk ke cloud →
+    // realisasi value di client lebih kecil dari cloud.
+    //
+    // Fix: kirim SEMUA baris (yang punya date) ke cloud. Dedup dilakukan di
+    // level DB via upsert + composite key (date|invoice_no|product_code|sales_code).
+    // Baris yang sudah ada di cloud akan di-skip (ignoreDuplicates: true),
+    // baris baru akan di-insert.
+    const newRows = (rows || []).filter((r) => r.date);
     const skipped = (rows || []).length - newRows.length;
     if (!newRows.length) {
       return { ok: true, inserted: 0, skipped, maxDate };
@@ -160,8 +170,9 @@ export async function pushMasterRows(rows, maxDate) {
     // `insertedRows` = baris yang sudah BENAR-BENAR ter-insert (untuk hitung
     // newMax yang akurat — bukan dari semua newRows).
     const CHUNK = SYNC_CHUNK_SIZE;
-    // Composite key yang dipakai di UNIQUE constraint (lihat setup.sql).
-    const ON_CONFLICT = "date,invoice_no,product_code,sales_code";
+    // ⚠️ Sprint 16f: composite key 7-field — konsisten dengan unique constraint
+    // di setup.sql dan dedupeRows() di excelParse.js.
+    const ON_CONFLICT = "date,invoice_no,product_code,sales_code,outlet_code,qty,value";
     for (let i = 0; i < newRows.length; i += CHUNK) {
       const chunkSrc = newRows.slice(i, i + CHUNK);
       const chunk = chunkSrc.map((r) => ({
