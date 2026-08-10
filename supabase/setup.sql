@@ -72,10 +72,28 @@ create index if not exists idx_master_sales_inv on public.master_sales (invoice_
 -- Constraint ini dipakai bersama `.upsert({ onConflict, ignoreDuplicates: true })`
 -- di syncEngine.js#pushMasterRows.
 --
+-- ⚠️ Sprint 16f: composite key DIPERLUAS dari 4 field → 7 field:
+-- date, invoice_no, product_code, sales_code, outlet_code, qty, value
+-- Alasan: 4 field (date+invoice+product+sales) bisa salah-skip baris yang
+-- sebenarnya berbeda ketika invoice_no atau product_code kosong (""), atau
+-- ketika outlet berbeda beli produk sama di invoice yang sama. 7 field
+-- konsisten dengan dedupeRows() lokal di excelParse.js — hanya baris yang
+-- SAMA PERSIS (true duplicate) yang di-skip.
+--
 -- Catatan: jalankan blok DO di bawah DULU untuk membersihkan duplikat yang
 -- sudah ada (ALTER TABLE ... ADD CONSTRAINT akan gagal bila data eksisting
 -- mengandung duplikat pada composite key).
 -- ----------------------------------------------------------------------------
+-- Drop constraint lama (4-field) kalau ada, sebelum tambah yang baru (7-field).
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint where conname = 'uq_master_sales_unique'
+  ) then
+    alter table public.master_sales drop constraint uq_master_sales_unique;
+  end if;
+end $$;
+
 do $$
 declare
   dup_count integer;
@@ -86,25 +104,25 @@ begin
   where m.ctid not in (
     select min(ctid)
     from public.master_sales
-    group by date, invoice_no, product_code, sales_code
+    group by date, invoice_no, product_code, sales_code, outlet_code, qty, value
   );
 
   select count(*) into dup_count
   from (
-    select date, invoice_no, product_code, sales_code
+    select date, invoice_no, product_code, sales_code, outlet_code, qty, value
     from public.master_sales
-    group by date, invoice_no, product_code, sales_code
+    group by date, invoice_no, product_code, sales_code, outlet_code, qty, value
     having count(*) > 1
   ) d;
 
   if dup_count = 0 then
-    -- Aman menambah constraint unik composite.
+    -- Aman menambah constraint unik composite (7-field).
     if not exists (
       select 1 from pg_constraint where conname = 'uq_master_sales_unique'
     ) then
       alter table public.master_sales
         add constraint uq_master_sales_unique
-        unique (date, invoice_no, product_code, sales_code);
+        unique (date, invoice_no, product_code, sales_code, outlet_code, qty, value);
     end if;
   end if;
 end $$;
