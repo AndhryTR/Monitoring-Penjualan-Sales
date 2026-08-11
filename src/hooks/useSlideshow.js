@@ -147,32 +147,34 @@ export function useSlideshow({
     }, tabDuration * 1000);
 
     // ---- rAF smooth scroll ----
-    // Scroll realtime dari atas ke bawah selama tabDuration, dengan:
-    // - Jeda awal 2 detik (baca header)
-    // - Jeda akhir 2 detik (baca konten bawah)
-    // - Easing ease-in-out supaya mulus
-    const SCROLL_DELAY_START = 2000; // 2 detik jeda awal
-    const SCROLL_DELAY_END = 2000;   // 2 detik jeda akhir
-    const scrollDuration = (tabDuration * 1000) - SCROLL_DELAY_START - SCROLL_DELAY_END;
+    // ⚠️ Sprint 17f: fix flickering — cache maxScroll sekali di awal,
+    // jangan recalculate setiap frame (scrollHeight berubah saat React
+    // re-render charts/konten). Jangan pernah return early dari rAF loop.
+    const SCROLL_DELAY_START = 2000;
+    const SCROLL_DELAY_END = 2000;
+    const scrollDuration = Math.max(1000, (tabDuration * 1000) - SCROLL_DELAY_START - SCROLL_DELAY_END);
 
     const smoothScrollStep = (timestamp) => {
       const c = scrollContainerRef.current;
-      if (!c) return;
-
-      const totalDistance = c.scrollHeight - c.clientHeight;
-      if (totalDistance <= 0) return; // halaman pendek, tidak perlu scroll
-
-      if (!scrollStateRef.current.startTime) {
-        scrollStateRef.current.startTime = timestamp;
+      if (!c) {
+        rafScrollRef.current = requestAnimationFrame(smoothScrollStep);
+        return;
       }
 
+      // Cache maxScroll di frame pertama (setelah jeda awal)
+      if (!scrollStateRef.current.startTime) {
+        scrollStateRef.current.startTime = timestamp;
+        scrollStateRef.current.maxScroll = c.scrollHeight - c.clientHeight;
+      }
+
+      const maxScroll = scrollStateRef.current.maxScroll || 0;
+
       const elapsed = timestamp - scrollStateRef.current.startTime;
-      // Progress 0 → 1, dengan jeda awal dan akhir
       let progress;
       if (elapsed < SCROLL_DELAY_START) {
-        progress = 0; // jeda awal
+        progress = 0;
       } else if (elapsed > SCROLL_DELAY_START + scrollDuration) {
-        progress = 1; // sudah sampai bawah, jeda akhir
+        progress = 1;
       } else {
         progress = (elapsed - SCROLL_DELAY_START) / scrollDuration;
       }
@@ -182,20 +184,22 @@ export function useSlideshow({
         ? 2 * progress * progress
         : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
-      c.scrollTop = totalDistance * eased;
+      if (maxScroll > 0) {
+        c.scrollTop = maxScroll * eased;
+      }
 
-      // Lanjut loop selama belum sampai akhir tab duration
+      // SELALU schedule next frame — jangan pernah stop kecuali tab selesai
       if (elapsed < tabDuration * 1000) {
         rafScrollRef.current = requestAnimationFrame(smoothScrollStep);
       }
     };
 
-    // Mulai rAF loop (delay 100ms supaya konten sudah render)
-    const startDelay = setTimeout(() => {
+    // Mulai rAF setelah delay singkat supaya konten sudah render
+    scrollTimerRef.current = setTimeout(() => {
       scrollStateRef.current.startTime = null;
+      scrollStateRef.current.maxScroll = 0;
       rafScrollRef.current = requestAnimationFrame(smoothScrollStep);
-    }, 100);
-    scrollTimerRef.current = startDelay; // simpan untuk cleanup
+    }, 200);
 
     return () => {
       if (tickTimerRef.current) { clearInterval(tickTimerRef.current); tickTimerRef.current = null; }
