@@ -27,7 +27,7 @@ function formatDateIDShort(dateStr) {
   return `${d} ${MONTHS_ID_SHORT[m - 1]} ${y}`;
 }
 
-export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName }) {
+export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName, slideshowMode = false }) {
   const rows = agg.bySales;
   // ⚠️ Sprint 5 / S3: dynamic import di handler — bundle pdfExport &
   // reportExcelExport (~1.2MB total) hanya di-load saat user klik Export.
@@ -98,6 +98,8 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
         </BarChart>
       </ResponsiveContainer>
 
+      {/* Detail per Sales × Grup — di-hide di mode slideshow */}
+      {!slideshowMode && (
       <div className="mt-8">
         <SectionTitle title="Detail per Sales × Grup Produk" icon={Boxes} colors={colors} />
         <DataTable
@@ -115,7 +117,10 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
           rows={groupRows}
         />
       </div>
+      )}
 
+      {/* Total Periode vs Hari Terakhir — di-hide di mode slideshow */}
+      {!slideshowMode && (
       <div className="mt-8 mb-8">
         <SectionTitle
           title="Total Periode vs Hari Terakhir"
@@ -142,6 +147,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName 
           rows={totalVsLastDayRows}
         />
       </div>
+      )}
     </div>
   );
 }

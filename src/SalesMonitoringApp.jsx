@@ -42,6 +42,10 @@ import { useGlobalSearch } from "./hooks/useGlobalSearch.js";
 import { GlobalSearch } from "./components/GlobalSearch.jsx";
 // ⚠️ Sprint 10 / OB1: Onboarding welcome screen untuk first-time users.
 import { OnboardingWelcome } from "./components/OnboardingWelcome.jsx";
+// ⚠️ Sprint 17 / SS1+SS2: Slideshow mode untuk display monitor.
+import { useSlideshow } from "./hooks/useSlideshow.js";
+import { SlideshowMode } from "./components/SlideshowMode.jsx";
+import { Monitor } from "lucide-react";
 import { FilterBar } from "./components/ui/FilterBar.jsx";
 import { DashboardSkeleton } from "./components/ui/DashboardSkeleton.jsx";
 import { UploadDropzone, MobileBottomNav, MobileFab, ExportMenu } from "./components/upload/index.jsx";
@@ -322,6 +326,17 @@ export default function SalesMonitoringApp() {
   // ---- Global Search (Cmd+K / Ctrl+K) ----
   // ⚠️ Sprint 9 / GS1+GS3+GS4: command palette untuk search across semua data.
   const globalSearch = useGlobalSearch({ targets, rawRows, agg: aggFinal });
+
+  // ---- Slideshow Mode (Sprint 17 / SS1) ----
+  // Auto-rotate antar tab untuk display monitor di ruang sales.
+  const slideshow = useSlideshow({
+    enabledTabs: ["executive", "main", "sales", "product", "focus", "outlet"],
+    tabDuration: 30,
+    syncInterval: 5,
+    onTabChange: (tab) => setActiveTab(tab),
+    onSync: () => { if (isAuthedRef.current) syncNowRef.current?.(); },
+    isAuthed: isAuthedRef.current,
+  });
 
   // Keyboard shortcut: Cmd+K (Mac) / Ctrl+K (Windows/Linux)
   useEffect(() => {
@@ -705,6 +720,29 @@ export default function SalesMonitoringApp() {
         colors={colors}
         {...globalSearch}
       />
+      {/* ⚠️ Sprint 17 / SS2: Slideshow Mode overlay */}
+      <SlideshowMode
+        {...slideshow}
+        colors={colors}
+        depotName={depotName}
+        aggMeta={aggFinal.meta}
+        renderPage={(tab) => {
+          // Render page yang sama dengan yang di main content, tapi dengan
+          // prop slideshowMode=true supaya DataTable di-hide.
+          // ⚠️ Sprint 17 / SS4: prop slideshowMode diteruskan ke pages untuk
+          // sembunyikan tabel detail (DataTable) — hanya tampilkan KPI cards
+          // dan charts yang cocok untuk display monitor.
+          switch (tab) {
+            case "executive": return <ExecutiveSummaryPage agg={aggFinal} colors={colors} workDays={workDays} onDrilldown={openDrilldown} comparison={comparison} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} slideshowMode />;
+            case "main": return <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} slideshowMode />;
+            case "sales": return <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} slideshowMode />;
+            case "product": return <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} slideshowMode />;
+            case "focus": return <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} slideshowMode />;
+            case "outlet": return <OutletAnalysisPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} targets={targets} rawRows={rawRows} onOpenVisitPattern={() => {}} slideshowMode />;
+            default: return null;
+          }
+        }}
+      />
       {/* Modal hapus rentang master data (admin) */}
       {masterAction === "range" && (
         <RangeDeleteModal
@@ -773,6 +811,15 @@ export default function SalesMonitoringApp() {
               )}
             </button>
             {/* ⚠️ Sprint 9 / GS3: Global Search button — Cmd+K / Ctrl+K shortcut */}
+            {/* ⚠️ Sprint 17 / SS3: Slideshow mode button */}
+            <button onClick={() => slideshow.start()} disabled={!rawRows.length}
+              className="sm-btn flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
+              title="Mode Pajangan (untuk monitor di ruang sales)"
+              aria-label="Mode Pajangan">
+              <Monitor size={15} />
+              <span className="hidden lg:inline text-xs" style={{ color: colors.textMuted }}>Slideshow</span>
+            </button>
             <button onClick={() => setIsSearchOpen(true)} disabled={!rawRows.length}
               className="sm-btn flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
               style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}

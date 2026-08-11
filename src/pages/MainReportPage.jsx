@@ -27,7 +27,7 @@ import { InsightBanner } from "../components/executive/InsightBanner.jsx";
    - Contextual hints ("Pace: X hari", "Perlu Rp X/hari")
    - Card 6 diganti: Target AO → Proyeksi Akhir Bulan (lebih actionable)
 ============================================================================ */
-export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison, projectionMethod, onProjectionMethodChange, dataQualityNotes, onNavigate, rawRows, targets, filters }) {
+export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison, projectionMethod, onProjectionMethodChange, dataQualityNotes, onNavigate, rawRows, targets, filters, slideshowMode = false }) {
   const uniqueDaysInData = useMemo(() => new Set(agg.filteredRows.map(r => dateKey(r.date))).size, [agg.filteredRows]);
   const t = agg.totals;
   const timeGone = workDays ? Math.min(1, uniqueDaysInData / workDays) : 0;
@@ -234,6 +234,9 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
       </div>
 
       {/* Tabel ringkasan sales */}
+      {/* Tabel ringkasan sales — di-hide di mode slideshow */}
+      {!slideshowMode && (
+        <>
       <SectionTitle title="Ringkasan Semua Sales" icon={Users} colors={colors} accent={colors.blue} />
       <DataTable
         colors={colors}
@@ -250,6 +253,8 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
         ]}
         rows={agg.bySales}
       />
+        </>
+      )}
     </div>
   );
 }

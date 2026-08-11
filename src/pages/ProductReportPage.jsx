@@ -13,7 +13,7 @@ import { SectionTitle, DrilldownButton, AchBarChartTooltip } from "../components
    TAB: PRODUCT REPORT
    Bar chart vertical per grup produk + tabel detail grup.
 ============================================================================ */
-export function ProductReportPage({ agg, colors, onDrilldown, depotName }) {
+export function ProductReportPage({ agg, colors, onDrilldown, depotName, slideshowMode = false }) {
   const handleExport = async () => {
     const { exportProductReportExcel } = await import("../utils/reportExcelExport.js");
     exportProductReportExcel(agg.byGroup, {
@@ -42,6 +42,8 @@ export function ProductReportPage({ agg, colors, onDrilldown, depotName }) {
         </BarChart>
       </ResponsiveContainer>
 
+      {/* Detail Grup Produk — di-hide di mode slideshow */}
+      {!slideshowMode && (
       <div className="mt-8">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-0">
           <SectionTitle title="Detail Grup Produk" icon={Package} colors={colors} />
@@ -68,6 +70,7 @@ export function ProductReportPage({ agg, colors, onDrilldown, depotName }) {
           rows={agg.byGroup}
         />
       </div>
+      )}
     </div>
   );
 }

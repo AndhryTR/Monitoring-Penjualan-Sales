@@ -38,7 +38,7 @@ export function OutletStatusBadge({ status, colors }) {
   );
 }
 
-export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onSelectOutlet, rawRows, targets, depotName }) {
+export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onSelectOutlet, rawRows, targets, depotName, slideshowMode = false }) {
   const [visitModalOpen, setVisitModalOpen] = useState(false);
   const { list, summary } = useMemo(
     () => computeOutletAnalysis(agg.filteredRows, agg.meta, thresholds),
@@ -126,35 +126,38 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
             </ResponsiveContainer>
           </div>
 
-          <DataTable
-            colors={colors}
-            initialSortKey="value"
-            searchable
-            searchKeys={["outletName", "salesLabel"]}
-            searchPlaceholder="Cari nama outlet atau sales..."
-            columns={[
-              { key: "outletName", label: "Nama Outlet", render: (o) => (
-                <button onClick={() => onSelectOutlet(o)} className="text-left hover:underline" style={{ color: colors.text }}>{o.outletName}</button>
-              ) },
-              { key: "salesLabel", label: "Sales", render: (o) => (
-                <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full sm:max-w-[220px]" title={o.salesLabel}>
-                  <span className="truncate">{o.salesLabel}</span>
-                  {o.salesNames.length > 1 && (
-                    <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: colors.gold + "1A", color: colors.gold }}>
-                      {o.salesNames.length}
-                    </span>
-                  )}
-                </span>
-              ) },
-              { key: "value", label: "Total Value", render: (o) => <span className="mono">{fmtRp(o.value)}</span> },
-              { key: "invoiceCount", label: "Frekuensi", render: (o) => <span className="mono">{fmtNum(o.invoiceCount)}×</span> },
-              { key: "groupCount", label: "Grup Produk", render: (o) => <span className="mono">{o.groupCount}</span> },
-              { key: "lastDate", label: "Terakhir Transaksi", render: (o) => <span className="mono text-xs" style={{ color: colors.textMuted }}>{o.lastDate || "-"}</span> },
-              { key: "daysSinceLastPurchase", label: "Jeda", render: (o) => <span className="mono">{o.daysSinceLastPurchase ?? "-"}</span> },
-              { key: "status", label: "Status", render: (o) => <OutletStatusBadge status={o.status} colors={colors} /> },
-            ]}
-            rows={list}
-          />
+          {/* Daftar outlet — di-hide di mode slideshow */}
+          {!slideshowMode && (
+            <DataTable
+              colors={colors}
+              initialSortKey="value"
+              searchable
+              searchKeys={["outletName", "salesLabel"]}
+              searchPlaceholder="Cari nama outlet atau sales..."
+              columns={[
+                { key: "outletName", label: "Nama Outlet", render: (o) => (
+                  <button onClick={() => onSelectOutlet(o)} className="text-left hover:underline" style={{ color: colors.text }}>{o.outletName}</button>
+                ) },
+                { key: "salesLabel", label: "Sales", render: (o) => (
+                  <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full sm:max-w-[220px]" title={o.salesLabel}>
+                    <span className="truncate">{o.salesLabel}</span>
+                    {o.salesNames.length > 1 && (
+                      <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: colors.gold + "1A", color: colors.gold }}>
+                        {o.salesNames.length}
+                      </span>
+                    )}
+                  </span>
+                ) },
+                { key: "value", label: "Total Value", render: (o) => <span className="mono">{fmtRp(o.value)}</span> },
+                { key: "invoiceCount", label: "Frekuensi", render: (o) => <span className="mono">{fmtNum(o.invoiceCount)}×</span> },
+                { key: "groupCount", label: "Grup Produk", render: (o) => <span className="mono">{o.groupCount}</span> },
+                { key: "lastDate", label: "Terakhir Transaksi", render: (o) => <span className="mono text-xs" style={{ color: colors.textMuted }}>{o.lastDate || "-"}</span> },
+                { key: "daysSinceLastPurchase", label: "Jeda", render: (o) => <span className="mono">{o.daysSinceLastPurchase ?? "-"}</span> },
+                { key: "status", label: "Status", render: (o) => <OutletStatusBadge status={o.status} colors={colors} /> },
+              ]}
+              rows={list}
+            />
+          )}
         </>
       )}
 
