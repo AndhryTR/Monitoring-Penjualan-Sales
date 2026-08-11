@@ -40,10 +40,15 @@ export function useSlideshow({
   const scrollTimerRef = useRef(null);
   const syncTimerRef = useRef(null);
   const scrollContainerRef = useRef(null);
+  const rafScrollRef = useRef(null);
   // ⚠️ Ref untuk onTabChange supaya effect tidak restart setiap kali
   // parent re-render dan pass callback baru (identity berubah).
   const onTabChangeRef = useRef(onTabChange);
   useEffect(() => { onTabChangeRef.current = onTabChange; }, [onTabChange]);
+
+  // ⚠️ Ref untuk pause/resume rAF scroll — simpan state scroll saat di-pause
+  // supaya bisa resume dari posisi terakhir, bukan dari awal.
+  const scrollStateRef = useRef({ startTime: null, pausedAt: null, pausedScrollTop: 0 });
 
   // Tabs yang aktif (filter enabledTabs)
   const activeTabs = enabledTabs.filter(Boolean);
@@ -72,10 +77,11 @@ export function useSlideshow({
     if (document.fullscreenElement && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
     }
-    // Clear semua timer
+    // Clear semua timer + rAF
     [tabTimerRef, tickTimerRef, scrollTimerRef, syncTimerRef].forEach(ref => {
       if (ref.current) { clearTimeout(ref.current); clearInterval(ref.current); ref.current = null; }
     });
+    if (rafScrollRef.current) { cancelAnimationFrame(rafScrollRef.current); rafScrollRef.current = null; }
   }, [tabDuration]);
 
   // ---- Toggle play/pause ----
@@ -108,23 +114,23 @@ export function useSlideshow({
     container.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  // ---- Main effect: auto-rotate + tick + scroll ----
-  // ⚠️ Bug fix (Sprint 17b): dependency array HANYA berisi hal yang
-  // seharusnya restart timer: isActive, isPlaying, currentTabIndex.
-  // onTabChange, scrollToTop, scrollToBottom TIDAK boleh di deps —
-  // mereka pakai useCallback tapi bisa punya dep berubah yang
-  // trigger effect restart → timer di-clear dan di-set ulang terus
-  // menerus tanpa pernah mencapai timeout.
+  // ---- Main effect: auto-rotate + tick + smooth rAF scroll ----
+  // ⚠️ Sprint 17e: ganti setTimeout scrollToBottom dengan requestAnimationFrame
+  // loop yang scroll sedikit demi sedikit setiap frame, dengan kecepatan yang
+  // menyesuaikan panjang halaman dan durasi tab.
   useEffect(() => {
     if (!isActive || !isPlaying) return;
     if (activeTabs.length === 0) return;
 
-    // Notify tab change (di sini, bukan di render)
+    // Notify tab change
     if (onTabChangeRef.current) onTabChangeRef.current(currentTab);
+
+    // Reset scroll state untuk tab baru
+    scrollStateRef.current = { startTime: null, pausedAt: null, pausedScrollTop: 0 };
 
     // Scroll to top saat ganti tab
     const container = scrollContainerRef.current;
-    if (container) container.scrollTo({ top: 0, behavior: "smooth" });
+    if (container) container.scrollTop = 0;
 
     // Tick timer: update timeLeft setiap 1 detik
     tickTimerRef.current = setInterval(() => {
@@ -140,16 +146,62 @@ export function useSlideshow({
       setTimeLeft(tabDuration);
     }, tabDuration * 1000);
 
-    // Auto-scroll timer: scroll ke bawah setelah setengah durasi
-    scrollTimerRef.current = setTimeout(() => {
+    // ---- rAF smooth scroll ----
+    // Scroll realtime dari atas ke bawah selama tabDuration, dengan:
+    // - Jeda awal 2 detik (baca header)
+    // - Jeda akhir 2 detik (baca konten bawah)
+    // - Easing ease-in-out supaya mulus
+    const SCROLL_DELAY_START = 2000; // 2 detik jeda awal
+    const SCROLL_DELAY_END = 2000;   // 2 detik jeda akhir
+    const scrollDuration = (tabDuration * 1000) - SCROLL_DELAY_START - SCROLL_DELAY_END;
+
+    const smoothScrollStep = (timestamp) => {
       const c = scrollContainerRef.current;
-      if (c) c.scrollTo({ top: c.scrollHeight, behavior: "smooth" });
-    }, tabDuration * 1000 * SCROLL_DELAY_RATIO);
+      if (!c) return;
+
+      const totalDistance = c.scrollHeight - c.clientHeight;
+      if (totalDistance <= 0) return; // halaman pendek, tidak perlu scroll
+
+      if (!scrollStateRef.current.startTime) {
+        scrollStateRef.current.startTime = timestamp;
+      }
+
+      const elapsed = timestamp - scrollStateRef.current.startTime;
+      // Progress 0 → 1, dengan jeda awal dan akhir
+      let progress;
+      if (elapsed < SCROLL_DELAY_START) {
+        progress = 0; // jeda awal
+      } else if (elapsed > SCROLL_DELAY_START + scrollDuration) {
+        progress = 1; // sudah sampai bawah, jeda akhir
+      } else {
+        progress = (elapsed - SCROLL_DELAY_START) / scrollDuration;
+      }
+
+      // Easing: ease-in-out (quadratic)
+      const eased = progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+      c.scrollTop = totalDistance * eased;
+
+      // Lanjut loop selama belum sampai akhir tab duration
+      if (elapsed < tabDuration * 1000) {
+        rafScrollRef.current = requestAnimationFrame(smoothScrollStep);
+      }
+    };
+
+    // Mulai rAF loop (delay 100ms supaya konten sudah render)
+    const startDelay = setTimeout(() => {
+      scrollStateRef.current.startTime = null;
+      rafScrollRef.current = requestAnimationFrame(smoothScrollStep);
+    }, 100);
+    scrollTimerRef.current = startDelay; // simpan untuk cleanup
 
     return () => {
       if (tickTimerRef.current) { clearInterval(tickTimerRef.current); tickTimerRef.current = null; }
       if (tabTimerRef.current) { clearTimeout(tabTimerRef.current); tabTimerRef.current = null; }
       if (scrollTimerRef.current) { clearTimeout(scrollTimerRef.current); scrollTimerRef.current = null; }
+      if (rafScrollRef.current) { cancelAnimationFrame(rafScrollRef.current); rafScrollRef.current = null; }
     };
   }, [isActive, isPlaying, currentTabIndex, activeTabs.length, tabDuration, currentTab]);
 
