@@ -81,7 +81,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
         workDays={workDays}
         uniqueDays={uniqueDaysInData}
       />
-      {(agg.alerts.length > 0 || dataQualityNotes) && (
+      {!slideshowMode && (agg.alerts.length > 0 || dataQualityNotes) && (
         <div className="mb-6">
           <InsightBanner alerts={agg.alerts} dataQualityNotes={dataQualityNotes} colors={colors} onNavigate={onNavigate} onDrilldown={onDrilldown} />
         </div>
