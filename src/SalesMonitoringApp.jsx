@@ -334,7 +334,7 @@ export default function SalesMonitoringApp() {
     tabDuration: 30,
     syncInterval: 5,
     onTabChange: (tab) => setActiveTab(tab),
-    onSync: () => { if (isAuthedRef.current) syncNowRef.current?.(); },
+    onSync: () => { if (isAuthedRef.current) syncMasterNow(); },
     isAuthed: isAuthedRef.current,
   });
 
