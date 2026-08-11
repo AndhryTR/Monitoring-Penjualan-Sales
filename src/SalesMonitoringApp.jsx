@@ -330,7 +330,7 @@ export default function SalesMonitoringApp() {
   // ---- Slideshow Mode (Sprint 17 / SS1) ----
   // Auto-rotate antar tab untuk display monitor di ruang sales.
   const slideshow = useSlideshow({
-    enabledTabs: ["executive", "main", "sales", "product", "focus", "outlet"],
+    enabledTabs: ["executive", "main", "sales", "product", "focus"],
     tabDuration: 30,
     syncInterval: 5,
     onTabChange: (tab) => setActiveTab(tab),
@@ -738,7 +738,6 @@ export default function SalesMonitoringApp() {
             case "sales": return <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} slideshowMode />;
             case "product": return <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} slideshowMode />;
             case "focus": return <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} slideshowMode />;
-            case "outlet": return <OutletAnalysisPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} targets={targets} rawRows={rawRows} onOpenVisitPattern={() => {}} slideshowMode />;
             default: return null;
           }
         }}
