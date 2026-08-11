@@ -40,6 +40,10 @@ export function useSlideshow({
   const scrollTimerRef = useRef(null);
   const syncTimerRef = useRef(null);
   const scrollContainerRef = useRef(null);
+  // ⚠️ Ref untuk onTabChange supaya effect tidak restart setiap kali
+  // parent re-render dan pass callback baru (identity berubah).
+  const onTabChangeRef = useRef(onTabChange);
+  useEffect(() => { onTabChangeRef.current = onTabChange; }, [onTabChange]);
 
   // Tabs yang aktif (filter enabledTabs)
   const activeTabs = enabledTabs.filter(Boolean);
@@ -105,15 +109,22 @@ export function useSlideshow({
   }, []);
 
   // ---- Main effect: auto-rotate + tick + scroll ----
+  // ⚠️ Bug fix (Sprint 17b): dependency array HANYA berisi hal yang
+  // seharusnya restart timer: isActive, isPlaying, currentTabIndex.
+  // onTabChange, scrollToTop, scrollToBottom TIDAK boleh di deps —
+  // mereka pakai useCallback tapi bisa punya dep berubah yang
+  // trigger effect restart → timer di-clear dan di-set ulang terus
+  // menerus tanpa pernah mencapai timeout.
   useEffect(() => {
     if (!isActive || !isPlaying) return;
     if (activeTabs.length === 0) return;
 
-    // Notify tab change
-    onTabChange?.(currentTab);
+    // Notify tab change (di sini, bukan di render)
+    if (onTabChangeRef.current) onTabChangeRef.current(currentTab);
 
     // Scroll to top saat ganti tab
-    scrollToTop();
+    const container = scrollContainerRef.current;
+    if (container) container.scrollTo({ top: 0, behavior: "smooth" });
 
     // Tick timer: update timeLeft setiap 1 detik
     tickTimerRef.current = setInterval(() => {
@@ -125,12 +136,14 @@ export function useSlideshow({
 
     // Tab switch timer: ganti tab setelah tabDuration
     tabTimerRef.current = setTimeout(() => {
-      nextTab();
+      setCurrentTabIndex(prev => (prev + 1) % activeTabs.length);
+      setTimeLeft(tabDuration);
     }, tabDuration * 1000);
 
     // Auto-scroll timer: scroll ke bawah setelah setengah durasi
     scrollTimerRef.current = setTimeout(() => {
-      scrollToBottom();
+      const c = scrollContainerRef.current;
+      if (c) c.scrollTo({ top: c.scrollHeight, behavior: "smooth" });
     }, tabDuration * 1000 * SCROLL_DELAY_RATIO);
 
     return () => {
@@ -138,7 +151,7 @@ export function useSlideshow({
       if (tabTimerRef.current) { clearTimeout(tabTimerRef.current); tabTimerRef.current = null; }
       if (scrollTimerRef.current) { clearTimeout(scrollTimerRef.current); scrollTimerRef.current = null; }
     };
-  }, [isActive, isPlaying, currentTabIndex, activeTabs.length, tabDuration, currentTab, nextTab, onTabChange, scrollToTop, scrollToBottom]);
+  }, [isActive, isPlaying, currentTabIndex, activeTabs.length, tabDuration, currentTab]);
 
   // ---- Auto-sync effect ----
   useEffect(() => {
