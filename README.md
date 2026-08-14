@@ -4,7 +4,7 @@ Dashboard monitoring pencapaian sales, produk, produk fokus, dan grup fokus.
 Dibangun dengan React + Vite + Tailwind CSS. Data diproses langsung di browser —
 tidak pernah diunggah ke server manapun.
 
-**Versi:** 2.0.0
+**Versi:** 3.0.0
 
 ## Fitur utama
 
