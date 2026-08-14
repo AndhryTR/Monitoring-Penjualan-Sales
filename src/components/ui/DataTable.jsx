@@ -138,7 +138,17 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
               // Sort/filter/scroll reorder rows; index-based key causes React
               // reuse DOM for wrong row, breaking future row-level state
               // (focus, transitions, expandable rows, etc.).
-              <tr key={rowKey ? row[rowKey] : (row.code || row.name || row.salesName || row.productName || `r-${i}`)} className="sm-row" style={{ borderTop: `1px solid ${colors.glassBorder}`, background: i % 2 === 1 ? colors.glassSubtle : "transparent" }}>
+              //
+              // ⚠️ Sprint 18d16 / Bugfix: HAPUS salesName & productName dari
+              // fallback karena TIDAK UNIK untuk tabel transaksi (banyak
+              // transaksi dari sales yang sama dengan produk yang sama → semua
+              // dapat key identik → React hanya render 1 row per unique key,
+              // sisanya di-drop → tabel tidak update saat filter/search berubah.
+              // Sekarang fallback: row.code || row.name || r-${i}.
+              // - Sales/Group tables punya code/name unik → safe
+              // - Transaction/Outlet tables tidak punya code/name → fallback ke
+              //   index r-${i} yang selalu unik dalam satu render
+              <tr key={rowKey ? row[rowKey] : (row.code || row.name || `r-${i}`)} className="sm-row" style={{ borderTop: `1px solid ${colors.glassBorder}`, background: i % 2 === 1 ? colors.glassSubtle : "transparent" }}>
                 {columns.map((c) => (
                   <td key={c.key} className="px-4 py-3 whitespace-nowrap">
                     {c.render ? c.render(row) : row[c.key]}
@@ -168,7 +178,9 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
             {visibleRows.map((row, i) => (
               <div
                 // ⚠️ Sprint 4 / K2: stable key (mirip dengan table view di atas).
-                key={rowKey ? row[rowKey] : (row.code || row.name || row.salesName || row.productName || `r-${i}`)}
+                // ⚠️ Sprint 18d16 / Bugfix: hapus salesName & productName dari
+                // fallback (tidak unik untuk transaksi) → pakai index r-${i}.
+                key={rowKey ? row[rowKey] : (row.code || row.name || `r-${i}`)}
                 className="px-4 py-3.5"
                 style={{ borderTop: i === 0 ? "none" : `1px solid ${colors.glassBorder}` }}
               >

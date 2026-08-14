@@ -1,5 +1,6 @@
-import { ChevronsLeft, ChevronsRight, FileSpreadsheet } from "lucide-react";
+import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { SIDEBAR_SECTIONS } from "../../constants/tabs.js";
+import { DepotSwitcher } from "../modals/DepotSwitcher.jsx";
 
 const WIDTH_EXPANDED = 240;
 const WIDTH_COLLAPSED = 68;
@@ -11,8 +12,14 @@ const WIDTH_COLLAPSED = 68;
    (lihat komentar di constants/tabs.js). Collapsible: lebar berubah antara
    WIDTH_EXPANDED/WIDTH_COLLAPSED, status disimpan di parent (persist ke
    localStorage lewat saveSettings, sama seperti tema/filter/dll).
+
+   ⚠️ Sprint 18 / Multi-Depo: DepotSwitcher ditaruh di header sidebar (di atas
+   brand logo) supaya user bisa ganti depo dengan cepat tanpa buka Settings.
+   Compact mode: switcher render hanya kode depo singkat.
 ============================================================================ */
-export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, onOpenHistory, onOpenSettings, historyDisabled, colors }) {
+export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, onOpenHistory, onOpenSettings, historyDisabled, colors,
+  // ⚠️ Sprint 18: multi-depo props
+  depots, activeDepotId, onSelectDepot, onAddDepot, onDeleteDepot }) {
   const width = collapsed ? WIDTH_COLLAPSED : WIDTH_EXPANDED;
 
   const handleItemClick = (item) => {
@@ -26,22 +33,35 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
 
   return (
     <aside
+      // ⚠️ Sprint 18d: sidebar kembali ke posisi semula — sejajar dengan header
+      // di kolom kanan (sticky top-4, margin-left 16px, margin-top 16px). Sebelumnya
+      // pernah dipindah ke bawah header (full-width layout), tapi user prefer
+      // sidebar di kiri. Brand logo di sidebar dihapus karena sudah ada di header
+      // utama — sekarang langsung DepotSwitcher + nav sections.
       className="hidden md:flex flex-col shrink-0 sticky top-4 transition-all duration-300 ease-out sm-sidebar-glass"
       style={{ width, height: "calc(100vh - 2rem)", marginLeft: "16px", marginTop: "16px", borderRadius: "20px" }}
     >
-      {/* Logo/brand kecil di atas sidebar — cuma ikon saat collapsed */}
-      <div className="flex items-center gap-2.5 px-4 py-5 shrink-0 overflow-hidden">
-        <div className="p-2 rounded-xl shrink-0" style={{ background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})` }}>
-          <FileSpreadsheet size={16} color="#0A1120" />
+      {/* Depot Switcher — di paling atas supaya selalu terlihat */}
+      {depots && activeDepotId && onSelectDepot && (
+        <div className="px-3 pt-3 shrink-0">
+          <DepotSwitcher
+            depots={depots}
+            activeDepotId={activeDepotId}
+            onSelect={onSelectDepot}
+            onAddDepot={onAddDepot}
+            onDeleteDepot={onDeleteDepot}
+            colors={colors}
+            compact={collapsed}
+          />
         </div>
-        {!collapsed && (
-          <div className="min-w-0">
-            <div className="text-sm font-bold truncate" style={{ color: colors.text }}>Monitoring Sales</div>
-          </div>
-        )}
-      </div>
+      )}
 
-      <nav className="flex-1 overflow-y-auto px-2.5 pb-3">
+      {/* ⚠️ Sprint 18d / Header Redesign: brand logo "Monitoring Sales"
+          dihapus dari sidebar karena sudah ada di header utama (glass card
+          full-width). Sekarang sidebar langsung dimulai dengan nav sections.
+          DepotSwitcher tetap di paling atas (jika ada), lalu nav sections. */}
+
+      <nav className="flex-1 overflow-y-auto px-2.5 pb-3 pt-2">
         {SIDEBAR_SECTIONS.map((section) => (
           <div key={section.label} className="mb-4">
             {collapsed ? (

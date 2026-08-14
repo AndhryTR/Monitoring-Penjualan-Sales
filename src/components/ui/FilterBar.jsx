@@ -14,6 +14,8 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
   const dateMenuRef = useRef(null);
+  const dateMenuTriggerRef = useRef(null);
+  const [dateMenuPos, setDateMenuPos] = useState({ top: 0, left: 0 });
   const active = filters.salesCodes.length + filters.groups.length + (filters.dateFrom ? 1 : 0) + (filters.dateTo ? 1 : 0);
   const nameToCode = useMemo(() => Object.fromEntries(salesOptions.map((s) => [s.name, s.code])), [salesOptions]);
   const codeToName = useMemo(() => Object.fromEntries(salesOptions.map(s => [s.code, s.name])), [salesOptions]);
@@ -40,11 +42,38 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
   }, [rawRows, datePreset]);
 
   // Tutup dropdown preset tanggal saat klik di luar.
+  // ⚠️ dateMenuRef sekarang attached ke portal dropdown (di document.body),
+  // bukan ke tombol trigger. Cek juga tombol trigger untuk mencegah toggle
+  // konflik saat klik tombol.
   useEffect(() => {
     if (!dateMenuOpen) return;
-    const onClickOutside = (e) => { if (dateMenuRef.current && !dateMenuRef.current.contains(e.target)) setDateMenuOpen(false); };
+    const onClickOutside = (e) => {
+      if (dateMenuRef.current && dateMenuRef.current.contains(e.target)) return;
+      // Cek apakah klik adalah tombol trigger (untuk toggle, bukan close)
+      const triggerBtn = dateMenuTriggerRef.current;
+      if (triggerBtn && triggerBtn.contains(e.target)) return;
+      setDateMenuOpen(false);
+    };
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [dateMenuOpen]);
+
+  // Hitung posisi date menu saat open
+  useEffect(() => {
+    if (!dateMenuOpen) return;
+    const updatePos = () => {
+      const btn = dateMenuTriggerRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      setDateMenuPos({ top: rect.bottom + 8, left: rect.left });
+    };
+    updatePos();
+    window.addEventListener("resize", updatePos);
+    window.addEventListener("scroll", updatePos, true);
+    return () => {
+      window.removeEventListener("resize", updatePos);
+      window.removeEventListener("scroll", updatePos, true);
+    };
   }, [dateMenuOpen]);
 
   const handlePickPreset = (key) => {
@@ -94,7 +123,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
       />
       <MultiSelect label="Grup Barang" icon={Package} options={groupOptions} selected={filters.groups}
         onChange={(v) => setFilters((f) => ({ ...f, groups: v }))} placeholder="Cari grup..." colors={colors} />
-      <div className="relative" ref={dateMenuRef}>
+      <div className="relative" ref={dateMenuTriggerRef}>
         <button onClick={() => setDateMenuOpen((o) => !o)}
           className="sm-btn flex items-center gap-2 px-3 py-2 rounded-xl text-sm"
           style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
@@ -102,9 +131,21 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
           <span>{presetLabel}</span>
           <ChevronDown size={13} style={{ color: colors.textMuted, transform: dateMenuOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
         </button>
-        {dateMenuOpen && (
-          <div className="absolute left-0 z-30 mt-2 w-52 rounded-xl overflow-hidden sm-fadein"
-            style={{ background: colors.modalBg, backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)", border: `1px solid ${colors.modalBorder}`, boxShadow: colors.glassShadow }}>
+        {dateMenuOpen && createPortal(
+          <div
+            ref={dateMenuRef}
+            className="sm-fadein fixed z-[60] w-52 rounded-xl overflow-hidden"
+            style={{
+              top: dateMenuPos.top,
+              left: dateMenuPos.left,
+              color: colors.text,
+              background: `radial-gradient(120% 60% at 15% -5%, ${colors.glassSheen || "rgba(255,255,255,0.10)"}, transparent 55%), ${colors.dropdownBg}`,
+              backdropFilter: "blur(32px) saturate(1.4)",
+              WebkitBackdropFilter: "blur(32px) saturate(1.4)",
+              border: `1px solid ${colors.dropdownBorder}`,
+              boxShadow: `${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight || "rgba(255,255,255,0.08)"}`,
+            }}
+          >
             {presetOptions.map((p) => (
               <button key={p.key} onClick={() => handlePickPreset(p.key)}
                 className="sm-row w-full text-left px-3.5 py-2.5 text-sm"
@@ -118,7 +159,8 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
               style={{ color: datePreset === "custom" ? colors.gold : colors.text, fontWeight: datePreset === "custom" ? 600 : 400 }}>
               Custom...
             </button>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
       {datePreset === "custom" && (

@@ -224,16 +224,46 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
   // animation sm-fadeup (transform pada ancestor membuatnya menjadi containing
   // block untuk fixed descendant -- bug klasik CSS).
   const sheetRef = useRef(null);
+  // ⚠️ Sprint 18d / Header Redesign bugfix: ref + state untuk desktop dropdown
+  // yang juga di-portal ke body. Posisi dihitung dari bounding rect tombol
+  // trigger saat open, lalu di-update saat resize/scroll.
+  const desktopDropdownRef = useRef(null);
+  const [desktopDropdownPos, setDesktopDropdownPos] = useState({ top: 0, left: 0 });
+
+  // Hitung posisi dropdown saat open — relatif ke viewport (fixed positioning)
+  useEffect(() => {
+    if (!open) return;
+    const updatePos = () => {
+      const btn = ref.current?.querySelector("button");
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      const dropdownWidth = 320; // w-80 = 20rem = 320px
+      let left = rect.right - dropdownWidth;
+      if (left < 16) left = 16;
+      setDesktopDropdownPos({
+        top: rect.bottom + 8,
+        left,
+      });
+    };
+    updatePos();
+    window.addEventListener("resize", updatePos);
+    window.addEventListener("scroll", updatePos, true);
+    return () => {
+      window.removeEventListener("resize", updatePos);
+      window.removeEventListener("scroll", updatePos, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     // Jangan tutup kalau klik terjadi di dalam tombol/container ExportMenu
     // (ref) atau di dalam bottom-sheet mobile (sheetRef) yang sudah di-portal
-    // ke body. Tanpa pengecekan sheetRef, klik pada item sheet akan langsung
-    // menutup sheet sebelum onClick item sempat di-fire.
+    // ke body, ATAU di dalam desktop dropdown (desktopDropdownRef) yang juga
+    // sudah di-portal ke body.
     const onClickOutside = (e) => {
       if (ref.current && ref.current.contains(e.target)) return;
       if (sheetRef.current && sheetRef.current.contains(e.target)) return;
+      if (desktopDropdownRef.current && desktopDropdownRef.current.contains(e.target)) return;
       setOpen(false);
     };
     document.addEventListener("mousedown", onClickOutside);
@@ -400,17 +430,46 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
   return (
     <div className="relative z-20" ref={ref}>
       <button onClick={() => setOpen((o) => !o)} disabled={disabled}
-        className="sm-btn flex items-center gap-2 px-2.5 md:px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+        // ⚠️ Sprint 18d8 / Responsive: padding p-2 di mobile (sama dengan icon button
+        // lain di header), px-4 py-2.5 di desktop (label visible).
+        className="sm-btn flex items-center gap-2 p-2 md:px-4 md:py-2.5 rounded-lg md:rounded-xl text-sm font-semibold disabled:opacity-40"
         style={{ background: colors.gold, color: "#0A1120" }}>
-        <Download size={15} /> <span className="hidden md:inline">Export</span> <ChevronDown size={13} className="hidden md:inline" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+        <Download size={14} /> <span className="hidden md:inline">Export</span> <ChevronDown size={13} className="hidden md:inline" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && (
         <>
-          
-          <div className="hidden md:block absolute right-0 z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden sm-fadein"
-            style={{ background: colors.modalBg, backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)", border: `1px solid ${colors.modalBorder}`, boxShadow: colors.glassShadow }}>
-            {menuContent}
-          </div>
+          {/* ⚠️ Sprint 18d / Header Redesign bugfix: desktop dropdown dirender
+              via createPortal ke document.body supaya KELUAR dari parent
+              `.sm-card` header yang punya backdrop-filter sendiri (itu bikin
+              stacking context baru → backdrop-filter child tidak blur konten
+              di belakang parent, hanya blur di dalam parent saja → efek glass
+              tidak terlihat). Dengan portal, dropdown floating di body level,
+              backdrop-filter bekerja penuh terhadap konten header & dashboard
+              di belakangnya.
+
+              Alpha background pakai colors.dropdownBg (theme-aware) bukan
+              hardcoded rgba — supaya adaptif dark/light theme. Set color:
+              colors.text supaya semua child text inherit warna tema aktif
+              (saat portal ke body, kita di luar .smapp container). */}
+          {createPortal(
+            <div
+              ref={desktopDropdownRef}
+              className="hidden md:block fixed z-50 w-80 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden sm-fadein"
+              style={{
+                top: desktopDropdownPos.top,
+                left: desktopDropdownPos.left,
+                color: colors.text,
+                background: `radial-gradient(120% 60% at 15% -5%, ${colors.glassSheen || "rgba(255,255,255,0.10)"}, transparent 55%), ${colors.dropdownBg}`,
+                backdropFilter: "blur(32px) saturate(1.4)",
+                WebkitBackdropFilter: "blur(32px) saturate(1.4)",
+                border: `1px solid ${colors.dropdownBorder}`,
+                boxShadow: `${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight || "rgba(255,255,255,0.08)"}`,
+              }}
+            >
+              {menuContent}
+            </div>,
+            document.body
+          )}
 
           
           {createPortal(

@@ -4,6 +4,8 @@ import {
   RefreshCw, Clock, Wifi,
 } from "lucide-react";
 import { fmtNum } from "../utils/formatters.js";
+import { THEMES } from "../constants/colors.js";
+import { useScrollLock } from "../hooks/useModalA11y.js";
 
 /* ============================================================================
    SLIDESHOW MODE — fullscreen overlay untuk display monitor di ruang sales.
@@ -41,8 +43,32 @@ export function SlideshowMode({
   renderPage,
   depotName,
   aggMeta,
+  // ⚠️ Sprint 17h / bugfix: flag tampilan dari slideshowConfig
+  largeFont = true,
+  forceDark = false,
 }) {
   const [clock, setClock] = useState("");
+
+  // ⚠️ Sprint 17i / bugfix: kunci scroll body + html saat slideshow aktif
+  // supaya scrollbar native browser (yang dirender browser chrome di atas
+  // z-index DOM manapun) tidak muncul bersamaan dengan scrollbar internal
+  // slideshow content area. Sebelumnya user lihat 2 scrollbar berdampingan:
+  // (1) native browser di kanan viewport, (2) webkit-scrollbar di dalam
+  // content area slideshow.
+  //
+  // useScrollLock mengatur document.body.style.overflow = "hidden" (shared
+  // counter, aman bila ada modal lain yang juga lock). Tapi <html> element
+  // bisa juga menampilkan scrollbar di beberapa browser — kita kunci manual
+  // di sini lewat effect sendiri.
+  useScrollLock(isActive);
+  useEffect(() => {
+    if (!isActive) return;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.documentElement.style.overflow = prevHtmlOverflow;
+    };
+  }, [isActive]);
 
   // Real-time clock
   useEffect(() => {
@@ -81,26 +107,41 @@ export function SlideshowMode({
     ? `${aggMeta.firstDate} — ${aggMeta.lastDate}`
     : "";
 
+  // ⚠️ Sprint 17h / bugfix: honor `forceDark` dari slideshowConfig.
+  // Sebelumnya flag diabaikan — slideshow selalu pakai theme aktif (bisa light).
+  // Sekarang: kalau forceDark=true, override colors dengan THEMES.dark supaya
+  // background selalu gelap walau user lagi pakai light theme di app utama.
+  // Memo supaya identity colors stabil (tidak trigger re-render berlebihan).
+  const effectiveColors = useMemo(() => {
+    if (!forceDark) return colors;
+    return { ...colors, ...THEMES.dark };
+  }, [colors, forceDark]);
+
+  // ⚠️ Sprint 17h / bugfix: honor `largeFont` dari slideshowConfig.
+  // Sebelumnya font selalu 1.15em walau user uncheck "Font diperbesar".
+  // Sekarang: 1.15em saat on, 1em (= normal) saat off.
+  const contentFontSize = largeFont ? "1.15em" : "1em";
+
   if (!isActive) return null;
 
   return (
     <div
       className="fixed inset-0 z-[9999] flex flex-col"
-      style={{ background: colors.ink || "#0A1120", color: colors.text }}
+      style={{ background: effectiveColors.ink || "#0A1120", color: effectiveColors.text }}
     >
       {/* ===== Top bar ===== */}
       <div
         className="flex items-center justify-between px-8 py-3 shrink-0"
-        style={{ background: colors.glassFill, borderBottom: `1px solid ${colors.glassBorder}` }}
+        style={{ background: effectiveColors.glassFill, borderBottom: `1px solid ${effectiveColors.glassBorder}` }}
       >
         {/* Kiri: depo + periode */}
         <div className="flex items-center gap-4">
           <div>
-            <div className="disp text-lg font-bold" style={{ color: colors.gold }}>
+            <div className="disp text-lg font-bold" style={{ color: effectiveColors.gold }}>
               {depotName || "DEPO"}
             </div>
             {periodeLabel && (
-              <div className="text-xs mono" style={{ color: colors.textMuted }}>
+              <div className="text-xs mono" style={{ color: effectiveColors.textMuted }}>
                 {periodeLabel} · {aggMeta?.uniqueDays || 0} hari data
               </div>
             )}
@@ -109,10 +150,10 @@ export function SlideshowMode({
 
         {/* Tengah: tab aktif */}
         <div className="flex items-center gap-2">
-          <div className="disp text-sm font-semibold" style={{ color: colors.mint }}>
+          <div className="disp text-sm font-semibold" style={{ color: effectiveColors.mint }}>
             {TAB_LABELS[currentTab] || currentTab}
           </div>
-          <span className="text-xs" style={{ color: colors.textMuted }}>
+          <span className="text-xs" style={{ color: effectiveColors.textMuted }}>
             ({currentTabIndex + 1}/{activeTabs.length})
           </span>
         </div>
@@ -120,13 +161,13 @@ export function SlideshowMode({
         {/* Kanan: tanggal + clock + exit */}
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <div className="text-xs" style={{ color: colors.textMuted }}>{dateLabel}</div>
-            <div className="mono text-lg font-bold" style={{ color: colors.text }}>{clock}</div>
+            <div className="text-xs" style={{ color: effectiveColors.textMuted }}>{dateLabel}</div>
+            <div className="mono text-lg font-bold" style={{ color: effectiveColors.text }}>{clock}</div>
           </div>
           <button
             onClick={stop}
             className="p-2 rounded-lg"
-            style={{ background: colors.coral + "1A", color: colors.coral }}
+            style={{ background: effectiveColors.coral + "1A", color: effectiveColors.coral }}
             title="Keluar (Esc)"
             aria-label="Keluar slideshow"
           >
@@ -143,7 +184,7 @@ export function SlideshowMode({
         onClick={togglePlayPause}
       >
         {/* Render page aktif */}
-        <div className="slideshow-content max-w-7xl mx-auto" style={{ fontSize: "1.15em" }}>
+        <div className="slideshow-content max-w-7xl mx-auto" style={{ fontSize: contentFontSize }}>
           {renderPage(currentTab)}
         </div>
       </div>
@@ -151,7 +192,7 @@ export function SlideshowMode({
       {/* ===== Bottom bar ===== */}
       <div
         className="shrink-0 px-8 py-3"
-        style={{ background: colors.glassFill, borderTop: `1px solid ${colors.glassBorder}` }}
+        style={{ background: effectiveColors.glassFill, borderTop: `1px solid ${effectiveColors.glassBorder}` }}
       >
         {/* Progress bar */}
         <div className="flex items-center gap-3 mb-2">
@@ -164,22 +205,22 @@ export function SlideshowMode({
                 style={{
                   width: i === currentTabIndex ? 24 : 6,
                   height: 6,
-                  background: i === currentTabIndex ? colors.mint : colors.glassBorder,
+                  background: i === currentTabIndex ? effectiveColors.mint : effectiveColors.glassBorder,
                 }}
               />
             ))}
           </div>
 
           {/* Progress bar */}
-          <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: colors.glassSubtle }}>
+          <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: effectiveColors.glassSubtle }}>
             <div
               className="h-full rounded-full transition-all duration-1000 ease-linear"
-              style={{ width: `${progress}%`, background: isPlaying ? colors.mint : colors.gold }}
+              style={{ width: `${progress}%`, background: isPlaying ? effectiveColors.mint : effectiveColors.gold }}
             />
           </div>
 
           {/* Time left */}
-          <div className="text-xs mono shrink-0" style={{ color: colors.textMuted }}>
+          <div className="text-xs mono shrink-0" style={{ color: effectiveColors.textMuted }}>
             {isPlaying ? `${timeLeft}s` : "⏸"}
           </div>
         </div>
@@ -192,8 +233,8 @@ export function SlideshowMode({
               onClick={(e) => { e.stopPropagation(); togglePlayPause(); }}
               className="p-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold"
               style={{
-                background: isPlaying ? colors.mint + "1A" : colors.gold + "1A",
-                color: isPlaying ? colors.mint : colors.gold,
+                background: isPlaying ? effectiveColors.mint + "1A" : effectiveColors.gold + "1A",
+                color: isPlaying ? effectiveColors.mint : effectiveColors.gold,
               }}
             >
               {isPlaying ? <Pause size={12} /> : <Play size={12} />}
@@ -202,7 +243,7 @@ export function SlideshowMode({
             <button
               onClick={(e) => { e.stopPropagation(); prevTab(); }}
               className="p-1.5 rounded-lg"
-              style={{ background: colors.glassSubtle, color: colors.textMuted }}
+              style={{ background: effectiveColors.glassSubtle, color: effectiveColors.textMuted }}
               title="Sebelumnya (←)"
             >
               <ChevronLeft size={14} />
@@ -210,7 +251,7 @@ export function SlideshowMode({
             <button
               onClick={(e) => { e.stopPropagation(); nextTab(); }}
               className="p-1.5 rounded-lg"
-              style={{ background: colors.glassSubtle, color: colors.textMuted }}
+              style={{ background: effectiveColors.glassSubtle, color: effectiveColors.textMuted }}
               title="Berikutnya (→)"
             >
               <ChevronRight size={14} />
@@ -218,9 +259,9 @@ export function SlideshowMode({
           </div>
 
           {/* Kanan: sync status */}
-          <div className="flex items-center gap-3 text-xs" style={{ color: colors.textMuted }}>
+          <div className="flex items-center gap-3 text-xs" style={{ color: effectiveColors.textMuted }}>
             <div className="flex items-center gap-1.5">
-              <Wifi size={12} style={{ color: lastSyncedAt ? colors.mint : colors.textMuted }} />
+              <Wifi size={12} style={{ color: lastSyncedAt ? effectiveColors.mint : effectiveColors.textMuted }} />
               <span>{lastSyncedLabel}</span>
             </div>
             <div className="flex items-center gap-1.5">

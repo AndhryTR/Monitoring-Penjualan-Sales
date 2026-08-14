@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
 import {
   X, ChevronDown, Plus, Copy, Sigma, Search, Crosshair, Package,
-  AlertCircle, UserRound,
+  AlertCircle, UserRound, Trash2, FileSpreadsheet, FileDown, Upload,
 } from "lucide-react";
 import { fmtRp, fmtNum } from "../../utils/formatters.js";
+import { AddSalesModal } from "./AddSalesModal.jsx";
+import { MasterImportPreview } from "./MasterImportPreview.jsx";
 
 /* ============================================================================
    TARGET SALES EDITOR — master-detail layout untuk edit target sales.
@@ -31,11 +33,17 @@ const MATCH_TYPE_OPTIONS = [
   { value: "group", label: "Berdasarkan Grup Produk" },
 ];
 
-export function TargetSalesEditor({ localTargets, setLocalTargets, colors }) {
+export function TargetSalesEditor({ localTargets, setLocalTargets, colors, depotName = "" }) {
   const [selectedCode, setSelectedCode] = useState(localTargets[0]?.code || null);
   const [salesQuery, setSalesQuery] = useState("");
   const [subTab, setSubTab] = useState("target"); // "target" | "groups" | "focus"
   const [mobileShowDetail, setMobileShowDetail] = useState(false);
+  // ⚠️ Sprint 18 / B: state untuk AddSalesModal
+  const [addSalesOpen, setAddSalesOpen] = useState(false);
+  // ⚠️ Sprint 18 / B: state untuk konfirmasi hapus sales
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  // ⚠️ Sprint 18 / C: state untuk MasterImportPreview modal
+  const [importOpen, setImportOpen] = useState(false);
 
   // Filter sales berdasarkan search query
   const filteredTargets = useMemo(() => {
@@ -47,6 +55,43 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors }) {
   }, [localTargets, salesQuery]);
 
   const selected = localTargets.find((t) => t.code === selectedCode) || null;
+
+  // ⚠️ Sprint 18 / B: handler tambah sales baru
+  const handleAddSales = (newSales) => {
+    setLocalTargets((prev) => [...prev, newSales]);
+    setSelectedCode(newSales.code);
+  };
+
+  // ⚠️ Sprint 18 / B: handler hapus sales
+  const handleDeleteSales = (salesCode) => {
+    setLocalTargets((prev) => prev.filter((t) => t.code !== salesCode));
+    // Bila sales yang dihapus sedang dipilih, pilih sales pertama yang tersisa
+    if (selectedCode === salesCode) {
+      setSelectedCode(null);
+    }
+    setDeleteConfirm(null);
+  };
+
+  // ⚠️ Sprint 18 / C: handler import Excel master
+  // Replace seluruh localTargets dengan hasil import (user sudah konfirmasi di modal preview).
+  const handleImportConfirm = (importedTargets) => {
+    setLocalTargets(importedTargets);
+    // Reset selection — sales yang sebelumnya dipilih mungkin tidak ada lagi
+    setSelectedCode(importedTargets[0]?.code || null);
+  };
+
+  // ⚠️ Sprint 18 / C: handler download template Excel kosong
+  const handleDownloadTemplate = async () => {
+    const { downloadMasterTemplate } = await import("../../utils/masterTemplate.js");
+    downloadMasterTemplate({ depotName: "template" });
+  };
+
+  // ⚠️ Sprint 18 / C+: handler export localTargets ke Excel 3-sheet
+  // Format sama dengan template — bisa di-import balik (round-trip).
+  const handleExportExcel = async () => {
+    const { exportMasterExcel } = await import("../../utils/masterExport.js");
+    exportMasterExcel(localTargets, { depotName });
+  };
 
   // ---- Handlers (sama logic dengan versi lama, dipindah ke sini) ----
   const handleTargetChange = (salesCode, field, value) => {
@@ -180,8 +225,47 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors }) {
         className={`md:w-80 shrink-0 flex flex-col rounded-xl overflow-hidden ${mobileShowDetail ? "hidden md:flex" : "flex"}`}
         style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}` }}
       >
-        {/* Header panel kiri: search */}
+        {/* Header panel kiri: toolbar + search */}
         <div className="p-3 shrink-0" style={{ borderBottom: `1px solid ${colors.glassBorder}` }}>
+          {/* ⚠️ Sprint 18 / B+C+C+: Toolbar — Add Sales + Import Excel + Export Excel + Download Template */}
+          <div className="flex gap-1.5 mb-2.5">
+            <button
+              onClick={() => setAddSalesOpen(true)}
+              className="flex-1 sm-btn inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+              style={{ background: colors.mint + "1A", color: colors.mint, border: `1px solid ${colors.mint}55` }}
+              title="Tambah sales baru"
+            >
+              <Plus size={12} /> Tambah Sales
+            </button>
+            <button
+              onClick={() => setImportOpen(true)}
+              className="flex-1 sm-btn inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+              style={{ background: colors.violet + "1A", color: colors.violet, border: `1px solid ${colors.violet}55` }}
+              title="Import master sales+target dari Excel 3-sheet"
+            >
+              <Upload size={12} /> Import
+            </button>
+            <button
+              onClick={handleExportExcel}
+              disabled={localTargets.length === 0}
+              className="sm-btn inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: colors.gold + "1A", color: colors.gold, border: `1px solid ${colors.gold}55` }}
+              title={localTargets.length === 0 ? "Belum ada sales untuk di-export" : "Export daftar sales+target ke Excel 3-sheet"}
+              aria-label="Export ke Excel"
+            >
+              <FileDown size={12} /> Export
+            </button>
+            <button
+              onClick={handleDownloadTemplate}
+              className="sm-btn inline-flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-semibold"
+              style={{ background: colors.glassSubtle, color: colors.textMuted, border: `1px solid ${colors.glassBorder}` }}
+              title="Download template Excel kosong"
+              aria-label="Download template Excel"
+            >
+              <FileSpreadsheet size={12} />
+            </button>
+          </div>
+
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }} />
             <input
@@ -213,10 +297,10 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors }) {
             filteredTargets.map((t) => {
               const isSelected = t.code === selectedCode;
               return (
-                <button
+                <div
                   key={t.code}
                   onClick={() => handleSelectSales(t.code)}
-                  className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 transition-colors"
+                  className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 transition-colors cursor-pointer group"
                   style={{
                     background: isSelected ? colors.glassFillStrong : "transparent",
                     borderBottom: `1px solid ${colors.glassBorder}`,
@@ -235,8 +319,21 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors }) {
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: colors.violet + "1A", color: colors.violet }}>
                       {t.focus.length}F
                     </span>
+                    {/* ⚠️ Sprint 18 / B: tombol hapus sales — tampil saat hover */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteConfirm(t);
+                      }}
+                      className="p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
+                      style={{ color: colors.coral }}
+                      title="Hapus sales"
+                      aria-label={`Hapus sales ${t.name}`}
+                    >
+                      <Trash2 size={12} />
+                    </button>
                   </div>
-                </button>
+                </div>
               );
             })
           )}
@@ -400,7 +497,7 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors }) {
                   ) : (
                     selected.groups.map((g, gi) => (
                       <div
-                        key={g.name || `g-${gi}`}
+                        key={`g-${gi}`}
                         className="p-3 rounded-lg relative"
                         style={{ background: colors.glassSubtle, border: `1px solid ${g.focus ? colors.violet + "66" : colors.glassBorder}` }}
                       >
@@ -506,7 +603,7 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors }) {
                       const matchType = f.matchType || (f.keyword === "__GROUP__" ? "group" : f.keyword === "GAS_EXACT" ? "exact" : "contains");
                       return (
                         <div
-                          key={f.keyword || f.name || `f-${i}`}
+                          key={`f-${i}`}
                           className="p-3 rounded-lg relative"
                           style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}
                         >
@@ -611,6 +708,83 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors }) {
             </div>
           </div>
         )}
+      </div>
+
+      {/* ⚠️ Sprint 18 / B: AddSalesModal */}
+      <AddSalesModal
+        isOpen={addSalesOpen}
+        onClose={() => setAddSalesOpen(false)}
+        onAdd={handleAddSales}
+        existingCodes={localTargets.map((t) => t.code)}
+        colors={colors}
+      />
+
+      {/* ⚠️ Sprint 18 / C: MasterImportPreview modal */}
+      <MasterImportPreview
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        onConfirm={handleImportConfirm}
+        existingCodes={localTargets.map((t) => t.code)}
+        colors={colors}
+      />
+
+      {/* ⚠️ Sprint 18 / B: Konfirmasi hapus sales */}
+      {deleteConfirm && (
+        <DeleteSalesConfirm
+          sales={deleteConfirm}
+          colors={colors}
+          onCancel={() => setDeleteConfirm(null)}
+          onConfirm={() => handleDeleteSales(deleteConfirm.code)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ============================================================================
+   DELETE SALES CONFIRM — konfirmasi sederhana sebelum hapus sales.
+   Tidak perlu ketik nama (sales hapus tidak sekrusial depo hapus).
+============================================================================ */
+function DeleteSalesConfirm({ sales, colors, onCancel, onConfirm }) {
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }}
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl overflow-hidden"
+        style={{ background: colors.modalPanelBg || colors.glassFillStrong, border: `1px solid ${colors.coral}` }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-5" style={{ borderBottom: `1px solid ${colors.glassBorder}` }}>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg" style={{ background: colors.coral + "1A" }}>
+              <AlertCircle size={18} style={{ color: colors.coral }} />
+            </div>
+            <div className="text-lg font-bold disp" style={{ color: colors.text }}>Hapus Sales</div>
+          </div>
+          <p className="text-sm mt-3" style={{ color: colors.text }}>
+            Hapus sales <span className="font-bold" style={{ color: colors.coral }}>{sales.name}</span> ({sales.code})?
+          </p>
+          <p className="text-xs mt-2" style={{ color: colors.textMuted }}>
+            Target, grup, dan fokus untuk sales ini akan dihapus. Transaksi yang sudah diupload TIDAK terhapus — hanya relasi sales ke depo aktif.
+          </p>
+        </div>
+        <div className="p-5 flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 sm-btn px-4 py-2 rounded-lg text-sm font-semibold"
+            style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
+          >
+            Batal
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold"
+            style={{ background: colors.coral, color: "#fff" }}
+          >
+            Hapus
+          </button>
+        </div>
       </div>
     </div>
   );

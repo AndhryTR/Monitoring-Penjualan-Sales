@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Settings, X, Plus, Download, Upload, Zap, Package, AlertTriangle, CheckCircle2, FileText } from "lucide-react";
+import { Settings, X, Plus, Download, Upload, Zap, Package, AlertTriangle, CheckCircle2, FileText, Monitor, Play } from "lucide-react";
 import { SectionTitle, CustomSlider } from "../ui/index.jsx";
 import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
 import { TargetSalesEditor } from "./TargetSalesEditor.jsx";
@@ -19,7 +19,8 @@ import { fmtRp, fmtNum } from "../../utils/formatters.js";
    - State lokal tetap pola lama (sync dari props saat isOpen)
 ============================================================================ */
 export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, setWorkDays, depotName, setDepotName, onClearAll, colors,
-  theme, setTheme, powerSaveMode, setPowerSaveMode, filters, setFilters, projectionMethod, setProjectionMethod, history, onImportHistory }) {
+  theme, setTheme, powerSaveMode, setPowerSaveMode, filters, setFilters, projectionMethod, setProjectionMethod, history, onImportHistory,
+  slideshowConfig, setSlideshowConfig, onStartSlideshow }) {
   const [localTargets, setLocalTargets] = useState(targets);
   const [localWorkDays, setLocalWorkDays] = useState(workDays);
   const [localDepotName, setLocalDepotName] = useState(depotName);
@@ -206,6 +207,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
             { key: "general", label: "Umum", icon: Settings },
             { key: "sales", label: "Target Sales", icon: Package },
             { key: "backup", label: "Backup & Data", icon: Download },
+            { key: "slideshow", label: "Slideshow", icon: Monitor },
           ].map((t) => {
             const Icon = t.icon;
             const on = activeSection === t.key;
@@ -279,6 +281,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
               localTargets={localTargets}
               setLocalTargets={setLocalTargets}
               colors={colors}
+              depotName={localDepotName}
             />
           )}
 
@@ -341,6 +344,138 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                   style={{ background: colors.coral + "1A", color: colors.coral, border: `1px solid ${colors.coral}4D` }}
                 >
                   Hapus Semua Data Tersimpan
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ---- Tab: Slideshow ---- */}
+          {activeSection === "slideshow" && slideshowConfig && setSlideshowConfig && (
+            <div className="space-y-6">
+              {/* Durasi & Sinkronisasi */}
+              <div className="sm-card p-4">
+                <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: colors.textMuted }}>Durasi & Sinkronisasi</div>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium">Durasi per Halaman</label>
+                      <span className="mono text-sm font-bold" style={{ color: colors.gold }}>{slideshowConfig.tabDuration}s</span>
+                    </div>
+                    <input type="range" min={10} max={120} step={5} value={slideshowConfig.tabDuration}
+                      onChange={(e) => setSlideshowConfig({ ...slideshowConfig, tabDuration: Number(e.target.value) })}
+                      className="w-full accent-[--sm-gold]" style={{ accentColor: colors.gold }} />
+                    <div className="flex justify-between text-xs mt-1" style={{ color: colors.textMuted }}>
+                      <span>10s</span><span>120s</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium">Auto-Sync Data</label>
+                      <span className="mono text-sm font-bold" style={{ color: colors.mint }}>{slideshowConfig.syncInterval}m</span>
+                    </div>
+                    <input type="range" min={1} max={30} step={1} value={slideshowConfig.syncInterval}
+                      onChange={(e) => setSlideshowConfig({ ...slideshowConfig, syncInterval: Number(e.target.value) })}
+                      className="w-full" style={{ accentColor: colors.mint }} />
+                    <div className="flex justify-between text-xs mt-1" style={{ color: colors.textMuted }}>
+                      <span>1m</span><span>30m</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium">Jeda Awal (baca header)</label>
+                      <span className="mono text-sm font-bold" style={{ color: colors.blue }}>{slideshowConfig.scrollDelay}s</span>
+                    </div>
+                    <input type="range" min={0} max={10} step={1} value={slideshowConfig.scrollDelay}
+                      onChange={(e) => setSlideshowConfig({ ...slideshowConfig, scrollDelay: Number(e.target.value) })}
+                      className="w-full" style={{ accentColor: colors.blue }} />
+                    <div className="flex justify-between text-xs mt-1" style={{ color: colors.textMuted }}>
+                      <span>0s</span><span>10s</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pilih Halaman */}
+              <div className="sm-card p-4">
+                <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: colors.textMuted }}>Pilih Halaman Slideshow</div>
+                <div className="space-y-2">
+                  {[
+                    { key: "executive", label: "Executive Summary", desc: "Snapshot KPI + Leaderboard + Focus + Outlet Health" },
+                    { key: "main", label: "Main Report", desc: "PaceStrip + 6 KPI cards + 2 charts" },
+                    { key: "sales", label: "Sales Report", desc: "Leaderboard + bar chart per sales" },
+                    { key: "product", label: "Product Report", desc: "Bar chart per grup produk" },
+                    { key: "focus", label: "Product Focus", desc: "Kartu progress per sales×produk" },
+                    { key: "outlet", label: "Analisis Outlet", desc: "KPI + pie chart distribusi outlet" },
+                    { key: "trend", label: "Tren Periode", desc: "Chart + matrix tabel" },
+                    { key: "compare", label: "Perbandingan", desc: "Matrix + bar chart" },
+                  ].map((tab) => {
+                    const isEnabled = slideshowConfig.enabledTabs.includes(tab.key);
+                    return (
+                      <label key={tab.key} className="flex items-start gap-3 p-2.5 rounded-lg cursor-pointer"
+                        style={{ background: isEnabled ? colors.mint + "0D" : colors.glassFill }}>
+                        <input type="checkbox" checked={isEnabled}
+                          onChange={(e) => {
+                            const next = e.target.checked
+                              ? [...slideshowConfig.enabledTabs, tab.key]
+                              : slideshowConfig.enabledTabs.filter((t) => t !== tab.key);
+                            setSlideshowConfig({ ...slideshowConfig, enabledTabs: next });
+                          }}
+                          className="mt-0.5 w-4 h-4" style={{ accentColor: colors.mint }} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium">{tab.label}</div>
+                          <div className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{tab.desc}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                {slideshowConfig.enabledTabs.length < 2 && (
+                  <p className="text-xs mt-2" style={{ color: colors.coral }}>⚠️ Minimal 2 halaman harus aktif untuk mulai slideshow</p>
+                )}
+              </div>
+
+              {/* Tampilan */}
+              <div className="sm-card p-4">
+                <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: colors.textMuted }}>Tampilan</div>
+                <div className="space-y-2">
+                  {[
+                    { key: "autoScroll", label: "Auto-scroll halus", desc: "rAF realtime scroll dari atas ke bawah" },
+                    { key: "hideAlerts", label: "Sembunyikan alert", desc: "InsightBanner di-hide saat slideshow" },
+                    { key: "hideTables", label: "Sembunyikan tabel", desc: "DataTable di-hide saat slideshow" },
+                    { key: "largeFont", label: "Font diperbesar", desc: "1.15× ukuran font normal" },
+                    { key: "forceDark", label: "Dark mode paksa", desc: "Selalu dark theme saat slideshow aktif" },
+                  ].map((opt) => (
+                    <label key={opt.key} className="flex items-center gap-3 p-2 rounded-lg cursor-pointer" style={{ background: colors.glassFill }}>
+                      <input type="checkbox" checked={slideshowConfig[opt.key]}
+                        onChange={(e) => setSlideshowConfig({ ...slideshowConfig, [opt.key]: e.target.checked })}
+                        className="w-4 h-4" style={{ accentColor: colors.gold }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium">{opt.label}</div>
+                        <div className="text-xs" style={{ color: colors.textMuted }}>{opt.desc}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Preview & Mulai */}
+              <div className="sm-card p-4" style={{ borderLeft: `3px solid ${colors.mint}` }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <div className="text-sm font-semibold disp">Preview</div>
+                    <div className="text-xs mt-0.5" style={{ color: colors.textMuted }}>
+                      Urutan: {slideshowConfig.enabledTabs.join(" → ")} → (ulang)
+                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: colors.textMuted }}>
+                      Total 1 siklus: ~{Math.ceil(slideshowConfig.enabledTabs.length * slideshowConfig.tabDuration / 60)} menit
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => { onClose(); onStartSlideshow?.(); }}
+                  className="sm-btn w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+                  style={{ background: colors.mint, color: "#0A1120" }}
+                  disabled={slideshowConfig.enabledTabs.length < 2}>
+                  <Play size={14} /> Mulai Slideshow Sekarang
                 </button>
               </div>
             </div>
