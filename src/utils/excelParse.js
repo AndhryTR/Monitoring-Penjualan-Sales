@@ -121,6 +121,10 @@ export function parseWorkbookFile(file) {
             salesName: String(get("salesName") || "").trim(),
             outletCode: String(get("outletCode") || "").trim(),
             outletName: String(get("outletName") || "").trim(),
+            // ⚠️ Sprint 17i: alamat outlet — opsional. Bila header tidak ada
+            // di file, buildFieldMap tidak akan set fmap['outletAddress'] dan
+            // get() return null → jadi "" (string kosong). Aman.
+            outletAddress: String(get("outletAddress") || "").trim(),
             invoiceNo: String(get("invoiceNo") || "").trim(),
             productCode: String(get("productCode") || "").trim(),
             productName: String(get("productName") || "").trim(),

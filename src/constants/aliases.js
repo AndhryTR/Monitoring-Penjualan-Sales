@@ -10,6 +10,10 @@ export const ALIASES = {
   salesName: ["NMSL", "SALESMAN", "NAMA SALES", "NAMA SALESMAN"],
   outletCode: ["KDRL", "KODE OUTLET", "KODE TOKO"],
   outletName: ["NMRL", "NAMA OUTLET", "NAMA TOKO"],
+  // ⚠️ Sprint 17i: alamat outlet — opsional (tidak semua file export sistem
+  // sell-out punya kolom ini). Dipakai di export Excel Analisis Outlet.
+  // ⚠️ Sprint 17j: tambah alias "ALRL" (dipakai di file export user).
+  outletAddress: ["ALRL", "ALAMAT", "ALAMAT OUTLET", "ALAMAT TOKO", "ADDRESS", "ALAMAT2"],
   invoiceNo: ["NOFK", "NO FAKTUR", "INVOICE"],
   productCode: ["KDBR", "KODE BARANG", "KODE PRODUK"],
   productName: ["NMBR", "NAMA BARANG", "PRODUCT", "PRODUK"],
@@ -23,7 +27,8 @@ export const ALIASES = {
 
 export const FIELD_LABELS = {
   date: "Tanggal", salesCode: "Kode Sales", salesName: "Nama Sales", outletCode: "Kode Outlet",
-  outletName: "Nama Outlet", invoiceNo: "No Faktur", productCode: "Kode Produk", productName: "Nama Produk",
+  outletName: "Nama Outlet", outletAddress: "Alamat Outlet", invoiceNo: "No Faktur",
+  productCode: "Kode Produk", productName: "Nama Produk",
   qty: "Kuantitas", unit: "Satuan", konv: "Faktor Konversi (KONV)", baseUnit: "Satuan Dasar (UNITK)",
   value: "Nilai (Rp)", group: "Grup Produk",
 };

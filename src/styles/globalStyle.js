@@ -75,6 +75,45 @@ export function createGlobalStyle(colors, powerSaveMode) {
 .sm-progress-fill { transition: width 1s cubic-bezier(.16,1,.3,1); }
 .sm-drop { transition: border-color .2s ease, background .2s ease; }
 .sm-scale-in { animation: smFadeUp .5s cubic-bezier(.16,1,.3,1); }
+
+/* --- Header Redesign (Sprint 18 / Header Redesign) --- */
+/* Divider vertikal antar grup tombol di header utama. Gradient transparan di
+   tepi atas-bawah supaya terlihat halus, bukan garis tegas penuh. */
+.sm-header-divider {
+  width: 1px;
+  height: 22px;
+  background: linear-gradient(to bottom, transparent, ${colors.glassBorder} 30%, ${colors.glassBorder} 70%, transparent);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+/* Search bar prominent di header — input-style glass dengan hover glow mint.
+   ⚠️ Sprint 18d11 / Mobile fix: hapus 'display: flex' dari sini. Sebelumnya
+   'display: flex' hardcoded di sini meng-override Tailwind class 'hidden'
+   (display: none) → search bar prominent TETAP muncul di mobile walau pakai
+   'hidden md:flex'. Sekarang display di-set via Tailwind utility class di
+   elemen button (lihat SalesMonitoringApp.jsx — pakai 'hidden md:flex' supaya
+   hidden di mobile, flex di desktop). align-items + gap tetap di sini supaya
+   layout internal search bar tetap rapi saat dia visible. */
+.sm-header-search {
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen || 'rgba(255,255,255,0.06)'}, transparent 55%), ${colors.glassFill};
+  border: 1px solid ${colors.glassBorder};
+  border-radius: 12px;
+  color: ${colors.textMuted};
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .18s ease;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: inset 0 1px 0 ${colors.glassHighlight || 'rgba(255,255,255,0.08)'};
+}
+.sm-header-search:hover {
+  background: radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen || 'rgba(255,255,255,0.06)'}, transparent 55%), ${colors.glassFillStrong};
+  border-color: ${colors.mint}44;
+  box-shadow: 0 0 0 3px ${colors.mint}0F, inset 0 1px 0 ${colors.glassHighlight || 'rgba(255,255,255,0.08)'};
+}
 .sm-slider {
   border: 1px solid ${colors.glassBorder};
   border-radius: 999px;

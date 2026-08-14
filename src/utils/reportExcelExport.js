@@ -121,14 +121,22 @@ export function exportProductFocusExcel(rows, opts = {}) {
 
 /* ---------------------------------------------------------------------------
    4. ANALISIS OUTLET — ringkasan + 1 sheet detail
+   ⚠️ Sprint 17i: tambah kolom "Kode Outlet" di awal + "Alamat" setelah Nama.
+   Urutan baru: Kode Outlet | Nama Outlet | Alamat | Sales | Total Value |
+   Frekuensi | Grup Produk | Terakhir Transaksi | Jeda (hari) | Status
+   Alamat bersifat opsional — bila file Excel sumber tidak punya kolom alamat,
+   cell akan berisi "-" (lebih jelas daripada kosong).
 --------------------------------------------------------------------------- */
 export function exportOutletAnalysisExcel(list, summary, opts = {}) {
   const { depotName = "", dateRangeLabel = "" } = opts;
   const wb = XLSX.utils.book_new();
   const b = makeSheetBuilder();
-  writeTitleBlock(b, "Analisis Outlet", `${depotName} · ${dateRangeLabel} · Dibuat ${todayLocalDateStr()}`, 8);
+  // ⚠️ Sprint 17i: colCount 8 → 10 (tambah Kode Outlet + Alamat).
+  writeTitleBlock(b, "Analisis Outlet", `${depotName} · ${dateRangeLabel} · Dibuat ${todayLocalDateStr()}`, 10);
 
   // Ringkasan kecil (Total/Aktif/Berisiko/Dormant)
+  // ⚠️ Sprint 17i: ringkasan ditaruh di kolom 1-8 agar rapi (tidak geser ke
+  // 9-10). Baris ke-3, 4 pasang label+value.
   b.setCell(3, 1, "Total Outlet", { bold: true, size: 9, color: "6B7280" });
   b.setCell(3, 2, summary.total, { numFmt: XL_NUMFMT_INT });
   b.setCell(3, 3, "Aktif", { bold: true, size: 9, color: "6B7280" });
@@ -138,21 +146,32 @@ export function exportOutletAnalysisExcel(list, summary, opts = {}) {
   b.setCell(3, 7, "Dormant", { bold: true, size: 9, color: "6B7280" });
   b.setCell(3, 8, summary.dormant, { numFmt: XL_NUMFMT_INT });
 
-  writeHeaderRow(b, 5, ["Nama Outlet", "Sales", "Total Value", "Frekuensi", "Grup Produk", "Terakhir Transaksi", "Jeda (hari)", "Status"]);
+  // Header row: 10 kolom
+  writeHeaderRow(b, 5, [
+    "Kode Outlet", "Nama Outlet", "Alamat", "Sales",
+    "Total Value", "Frekuensi", "Grup Produk",
+    "Terakhir Transaksi", "Jeda (hari)", "Status",
+  ]);
   const STATUS_LABEL = { active: "Aktif", at_risk: "Berisiko", dormant: "Dormant" };
   list.forEach((o, i) => {
     const row = 6 + i;
-    b.setCell(row, 1, o.outletName);
-    b.setCell(row, 2, o.salesLabel);
-    b.setCell(row, 3, o.value, { numFmt: XL_NUMFMT_MONEY });
-    b.setCell(row, 4, o.invoiceCount, { numFmt: XL_NUMFMT_INT });
-    b.setCell(row, 5, o.groupCount, { numFmt: XL_NUMFMT_INT });
-    b.setCell(row, 6, o.lastDate || "-");
-    b.setCell(row, 7, o.daysSinceLastPurchase ?? "-", { numFmt: XL_NUMFMT_INT });
-    b.setCell(row, 8, STATUS_LABEL[o.status] || o.status, {
+    // ⚠️ Sprint 17i: kolom 1 = Kode Outlet, 2 = Nama Outlet, 3 = Alamat,
+    // sisanya geser +2 dari posisi lama.
+    b.setCell(row, 1, o.outletCode || "-");
+    b.setCell(row, 2, o.outletName);
+    b.setCell(row, 3, o.outletAddress || "-");
+    b.setCell(row, 4, o.salesLabel);
+    b.setCell(row, 5, o.value, { numFmt: XL_NUMFMT_MONEY });
+    b.setCell(row, 6, o.invoiceCount, { numFmt: XL_NUMFMT_INT });
+    b.setCell(row, 7, o.groupCount, { numFmt: XL_NUMFMT_INT });
+    b.setCell(row, 8, o.lastDate || "-");
+    b.setCell(row, 9, o.daysSinceLastPurchase ?? "-", { numFmt: XL_NUMFMT_INT });
+    b.setCell(row, 10, STATUS_LABEL[o.status] || o.status, {
       fill: o.status === "active" ? XL_COLORS.mint : o.status === "at_risk" ? XL_COLORS.yellowTier : undefined,
     });
   });
-  XLSX.utils.book_append_sheet(wb, b.finalize([26, 22, 18, 12, 12, 16, 12, 12]), "Analisis Outlet");
+  // ⚠️ Sprint 17i: lebar kolom array 10 elemen (Kode, Nama, Alamat, Sales,
+  // Total Value, Frekuensi, Grup, Tanggal, Jeda, Status).
+  XLSX.utils.book_append_sheet(wb, b.finalize([14, 26, 32, 22, 18, 12, 12, 16, 12, 12]), "Analisis Outlet");
   XLSX.writeFile(wb, `Analisis_Outlet_${(depotName || "depo").replace(/[^a-z0-9]+/gi, "_")}_${todayLocalDateStr()}.xlsx`);
 }

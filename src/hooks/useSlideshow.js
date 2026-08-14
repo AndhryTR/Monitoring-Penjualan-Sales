@@ -25,6 +25,7 @@ export function useSlideshow({
   enabledTabs = DEFAULT_TABS,
   tabDuration = DEFAULT_TAB_DURATION,
   syncInterval = DEFAULT_SYNC_INTERVAL,
+  autoScroll = true,
   onTabChange,
   onSync,
   isAuthed = false,
@@ -56,16 +57,18 @@ export function useSlideshow({
   const currentTab = activeTabs[currentTabIndex] || activeTabs[0] || "executive";
 
   // ---- Start slideshow ----
-  const start = useCallback(() => {
+  // ⚠️ Sprint 17h / SC3: terima startTab — kalau ada di enabledTabs,
+  // mulai dari tab itu. Kalau tidak ada, mulai dari tab pertama.
+  const start = useCallback((startTab) => {
+    const idx = startTab ? activeTabs.indexOf(startTab) : -1;
+    setCurrentTabIndex(idx >= 0 ? idx : 0);
     setIsActive(true);
     setIsPlaying(true);
-    setCurrentTabIndex(0);
     setTimeLeft(tabDuration);
-    // Request fullscreen
     if (document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().catch(() => {});
     }
-  }, [tabDuration]);
+  }, [tabDuration, activeTabs]);
 
   // ---- Stop slideshow ----
   const stop = useCallback(() => {
@@ -147,6 +150,18 @@ export function useSlideshow({
     }, tabDuration * 1000);
 
     // ---- rAF smooth scroll ----
+    // ⚠️ Sprint 17h / bugfix: honor flag `autoScroll` dari slideshowConfig.
+    // Sebelumnya rAF scroll selalu dijadwalkan walau user uncheck "Auto-scroll
+    // halus" di Settings — checkbox tidak berfungsi. Sekarang skip seluruh
+    // blok rAF bila autoScroll=false (cukup tab rotation + tick timer saja).
+    if (!autoScroll) {
+      // Tidak ada rAF scroll — return cleanup kosong (tick + tab timer
+      // sudah di-setup di atas & dibersihkan via return di bawah).
+      return () => {
+        if (tickTimerRef.current) { clearInterval(tickTimerRef.current); tickTimerRef.current = null; }
+        if (tabTimerRef.current) { clearTimeout(tabTimerRef.current); tabTimerRef.current = null; }
+      };
+    }
     // ⚠️ Sprint 17f: fix flickering — cache maxScroll sekali di awal,
     // jangan recalculate setiap frame (scrollHeight berubah saat React
     // re-render charts/konten). Jangan pernah return early dari rAF loop.
@@ -161,15 +176,28 @@ export function useSlideshow({
         return;
       }
 
-      // Cache maxScroll di frame pertama (setelah jeda awal)
+      // ⚠️ Sprint 17g: fix Chrome — re-cache maxScroll selama jeda awal
+      // (2 detik pertama). Chrome butuh waktu lebih lama untuk render
+      // charts Recharts → scrollHeight berubah beberapa kali. Kalau di-cache
+      // terlalu cepat (frame pertama), maxScroll = 0 → scroll tidak jalan.
+      // Fix: selama jeda awal, update maxScroll ke nilai terbesar yang terlihat.
       if (!scrollStateRef.current.startTime) {
         scrollStateRef.current.startTime = timestamp;
-        scrollStateRef.current.maxScroll = c.scrollHeight - c.clientHeight;
+        scrollStateRef.current.maxScroll = 0;
+      }
+
+      const elapsed = timestamp - scrollStateRef.current.startTime;
+
+      // Selama jeda awal, re-cache maxScroll (ambil yang terbesar)
+      if (elapsed < SCROLL_DELAY_START) {
+        const currentMax = c.scrollHeight - c.clientHeight;
+        if (currentMax > (scrollStateRef.current.maxScroll || 0)) {
+          scrollStateRef.current.maxScroll = currentMax;
+        }
       }
 
       const maxScroll = scrollStateRef.current.maxScroll || 0;
 
-      const elapsed = timestamp - scrollStateRef.current.startTime;
       let progress;
       if (elapsed < SCROLL_DELAY_START) {
         progress = 0;
@@ -188,7 +216,7 @@ export function useSlideshow({
         c.scrollTop = maxScroll * eased;
       }
 
-      // SELALU schedule next frame — jangan pernah stop kecuali tab selesai
+      // SELALU schedule next frame
       if (elapsed < tabDuration * 1000) {
         rafScrollRef.current = requestAnimationFrame(smoothScrollStep);
       }
@@ -207,7 +235,7 @@ export function useSlideshow({
       if (scrollTimerRef.current) { clearTimeout(scrollTimerRef.current); scrollTimerRef.current = null; }
       if (rafScrollRef.current) { cancelAnimationFrame(rafScrollRef.current); rafScrollRef.current = null; }
     };
-  }, [isActive, isPlaying, currentTabIndex, activeTabs.length, tabDuration, currentTab]);
+  }, [isActive, isPlaying, currentTabIndex, activeTabs.length, tabDuration, currentTab, autoScroll]);
 
   // ---- Auto-sync effect ----
   useEffect(() => {

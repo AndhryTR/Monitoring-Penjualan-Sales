@@ -27,7 +27,7 @@ import { InsightBanner } from "../components/executive/InsightBanner.jsx";
    - Contextual hints ("Pace: X hari", "Perlu Rp X/hari")
    - Card 6 diganti: Target AO → Proyeksi Akhir Bulan (lebih actionable)
 ============================================================================ */
-export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison, projectionMethod, onProjectionMethodChange, dataQualityNotes, onNavigate, rawRows, targets, filters, slideshowMode = false }) {
+export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison, projectionMethod, onProjectionMethodChange, dataQualityNotes, onNavigate, rawRows, targets, filters, slideshowMode = false, hideAlerts = false }) {
   const uniqueDaysInData = useMemo(() => new Set(agg.filteredRows.map(r => dateKey(r.date))).size, [agg.filteredRows]);
   const t = agg.totals;
   const timeGone = workDays ? Math.min(1, uniqueDaysInData / workDays) : 0;
@@ -81,7 +81,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
         workDays={workDays}
         uniqueDays={uniqueDaysInData}
       />
-      {!slideshowMode && (agg.alerts.length > 0 || dataQualityNotes) && (
+      {!hideAlerts && (agg.alerts.length > 0 || dataQualityNotes) && (
         <div className="mb-6">
           <InsightBanner alerts={agg.alerts} dataQualityNotes={dataQualityNotes} colors={colors} onNavigate={onNavigate} onDrilldown={onDrilldown} />
         </div>

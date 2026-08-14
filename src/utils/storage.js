@@ -15,10 +15,16 @@
    atau datanya korup, fungsi ini akan gagal secara diam-diam (return null /
    false) supaya aplikasi tetap berjalan normal (hanya jadi in-memory saja),
    bukan crash.
+
+   ⚠️ Sprint 18 / Multi-Depo: settings key "smapp:settings:v1" tetap dipakai
+   (key string, bukan version), tapi payload _v:2 sekarang menampung
+   depots[] + activeDepotId. Migrasi v1→v2 otomatis di loadSettings() bila
+   payload lama (tanpa _v atau _v:1) ditemukan — wrap targets/workDays/
+   depotName lama ke depots[0].
 ============================================================================ */
 
 const SETTINGS_KEY = "smapp:settings:v1";
-const SETTINGS_VERSION = 1;
+const SETTINGS_VERSION = 2; // ⚠️ Sprint 18: bump 1 → 2 (multi-depo schema)
 
 const DB_NAME = "smapp-db";
 const DB_VERSION = 1;
@@ -33,6 +39,50 @@ const HISTORY_VERSION = 1;
 // ⚠️ Sprint 5 / S1: import HISTORY_MAX_ENTRIES dari constants/thresholds.js
 // (sebelumnya dideklarasi lokal di sini — duplikat dengan constants).
 import { HISTORY_MAX_ENTRIES } from "../constants/thresholds.js";
+// ⚠️ Sprint 18: import template helpers untuk migrasi v1→v2
+import { generateDepotId, generateDepotCode, DEFAULT_DEPOT_NAME } from "../constants/depoTemplate.js";
+
+// ⚠️ Sprint 18: Migrasi settings dari schema v1 (flat targets/workDays/depotName)
+// ke v2 (depots[] + activeDepotId). Aman bila input sudah v2 (idempotent).
+// Bila input null/undefined → return null (caller akan pakai default di hook).
+function migrateV1ToV2(parsed) {
+  if (!parsed || typeof parsed !== "object") return null;
+
+  // Sudah v2 — return apa adanya
+  if (parsed._v === 2 && Array.isArray(parsed.depots)) return parsed;
+
+  // v1 (atau tanpa _v) — wrap ke depots[0]
+  // Ambil field lama dengan fallback default
+  const oldTargets = Array.isArray(parsed.targets) ? parsed.targets : [];
+  const oldWorkDays = typeof parsed.workDays === "number" ? parsed.workDays : 26;
+  const oldDepotName = typeof parsed.depotName === "string" && parsed.depotName ? parsed.depotName : DEFAULT_DEPOT_NAME;
+  const now = new Date().toISOString();
+
+  const depotId = generateDepotId(oldDepotName);
+  const depot = {
+    id: depotId,
+    name: oldDepotName,
+    code: generateDepotCode(oldDepotName),
+    workDays: oldWorkDays,
+    targets: oldTargets,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  return {
+    ...parsed, // pertahankan field lain (theme, filters, slideshowConfig, dll)
+    _v: 2,
+    depots: [depot],
+    activeDepotId: depotId,
+    // ⚠️ Field lama targets/workDays/depotName sengaja TIDAK dihapus dari root
+    // — bila user downgrade aplikasi ke versi lama, field lama masih ada dan
+    // aplikasi lama masih bisa load. Backup kompatibilitas. Setelah 30 hari
+    // stabil, bisa di-cleanup.
+    targets: oldTargets,
+    workDays: oldWorkDays,
+    depotName: oldDepotName,
+  };
+}
 
 export function saveSettings(settings) {
   try {
@@ -50,11 +100,12 @@ export function loadSettings() {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    // Jalur migrasi sederhana: kalau versi struktur berubah di masa depan,
-    // tempat untuk menyesuaikan/membersihkan data lama ada di sini,
-    // bukan langsung dipakai mentah-mentah.
     if (!parsed || typeof parsed !== "object") return null;
-    return parsed;
+    // ⚠️ Sprint 18: migrasi v1→v2 otomatis bila payload lama ditemukan.
+    // Hasil migrasi TIDAK ditulis balik ke localStorage di sini (biar loadSettings
+    // tetap pure read). Hook useSettings yang akan detect perubahan _v dan tulis
+    // balik lewat auto-save effect saat state di-set.
+    return migrateV1ToV2(parsed);
   } catch (e) {
     console.warn("Gagal membaca pengaturan tersimpan, memakai default:", e);
     return null;

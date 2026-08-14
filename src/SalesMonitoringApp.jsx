@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import sumBy from "lodash/sumBy";
 import {
-  X, RefreshCw, Sun, Moon, Cloud, CloudOff, CloudUpload, User as UserIcon,
-  Smartphone, Share, History, Settings, Loader2, Search,
+  X, RefreshCw, Sun, Moon, CloudUpload, User as UserIcon,
+  Smartphone, Share, History, Loader2, Search,
   FileSpreadsheet, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState, saveMasterMax } from "./utils/storage.js";
@@ -49,6 +49,8 @@ import { Monitor } from "lucide-react";
 import { FilterBar } from "./components/ui/FilterBar.jsx";
 import { DashboardSkeleton } from "./components/ui/DashboardSkeleton.jsx";
 import { UploadDropzone, MobileBottomNav, MobileFab, ExportMenu } from "./components/upload/index.jsx";
+// ⚠️ Sprint 18 / Header Redesign: AvatarButton untuk header baru
+import { AvatarButton } from "./components/ui/AvatarButton.jsx";
 import { TrendPeriodePage } from "./components/trend/index.jsx";
 import { MainReportPage } from "./pages/MainReportPage.jsx";
 import { SalesReportPage } from "./pages/SalesReportPage.jsx";
@@ -110,6 +112,21 @@ export default function SalesMonitoringApp() {
     depotName, setDepotName,
     projectionMethod, setProjectionMethod,
     comparisonBase, setComparisonBase,
+    slideshowConfig, setSlideshowConfig,
+    // ⚠️ Sprint 18 / Multi-Depo: API baru dari useSettings
+    depots, activeDepotId,
+    setActiveDepot, addDepot, deleteDepot,
+    // addSales, updateSales, deleteSales — akan dipakai di Sprint C (Excel import)
+    // tapi tetap di-destructure di sini supaya terlihat di signature.
+    // ⚠️ eslint-disable untuk unused — sudah by design.
+    // eslint-disable-next-line no-unused-vars
+    activeDepot,
+    // eslint-disable-next-line no-unused-vars
+    addSales,
+    // eslint-disable-next-line no-unused-vars
+    updateSales,
+    // eslint-disable-next-line no-unused-vars
+    deleteSales,
     resetAllSettings,
     applyCloudSettings,
   } = useSettings();
@@ -310,6 +327,16 @@ export default function SalesMonitoringApp() {
     const base = THEMES[theme];
     return powerSaveMode ? applyPowerSaveColors(base) : base;
   }, [theme, powerSaveMode]);
+  // ⚠️ Sprint 17h / bugfix: effective colors untuk slideshow saat forceDark.
+  // Kalau user centang "Dark mode paksa" di Settings, slideshow (chrome +
+  // konten page) harus selalu dark walau app lagi pakai light theme.
+  // effectiveSlideshowColors dipakai baik di SlideshowMode chrome maupun di
+  // renderPage() supaya konsisten (sebelumnya hanya chrome yg di-override,
+  // konten masih pakai theme aktif → light mode "bocor" di slideshow).
+  const effectiveSlideshowColors = useMemo(() => {
+    if (!slideshowConfig?.forceDark) return colors;
+    return { ...colors, ...THEMES.dark };
+  }, [colors, slideshowConfig?.forceDark]);
   const globalStyle = useMemo(() => createGlobalStyle(colors, powerSaveMode), [colors, powerSaveMode]);
 
   const groupOptions = useMemo(() => {
@@ -329,10 +356,14 @@ export default function SalesMonitoringApp() {
 
   // ---- Slideshow Mode (Sprint 17 / SS1) ----
   // Auto-rotate antar tab untuk display monitor di ruang sales.
+  // ⚠️ Sprint 17h / bugfix: teruskan flag autoScroll dari slideshowConfig
+  // supaya checkbox "Auto-scroll halus" di Settings benar-benar berfungsi
+  // (sebelumnya flag diabaikan — rAF scroll selalu jalan).
   const slideshow = useSlideshow({
-    enabledTabs: ["executive", "main", "sales", "product", "focus"],
-    tabDuration: 30,
-    syncInterval: 5,
+    enabledTabs: slideshowConfig?.enabledTabs || ["executive", "main", "sales", "product", "focus"],
+    tabDuration: slideshowConfig?.tabDuration || 30,
+    syncInterval: slideshowConfig?.syncInterval || 5,
+    autoScroll: slideshowConfig?.autoScroll ?? true,
     onTabChange: (tab) => setActiveTab(tab),
     onSync: () => { if (isAuthedRef.current) syncMasterNow(); },
     isAuthed: isAuthedRef.current,
@@ -709,7 +740,8 @@ export default function SalesMonitoringApp() {
       )}
       <div className="relative" style={{ zIndex: 1 }}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors}
-        theme={theme} setTheme={setTheme} powerSaveMode={powerSaveMode} setPowerSaveMode={setPowerSaveMode} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge} />
+        theme={theme} setTheme={setTheme} powerSaveMode={powerSaveMode} setPowerSaveMode={setPowerSaveMode} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge}
+        slideshowConfig={slideshowConfig} setSlideshowConfig={setSlideshowConfig} onStartSlideshow={() => slideshow.start(activeTab)} />
       <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} colors={colors} onLoginSuccess={() => {}} sessionUser={sessionUser} userRole={userRole} onLogout={handleLogout} settingsSyncState={settingsSyncState} settingsSyncMsg={settingsSyncMsg} lastSettingsSyncAt={lastSettingsSyncAt} onRetrySettings={() => { settingsSyncNowRef.current?.(); }} masterSyncState={masterSyncState} masterSyncMsg={masterSyncMsg} lastMasterSyncAt={lastMasterSyncAt} onMasterSync={syncMasterNow} />
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} colors={colors} />
       {/* ⚠️ Sprint 9 / GS2: Global Search / Command Palette (Cmd+K / Ctrl+K) */}
@@ -723,21 +755,36 @@ export default function SalesMonitoringApp() {
       {/* ⚠️ Sprint 17 / SS2: Slideshow Mode overlay */}
       <SlideshowMode
         {...slideshow}
-        colors={colors}
+        colors={effectiveSlideshowColors}
         depotName={depotName}
         aggMeta={aggFinal.meta}
+        // ⚠️ Sprint 17h / bugfix: teruskan flag tampilan dari slideshowConfig
+        // supaya checkbox "Font diperbesar", "Dark mode paksa" benar-benar
+        // berfungsi (sebelumnya diabaikan — font selalu 1.15em, colors selalu
+        // dari theme aktif).
+        largeFont={slideshowConfig?.largeFont ?? true}
+        forceDark={slideshowConfig?.forceDark ?? false}
         renderPage={(tab) => {
           // Render page yang sama dengan yang di main content, tapi dengan
-          // prop slideshowMode=true supaya DataTable di-hide.
-          // ⚠️ Sprint 17 / SS4: prop slideshowMode diteruskan ke pages untuk
-          // sembunyikan tabel detail (DataTable) — hanya tampilkan KPI cards
-          // dan charts yang cocok untuk display monitor.
+          // prop slideshowMode={hideTables} supaya DataTable di-hide hanya
+          // kalau user menandai "Sembunyikan tabel" di Settings.
+          // ⚠️ Sprint 17h / bugfix: sebelumnya `slideshowMode` hard-coded true
+          // → uncheck "Sembunyikan tabel" tidak ada efek, tabel tetap hilang.
+          // Sekarang flag diambil dari slideshowConfig.hideTables.
+          // ⚠️ Sprint 17h / bugfix: hideAlerts dipisah dari slideshowMode
+          // (sebelumnya nge-conflate "hide tables" + "hide alerts" dalam satu
+          // prop). Sekarang MainReportPage terima `hideAlerts` terpisah.
+          // ⚠️ Sprint 17h / bugfix: pakai effectiveSlideshowColors (bukan
+          // colors) supaya forceDark berlaku juga ke konten page.
+          const pageColors = effectiveSlideshowColors;
+          const hideTables = slideshowConfig?.hideTables ?? true;
+          const hideAlerts = slideshowConfig?.hideAlerts ?? true;
           switch (tab) {
-            case "executive": return <ExecutiveSummaryPage agg={aggFinal} colors={colors} workDays={workDays} onDrilldown={openDrilldown} comparison={comparison} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} slideshowMode />;
-            case "main": return <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} slideshowMode />;
-            case "sales": return <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} slideshowMode />;
-            case "product": return <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} slideshowMode />;
-            case "focus": return <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} slideshowMode />;
+            case "executive": return <ExecutiveSummaryPage agg={aggFinal} colors={pageColors} workDays={workDays} onDrilldown={openDrilldown} comparison={comparison} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} slideshowMode={hideTables} />;
+            case "main": return <MainReportPage agg={aggFinal} workDays={workDays} colors={pageColors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} slideshowMode={hideTables} hideAlerts={hideAlerts} />;
+            case "sales": return <SalesReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} slideshowMode={hideTables} />;
+            case "product": return <ProductReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} depotName={depotName} slideshowMode={hideTables} />;
+            case "focus": return <ProductFocusReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} depotName={depotName} slideshowMode={hideTables} />;
             default: return null;
           }
         }}
@@ -758,100 +805,131 @@ export default function SalesMonitoringApp() {
         defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
       <MobileFab onFile={handleFile} colors={colors} loading={loading} />
       <MobileBottomNav tabs={TABS} activeTab={activeTab} onChange={setActiveTab} colors={colors} />
+
+      {/* ⚠️ Sprint 18d / Header Redesign: layout root kembali ke pola lama
+          (Sidebar di kiri sejajar Header+Content di kanan) — user prefer ini.
+          Header tetap pakai glass card dengan 3 grup + search prominent. */}
       <div className="flex items-start">
+
+        {/* ===== SIDEBAR (desktop, kiri) ===== */}
         <Sidebar activeTab={activeTab} onChangeTab={setActiveTab} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
-          onOpenHistory={() => setIsHistoryOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} historyDisabled={!rawRows.length} colors={colors} />
+          onOpenHistory={() => setIsHistoryOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} historyDisabled={!rawRows.length} colors={colors}
+          // ⚠️ Sprint 18 / Multi-Depo: pass depo state + setters ke Sidebar
+          depots={depots} activeDepotId={activeDepotId}
+          onSelectDepot={setActiveDepot} onAddDepot={addDepot} onDeleteDepot={deleteDepot} />
+
+        {/* ===== MAIN AREA (kanan: header + content) ===== */}
         <div className="flex-1 min-w-0">
-      <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 pb-24 md:pb-6">
-        {/* header */}
-        <div className="relative z-40 flex flex-wrap items-center justify-between gap-4 mb-6 sm-fadeup">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl" style={{ background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})` }}>
-              <FileSpreadsheet size={20} color="#0A1120" />
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-4 md:py-6 pb-24 md:pb-6">
+
+        {/* ===== HEADER (glass card, di kolom kanan sidebar) ===== */}
+        <div className="sm-card sm-fadeup sticky top-2 z-40 mb-4" style={{ padding: "10px 12px" }}>
+          {/* ⚠️ Sprint 18d9 / Responsive fix (revised per user feedback):
+              Desktop: brand di kiri, search + actions di grup kanan (justify-between)
+              Mobile: brand + actions sejajar di baris atas (manfaatkan space kosong),
+                      search bar pindah ke baris bawah sendiri (full-width).
+              Sebelumnya mobile: brand sendirian di atas, actions pindah ke baris
+              bawah → space kanan brand kosong sia-sia. Sekarang brand+actions
+              1 baris, search saja yang turun. */}
+          <div className="flex items-center justify-between gap-2 md:gap-3">
+
+            {/* Blok kiri: Brand — selalu di kiri */}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="p-1.5 rounded-lg shrink-0" style={{ background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})` }}>
+                <FileSpreadsheet size={14} color="#0A1120" />
+              </div>
+              <div className="min-w-0 hidden sm:block">
+                <h1 className="disp text-sm font-bold truncate" style={{ color: colors.text }}>Monitoring Penjualan</h1>
+                <p className="text-[10px] leading-tight" style={{ color: colors.textMuted }}>Dashboard sales & produk</p>
+              </div>
             </div>
-            <div>
-              <h1 className="disp text-xl font-bold">Monitoring Penjualan</h1>
-              <p className="text-xs" style={{ color: colors.textMuted }}>Dashboard pencapaian sales, produk & produk fokus</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {canShowInstallButton && (
-              <button onClick={handleInstallClick}
-                className="sm-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
-                style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
-                <Smartphone size={15} /> <span className="hidden sm:inline">Instal Aplikasi</span>
+
+            {/* Blok kanan: Search (desktop only) + Actions — grup kanan
+                Di mobile, search bar disembunyikan dari sini (akan muncul di
+                baris bawah sebagai full-width). Actions tetap di baris atas
+                sejajar dengan brand supaya space kanan tidak kosong. */}
+            <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
+
+              {/* Search bar — desktop only di grup kanan, mobile di baris bawah */}
+              <button onClick={() => setIsSearchOpen(true)} disabled={!rawRows.length}
+                className="sm-header-search hidden md:flex md:max-w-xs lg:max-w-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Pencarian global (Ctrl+K atau Cmd+K)"
+                aria-label="Pencarian global">
+                <Search size={14} className="shrink-0" />
+                <span className="truncate text-left flex-1">Cari sales, outlet, produk...</span>
+                <kbd className="px-1.5 py-0.5 rounded text-[10px] hidden lg:inline shrink-0"
+                  style={{ background: colors.glassSubtle, color: colors.textMuted }}>⌘K</kbd>
               </button>
-            )}
-            <button onClick={() => setIsLoginOpen(true)}
-              className="sm-btn flex items-center gap-2 px-2.5 py-2.5 rounded-xl text-sm font-semibold relative"
-              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
-              title={sessionUser ? (sessionUser.email || "Akun") : "Masuk / Daftar"}>
-              {sessionUser ? (
-                <UserIcon size={15} style={{ color: colors.mint }} />
-              ) : (
-                <CloudOff size={15} style={{ color: colors.textMuted }} />
-              )}
-              {/* indikator sync: ikon awan kecil — settings (otomatis) atao master (manual) yang sedang/berhasil/gagal */}
-              {sessionUser && (
-                <span className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full" style={{ background: colors.surface }}>
-                  {settingsSyncState === "syncing" || masterSyncState === "syncing" ? (
-                    <CloudUpload size={11} style={{ color: colors.gold }} />
-                  ) : settingsSyncState === "error" || masterSyncState === "error" ? (
-                    <CloudOff size={11} style={{ color: colors.coral }} />
-                  ) : settingsSyncState === "done" ? (
-                    <CheckCircle2 size={11} style={{ color: colors.mint }} />
-                  ) : (
-                    <CloudOff size={11} style={{ color: colors.textMuted }} />
-                  )}
-                </span>
-              )}
-              {!sessionUser && cloudEnabled && (
-                <span className="hidden sm:inline text-xs" style={{ color: colors.textMuted }}>Masuk</span>
-              )}
-            </button>
-            {/* ⚠️ Sprint 9 / GS3: Global Search button — Cmd+K / Ctrl+K shortcut */}
-            {/* ⚠️ Sprint 17 / SS3: Slideshow mode button */}
-            <button onClick={() => slideshow.start()} disabled={!rawRows.length}
-              className="sm-btn flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
-              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
-              title="Mode Pajangan (untuk monitor di ruang sales)"
-              aria-label="Mode Pajangan">
-              <Monitor size={15} />
-              <span className="hidden lg:inline text-xs" style={{ color: colors.textMuted }}>Slideshow</span>
-            </button>
-            <button onClick={() => setIsSearchOpen(true)} disabled={!rawRows.length}
-              className="sm-btn flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
-              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
-              title="Pencarian global (Ctrl+K atau Cmd+K)"
-              aria-label="Pencarian global">
-              <Search size={15} />
-              <span className="hidden lg:inline text-xs" style={{ color: colors.textMuted }}>Cari...</span>
-              <kbd className="hidden lg:inline px-1.5 py-0.5 rounded text-[10px]" style={{ background: colors.glassSubtle, color: colors.textMuted }}>⌘K</kbd>
-            </button>
-            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="sm-btn p-2.5 rounded-xl"
-              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
-              aria-label="Ganti tema">
-              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-            </button>
-            {/* Riwayat & Pengaturan: desktop sekarang lewat Sidebar (section
-                Tools), jadi tombol ini disembunyikan mulai breakpoint md.
-                Mobile tetap butuh ini karena tidak punya Sidebar sama sekali. */}
-            <button onClick={() => setIsHistoryOpen(true)} disabled={!rawRows.length}
-              className="sm-btn flex md:hidden items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
-              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
-              <History size={15} /> <span className="hidden sm:inline">Snapshot</span>
-            </button>
-            <button onClick={() => setIsSettingsOpen(true)}
-              className="sm-btn flex md:hidden items-center gap-2 px-2.5 py-2.5 rounded-xl text-sm font-semibold"
-              style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
-              <Settings size={15} />
-            </button>
-            <ExportMenu agg={aggFinal} targets={targets} workDays={workDays} depotName={depotName} disabled={!rawRows.length} colors={colors} />
+
+              {/* Actions group */}
+              <div className="flex items-center gap-1.5">
+
+                {/* Mobile-only: Search icon button (di baris atas, sejajar actions lainnya).
+                    Desktop tidak butuh ini karena search bar prominent sudah ada di grup kanan. */}
+                <button onClick={() => setIsSearchOpen(true)} disabled={!rawRows.length}
+                  className="sm-btn p-2 rounded-lg flex md:hidden disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
+                  aria-label="Pencarian global"
+                  title="Pencarian global (Ctrl+K atau Cmd+K)">
+                  <Search size={14} />
+                </button>
+
+                {/* Grup 1: Aksi konten — slideshow + export */}
+                <button onClick={() => slideshow.start(activeTab)} disabled={!rawRows.length}
+                  className="sm-btn p-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
+                  title="Mode Pajangan (untuk monitor di ruang sales)"
+                  aria-label="Mode Pajangan">
+                  <Monitor size={14} />
+                </button>
+                <ExportMenu agg={aggFinal} targets={targets} workDays={workDays} depotName={depotName} disabled={!rawRows.length} colors={colors} />
+
+                {/* Divider — desktop only */}
+                <div className="sm-header-divider hidden md:block" />
+
+                {/* Grup 2: Utility — theme toggle, desktop only */}
+                <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className="sm-btn p-2 rounded-lg hidden md:flex"
+                  style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
+                  aria-label="Ganti tema"
+                  title="Ganti tema">
+                  {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+                </button>
+
+                {/* Divider — desktop only */}
+                <div className="sm-header-divider hidden md:block" />
+
+                {/* Mobile-only: Snapshot — pindah ke SEBELUM avatar (sebelah kiri
+                    avatar) supaya urutan: ... | snapshot | avatar. Tombol Settings
+                    mobile dihapus karena sudah ada di menu avatar popover. */}
+                <button onClick={() => setIsHistoryOpen(true)} disabled={!rawRows.length}
+                  className="sm-btn p-2 rounded-lg flex md:hidden disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
+                  aria-label="Snapshot"
+                  title="Snapshot Periode">
+                  <History size={14} />
+                </button>
+
+                {/* Grup 3: Avatar — selalu tampil, terakhir di kanan */}
+                <AvatarButton
+                  sessionUser={sessionUser}
+                  syncState={settingsSyncState === "syncing" || masterSyncState === "syncing" ? "syncing"
+                    : settingsSyncState === "error" || masterSyncState === "error" ? "error"
+                    : settingsSyncState === "done" ? "done" : "idle"}
+                  onOpenSettings={() => setIsSettingsOpen(true)}
+                  onOpenLogin={() => setIsLoginOpen(true)}
+                  onLogout={handleLogout}
+                  onInstallPwa={handleInstallClick}
+                  canInstallPwa={canShowInstallButton}
+                  onOpenBackup={() => { setIsSettingsOpen(true); }}
+                  colors={colors}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* PWA: notifikasi pertama kali app siap dipakai offline */}
+        {/* ===== Remaining content: PWA notifications, page content, etc. ===== */}
         {offlineReady && !needRefresh && (
           <div className="mb-6 sm-fadeup flex items-center justify-between gap-3 px-4 py-3 rounded-xl" style={{ background: colors.mint + "14", border: `1px solid ${colors.mint}44` }}>
             <div className="flex items-center gap-2.5 text-sm">

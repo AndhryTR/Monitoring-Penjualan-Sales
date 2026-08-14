@@ -216,6 +216,11 @@ export function computeOutletAnalysis(rows, meta, thresholds) {
     if (!map[key]) {
       map[key] = {
         outletCode: r.outletCode, outletName: r.outletName || r.outletCode || "(tanpa nama)",
+        // ⚠️ Sprint 17i: simpan alamat outlet dari baris pertama yang ditemui
+        // untuk key ini. Bila baris berikutnya punya alamat berbeda (jarang
+        // tapi bisa terjadi kalau data master kotor), pakai alamat non-kosong
+        // pertama — bukan overwrite dengan "".
+        outletAddress: r.outletAddress || "",
         value: 0, qty: 0, invoices: new Set(), groups: new Set(), salesNames: new Set(), lastDate: null,
       };
     }
@@ -225,6 +230,9 @@ export function computeOutletAnalysis(rows, meta, thresholds) {
     if (r.invoiceNo) o.invoices.add(r.invoiceNo);
     if (r.group) o.groups.add(r.group);
     if (r.salesName) o.salesNames.add(r.salesName);
+    // Isi alamat bila belum ada (baris berikutnya mungkin punya alamat yang
+    // baris pertama tidak punya — di file yang kolom alamat-nya sebagian kosong).
+    if (!o.outletAddress && r.outletAddress) o.outletAddress = r.outletAddress;
     if (!o.lastDate || r.date > o.lastDate) o.lastDate = r.date;
   });
 
@@ -243,6 +251,8 @@ export function computeOutletAnalysis(rows, meta, thresholds) {
     return {
       outletCode: o.outletCode,
       outletName: o.outletName,
+      // ⚠️ Sprint 17i: teruskan alamat ke hasil list untuk dipakai di export.
+      outletAddress: o.outletAddress || "",
       value: o.value,
       qty: o.qty,
       invoiceCount: o.invoices.size,

@@ -1,20 +1,30 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { saveSettings, loadSettings, clearSettings } from "../utils/storage.js";
 import { WORK_DAYS_DEFAULT } from "../constants/thresholds.js";
 import DEFAULT_TARGETS from "../constants/defaultTargets.json";
+// ⚠️ Sprint 18 / Multi-Depo: import template helpers untuk addDepot/duplicateDepot
+import {
+  makeBlankDepot, makeStandardDepot, duplicateDepot,
+  generateDepotId,
+  DEFAULT_DEPOT_NAME, DEFAULT_DEPOT_CODE,
+} from "../constants/depoTemplate.js";
 
 /* ============================================================================
    useSettings — hook untuk state settings + auto-save (debounced) ke localStorage.
-   ⚠️ Sprint 6 / R4: sebelumnya inline di SalesMonitoringApp.jsx (~100 baris
-   state declarations + auto-save effect dengan debounce). Dipisah ke hook
-   supaya SalesMonitoringApp.jsx fokus jadi orchestrator.
 
-   Hook ini mengelola:
-   - persistedSettings (lazy load dari localStorage sekali saat mount)
-   - 9 state settings: theme, powerSaveMode, sidebarCollapsed, filters,
-     workDays, targets, depotName, projectionMethod, comparisonBase
-   - Auto-save dengan debounce 400ms + dirty-flag tracking (Sprint 1 + H7)
-   - Reset ke default (dipakai "Clear All" di SettingsModal)
+   ⚠️ Sprint 18 / Multi-Depo: refactor besar-besaran. Sebelumnya `targets`,
+   `workDays`, `depotName` adalah state terpisah yang langsung di-persist.
+   Sekarang `depots[]` + `activeDepotId` jadi source of truth; ketiga field
+   itu menjadi derived value dari `depots[activeDepotId]`.
+
+   Strategi backward-compat:
+   - API publik tetap expose `targets`, `setTargets`, `workDays`, `setWorkDays`,
+     `depotName`, `setDepotName` — komponen konsumer (TargetSalesEditor,
+     SalesMonitoringApp, dll.) tidak perlu diubah.
+   - Setter `setTargets(next)` sekarang wrap: update `depots[i].targets` di
+     indeks depo aktif, lalu trigger state update `depots`.
+   - API baru yang di-expose: `depots`, `activeDepotId`, `setActiveDepot`,
+     `addDepot`, `deleteDepot`, `addSales`, `updateSales`, `deleteSales`.
 
    Catatan:
    - persistedSettings.updated_at dipakai untuk sync LWW (lihat useCloudSync).
@@ -22,55 +32,212 @@ import DEFAULT_TARGETS from "../constants/defaultTargets.json";
    - Save berikutnya (perubahan nilai) debounce 400ms untuk hindari
      JSON.stringify 28KB targets di setiap keystroke (Sprint 2 / H7).
 ============================================================================ */
+
+// Default depots saat pertama kali app dibuka tanpa settings tersimpan sama
+// sekali — wrap DEFAULT_TARGETS ke depots[0] supaya user existing tidak kena
+// dampak (dashboard tetap menampilkan 11 sales DEPO LOTIM).
+function makeInitialDepots(persisted) {
+  // Persisted sudah migrasi v2 dari storage.js — pakai apa adanya.
+  if (persisted?.depots && Array.isArray(persisted.depots) && persisted.depots.length > 0) {
+    return persisted.depots;
+  }
+  // Fallback: bila persisted null/kosong, buat depots[0] dari DEFAULT_TARGETS.
+  const now = new Date().toISOString();
+  const depotId = generateDepotId(DEFAULT_DEPOT_NAME);
+  return [{
+    id: depotId,
+    name: DEFAULT_DEPOT_NAME,
+    code: DEFAULT_DEPOT_CODE,
+    workDays: WORK_DAYS_DEFAULT,
+    targets: DEFAULT_TARGETS,
+    createdAt: now,
+    updatedAt: now,
+  }];
+}
+
 export function useSettings() {
   const [persistedSettings] = useState(() => loadSettings());
 
+  // ---- Global state (tetap) ----
   const [theme, setTheme] = useState(persistedSettings?.theme || "dark");
   const [powerSaveMode, setPowerSaveMode] = useState(persistedSettings?.powerSaveMode ?? false);
-  // Status collapse sidebar desktop — diingat lintas sesi sama seperti tema.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(persistedSettings?.sidebarCollapsed ?? false);
 
   const [filters, setFilters] = useState(() => {
     const saved = persistedSettings?.filters;
     if (!saved) return { salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" };
-    // Settings lama (sebelum fitur preset ada) belum punya field datePreset —
-    // kalau dateFrom/dateTo sudah keisi manual, anggap "custom" biar tidak
-    // tiba-tiba ketimpa jadi "Semua Data".
     return { ...saved, datePreset: saved.datePreset ?? (saved.dateFrom || saved.dateTo ? "custom" : "all") };
   });
-  const [workDays, setWorkDays] = useState(persistedSettings?.workDays ?? WORK_DAYS_DEFAULT);
-  const [targets, setTargets] = useState(persistedSettings?.targets ?? DEFAULT_TARGETS);
-  const [depotName, setDepotName] = useState(persistedSettings?.depotName ?? "DEPO LOTIM");
-  // Metode proyeksi terpilih di ProjectionCard (linear/trend7/weekday) —
-  // disimpan lintas sesi seperti pengaturan lain, konsisten dengan preferensi
-  // user yang sifatnya "cara pandang data", bukan data itu sendiri.
   const [projectionMethod, setProjectionMethod] = useState(persistedSettings?.projectionMethod ?? "linear");
-  // Opsi pembanding growth di tab Tren Periode & Perbandingan.
   const [comparisonBase, setComparisonBase] = useState(persistedSettings?.comparisonBase ?? "prev");
 
+  const [slideshowConfig, setSlideshowConfig] = useState(persistedSettings?.slideshowConfig ?? {
+    tabDuration: 30, syncInterval: 5, scrollDelay: 2,
+    enabledTabs: ["executive", "main", "sales", "product", "focus"],
+    autoScroll: true, hideAlerts: true, hideTables: true, largeFont: true, forceDark: false,
+  });
+
+  // ---- NEW: Multi-Depo state (Sprint 18) ----
+  const [depots, setDepots] = useState(() => makeInitialDepots(persistedSettings));
+  const [activeDepotId, setActiveDepotId] = useState(
+    () => {
+      // Pilih activeDepotId dari persisted, fallback ke depots[0].id
+      const persistedActiveId = persistedSettings?.activeDepotId;
+      if (persistedActiveId && persistedSettings?.depots?.some((d) => d.id === persistedActiveId)) {
+        return persistedActiveId;
+      }
+      // Fallback: depots[0].id dari initial state
+      const initial = makeInitialDepots(persistedSettings);
+      return initial[0]?.id || generateDepotId(DEFAULT_DEPOT_NAME);
+    }
+  );
+
+  // ---- Derived: activeDepot + backward-compat fields (targets/workDays/depotName) ----
+  // Memo supaya identity stabil — kalau depots/activeDepotId tidak berubah,
+  // object reference tetap sama → child memo tidak re-render sia-sia.
+  const activeDepot = useMemo(() => {
+    return depots.find((d) => d.id === activeDepotId) || depots[0] || null;
+  }, [depots, activeDepotId]);
+
+  const targets = activeDepot?.targets ?? [];
+  const workDays = activeDepot?.workDays ?? WORK_DAYS_DEFAULT;
+  const depotName = activeDepot?.name ?? DEFAULT_DEPOT_NAME;
+
+  // ---- Backward-compat setters (wrap depo mutation) ----
+  // setTargets: update targets di depo aktif. Menerima nilai baru atau updater fn.
+  const setTargets = useCallback((next) => {
+    setDepots((prev) => prev.map((d) => {
+      if (d.id !== activeDepotId) return d;
+      const newTargets = typeof next === "function" ? next(d.targets) : next;
+      return { ...d, targets: newTargets, updatedAt: new Date().toISOString() };
+    }));
+  }, [activeDepotId]);
+
+  const setWorkDays = useCallback((next) => {
+    setDepots((prev) => prev.map((d) => {
+      if (d.id !== activeDepotId) return d;
+      const value = typeof next === "function" ? next(d.workDays) : next;
+      return { ...d, workDays: value, updatedAt: new Date().toISOString() };
+    }));
+  }, [activeDepotId]);
+
+  const setDepotName = useCallback((next) => {
+    setDepots((prev) => prev.map((d) => {
+      if (d.id !== activeDepotId) return d;
+      const value = typeof next === "function" ? next(d.name) : next;
+      return { ...d, name: value, updatedAt: new Date().toISOString() };
+    }));
+  }, [activeDepotId]);
+
+  // ---- NEW: Multi-depo API ----
+  // setActiveDepot: ganti depo aktif. Idempotent — kalau id sama, no-op.
+  const setActiveDepot = useCallback((depotId) => {
+    setActiveDepotId((prev) => (prev === depotId ? prev : depotId));
+  }, []);
+
+  // addDepot: buat depo baru dari template (blank/standard/duplicate).
+  // Setelah buat, auto-switch ke depo baru supaya user langsung lihat hasilnya.
+  // Return depot baru supaya caller bisa ambil id (mis. untuk langsung edit).
+  const addDepot = useCallback((name, code, template = "blank", sourceDepot = null) => {
+    let newDepot;
+    if (template === "standard") {
+      newDepot = makeStandardDepot(name, code);
+    } else if (template === "duplicate" && sourceDepot) {
+      newDepot = duplicateDepot(sourceDepot, name, code);
+    } else {
+      // "blank" atau template tidak dikenal → blank.
+      newDepot = makeBlankDepot(name, code);
+    }
+    setDepots((prev) => [...prev, newDepot]);
+    setActiveDepotId(newDepot.id);
+    return newDepot;
+  }, []);
+
+  // updateDepot: patch sebagian field depo (name, code, workDays).
+  // Tidak untuk targets — gunakan setTargets/addSales/updateSales/deleteSales.
+  const updateDepot = useCallback((depotId, patch) => {
+    setDepots((prev) => prev.map((d) => {
+      if (d.id !== depotId) return d;
+      return { ...d, ...patch, updatedAt: new Date().toISOString() };
+    }));
+  }, []);
+
+  // deleteDepot: hapus depo. Bila depo aktif dihapus, switch ke depots[0]
+  // (atau buat depo blank baru bila depots kosong total — safety net).
+  // Return depo aktif baru supaya caller bisa sync UI.
+  const deleteDepot = useCallback((depotId) => {
+    setDepots((prev) => {
+      const next = prev.filter((d) => d.id !== depotId);
+      // Safety: bila depots kosong total, buat depo blank baru.
+      if (next.length === 0) {
+        const fallback = makeBlankDepot(DEFAULT_DEPOT_NAME, DEFAULT_DEPOT_CODE);
+        setActiveDepotId(fallback.id);
+        return [fallback];
+      }
+      // Bila depo aktif yang dihapus, switch ke next[0].
+      if (depotId === activeDepotId) {
+        setActiveDepotId(next[0].id);
+      }
+      return next;
+    });
+  }, [activeDepotId]);
+
+  // ---- NEW: Sales CRUD API (per-depo, langsung mutasi depots[i].targets) ----
+  const addSales = useCallback((depotId, sales) => {
+    setDepots((prev) => prev.map((d) => {
+      if (d.id !== depotId) return d;
+      return { ...d, targets: [...d.targets, sales], updatedAt: new Date().toISOString() };
+    }));
+  }, []);
+
+  const updateSales = useCallback((depotId, salesCode, patch) => {
+    setDepots((prev) => prev.map((d) => {
+      if (d.id !== depotId) return d;
+      return {
+        ...d,
+        targets: d.targets.map((t) => t.code === salesCode ? { ...t, ...patch } : t),
+        updatedAt: new Date().toISOString(),
+      };
+    }));
+  }, []);
+
+  const deleteSales = useCallback((depotId, salesCode) => {
+    setDepots((prev) => prev.map((d) => {
+      if (d.id !== depotId) return d;
+      return {
+        ...d,
+        targets: d.targets.filter((t) => t.code !== salesCode),
+        updatedAt: new Date().toISOString(),
+      };
+    }));
+  }, []);
+
   // ---- Auto-save (debounced, dirty-flag tracked) ----
-  //
-  // ⚠️ Bug fix (Sprint 1): sebelumnya effect ini selalu menulis
-  // `updated_at: Date.now()` di setiap mount → lokal selalu tampak lebih baru
-  // dari cloud → sync LWW rusak. Fix: bandingkan snapshot serialized dengan
-  // `lastSavedSettingsRef`. Hanya tulis + bump updated_at saat snapshot
-  // BENAR-BENAR berubah. Saat mount pertama, pakai persistedSettings.updated_at.
-  //
-  // ⚠️ Bug fix (Sprint 2 / H7): sebelumnya effect juga langsung tulis ke
-  // localStorage saat setiap perubahan. Karena `targets` ≈28KB dan bisa di-
-  // modify per-keystroke (input di SettingsModal) atau per-slider, ini
-  // menyebabkan `JSON.stringify` synchronous 28KB + localStorage write di
-  // setiap input event → input lag, terutama di device low-end. Fix: debounce
-  // 400ms dengan setTimeout + cleanup. Save pertama (mount) tetap immediate
-  // supaya state awal tersimpan walau user langsung tutup tab.
+  // ⚠️ Sprint 18: snapshot sekarang termasuk depots + activeDepotId.
+  // Untuk backward-compat cloud sync (yang masih model v1), kita juga tulis
+  // field flat targets/workDays/depotName di root level = activeDepot.values.
+  // Cloud sync engine (useCloudSync, syncEngine) tetap pakai field flat itu
+  // — tidak perlu diubah di sprint ini.
   const lastSavedSettingsRef = useRef(null);
   const saveSettingsTimerRef = useRef(null);
   useEffect(() => {
-    const settingsSnapshot = { theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, comparisonBase, sidebarCollapsed };
+    // Snapshot v2: depots + activeDepotId sebagai source of truth.
+    // Tambahkan field flat (targets, workDays, depotName) untuk backward-compat
+    // dengan cloud sync engine yang masih model v1 (bila user sudah login).
+    const flatTargets = activeDepot?.targets ?? [];
+    const flatWorkDays = activeDepot?.workDays ?? WORK_DAYS_DEFAULT;
+    const flatDepotName = activeDepot?.name ?? DEFAULT_DEPOT_NAME;
+
+    const settingsSnapshot = {
+      theme, powerSaveMode, filters, projectionMethod, comparisonBase,
+      sidebarCollapsed, slideshowConfig,
+      // Multi-depo state (Sprint 18)
+      depots, activeDepotId,
+      // Backward-compat flat fields (sync cloud masih pakai ini)
+      targets: flatTargets, workDays: flatWorkDays, depotName: flatDepotName,
+    };
     const serialized = JSON.stringify(settingsSnapshot);
     if (lastSavedSettingsRef.current === serialized) {
-      // Tidak ada perubahan nilai — jangan tulis, jangan bump updated_at,
-      // dan clear timer debounce yang mungkin masih pending.
       if (saveSettingsTimerRef.current) {
         clearTimeout(saveSettingsTimerRef.current);
         saveSettingsTimerRef.current = null;
@@ -78,9 +245,6 @@ export function useSettings() {
       return;
     }
     const isFirstSave = lastSavedSettingsRef.current === null;
-    // Save pertama (mount) = immediate, supaya state awal langsung tersimpan.
-    // Save berikutnya (perubahan nilai) = debounce 400ms untuk hindari
-    // stringify + localStorage write di setiap keystroke/slider-drag.
     const performSave = () => {
       const prevUpdatedAt = isFirstSave
         ? (persistedSettings?.updated_at || 0)
@@ -92,112 +256,152 @@ export function useSettings() {
     if (isFirstSave) {
       performSave();
     } else {
-      // Clear timer debounce sebelumnya (bila ada) supaya hanya nilai terbaru
-      // yang ditulis. Tanpa ini, perubahan cepat bisa numpuk beberapa write.
       if (saveSettingsTimerRef.current) clearTimeout(saveSettingsTimerRef.current);
       saveSettingsTimerRef.current = setTimeout(performSave, 400);
     }
-    // Cleanup: clear timer pending saat effect re-run atau unmount.
     return () => {
       if (saveSettingsTimerRef.current) {
         clearTimeout(saveSettingsTimerRef.current);
         saveSettingsTimerRef.current = null;
       }
     };
-  }, [theme, powerSaveMode, filters, workDays, targets, depotName, projectionMethod, comparisonBase, sidebarCollapsed, persistedSettings]);
+  }, [theme, powerSaveMode, filters, projectionMethod, comparisonBase, sidebarCollapsed, slideshowConfig,
+      depots, activeDepotId, activeDepot, persistedSettings]);
 
-  // Helper: reset semua settings ke default (dipakai "Clear All" SettingsModal)
-  // ⚠️ Bug fix: reset juga lastSavedSettingsRef + persistedSettings.updated_at
-  // supaya auto-save effect TIDAK bump updated_at ke Date.now(). Sebelumnya,
-  // resetAllSettings() set state ke default → auto-save effect trigger → tulis
-  // ke localStorage dengan updated_at = Date.now() (karena isFirstSave=false) →
-  // sync LWW menganggap lokal lebih baru dari cloud → push setting default ke
-  // cloud → overwrite setting cloud yang asli.
-  //
-  // Fix: set updated_at ke 0 (epoch) supaya cloudTs > localTs → sync PULL dari
-  // cloud, bukan push. lastSavedSettingsRef di-reset ke null supaya next save
-  // isFirstSave=true → pakai persistedSettings.updated_at (yang 0).
-  // ⚠️ Sprint 14 / H16: terapkan settings dari cloud ke state + localStorage
-  // dengan `updated_at = cloudTs` persis (BUKAN Date.now()).
-  //
-  // TANPA ini, auto-save effect melihat snapshot berubah (state baru dari
-  // cloud) → menulis ke localStorage dengan updated_at = Date.now() → sync
-  // LWW berikutnya mengira lokal lebih baru → push balik → cloud updated_at
-  // baru → pull lagi… **ping-pong tak berujung** saat auto-sync settings
-  // berjalan. Dengan menulis updated_at = cloudTs dan me-set
-  // lastSavedSettingsRef ke serialized hasil, auto-save effect melihat
-  // snapshot IDENTIK → tidak menulis, tidak bump, tidak re-push.
-  const applyCloudSettings = (doc, cloudTs) => {
+  // ---- applyCloudSettings (untuk sync dari cloud) ----
+  // ⚠️ Sprint 18: cloud sync engine masih model v1 — apply ke depo aktif saja.
+  // Bila user multi-depo, depo lain di localStorage tidak ter-overwrite.
+  // Saat cloud sync multi-depo diimplementasi (Sprint D), fungsi ini akan
+  // di-replace dengan apply multi-depo proper.
+  const applyCloudSettings = useCallback((doc, cloudTs) => {
     const ts = Number(cloudTs) || 0;
-    if (doc.targets) setTargets(doc.targets);
-    if (doc.work_days) setWorkDays(doc.work_days);
-    if (doc.depot_name) setDepotName(doc.depot_name);
     if (doc.theme) setTheme(doc.theme);
     if (doc.projection_method) setProjectionMethod(doc.projection_method);
     if (typeof doc.sidebar_collapsed === "boolean") setSidebarCollapsed(doc.sidebar_collapsed);
+
+    // Apply targets/workDays/depotName dari cloud ke depo aktif.
+    setDepots((prev) => prev.map((d) => {
+      if (d.id !== activeDepotId) return d;
+      return {
+        ...d,
+        targets: doc.targets ?? d.targets,
+        workDays: doc.work_days ?? d.workDays,
+        name: doc.depot_name ?? d.name,
+        updatedAt: new Date().toISOString(),
+      };
+    }));
+
     // Tulis direct ke localStorage dengan ts cloud — auto-save tidak menyentuh
-    // bidang ini lagi (filters & comparisonBase TIDAK ikut sync cloud; nilai
-    // mereka tetap dari localStorage/state yang sudah ada — tidak di-overwrite).
+    // bidang ini lagi.
+    const flatTargets = doc.targets ?? (activeDepot?.targets ?? []);
+    const flatWorkDays = doc.work_days ?? (activeDepot?.workDays ?? WORK_DAYS_DEFAULT);
+    const flatDepotName = doc.depot_name ?? (activeDepot?.name ?? DEFAULT_DEPOT_NAME);
     const snapshot = {
       theme: doc.theme ?? theme, powerSaveMode,
-      filters, workDays: doc.work_days ?? workDays, targets: doc.targets ?? targets,
-      depotName: doc.depot_name ?? depotName,
+      filters,
+      depots: depots.map((d) => d.id === activeDepotId
+        ? { ...d, targets: flatTargets, workDays: flatWorkDays, name: flatDepotName, updatedAt: new Date().toISOString() }
+        : d),
+      activeDepotId,
+      // Backward-compat flat fields
+      targets: flatTargets, workDays: flatWorkDays, depotName: flatDepotName,
       projectionMethod: doc.projection_method ?? projectionMethod,
       comparisonBase,
       sidebarCollapsed: typeof doc.sidebar_collapsed === "boolean" ? doc.sidebar_collapsed : sidebarCollapsed,
     };
     saveSettings({ ...snapshot, updated_at: ts });
     lastSavedSettingsRef.current = JSON.stringify(snapshot);
-  };
+  }, [activeDepotId, activeDepot, depots, filters, powerSaveMode, projectionMethod, comparisonBase, sidebarCollapsed, theme]);
 
-  const resetAllSettings = () => {
+  // ---- resetAllSettings (dipakai "Clear All" di SettingsModal) ----
+  // ⚠️ Sprint 18: reset depots ke single depo DEFAULT (DEFAULT_TARGETS).
+  const resetAllSettings = useCallback(() => {
     setTheme("dark");
     setPowerSaveMode(false);
     setSidebarCollapsed(false);
     setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" });
-    setWorkDays(WORK_DAYS_DEFAULT);
-    setTargets(DEFAULT_TARGETS);
-    setDepotName("DEPO LOTIM");
     setProjectionMethod("linear");
     setComparisonBase("prev");
+    setSlideshowConfig({
+      tabDuration: 30, syncInterval: 5, scrollDelay: 2,
+      enabledTabs: ["executive", "main", "sales", "product", "focus"],
+      autoScroll: true, hideAlerts: true, hideTables: true, largeFont: true, forceDark: false,
+    });
+    // Reset depots ke single DEFAULT_DEPOT (DEFAULT_TARGETS).
+    const now = new Date().toISOString();
+    const defaultDepotId = generateDepotId(DEFAULT_DEPOT_NAME);
+    const defaultDepots = [{
+      id: defaultDepotId,
+      name: DEFAULT_DEPOT_NAME,
+      code: DEFAULT_DEPOT_CODE,
+      workDays: WORK_DAYS_DEFAULT,
+      targets: DEFAULT_TARGETS,
+      createdAt: now,
+      updatedAt: now,
+    }];
+    setDepots(defaultDepots);
+    setActiveDepotId(defaultDepotId);
     clearSettings();
-    // ⚠️ Kritikal: reset ref + tulis localStorage dengan updated_at=0.
-    // Tanpa ini, auto-save effect akan bump updated_at ke Date.now() saat
-    // state berubah dari nilai lama ke default — LWW salah kira lokal baru.
+    // Reset ref + tulis localStorage dengan updated_at=0 (sync LWW PULL bukan PUSH).
     lastSavedSettingsRef.current = null;
     saveSettingsTimerRef.current = null;
-    // Tulis setting default ke localStorage dengan updated_at=0 (epoch).
-    // 0 < cloudTs manapun → sync LWW akan PULL dari cloud, bukan push.
-    saveSettings({
-      theme: "dark", powerSaveMode: false, sidebarCollapsed: false,
-      filters: { salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" },
-      workDays: WORK_DAYS_DEFAULT, targets: DEFAULT_TARGETS,
-      depotName: "DEPO LOTIM", projectionMethod: "linear", comparisonBase: "prev",
-      updated_at: 0,
-    });
-    // Set ref ke serialized default supaya auto-save effect tidak trigger lagi
-    // (karena state sudah sama dengan yang tersimpan).
-    const defaultSnapshot = {
+    const flatSnapshot = {
       theme: "dark", powerSaveMode: false,
       filters: { salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" },
-      workDays: WORK_DAYS_DEFAULT, targets: DEFAULT_TARGETS,
-      depotName: "DEPO LOTIM", projectionMethod: "linear", comparisonBase: "prev",
+      depots: defaultDepots,
+      activeDepotId: defaultDepotId,
+      targets: DEFAULT_TARGETS, workDays: WORK_DAYS_DEFAULT, depotName: DEFAULT_DEPOT_NAME,
+      projectionMethod: "linear", comparisonBase: "prev",
       sidebarCollapsed: false,
+      slideshowConfig: {
+        tabDuration: 30, syncInterval: 5, scrollDelay: 2,
+        enabledTabs: ["executive", "main", "sales", "product", "focus"],
+        autoScroll: true, hideAlerts: true, hideTables: true, largeFont: true, forceDark: false,
+      },
+      updated_at: 0,
     };
-    lastSavedSettingsRef.current = JSON.stringify(defaultSnapshot);
-  };
+    saveSettings(flatSnapshot);
+    lastSavedSettingsRef.current = JSON.stringify({
+      theme: "dark", powerSaveMode: false,
+      filters: { salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" },
+      depots: defaultDepots, activeDepotId: defaultDepotId,
+      targets: DEFAULT_TARGETS, workDays: WORK_DAYS_DEFAULT, depotName: DEFAULT_DEPOT_NAME,
+      projectionMethod: "linear", comparisonBase: "prev",
+      sidebarCollapsed: false,
+      slideshowConfig: {
+        tabDuration: 30, syncInterval: 5, scrollDelay: 2,
+        enabledTabs: ["executive", "main", "sales", "product", "focus"],
+        autoScroll: true, hideAlerts: true, hideTables: true, largeFont: true, forceDark: false,
+      },
+    });
+  }, []);
 
   return {
     persistedSettings,
+    // Global settings
     theme, setTheme,
     powerSaveMode, setPowerSaveMode,
     sidebarCollapsed, setSidebarCollapsed,
     filters, setFilters,
-    workDays, setWorkDays,
-    targets, setTargets,
-    depotName, setDepotName,
     projectionMethod, setProjectionMethod,
     comparisonBase, setComparisonBase,
+    slideshowConfig, setSlideshowConfig,
+    // ⚠️ Sprint 18: Backward-compat — derived dari activeDepot
+    targets, setTargets,
+    workDays, setWorkDays,
+    depotName, setDepotName,
+    // ⚠️ Sprint 18: Multi-depo API (BARU)
+    depots,
+    activeDepotId,
+    activeDepot,
+    setActiveDepot,
+    addDepot,
+    updateDepot,
+    deleteDepot,
+    addSales,
+    updateSales,
+    deleteSales,
+    // Reset & sync helpers
     resetAllSettings,
     applyCloudSettings,
   };

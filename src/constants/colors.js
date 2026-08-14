@@ -38,6 +38,13 @@ export const THEMES = {
     // sengaja dijaga tetap tinggi opacity-nya, independen dari modalBg.
     modalPanelBg: "rgba(15,23,42,0.85)",
     modalBorder: "rgba(255,255,255,0.12)",
+    // ⚠️ Sprint 18d / Header Redesign: token khusus untuk dropdown/tooltip yang
+    // dirender via createPortal ke document.body (keluar dari .smapp container).
+    // Alpha lebih rendah dari modalPanelBg (0.55 vs 0.85) supaya efek glass blur
+    // terlihat — dropdown kecil tidak punya overlay hitam di belakang seperti modal.
+    // Border pakai glassBorderElevated supaya lebih tegas di background kompleks.
+    dropdownBg: "rgba(15,23,42,0.55)",
+    dropdownBorder: "rgba(255,255,255,0.14)",
     chartGrid: "rgba(255,255,255,0.08)",
     glassSheen: "rgba(255,255,255,0.10)",
     blobs: [
@@ -75,6 +82,12 @@ export const THEMES = {
     modalBg: "rgba(255,255,255,0.20)",
     modalPanelBg: "rgba(255,255,255,0.85)",
     modalBorder: "rgba(255,255,255,0.65)",
+    // ⚠️ Sprint 18d / Header Redesign: token khusus untuk dropdown/tooltip yang
+    // dirender via createPortal ke document.body. Light theme: background putih
+    // dengan alpha 0.65 (sedikit lebih tinggi dari dark karena background app
+    // terang — perlu opacity lebih untuk readability teks gelap).
+    dropdownBg: "rgba(255,255,255,0.65)",
+    dropdownBorder: "rgba(0,0,0,0.10)",
     chartGrid: "rgba(17,24,39,0.10)",
     glassSheen: "rgba(255,255,255,0.45)",
     blobs: [
@@ -105,6 +118,7 @@ export function applyPowerSaveColors(colors) {
     glassFillStrong: colors.surface2,
     modalBg: colors.surface2,
     modalPanelBg: colors.surface,
+    dropdownBg: colors.surface,
     glassSheen: "transparent",
   };
 }
