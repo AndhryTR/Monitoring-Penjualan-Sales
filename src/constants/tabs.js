@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, UserRound, Boxes, Crosshair, Store, ClipboardList, TrendingUp, Receipt,
-  History, Settings, Gauge, GitCompareArrows,
+  History, Settings, Gauge, GitCompareArrows, Package,
 } from "lucide-react";
 
 /* ============================================================================
@@ -24,6 +24,8 @@ export const TABS = [
   { key: "trend",        label: "Tren Periode",     shortLabel: "Tren",      icon: TrendingUp },
   { key: "compare",      label: "Perbandingan",     shortLabel: "Banding",   icon: GitCompareArrows },
   { key: "transactions", label: "Transaksi",        shortLabel: "Transaksi", icon: Receipt },
+  // ⚠️ Sprint 19 / Stock Module: tab baru untuk tracking inventory
+  { key: "stock",        label: "Stok Barang",      shortLabel: "Stok",      icon: Package },
   { key: "quality",      label: "Catatan Data",     shortLabel: "Catatan",   icon: ClipboardList },
 ];
 
@@ -51,6 +53,8 @@ export const SIDEBAR_SECTIONS = [
       { key: "trend", label: "Tren Periode", icon: TrendingUp, tabKey: "trend" },
       { key: "compare", label: "Perbandingan", icon: GitCompareArrows, tabKey: "compare" },
       { key: "transactions", label: "Transaksi", icon: Receipt, tabKey: "transactions" },
+      // ⚠️ Sprint 19 / Stock Module
+      { key: "stock", label: "Stok Barang", icon: Package, tabKey: "stock" },
     ],
   },
   {

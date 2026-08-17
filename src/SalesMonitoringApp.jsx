@@ -16,7 +16,7 @@ import {
   parseWorkbookFile, dedupeRows,
 } from "./utils/excelParse.js";
 import {
-  useAggregates, computeAggregates, detectMonths, monthKey, getOutletBreakdown, getProductBreakdownForOutlet,
+  useAggregates, computeAggregates, detectMonths, monthKey, getOutletBreakdown, getProductBreakdownForOutlet, getProductBreakdownForGroup,
 } from "./utils/aggregation.js";
 import { useDataQualityNotes } from "./utils/dataQuality.js";
 import { buildHistorySnapshot, computeComparison, computeMultiPeriodComparison } from "./utils/history.js";
@@ -44,6 +44,8 @@ import { GlobalSearch } from "./components/GlobalSearch.jsx";
 import { OnboardingWelcome } from "./components/OnboardingWelcome.jsx";
 // ⚠️ Sprint 17 / SS1+SS2: Slideshow mode untuk display monitor.
 import { useSlideshow } from "./hooks/useSlideshow.js";
+// ⚠️ Sprint 19 / Stock Module
+import { useStock } from "./hooks/useStock.js";
 import { SlideshowMode } from "./components/SlideshowMode.jsx";
 import { Monitor } from "lucide-react";
 import { FilterBar } from "./components/ui/FilterBar.jsx";
@@ -61,6 +63,12 @@ import { ComparisonPage } from "./pages/ComparisonPage.jsx";
 import { DataQualityPage } from "./pages/DataQualityPage.jsx";
 import { ExecutiveSummaryPage } from "./pages/ExecutiveSummaryPage.jsx";
 import { TransactionsPage } from "./pages/TransactionsPage.jsx";
+// ⚠️ Sprint 19 / Stock Module
+import { StockPage } from "./pages/StockPage.jsx";
+// ⚠️ Sprint 19 / Sprint 2: Reconciliation preview modal
+import { StockImportPreview } from "./components/modals/StockImportPreview.jsx";
+// ⚠️ Sprint 19e / Focus Group Drilldown
+import { GroupFocusDrilldownModal } from "./components/modals/GroupFocusDrilldownModal.jsx";
 import { OutletDrilldownModal } from "./components/modals/OutletDrilldownModal.jsx";
 import { OutletDetailModal } from "./components/modals/OutletDetailModal.jsx";
 import { DataPreviewModal } from "./components/modals/DataPreviewModal.jsx";
@@ -369,6 +377,52 @@ export default function SalesMonitoringApp() {
     isAuthed: isAuthedRef.current,
   });
 
+  // ⚠️ Sprint 19 / Stock Module: hook untuk manage stock data
+  // currentStock = snapshot - sales (untuk tanggal >= snapshot date)
+  const stockData = useStock({
+    depotId: activeDepotId,
+    transactions: rawRows,
+    daysCount: workDays || 30,
+  });
+  // ⚠️ Sprint 19 / Sprint 2: state untuk StockImportPreview modal
+  const [stockPreviewData, setStockPreviewData] = useState(null);
+  const [stockPreviewOpen, setStockPreviewOpen] = useState(false);
+
+  const handleStockFile = async (file) => {
+    if (!file) return;
+    try {
+      const { parseStockExcel } = await import("./utils/stockParse.js");
+      const result = await parseStockExcel(file);
+      if (!result.products.length) {
+        alert("Gagal parse file stok: " + (result.errors[0]?.message || "Format tidak dikenali"));
+        return;
+      }
+
+      // Compute diff (reconciliation) if existing snapshot
+      const diff = stockData.computeDiff(result);
+      const isFirstUpload = !stockData.activeSnapshot;
+
+      // Show preview modal
+      setStockPreviewData({ parsedData: result, diff, isFirstUpload });
+      setStockPreviewOpen(true);
+    } catch (err) {
+      console.error("Stock upload error:", err);
+      alert("Gagal upload stok: " + (err.message || String(err)));
+    }
+  };
+
+  const handleStockConfirm = async () => {
+    if (!stockPreviewData) return;
+    const { parsedData, diff } = stockPreviewData;
+    setStockPreviewOpen(false);
+    setStockPreviewData(null);
+
+    const uploadResult = await stockData.uploadSnapshot(parsedData, { diff });
+    if (!uploadResult.success) {
+      alert("Gagal simpan stok: " + (uploadResult.error || "Unknown error"));
+    }
+  };
+
   // Keyboard shortcut: Cmd+K (Mac) / Ctrl+K (Windows/Linux)
   useEffect(() => {
     const handler = (e) => {
@@ -408,6 +462,22 @@ export default function SalesMonitoringApp() {
   const openDrilldown = (title, subtitle, predicate) => {
     setDrilldown({ title, subtitle, outlets: getOutletBreakdown(aggFinal.filteredRows, predicate) });
   };
+
+  // ⚠️ Sprint 19e / Focus Group Drilldown: handler untuk buka modal per-SKU
+  const [groupFocusDrilldown, setGroupFocusDrilldown] = useState(null);
+  const openGroupFocusDrilldown = useCallback((groupName, salesName, predicate) => {
+    const products = getProductBreakdownForGroup(aggFinal.filteredRows, predicate);
+    // Find the focus group row for summary
+    const groupRow = aggFinal.focusGroupRows?.find(
+      (r) => r.name === groupName && r.salesName === salesName
+    );
+    setGroupFocusDrilldown({
+      title: `Grup Fokus: ${groupName}`,
+      subtitle: salesName,
+      products,
+      groupSummary: groupRow || null,
+    });
+  }, [aggFinal]);
 
   const [outletThresholds, setOutletThresholds] = useState({ activeMaxDays: 14, dormantMinDays: 30 });
   const [outletDetail, setOutletDetail] = useState(null);
@@ -780,11 +850,11 @@ export default function SalesMonitoringApp() {
           const hideTables = slideshowConfig?.hideTables ?? true;
           const hideAlerts = slideshowConfig?.hideAlerts ?? true;
           switch (tab) {
-            case "executive": return <ExecutiveSummaryPage agg={aggFinal} colors={pageColors} workDays={workDays} onDrilldown={openDrilldown} comparison={comparison} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} slideshowMode={hideTables} />;
+            case "executive": return <ExecutiveSummaryPage agg={aggFinal} colors={pageColors} workDays={workDays} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} comparison={comparison} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} stockSummary={stockData.stockSummary} slideshowMode={hideTables} />;
             case "main": return <MainReportPage agg={aggFinal} workDays={workDays} colors={pageColors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} slideshowMode={hideTables} hideAlerts={hideAlerts} />;
             case "sales": return <SalesReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} slideshowMode={hideTables} />;
-            case "product": return <ProductReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} depotName={depotName} slideshowMode={hideTables} />;
-            case "focus": return <ProductFocusReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} depotName={depotName} slideshowMode={hideTables} />;
+            case "product": return <ProductReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} depotName={depotName} currentStock={stockData.currentStock} stockSummary={stockData.stockSummary} slideshowMode={hideTables} />;
+            case "focus": return <ProductFocusReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} depotName={depotName} filteredRows={aggFinal.filteredRows} slideshowMode={hideTables} />;
             default: return null;
           }
         }}
@@ -798,6 +868,16 @@ export default function SalesMonitoringApp() {
         />
       )}
       <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
+      {/* ⚠️ Sprint 19e / Focus Group Drilldown: modal per-SKU untuk grup fokus */}
+      <GroupFocusDrilldownModal
+        isOpen={!!groupFocusDrilldown}
+        onClose={() => setGroupFocusDrilldown(null)}
+        title={groupFocusDrilldown?.title}
+        subtitle={groupFocusDrilldown?.subtitle}
+        products={groupFocusDrilldown?.products || []}
+        groupSummary={groupFocusDrilldown?.groupSummary}
+        colors={colors}
+      />
       <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
       <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={(mode) => confirmPreview(mode)} preview={pendingPreview} colors={colors} />
       <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSave={saveHistorySnapshot} onApply={applyHistorySelection}
@@ -1050,14 +1130,43 @@ export default function SalesMonitoringApp() {
               </div>
             )}
             {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} />}
-            {activeTab === "executive" && <ExecutiveSummaryPage agg={aggFinal} colors={colors} workDays={workDays} onDrilldown={openDrilldown} comparison={comparison} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} />}
+            {activeTab === "executive" && <ExecutiveSummaryPage agg={aggFinal} colors={colors} workDays={workDays} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} comparison={comparison} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} stockSummary={stockData.stockSummary} />}
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
-            {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} />}
-            {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} />}
+            {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} currentStock={stockData.currentStock} stockSummary={stockData.stockSummary} />}
+            {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} depotName={depotName} filteredRows={aggFinal.filteredRows} />}
             {activeTab === "outlet" && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} rawRows={rawRows} targets={targets} depotName={depotName} />}
             {activeTab === "compare" && <ComparisonPage rawRows={rawRows} targets={targets} colors={colors} workDays={workDays} depotName={depotName} comparisonBase={comparisonBase} onBaseChange={setComparisonBase} />}
             {activeTab === "transactions" && <TransactionsPage agg={aggFinal} colors={colors} onOutletDrilldown={openOutletDetail} />}
             {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
+            {/* ⚠️ Sprint 19 / Stock Module */}
+            {activeTab === "stock" && (
+              <StockPage
+                stockData={stockData}
+                colors={colors}
+                onUploadStock={() => document.getElementById("stock-file-input")?.click()}
+              />
+            )}
+            {/* Hidden file input for stock upload */}
+            <input
+              id="stock-file-input"
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={(e) => {
+                if (e.target.files[0]) handleStockFile(e.target.files[0]);
+                e.target.value = "";
+              }}
+              className="hidden"
+            />
+            {/* ⚠️ Sprint 19 / Sprint 2: Stock Import Preview modal (reconciliation) */}
+            <StockImportPreview
+              isOpen={stockPreviewOpen}
+              onClose={() => { setStockPreviewOpen(false); setStockPreviewData(null); }}
+              onConfirm={handleStockConfirm}
+              diffResult={stockPreviewData?.diff}
+              parsedData={stockPreviewData?.parsedData}
+              isFirstUpload={stockPreviewData?.isFirstUpload}
+              colors={colors}
+            />
             {activeTab === "trend" && <TrendPeriodePage comparisonData={finalTrendComparisonData} isAutoTrend={isAutoTrend} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} depotName={depotName} comparisonBase={comparisonBase} onBaseChange={setComparisonBase} />}
           </>
         )}

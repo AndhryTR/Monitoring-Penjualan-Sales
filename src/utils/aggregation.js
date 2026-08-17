@@ -291,6 +291,46 @@ export function getProductBreakdownForOutlet(rows, outletCode) {
     .sort((a, b) => b.value - a.value);
 }
 
+// ⚠️ Sprint 19e / Focus Group Drilldown: breakdown per-SKU untuk grup fokus.
+// Filter transaksi by predicate (salesCode + group), lalu roll-up per productCode.
+// Mirip getProductBreakdownForOutlet tapi lebih kaya: include outlet count, sales label,
+// last date — supaya modal drilldown tampilkan info lengkap per SKU.
+export function getProductBreakdownForGroup(rows, predicate) {
+  const map = {};
+  rows.filter(predicate).forEach((r) => {
+    const key = r.productCode || r.productName || "UNKNOWN";
+    if (!map[key]) {
+      map[key] = {
+        productCode: r.productCode || key,
+        productName: r.productName || key,
+        group: r.group || "-",
+        value: 0,
+        qty: 0,
+        invoices: new Set(),
+        outlets: new Set(),
+        salesNames: new Set(),
+        unit: r.unit || "",
+        lastDate: null,
+      };
+    }
+    const p = map[key];
+    p.value += r.value;
+    p.qty += effectiveKartonQty(r);
+    if (r.invoiceNo) p.invoices.add(r.invoiceNo);
+    if (r.outletCode) p.outlets.add(r.outletCode);
+    if (r.salesName) p.salesNames.add(r.salesName);
+    if (!p.lastDate || r.date > p.lastDate) p.lastDate = r.date;
+  });
+  return Object.values(map)
+    .map((p) => ({
+      ...p,
+      invoiceCount: p.invoices.size,
+      outletCount: p.outlets.size,
+      salesLabel: Array.from(p.salesNames).sort().join(", ") || "-",
+    }))
+    .sort((a, b) => b.value - a.value);
+}
+
 // - Kalau semua baris yang cocok berhasil dikonversi -> "KARTON" (satuan hasil konversi).
 // - Kalau semua baris TIDAK bisa dikonversi (tidak ada referensi KARTON di data untuk
 //   produk itu) -> pakai satuan asli transaksinya apa adanya (mis. "IKAT").
@@ -516,7 +556,7 @@ export function computeAggregates(rows, targets, filters, workDays) {
         const pct = f.target ? realisasi / f.target : null;
         const hasUnconvertible = frs.some((r) => r.unconvertible);
         const unit = resolveFocusUnit(frs);
-        focusRows.push({ salesCode: t.code, salesName: t.name, name: f.name, target: f.target, realisasi, pct, hasUnconvertible, unit,
+        focusRows.push({ _id: t.code + "|" + f.name, salesCode: t.code, salesName: t.name, name: f.name, target: f.target, realisasi, pct, hasUnconvertible, unit,
           predicate: (row) => row.salesCode === t.code && matchFocus(row, f) });
       });
     });
@@ -534,6 +574,7 @@ export function computeAggregates(rows, targets, filters, workDays) {
         const gValue = sumBy(rs, "value");
         const gAo = new Set(rs.map((r) => r.outletCode)).size;
         focusGroupRows.push({
+          _id: t.code + "|" + g.name,
           salesCode: t.code, salesName: t.name, name: g.name,
           targetValue: g.value, realisasiValue: gValue,
           targetAo: g.ao, realisasiAo: gAo,

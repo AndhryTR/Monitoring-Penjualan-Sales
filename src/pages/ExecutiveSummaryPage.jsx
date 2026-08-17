@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Gauge, Users, Crosshair, Package, Store, Target } from "lucide-react";
+import { Gauge, Users, Crosshair, Package, Store, Target, Boxes } from "lucide-react";
 import { SnapshotHariIni } from "../components/executive/SnapshotHariIni.jsx";
 import { QuickActions } from "../components/executive/QuickActions.jsx";
 import { MiniLeaderboard } from "../components/executive/MiniLeaderboard.jsx";
@@ -10,6 +10,7 @@ import { OutletHealthMini } from "../components/executive/OutletHealthMini.jsx";
 import { SectionCard } from "../components/executive/SectionCard.jsx";
 import { EmptyState } from "../components/ui/EmptyState.jsx";
 import { computeOutletAnalysis } from "../utils/aggregation.js";
+import { fmtRp, fmtNum } from "../utils/formatters.js";
 // ⚠️ Sprint 16: useGrowthMoM tidak lagi dipakai di Executive Summary —
 // Growth MoM card dihapus bersama CompactKpiGrid. Dipakai di Main Report saja.
 import { OUTLET_DEFAULT_THRESHOLDS } from "../constants/thresholds.js";
@@ -29,7 +30,7 @@ import { OUTLET_DEFAULT_THRESHOLDS } from "../constants/thresholds.js";
      OutletHealthMini, Growth MoM
 ============================================================================ */
 
-export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, comparison, onNavigate, rawRows, targets, filters }) {
+export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, onGroupDrilldown, comparison, onNavigate, rawRows, targets, filters, stockSummary }) {
   // ⚠️ Sprint 16: dataQualityNotes tidak lagi dipakai di sini — InsightBanner
   // hanya ada di Main Report sekarang. Tetap di props untuk backward-compat.
 
@@ -137,8 +138,40 @@ export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, compa
         actionLabel="Detail Fokus"
         onAction={() => onNavigate?.("focus")}
       >
-        <FocusGroupMini focusGroupRows={agg.focusGroupRows} colors={colors} />
+        <FocusGroupMini focusGroupRows={agg.focusGroupRows} colors={colors} onGroupDrilldown={onGroupDrilldown} />
       </SectionCard>
+
+      {/* 6. Mini Stock Widget — tampil hanya jika ada data stok */}
+      {stockSummary && (
+        <SectionCard
+          title="Ringkasan Stok"
+          icon={Boxes}
+          accent={colors.blue}
+          colors={colors}
+          actionLabel="Detail Stok"
+          onAction={() => onNavigate?.("stock")}
+        >
+          <div className="grid grid-cols-4 gap-3">
+            <StockMiniKpi label="Total Produk" value={fmtNum(stockSummary.totalProducts)} color={colors.blue} colors={colors} />
+            <StockMiniKpi label="Nilai Stok" value={fmtRp(stockSummary.totalValue)} color={colors.mint} colors={colors} />
+            <StockMiniKpi label="Stok Kritis" value={fmtNum(stockSummary.lowStockCount)} sub={`${stockSummary.stockoutCount} habis`} color={colors.gold} colors={colors} />
+            <StockMiniKpi label="Dead Stock" value={fmtNum(stockSummary.deadStockCount)} sub="tidak bergerak" color={colors.coral} colors={colors} />
+          </div>
+        </SectionCard>
+      )}
+    </div>
+  );
+}
+
+function StockMiniKpi({ label, value, sub, color, colors }) {
+  return (
+    <div
+      className="p-3 rounded-xl text-center"
+      style={{ background: color + "0D", border: `1px solid ${color}33` }}
+    >
+      <div className="text-lg font-bold mono truncate" style={{ color }}>{value}</div>
+      <div className="text-[10px] mt-0.5" style={{ color: colors.textMuted }}>{label}</div>
+      {sub && <div className="text-[9px] mt-0.5" style={{ color: colors.textMuted }}>{sub}</div>}
     </div>
   );
 }
