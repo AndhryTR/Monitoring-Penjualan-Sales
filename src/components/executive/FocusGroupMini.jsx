@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Crosshair, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
+import { Crosshair, CheckCircle2, AlertTriangle, XCircle, ChevronRight } from "lucide-react";
 import { fmtRp, fmtPct } from "../../utils/formatters.js";
 import { ACH_TIERS } from "../../constants/thresholds.js";
 
@@ -28,11 +28,15 @@ function FocusGroupStackedBar({ onTrack, atRisk, critical, total, colors }) {
   );
 }
 
-function FocusGroupRow({ name, salesName, value, ach, colors }) {
+function FocusGroupRow({ name, salesName, value, ach, colors, onClick }) {
   const color = ach >= ACH_TIERS.onPace ? colors.mint : ach >= ACH_TIERS.warning ? colors.gold : colors.coral;
   const capped = Math.min(100, (ach || 0) * 100);
   return (
-    <div className="sm-row flex items-center gap-2.5 px-3 py-2 rounded-xl">
+    <div
+      onClick={onClick}
+      className={`sm-row flex items-center gap-2.5 px-3 py-2 rounded-xl transition-colors ${onClick ? "cursor-pointer hover:bg-white/5" : ""}`}
+      title={onClick ? "Klik untuk detail per SKU" : undefined}
+    >
       <Crosshair size={13} className="shrink-0" style={{ color: colors.violet }} />
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium truncate flex items-center gap-1.5">
@@ -51,11 +55,14 @@ function FocusGroupRow({ name, salesName, value, ach, colors }) {
       <span className="mono text-xs font-semibold shrink-0" style={{ color }}>
         {fmtPct(ach)}
       </span>
+      {onClick && (
+        <ChevronRight size={12} className="shrink-0" style={{ color: colors.textMuted }} />
+      )}
     </div>
   );
 }
 
-export function FocusGroupMini({ focusGroupRows, colors }) {
+export function FocusGroupMini({ focusGroupRows, colors, onGroupDrilldown }) {
   const summary = useMemo(() => {
     const total = focusGroupRows.length;
     const onTrack = focusGroupRows.filter((g) => g.ach !== null && g.ach >= ACH_TIERS.onPace).length;
@@ -110,6 +117,7 @@ export function FocusGroupMini({ focusGroupRows, colors }) {
             value={g.realisasiValue}
             ach={g.ach}
             colors={colors}
+            onClick={onGroupDrilldown ? () => onGroupDrilldown(g.name, g.salesName, g.predicate) : undefined}
           />
         ))}
         {focusGroupRows.length > 12 && (
