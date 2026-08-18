@@ -85,8 +85,8 @@ export function useStock({ depotId, transactions = [], daysCount = 30 }) {
   // Stock summary KPIs
   const stockSummary = useMemo(() => {
     if (!currentStock.size) return null;
-    return computeStockSummary(currentStock);
-  }, [currentStock]);
+    return computeStockSummary(currentStock, salesByProduct, daysCount);
+  }, [currentStock, salesByProduct, daysCount]);
 
   /**
    * Compute diff between current stock and new upload.
