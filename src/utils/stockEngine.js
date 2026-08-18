@@ -275,21 +275,18 @@ export function computeSalesByProduct(transactions, daysCount = 30, snapshotDate
   });
 
   // Convert to final format
-  // ⚠️ Sprint 19g9: pakai actualDays (jumlah hari unik dalam data) untuk
-  // avgDailyQty, BUKAN daysCount (workDays). User request: "gunakan semua
-  // rentang data dibagi jumlah hari data tersebut".
-  // Contoh: 5 hari data, total 50 PCS → avgDailyQty = 50/5 = 10 PCS/hari
-  // Bukan: 50/26 (workDays) = 1.92 PCS/hari
-  const uniqueDates = new Set();
-  relevantTxns.forEach((r) => { if (r.date) uniqueDates.add(r.date); });
-  const actualDays = uniqueDates.size || 1;
-
+  // ⚠️ Sprint 19g10: avgDailyQty pakai daysWithData PER PRODUK, bukan actualDays
+  // global. Sebelumnya pakai actualDays (jumlah hari unik di semua data) sebagai
+  // pembagi untuk semua produk — salah untuk produk baru yang baru masuk minggu
+  // lalu. Produk baru hanya punya 3 hari transaksi, tapi dibagi 26 hari (global)
+  // → avgDailyQty terlalu rendah → coverage terlalu optimis.
+  // Sekarang: setiap produk dibagi dengan hari unik transaksi produk ITU sendiri.
   const result = {};
   for (const [code, data] of Object.entries(map)) {
-    const daysWithData = data.dates.size || 1;
+    const daysWithData = data.dates.size || 1;  // minimum 1 supaya tidak divide by zero
     result[code] = {
       totalQty: data.totalQty,
-      avgDailyQty: data.totalQty / actualDays,
+      avgDailyQty: data.totalQty / daysWithData,
       daysWithData,
     };
   }
