@@ -254,7 +254,15 @@ export function computeSalesByProduct(transactions, daysCount = 30) {
     if (!map[r.productCode]) {
       map[r.productCode] = { totalQty: 0, dates: new Set() };
     }
-    map[r.productCode].totalQty += Number(r.qty) || 0;
+    // ⚠️ Sprint 19g5 / Bugfix: konversi qty transaksi ke PCS (satuan dasar)
+    // supaya konsisten dengan currentQty yang juga dalam PCS.
+    // Sebelumnya pakai r.qty mentah — kalau transaksi "5 KARTON" (qty=5, konv=30),
+    // totalQty = 5, padahal seharusnya 150 PCS.
+    // Sekarang: qtyInPCS = qty × konv (kalau konv ada), fallback ke qty.
+    const qtyInPCS = (r.konv && r.konv > 0)
+      ? (Number(r.qty) || 0) * r.konv
+      : Number(r.qty) || 0;
+    map[r.productCode].totalQty += qtyInPCS;
     if (r.date) map[r.productCode].dates.add(r.date);
   });
 
