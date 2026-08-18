@@ -245,37 +245,27 @@ export function computeStockSummary(stockMap, salesByProduct = {}, daysCount = 3
  * @param {number} daysCount - number of days in period (for avg daily)
  * @returns {Object} { productCode -> { totalQty, avgDailyQty, daysWithData } }
  */
-export function computeSalesByProduct(transactions, daysCount = 30) {
+export function computeSalesByProduct(transactions, daysCount = 30, snapshotDate = null) {
   const map = {};
   if (!transactions || !transactions.length) return map;
 
-  transactions.forEach((r) => {
+  // ⚠️ Sprint 19g8: transaksi yang masuk sudah terfilter by periode aktif
+  // (dari FilterBar dateFrom/dateTo). Jadi tinggal filter tambahan by snapshotDate.
+  const relevantTxns = snapshotDate
+    ? transactions.filter((r) => r.date && r.date >= snapshotDate)
+    : transactions;
+
+  relevantTxns.forEach((r) => {
     if (!r.productCode) return;
     if (!map[r.productCode]) {
       map[r.productCode] = { totalQty: 0, dates: new Set(), unit: r.unit, konv: r.konv };
     }
-    // ⚠️ Sprint 19g6 / Bugfix: konversi qty ke PCS dengan logika yang SAMA dengan
-    // computeCurrentStock (3-tier). Sebelumnya SELALU pakai r.qty × r.konv, yang
-    // salah kalau r.unit sudah PCS — karena r.konv di Excel adalah "isi per karton"
-    // (properti produk), bukan "faktor konversi satuan transaksi ke PCS".
-    // Contoh: r.unit=PCS, r.konv=30, r.qty=10 → sebelumnya 10×30=300 (SALAH),
-    // seharusnya 10 PCS (karena unit sudah PCS).
-    //
-    // Logika:
-    // 1. Kalau r.unit == PCS (atau tidak ada unit) → pakai r.qty langsung (sudah PCS)
-    // 2. Kalau r.unit == KARTON → r.qty langsung (qty sudah dalam karton, tidak perlu × konv)
-    //    Tapi kita butuh PCS untuk konsistensi dengan stok. Jadi: r.qty × r.konv
-    // 3. Kalau r.unit lain (PAK, IKAT, dll) → r.qty × r.konv (konversi ke satuan dasar)
-    //
-    // Inti: r.konv HANYA dipakai kalau r.unit BUKAN PCS. Kalau PCS, pakai qty langsung.
+    // Konversi qty ke PCS (logika sama dengan computeCurrentStock)
     const txnUnit = String(r.unit || "").toUpperCase();
     let qtyInPCS;
     if (txnUnit === "PCS" || !txnUnit) {
-      // Sudah dalam PCS — pakai langsung
       qtyInPCS = Number(r.qty) || 0;
     } else {
-      // KARTON, PAK, IKAT, dll — konversi ke PCS via r.konv
-      // r.konv = "1 satuan ini = berapa PCS"
       qtyInPCS = (r.konv && r.konv > 0)
         ? (Number(r.qty) || 0) * r.konv
         : Number(r.qty) || 0;
@@ -285,12 +275,21 @@ export function computeSalesByProduct(transactions, daysCount = 30) {
   });
 
   // Convert to final format
+  // ⚠️ Sprint 19g9: pakai actualDays (jumlah hari unik dalam data) untuk
+  // avgDailyQty, BUKAN daysCount (workDays). User request: "gunakan semua
+  // rentang data dibagi jumlah hari data tersebut".
+  // Contoh: 5 hari data, total 50 PCS → avgDailyQty = 50/5 = 10 PCS/hari
+  // Bukan: 50/26 (workDays) = 1.92 PCS/hari
+  const uniqueDates = new Set();
+  relevantTxns.forEach((r) => { if (r.date) uniqueDates.add(r.date); });
+  const actualDays = uniqueDates.size || 1;
+
   const result = {};
   for (const [code, data] of Object.entries(map)) {
     const daysWithData = data.dates.size || 1;
     result[code] = {
       totalQty: data.totalQty,
-      avgDailyQty: data.totalQty / daysCount,
+      avgDailyQty: data.totalQty / actualDays,
       daysWithData,
     };
   }
