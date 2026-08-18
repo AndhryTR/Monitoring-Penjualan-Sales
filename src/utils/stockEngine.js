@@ -252,16 +252,34 @@ export function computeSalesByProduct(transactions, daysCount = 30) {
   transactions.forEach((r) => {
     if (!r.productCode) return;
     if (!map[r.productCode]) {
-      map[r.productCode] = { totalQty: 0, dates: new Set() };
+      map[r.productCode] = { totalQty: 0, dates: new Set(), unit: r.unit, konv: r.konv };
     }
-    // ⚠️ Sprint 19g5 / Bugfix: konversi qty transaksi ke PCS (satuan dasar)
-    // supaya konsisten dengan currentQty yang juga dalam PCS.
-    // Sebelumnya pakai r.qty mentah — kalau transaksi "5 KARTON" (qty=5, konv=30),
-    // totalQty = 5, padahal seharusnya 150 PCS.
-    // Sekarang: qtyInPCS = qty × konv (kalau konv ada), fallback ke qty.
-    const qtyInPCS = (r.konv && r.konv > 0)
-      ? (Number(r.qty) || 0) * r.konv
-      : Number(r.qty) || 0;
+    // ⚠️ Sprint 19g6 / Bugfix: konversi qty ke PCS dengan logika yang SAMA dengan
+    // computeCurrentStock (3-tier). Sebelumnya SELALU pakai r.qty × r.konv, yang
+    // salah kalau r.unit sudah PCS — karena r.konv di Excel adalah "isi per karton"
+    // (properti produk), bukan "faktor konversi satuan transaksi ke PCS".
+    // Contoh: r.unit=PCS, r.konv=30, r.qty=10 → sebelumnya 10×30=300 (SALAH),
+    // seharusnya 10 PCS (karena unit sudah PCS).
+    //
+    // Logika:
+    // 1. Kalau r.unit == PCS (atau tidak ada unit) → pakai r.qty langsung (sudah PCS)
+    // 2. Kalau r.unit == KARTON → r.qty langsung (qty sudah dalam karton, tidak perlu × konv)
+    //    Tapi kita butuh PCS untuk konsistensi dengan stok. Jadi: r.qty × r.konv
+    // 3. Kalau r.unit lain (PAK, IKAT, dll) → r.qty × r.konv (konversi ke satuan dasar)
+    //
+    // Inti: r.konv HANYA dipakai kalau r.unit BUKAN PCS. Kalau PCS, pakai qty langsung.
+    const txnUnit = String(r.unit || "").toUpperCase();
+    let qtyInPCS;
+    if (txnUnit === "PCS" || !txnUnit) {
+      // Sudah dalam PCS — pakai langsung
+      qtyInPCS = Number(r.qty) || 0;
+    } else {
+      // KARTON, PAK, IKAT, dll — konversi ke PCS via r.konv
+      // r.konv = "1 satuan ini = berapa PCS"
+      qtyInPCS = (r.konv && r.konv > 0)
+        ? (Number(r.qty) || 0) * r.konv
+        : Number(r.qty) || 0;
+    }
     map[r.productCode].totalQty += qtyInPCS;
     if (r.date) map[r.productCode].dates.add(r.date);
   });
