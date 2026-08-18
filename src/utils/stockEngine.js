@@ -149,9 +149,13 @@ export function computeStockMetrics(stockMap, salesByProduct = {}, _workDays = 2
       : null;
 
     // Status flags
+    // ⚠️ Sprint 19g4: Low stock criteria changed from "20% of opening" to
+    // "coverage < 7 days" (opsi B). Coverage = currentQty / avgDailyQty.
+    // Kalau coverage < 7 hari → kritis (stok habis dalam <1 minggu).
+    // Kalau coverage null (tidak ada data penjualan) → tidak bisa tentukan kritis.
     const isStockout = stock.currentQty <= 0;
-    const isLowStock = !isStockout && stock.openingQty > 0 && stock.currentQty < (stock.openingQty * 0.2);
-    const isOverstock = stock.openingQty > 0 && stock.currentQty > (stock.openingQty * 1.5);
+    const isLowStock = !isStockout && coverageDays !== null && coverageDays < 7;
+    const isOverstock = coverageDays !== null && coverageDays > 60;
     const isDeadStock = stock.openingQty > 0 && stock.currentQty > 0 && stock.transactionCount === 0;
 
     metrics.push({
@@ -176,7 +180,17 @@ export function computeStockMetrics(stockMap, salesByProduct = {}, _workDays = 2
  * @param {Map<string, StockItem>} stockMap
  * @returns {StockSummary}
  */
-export function computeStockSummary(stockMap) {
+/**
+ * Compute stock summary KPIs from stockMap.
+ * ⚠️ Sprint 19g4: lowStockCount sekarang pakai coverage-based (< 7 hari).
+ * Butuh salesByProduct untuk hitung avgDailyQty per produk.
+ *
+ * @param {Map<string, StockItem>} stockMap
+ * @param {Object} salesByProduct - { productCode -> { totalQty, avgDailyQty } }
+ * @param {number} daysCount - days in period
+ * @returns {StockSummary}
+ */
+export function computeStockSummary(stockMap, salesByProduct = {}, daysCount = 30) {
   if (!stockMap.size) return null;
 
   let totalQty = 0;
@@ -187,13 +201,17 @@ export function computeStockSummary(stockMap) {
   let deadStockCount = 0;
   let groupBreakdown = {};
 
-  for (const [, stock] of stockMap) {
+  for (const [code, stock] of stockMap) {
     totalQty += stock.currentQty;
     totalValue += stock.currentValue;
     totalSoldQty += stock.soldQty;
 
+    // ⚠️ Sprint 19g4: coverage-based low stock detection
+    const sales = salesByProduct[code] || { totalQty: 0, avgDailyQty: 0 };
+    const coverageDays = sales.avgDailyQty > 0 ? stock.currentQty / sales.avgDailyQty : null;
+
     if (stock.currentQty <= 0) stockoutCount++;
-    else if (stock.openingQty > 0 && stock.currentQty < stock.openingQty * 0.2) lowStockCount++;
+    else if (coverageDays !== null && coverageDays < 7) lowStockCount++;
     if (stock.openingQty > 0 && stock.currentQty > 0 && stock.transactionCount === 0) deadStockCount++;
 
     if (stock.group) {
