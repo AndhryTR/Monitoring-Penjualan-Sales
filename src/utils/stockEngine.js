@@ -54,15 +54,44 @@ export function computeCurrentStock(snapshot, transactions) {
   });
 
   // 2. Subtract sales (only transactions AFTER snapshot date)
+  // ⚠️ Sprint 19g3 / Bugfix: konversi qty transaksi ke satuan dasar (PCS)
+  // sebelum mengurangi stok. Sebelumnya pakai r.qty mentah — kalau transaksi
+  // mencatat "1 KARTON" (qty=1, unit=KARTON), stok berkurang 1, padahal
+  // seharusnya berkurang 30 PCS (jika KONV=30). Sekarang:
+  // - Kalau r.unit == stock.unit (sama-sama PCS) → pakai r.qty langsung
+  // - Kalau beda → cari conversion factor dari r.konv atau dari stock.conversions
+  // - Kalau tidak ada konversi → fallback pakai r.qty (better than crash)
   if (transactions && transactions.length) {
     transactions.forEach((r) => {
       // Skip transactions before snapshot date (already included in opening stock)
       if (snapshotDate && r.date && r.date < snapshotDate) return;
 
       const stock = stockMap.get(r.productCode);
-      if (!stock) return; // product not in snapshot — skip (will show as "no stock data" in sales)
+      if (!stock) return;
 
-      const qtySold = Number(r.qty) || 0;
+      // Convert transaction qty to stock's base unit (PCS)
+      const txnUnit = String(r.unit || "").toUpperCase();
+      const stockUnit = String(stock.unit || "").toUpperCase();
+      let qtySold;
+      if (txnUnit === stockUnit || !txnUnit) {
+        // Same unit or no unit info — use qty as-is
+        qtySold = Number(r.qty) || 0;
+      } else if (r.konv && r.konv > 0) {
+        // Transaction has its own conversion factor (r.konv converts r.unit → baseUnit)
+        qtySold = (Number(r.qty) || 0) * r.konv;
+      } else {
+        // Try to find conversion from stock's conversions array
+        const conv = stock.conversions?.find(
+          (c) => String(c.unit || "").toUpperCase() === txnUnit
+        );
+        if (conv && conv.qty > 0) {
+          qtySold = (Number(r.qty) || 0) * conv.qty;
+        } else {
+          // Fallback: use qty as-is (may be inaccurate but won't crash)
+          qtySold = Number(r.qty) || 0;
+        }
+      }
+
       stock.soldQty += qtySold;
       stock.currentQty = stock.openingQty - stock.soldQty;
       stock.transactionCount++;
