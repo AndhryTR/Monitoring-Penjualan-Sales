@@ -103,7 +103,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
           variant="sparkline"
           sparkData={monthlyCumulative.map(m => m.value)}
           footerLabel={monthlyCumulative.length > 1 ? `${monthlyCumulative.length} bulan terakhir` : (monthlyCumulative.length === 1 ? monthlyCumulative[0].month : "Belum ada history")}
-          footerDelta={monthlyCumulative.length >= 2 ? `${((monthlyCumulative[monthlyCumulative.length-1].value / monthlyCumulative[monthlyCumulative.length-2].value - 1) * 100).toFixed(1)}%` : null}
+          footerDelta={monthlyCumulative.length >= 2 && monthlyCumulative[monthlyCumulative.length-2].value > 0 ? `${((monthlyCumulative[monthlyCumulative.length-1].value / monthlyCumulative[monthlyCumulative.length-2].value - 1) * 100).toFixed(1)}%` : null}
           footerDeltaType={monthlyCumulative.length >= 2 ? (monthlyCumulative[monthlyCumulative.length-1].value >= monthlyCumulative[monthlyCumulative.length-2].value ? "pos" : "neg") : "neutral"}
           delay={0}
         />

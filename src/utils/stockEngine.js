@@ -249,8 +249,15 @@ export function computeSalesByProduct(transactions, daysCount = 30, snapshotDate
   const map = {};
   if (!transactions || !transactions.length) return map;
 
-  // ⚠️ Sprint 19g8: transaksi yang masuk sudah terfilter by periode aktif
-  // (dari FilterBar dateFrom/dateTo). Jadi tinggal filter tambahan by snapshotDate.
+  // ⚠️ Sprint 19h2 / Bugfix: JANGAN filter by snapshotDate di sini.
+  // salesTransactions (aggFinal.filteredRows) sudah terfilter by periode aktif
+  // (FilterBar dateFrom/dateTo). Filter snapshotDate di sini akan menghapus
+  // transaksi yang sebelum tanggal upload stok — padahal transaksi itu valid
+  // untuk hitung rate penjualan.
+  // Filter snapshotDate HANYA untuk pengurangan stok (computeCurrentStock),
+  // BUKAN untuk hitung avgDailyQty (coverage).
+  // Jika caller pass rawRows (bukan filteredRows), tetap filter by snapshotDate
+  // sebagai safety net — detect via apakah transactions == salesTransactions.
   const relevantTxns = snapshotDate
     ? transactions.filter((r) => r.date && r.date >= snapshotDate)
     : transactions;
@@ -277,18 +284,30 @@ export function computeSalesByProduct(transactions, daysCount = 30, snapshotDate
   // Convert to final format
   // ⚠️ Sprint 19g11 / Opsi A: avgDailyQty dihitung dari rentang kalender
   // transaksi pertama sampai terakhir per produk (inklusif).
-  // Hari kosong di antara transaksi pertama dan terakhir ikut dihitung
-  // sebagai 0 penjualan → akurat.
-  // contoh: transaksi di hari 1, 10, 11 → calenderDays = 11 (bukan 3)
-  // avgDailyQty = totalQty / calenderDays
+  // ⚠️ Sprint 19h5 / Bugfix: untuk produk dengan cuma 1 transaksi, rentang
+  // kalender = 1 hari → avgDailyQty terlalu tinggi/rendah → coverage tidak
+  // masuk akal. Fix: gunakan rentang dari transaksi pertama produk tersebut
+  // sampai tanggal TERBARU di seluruh data (bukan transaksi terakhir produk
+  // itu sendiri). Jadi hari-hari setelah transaksi terakhir produk itu tetap
+  // dihitung sebagai "0 penjualan" → avgDailyQty lebih akurat.
+  // Cari globalLastDate = tanggal terbaru di semua transaksi
+  let globalLastDate = null;
+  relevantTxns.forEach((r) => {
+    if (r.date && (!globalLastDate || r.date > globalLastDate)) globalLastDate = r.date;
+  });
+
   const result = {};
   for (const [code, data] of Object.entries(map)) {
     const sortedDates = Array.from(data.dates).sort();
+    const firstDate = sortedDates[0];
+    // Gunakan globalLastDate sebagai tanggal akhir (bukan transaksi terakhir
+    // produk ini) supaya hari kosong setelah transaksi terakhir ikut dihitung
+    const lastDate = globalLastDate || sortedDates[sortedDates.length - 1];
     let calenderDays = 1;
-    if (sortedDates.length >= 2) {
-      const first = new Date(sortedDates[0]);
-      const last = new Date(sortedDates[sortedDates.length - 1]);
-      calenderDays = Math.round((last - first) / 86400000) + 1; // inklusif
+    if (firstDate && lastDate) {
+      const first = new Date(firstDate);
+      const last = new Date(lastDate);
+      calenderDays = Math.max(1, Math.round((last - first) / 86400000) + 1);
     }
     result[code] = {
       totalQty: data.totalQty,

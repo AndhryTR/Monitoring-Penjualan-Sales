@@ -79,7 +79,7 @@ export function StockPage({ stockData, colors, onUploadStock }) {
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <SectionTitle
           title="Stok Barang"
-          sub={`Snapshot per ${activeSnapshot.snapshotDate} · ${activeSnapshot.summary?.productCount || 0} produk`}
+          sub={`Snapshot per ${activeSnapshot.snapshotDate} · ${activeSnapshot.summary?.count || 0} produk`}
           icon={Package}
           colors={colors}
           accent={colors.blue}
@@ -277,7 +277,7 @@ export function StockPage({ stockData, colors, onUploadStock }) {
                     })}
                   </div>
                   <div className="text-xs" style={{ color: colors.textMuted }}>
-                    {snap.summary?.productCount || 0} produk ·{" "}
+                    {snap.summary?.count || 0} produk ·{" "}
                     {snap.summary?.totalValue ? fmtRp(snap.summary.totalValue) : "-"}
                   </div>
                 </div>

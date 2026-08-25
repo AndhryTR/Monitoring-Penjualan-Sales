@@ -72,8 +72,14 @@ export function useStock({ depotId, transactions = [], daysCount = 30 }) {
   }, [activeSnapshot, transactions]);
 
   // Compute sales-by-product for metrics
+  // ⚠️ Sprint 19h4 / Bugfix: JANGAN filter by snapshotDate di sini.
+  // snapshotDate = tanggal UPLOAD stok (mis. 2026-08-23), tapi transaksi
+  // terbaru mungkin 2026-08-18 (sebelum upload). Filter r.date >= snapshotDate
+  // memfilter SEMUA transaksi → kosong → avgDailyQty=0 → coverage=null → "-"
+  // Filter snapshotDate HANYA untuk computeCurrentStock (pengurangan stok).
+  // Untuk rate penjualan: gunakan SEMUA transaksi (semua rentang data).
   const salesByProduct = useMemo(() => {
-    return computeSalesByProduct(transactions, daysCount);
+    return computeSalesByProduct(transactions, daysCount, null);
   }, [transactions, daysCount]);
 
   // Stock metrics

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
 /* ============================================================================
    useSlideshow — hook untuk mode pajangan (slideshow) di monitor.
@@ -52,7 +52,9 @@ export function useSlideshow({
   const scrollStateRef = useRef({ startTime: null, pausedAt: null, pausedScrollTop: 0 });
 
   // Tabs yang aktif (filter enabledTabs)
-  const activeTabs = enabledTabs.filter(Boolean);
+  // ⚠️ Sprint 19h / Code review fix: useMemo supaya identity stabil —
+  // sebelumnya new array ref setiap render → useCallback deps berubah.
+  const activeTabs = useMemo(() => enabledTabs.filter(Boolean), [enabledTabs]);
 
   const currentTab = activeTabs[currentTabIndex] || activeTabs[0] || "executive";
 

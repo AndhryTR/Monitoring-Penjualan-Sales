@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "../utils/cloud.js";
 import {
-  fetchMasterMaxDate, fetchAllMasterRows, fetchMasterRowsSince, pushMasterRows,
+  fetchMasterMaxDate, fetchAllMasterRows, fetchMasterRowsSince, pushMasterRows, replaceMasterRowsForDates,
   deleteMasterRange, pushSettings, pullSettings, mergeMasterRows,
 } from "../utils/syncEngine.js";
 import { loadSettings, loadMasterMax, saveMasterMax, loadLastMasterSyncAt, saveLastMasterSyncAt } from "../utils/storage.js";
@@ -51,7 +51,7 @@ export function useCloudSync({
 }) {
   const { targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed } = settingsGetters;
   const { setTargets, setWorkDays, setDepotName, setTheme, setProjectionMethod, setSidebarCollapsed } = settingsSetters;
-  const { rawRows, setRawRows, setFileName, setParseMeta } = dataState;
+  const { rawRows, parseMeta, setRawRows, setFileName, setParseMeta } = dataState;
 
   // ---- Settings sync (otomatis) ----
   const [settingsSyncState, setSettingsSyncState] = useState("idle"); // idle | syncing | done | error
@@ -91,6 +91,10 @@ export function useCloudSync({
       // memicu trigger lagi. Sebelumnya push tetap terjadi (updated_at baru)
       // → cloud selalu "lebih baru" → pull balik → loop tak berujung.
       if (cloud.data && cloudTs === localTs) {
+        // ⚠️ Sprint 19h / Code review fix: set state ke "done" sebelum return.
+        // Sebelumnya bare return → UI stuck "syncing" selamanya.
+        setSettingsSyncState("done");
+        setLastSettingsSyncAt(Date.now());
         return;
       }
       if (cloudTs > localTs) {
@@ -137,13 +141,14 @@ export function useCloudSync({
     if (!supabase || !isAuthedRef.current) return;
     setMasterSyncState("syncing"); setMasterSyncMsg("");
     try {
-      // Device yang sudah pernah sync hanya menarik baris tanggal BARU
-      // (date > maxLokal). Device baru/kosong: full (semua baris).
+      // Device yang sudah pernah sync menarik ulang tanggal maksimum lokal
+      // (date >= maxLokal), agar transaksi tambahan pada hari yang sama tidak
+      // terlewat. Device baru/kosong: full (semua baris).
       // ⚠️ Bug fix: localMax yang kosong ("") harus diperlakukan sama dengan
       // null — keduanya berarti "belum pernah sync" → full pull.
       // Sebelumnya `localMax` bisa "" (string kosong dari saveMasterMax("")),
       // yang truthy dalam JS — masuk ke fetchMasterRowsSince("") yang ambil
-      // baris dengan date > "" (semua baris), tapi behavior-nya tidak konsisten.
+      // baris dengan date >= "" (semua baris), tapi behavior-nya tidak konsisten.
       const localMax = loadMasterMax();
       const hasLocalMax = localMax && localMax.length > 0;
       const res = hasLocalMax ? await fetchMasterRowsSince(localMax) : await fetchAllMasterRows();
@@ -151,7 +156,7 @@ export function useCloudSync({
       if (!res.rows.length) {
         setMasterSyncState("done");
         setLastMasterSyncAt(Date.now());
-        setMasterSyncMsg("Tidak ada data baru di master.");
+        setMasterSyncMsg("Tidak ada data master untuk disinkronkan.");
         return;
       }
       const { merged, maxDate } = mergeMasterRows(rawRows, res.rows);
@@ -165,22 +170,34 @@ export function useCloudSync({
       setLastMasterSyncAt(Date.now());
       saveLastMasterSyncAt(Date.now());
       setMasterSyncState("done");
-      setMasterSyncMsg(`${downloadedNow} baris baru dimuat dari master.`);
+      setMasterSyncMsg(`${downloadedNow} baris master disinkronkan.`);
     } catch (e) {
       setMasterSyncState("error");
       setMasterSyncMsg(String(e?.message || e || "Terjadi kesalahan saat sinkronisasi data penjualan"));
     }
   }, [rawRows, setRawRows, setFileName, setParseMeta, isAuthedRef]);
 
-  // Simpan data penjualan lokal ke master (admin/supervisor). Incremental:
-  // hanya baris dengan date > max_date master yang dimasukkan.
+  // Simpan data penjualan lokal ke master. Upload koreksi dari preview Excel
+  // mengganti snapshot cloud hanya pada tanggal yang terdapat di file; upload
+  // biasa tetap incremental.
   const handleSaveMaster = useCallback(async () => {
     if (!isEditor || !rawRows.length) return;
     setMasterBusy(true); setMasterResult("");
-    const maxDate = await fetchMasterMaxDate();
-    const res = await pushMasterRows(rawRows, maxDate);
+    const replacementDates = parseMeta?.replaceDates || [];
+    const isReplacement = replacementDates.length > 0;
+    const rowsToReplace = isReplacement
+      ? rawRows.filter((r) => replacementDates.includes(r.date))
+      : rawRows;
+    const maxDate = isReplacement ? null : await fetchMasterMaxDate();
+    const res = isReplacement
+      ? await replaceMasterRowsForDates(rowsToReplace)
+      : await pushMasterRows(rowsToReplace, maxDate);
     setMasterBusy(false);
     if (res.ok) {
+      if (isReplacement) {
+        setMasterResult(`${res.deleted} baris master diganti dengan ${res.inserted} baris koreksi.`);
+        return;
+      }
       // `inserted` dari count:"exact" (baris yang BENAR² masuk DB). `dupInternal`
       // = duplikat dalam file upload (key UNIQUE sama), `dupSkipped` = sudah ada
       // di master dari upload/sync sebelumnya, `skipped` = di luar rentang incremental.
@@ -191,7 +208,7 @@ export function useCloudSync({
       setMasterResult(parts.join(", "));
     }
     else setMasterResult("Gagal simpan ke master: " + (res.reason || ""));
-  }, [isEditor, rawRows]);
+  }, [isEditor, rawRows, parseMeta]);
 
   // Hapus rentang tanggal di master (admin/supervisor) + opsional data lokal.
   // Kembalikan hasil ({ ok, message|null }) supaya modal bisa menampilkan

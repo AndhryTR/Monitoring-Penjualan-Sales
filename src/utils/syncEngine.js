@@ -24,6 +24,7 @@
 ============================================================================ */
 import { supabase } from "./cloud.js";
 import { SYNC_CHUNK_SIZE } from "../constants/thresholds.js";
+import { loadMasterMax } from "./storage.js";
 
 const DEVICE_KEY = "smapp:deviceId";
 export function getDeviceId() {
@@ -80,6 +81,7 @@ export async function fetchAllMasterRows() {
         .from("master_sales")
         .select("*")
         .order("date", { ascending: true })
+        .order("id", { ascending: true })
         .range(from, from + PAGE - 1);
       if (error) return { ok: false, reason: error.message, rows: all };
       if (!data || data.length === 0) break;
@@ -93,9 +95,11 @@ export async function fetchAllMasterRows() {
   }
 }
 
-// Ambil baris master dengan date > maxDateLokal (delta). Untuk sync inkremental:
-// device yang sudah pernah syncing tidak perlu mengunduh ulang seluruh master.
-// Juga pagination penuh (bisa >1000 baris tanggal baru).
+// Ambil baris master dengan date >= maxDateLokal (delta dengan overlap satu
+// tanggal). Overlap ini penting: transaksi tambahan pada tanggal maksimum yang
+// sama harus tetap ikut tersinkron, lalu `mergeMasterRows` mengganti seluruh
+// tanggal tersebut dengan versi master. Pagination memakai date+id supaya urutan
+// stabil bila satu tanggal berisi lebih dari satu halaman data.
 export async function fetchMasterRowsSince(maxDateLokal) {
   if (!supabase) return { ok: false, reason: "not_configured", rows: [] };
   try {
@@ -104,8 +108,8 @@ export async function fetchMasterRowsSince(maxDateLokal) {
     let from = 0;
     for (;;) {
       let q = supabase.from("master_sales").select("*");
-      if (maxDateLokal) q = q.gt("date", maxDateLokal);
-      q = q.order("date", { ascending: true }).range(from, from + PAGE - 1);
+      if (maxDateLokal) q = q.gte("date", maxDateLokal);
+      q = q.order("date", { ascending: true }).order("id", { ascending: true }).range(from, from + PAGE - 1);
       const { data, error } = await q;
       if (error) return { ok: false, reason: error.message, rows: all };
       if (!data || data.length === 0) break;
@@ -130,6 +134,24 @@ const mapMasterRow = (r) => ({
   value: r.value, unit: r.unit,
 });
 
+const toMasterRow = (r, userId = null) => ({
+  date: r.date,
+  sales_code: r.salesCode ?? null,
+  sales_name: r.salesName ?? null,
+  outlet_code: r.outletCode ?? null,
+  outlet_name: r.outletName ?? null,
+  invoice_no: r.invoiceNo ?? null,
+  product_code: r.productCode ?? null,
+  product_name: r.productName ?? null,
+  group_name: r.group ?? null,
+  qty: r.qty ?? null,
+  qty_karton: r.qtyKarton ?? null,
+  unconvertible: r.unconvertible ?? null,
+  value: r.value ?? null,
+  unit: r.unit ?? null,
+  ...(userId ? { uploaded_by: userId } : {}),
+});
+
 // Gabungkan master yang baru di-pull ke data lokal. MASTER MENANG utk tanggal
 // yang sama: baris lokal dengan tanggal yang ada di master dibuang, diganti
 // data master. Kembalikan { merged, maxDate }.
@@ -145,13 +167,15 @@ export function mergeMasterRows(rawRows, masterRows) {
   return { merged: [...keptLocal, ...masterMapped], maxDate: max };
 }
 
-// Insert baris-baris BARU ke master (hanya yang belum ada: date > maxDate).
+// Insert baris master pada tanggal maksimum atau setelahnya. Tanggal maksimum
+// ikut dicoba ulang agar transaksi tambahan di hari yang sama dapat masuk;
+// constraint unik database mengabaikan transaksi yang sudah ada.
 // `rows` = array objek { date, salesCode, outletCode, invoiceNo, productCode,
 // group, qty, value, unit } — dipetakan ke kolom snake_case di sini.
 // Kembalikan { ok, inserted, skipped, dupInternal, dupSkipped, maxDate, error }.
 //
 // ⚠️ Sprint 14 / H12 (duplikat dalam file): UNIQUE constraint DB adalah
-// (date, invoice_no, product_code, sales_code) — TANPA qty/value. Key dedupe
+// (date, invoice_no, product_code, sales_code, outlet_code) — TANPA qty/value. Key dedupe
 // lokal di excelParse.js (date|invoiceNo|productCode|qty|value) TIDAK sama,
 // jadi dua baris dengan date/invoice/product/sales sama tapi qty beda lolos
 // parse, lalu di-upload. ignoreDuplicates di DB menolaknya diam-diam dan
@@ -162,7 +186,7 @@ export function mergeMasterRows(rawRows, masterRows) {
 // jumlah yang BENAR² masuk DB, selisihnya jadi dupSkipped.
 //
 // Race condition mitigation:
-// - Tabel master_sales punya UNIQUE(date, invoice_no, product_code, sales_code).
+// - Tabel master_sales punya UNIQUE(date, invoice_no, product_code, sales_code, outlet_code).
 // - Insert memakai `.upsert(..., { onConflict, ignoreDuplicates: true })` sehingga
 //   bila dua device sync bersamaan dengan maxDate yang sama, baris duplikat
 //   diam-diam di-skip di level DB (tidak melempar constraint violation).
@@ -202,26 +226,20 @@ export async function pushMasterRows(rows, maxDate) {
   try {
     const user = await currentUser();
     if (!user?.id) return { ok: false, reason: "no_session", inserted: 0, skipped: 0, dupInternal: 0, dupSkipped: 0 };
-    let newRows = (rows || []).filter((r) => r.date && (!maxDate || r.date > maxDate));
+    let newRows = (rows || []).filter((r) => r.date && (!maxDate || r.date >= maxDate));
     const skipped = (rows || []).length - newRows.length;
     if (!newRows.length) {
       return { ok: true, inserted: 0, skipped, dupInternal: 0, dupSkipped: 0, maxDate };
     }
 
-    // ⚠️ H12: pre-scan key yang SAMA dengan UNIQUE DB (date|invoice|product|
-    // salesCode). Baris konflik DALAM file dihitung `dupInternal` & tidak
-    // dikirim — pesan hasil akurat, tidak ada baris hilang diam-diam.
-    const dbKey = (r) => `${r.date}|${r.invoiceNo ?? ""}|${r.productCode ?? ""}|${r.salesCode ?? ""}`;
-    const seen = new Set();
-    const uniqueRows = [];
-    let dupInternal = 0;
-    for (const r of newRows) {
-      const k = dbKey(r);
-      if (seen.has(k)) { dupInternal++; continue; }
-      seen.add(k);
-      uniqueRows.push(r);
-    }
-    newRows = uniqueRows;
+    // ⚠️ Sprint 19h10 / Bugfix: HAPUS pre-scan dbKey sepenuhnya.
+    // Sebelumnya pre-scan pakai key (date|invoice|product|sales|outlet) yang
+    // BERBEDA dari dedup lokal (date|invoice|product|qty|value). Akibatnya
+    // 2 transaksi dengan date+invoice+product+sales+outlet sama TAPI qty/value
+    // berbeda dianggap duplikat oleh syncEngine padahal lolos dedup lokal.
+    // Fix: kirim SEMUA baris ke DB, biarkan DB unique constraint + upsert +
+    // ignoreDuplicates yang handle duplikat sebenarnya. dupInternal selalu 0.
+    const dupInternal = 0;
     if (!newRows.length) {
       return { ok: true, inserted: 0, skipped, dupInternal, dupSkipped: 0, maxDate };
     }
@@ -230,27 +248,12 @@ export async function pushMasterRows(rows, maxDate) {
     // `insertedRows` = baris yang sudah BENAR-BENAR ter-insert (untuk hitung
     // newMax yang akurat — bukan dari semua newRows).
     const CHUNK = SYNC_CHUNK_SIZE;
-    // Composite key yang dipakai di UNIQUE constraint (lihat setup.sql).
-    const ON_CONFLICT = "date,invoice_no,product_code,sales_code";
+    // ⚠️ Sprint 19h8: tambah outlet_code ke ON_CONFLICT untuk match dengan
+    // unique constraint baru di database.
+    const ON_CONFLICT = "date,invoice_no,product_code,sales_code,outlet_code";
     for (let i = 0; i < newRows.length; i += CHUNK) {
       const chunkSrc = newRows.slice(i, i + CHUNK);
-      const chunk = chunkSrc.map((r) => ({
-        date: r.date,
-        sales_code: r.salesCode ?? null,
-        sales_name: r.salesName ?? null,
-        outlet_code: r.outletCode ?? null,
-        outlet_name: r.outletName ?? null,
-        invoice_no: r.invoiceNo ?? null,
-        product_code: r.productCode ?? null,
-        product_name: r.productName ?? null,
-        group_name: r.group ?? null,
-        qty: r.qty ?? null,
-        qty_karton: r.qtyKarton ?? null,
-        unconvertible: r.unconvertible ?? null,
-        value: r.value ?? null,
-        unit: r.unit ?? null,
-        uploaded_by: user.id,
-      }));
+      const chunk = chunkSrc.map((r) => toMasterRow(r, user.id));
       // .upsert + ignoreDuplicates: bila ada baris dengan composite key yang
       // sama (race condition antar device, atau data lokal duplikat), baris
       // di-skip — TIDAK melempar error. `count: "exact"` membuat response
@@ -283,7 +286,24 @@ export async function pushMasterRows(rows, maxDate) {
     // berikutnya tidak mengulang baris yang sudah tertulis.
     let partialMax = maxDate;
     insertedRows.forEach((r) => { if (!partialMax || r.date > partialMax) partialMax = r.date; });
-    return { ok: false, reason: e.message, inserted, skipped: 0, dupInternal, dupSkipped, maxDate: partialMax };
+    return { ok: false, reason: e.message, inserted, skipped: 0, dupInternal: 0, dupSkipped, maxDate: partialMax };
+  }
+}
+
+// Ganti snapshot cloud untuk tanggal yang ada pada file koreksi. Operasi SQL
+// berjalan atomik di RPC: baris lama baru dihapus bila seluruh insert baru valid.
+export async function replaceMasterRowsForDates(rows) {
+  if (!supabase) return { ok: false, reason: "not_configured", inserted: 0, deleted: 0 };
+  const validRows = (rows || []).filter((r) => r.date);
+  if (!validRows.length) return { ok: false, reason: "no_dated_rows", inserted: 0, deleted: 0 };
+  try {
+    const { data, error } = await supabase.rpc("replace_master_sales_dates", {
+      p_rows: validRows.map((r) => toMasterRow(r)),
+    });
+    if (error) return { ok: false, reason: error.message, inserted: 0, deleted: 0 };
+    return { ok: true, inserted: Number(data?.inserted) || 0, deleted: Number(data?.deleted) || 0 };
+  } catch (e) {
+    return { ok: false, reason: e.message, inserted: 0, deleted: 0 };
   }
 }
 

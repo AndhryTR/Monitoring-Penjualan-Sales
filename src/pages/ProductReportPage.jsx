@@ -13,7 +13,7 @@ import { SectionTitle, DrilldownButton, AchBarChartTooltip } from "../components
    Bar chart vertical per grup produk + tabel detail grup.
    ⚠️ Sprint G1: tambah kolom Stok Tersisa + Coverage dari stockData.
 ============================================================================ */
-export function ProductReportPage({ agg, colors, onDrilldown, depotName, currentStock, stockSummary, slideshowMode = false }) {
+export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, depotName, currentStock, stockSummary, slideshowMode = false }) {
   const handleExport = async () => {
     const { exportProductReportExcel } = await import("../utils/reportExcelExport.js");
     exportProductReportExcel(agg.byGroup, {
@@ -91,6 +91,9 @@ export function ProductReportPage({ agg, colors, onDrilldown, depotName, current
             { key: "realisasiValue", label: "Realisasi", render: (r) => <span className="mono">{fmtRp(r.realisasiValue)}</span> },
             { key: "ach", label: "ACH", render: (r) => <AchBadge ach={r.ach} colors={colors} /> },
             { key: "realisasiAo", label: "Outlet", render: (r) => <span className="mono">{r.realisasiAo}</span> },
+            { key: "_sku", label: "", render: (r) => onGroupDrilldown && (
+              <DrilldownButton colors={colors} onClick={() => onGroupDrilldown(r.name, r.predicate)} label="SKU" />
+            ) },
             { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(r.name, "Outlet", r.predicate)} /> },
           ]}
           rows={agg.byGroup}

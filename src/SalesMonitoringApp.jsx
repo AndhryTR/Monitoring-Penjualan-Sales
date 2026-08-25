@@ -215,7 +215,7 @@ export default function SalesMonitoringApp() {
     settingsGetters: { targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed },
     settingsSetters: { setTargets, setWorkDays, setDepotName, setTheme, setProjectionMethod, setSidebarCollapsed },
     settingsApplier: applyCloudSettings,
-    dataState: { rawRows, setRawRows, setFileName, setParseMeta },
+    dataState: { rawRows, parseMeta, setRawRows, setFileName, setParseMeta },
   });
 
   // Muat data sesi terakhir (hasil upload/demo sebelumnya) dari IndexedDB saat
@@ -459,9 +459,11 @@ export default function SalesMonitoringApp() {
     }
   }, [aggFinal, setFilters]);
 
-  const openDrilldown = (title, subtitle, predicate) => {
+  // ⚠️ Sprint 19h / Code review fix: wrap openDrilldown in useCallback supaya
+  // identity stabil → child pages yang memoized tidak re-render sia-sia.
+  const openDrilldown = useCallback((title, subtitle, predicate) => {
     setDrilldown({ title, subtitle, outlets: getOutletBreakdown(aggFinal.filteredRows, predicate) });
-  };
+  }, [aggFinal.filteredRows]);
 
   // ⚠️ Sprint 19e / Focus Group Drilldown: handler untuk buka modal per-SKU
   const [groupFocusDrilldown, setGroupFocusDrilldown] = useState(null);
@@ -476,6 +478,19 @@ export default function SalesMonitoringApp() {
       subtitle: salesName,
       products,
       groupSummary: groupRow || null,
+    });
+  }, [aggFinal]);
+
+  // Detail SKU untuk grup produk biasa: sama seperti Grup Fokus, tetapi
+  // mencakup semua sales yang berada dalam grup tersebut.
+  const openProductGroupDrilldown = useCallback((groupName, predicate) => {
+    const products = getProductBreakdownForGroup(aggFinal.filteredRows, predicate);
+    const groupRow = aggFinal.byGroup.find((r) => r.name === groupName) || null;
+    setGroupFocusDrilldown({
+      title: `Grup Produk: ${groupName}`,
+      subtitle: "Semua sales",
+      products,
+      groupSummary: groupRow,
     });
   }, [aggFinal]);
 
@@ -677,16 +692,26 @@ export default function SalesMonitoringApp() {
   const confirmPreview = useCallback((mode) => {
     if (!pendingPreview) return;
     const merge = mode === "merge" && pendingPreview.mergePreview;
+    const replaceDates = mode === "replace_dates";
     // ⚠️ Bug fix (H6): mergePreview.mergedRows sudah tidak disimpan (lihat
     // handleFile). Bila user pilih "merge", recompute dedupe di sini dengan
     // data terbaru dari rawRows (yang mungkin berubah sejak preview dibuka,
     // meskipun jarang). Ini lebih akurat dan hemat memori.
+    const replacementDates = replaceDates
+      ? Array.from(new Set(pendingPreview.rows.map((r) => r.date).filter(Boolean)))
+      : [];
     const rows = merge
       ? dedupeRows([...rawRows, ...pendingPreview.rows]).rows
-      : pendingPreview.rows;
-    const name = merge ? `${pendingPreview.fileName} (digabung dengan data sebelumnya)` : pendingPreview.fileName;
+      : replaceDates
+        ? [...rawRows.filter((r) => !replacementDates.includes(r.date)), ...pendingPreview.rows]
+        : pendingPreview.rows;
+    const name = merge
+      ? `${pendingPreview.fileName} (digabung dengan data sebelumnya)`
+      : replaceDates
+        ? `${pendingPreview.fileName} (mengganti tanggal yang sama)`
+        : pendingPreview.fileName;
     setRawRows(rows);
-    setParseMeta(pendingPreview.parseMeta);
+    setParseMeta({ ...pendingPreview.parseMeta, replaceDates: replacementDates.length ? replacementDates : undefined });
     setFileName(name);
     // Default filter tanggal setelah upload = BULAN KALENDER TERAKHIR saja
     // (bukan rentang penuh semua data yang diupload). Kalau data mencakup
@@ -853,7 +878,7 @@ export default function SalesMonitoringApp() {
             case "executive": return <ExecutiveSummaryPage agg={aggFinal} colors={pageColors} workDays={workDays} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} comparison={comparison} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} stockSummary={stockData.stockSummary} slideshowMode={hideTables} />;
             case "main": return <MainReportPage agg={aggFinal} workDays={workDays} colors={pageColors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} slideshowMode={hideTables} hideAlerts={hideAlerts} />;
             case "sales": return <SalesReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} slideshowMode={hideTables} />;
-            case "product": return <ProductReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} depotName={depotName} currentStock={stockData.currentStock} stockSummary={stockData.stockSummary} slideshowMode={hideTables} />;
+            case "product": return <ProductReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} onGroupDrilldown={openProductGroupDrilldown} depotName={depotName} currentStock={stockData.currentStock} stockSummary={stockData.stockSummary} slideshowMode={hideTables} />;
             case "focus": return <ProductFocusReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} depotName={depotName} filteredRows={aggFinal.filteredRows} slideshowMode={hideTables} />;
             default: return null;
           }
@@ -879,7 +904,7 @@ export default function SalesMonitoringApp() {
         colors={colors}
       />
       <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
-      <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={(mode) => confirmPreview(mode)} preview={pendingPreview} colors={colors} />
+      <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={(mode) => confirmPreview(mode)} preview={pendingPreview} colors={colors} canReplaceDates={isEditor} />
       <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSave={saveHistorySnapshot} onApply={applyHistorySelection}
         onDelete={deleteHistorySnapshot}
         defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
@@ -1132,7 +1157,7 @@ export default function SalesMonitoringApp() {
             {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} />}
             {activeTab === "executive" && <ExecutiveSummaryPage agg={aggFinal} colors={colors} workDays={workDays} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} comparison={comparison} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} stockSummary={stockData.stockSummary} />}
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
-            {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} depotName={depotName} currentStock={stockData.currentStock} stockSummary={stockData.stockSummary} />}
+            {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} onGroupDrilldown={openProductGroupDrilldown} depotName={depotName} currentStock={stockData.currentStock} stockSummary={stockData.stockSummary} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} depotName={depotName} filteredRows={aggFinal.filteredRows} />}
             {activeTab === "outlet" && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} rawRows={rawRows} targets={targets} depotName={depotName} />}
             {activeTab === "compare" && <ComparisonPage rawRows={rawRows} targets={targets} colors={colors} workDays={workDays} depotName={depotName} comparisonBase={comparisonBase} onBaseChange={setComparisonBase} />}

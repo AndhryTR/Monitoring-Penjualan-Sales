@@ -93,7 +93,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName,
           <YAxis type="category" dataKey="name" width={160} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
           <Tooltip content={<AchBarChartTooltip colors={colors} />} cursor={{ fill: colors.glassSubtle }} />
           <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
-            {rows.map((r, i) => <Cell key={i} fill={r.ach >= ACH_TIERS.onPace ? colors.mint : r.ach >= ACH_TIERS.warning ? colors.gold : colors.coral} />)}
+            {rows.map((r, i) => <Cell key={i} fill={r.ach == null ? colors.textMuted : r.ach >= ACH_TIERS.onPace ? colors.mint : r.ach >= ACH_TIERS.warning ? colors.gold : colors.coral} />)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
