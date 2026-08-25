@@ -5,7 +5,7 @@ import {
   Smartphone, Share, History, Loader2, Search,
   FileSpreadsheet, AlertTriangle, CheckCircle2,
 } from "lucide-react";
-import { saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState, saveMasterMax } from "./utils/storage.js";
+import { saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState, saveMasterMax, saveLastMasterSyncAt } from "./utils/storage.js";
 import { supabase, getSession, onAuthChange, signOutAccount } from "./utils/cloud.js";
 // ⚠️ Sprint 6 / R6: syncEngine imports (fetchRole, pushSettings, dll) sekarang
 // dipakai di hook useCloudSync.js. SalesMonitoringApp hanya butuh fetchRole
@@ -173,13 +173,7 @@ export default function SalesMonitoringApp() {
   const cloudEnabled = !!supabase;
   const isEditor = userRole === "admin" || userRole === "supervisor";
 
-  // Keluar dari akun — state app TIDAK diubah (data lokal tetap utuh).
-  const handleLogout = useCallback(async () => {
-    await signOutAccount();
-    setIsLoginOpen(false);
-    setUserRole(null);
-  }, []);
-
+  // Keluar dari akun — didefinisikan SETELAH useCloudSync (butuh setLastMasterSyncAt).
   // Muat role user saat login (dari tabel profiles).
   const refreshRole = useCallback(async () => {
     if (!supabase || !isAuthedRef.current) return;
@@ -217,6 +211,22 @@ export default function SalesMonitoringApp() {
     settingsApplier: applyCloudSettings,
     dataState: { rawRows, parseMeta, setRawRows, setFileName, setParseMeta },
   });
+
+  // Keluar dari akun — state app TIDAK diubah (data lokal tetap utuh).
+  // ⚠️ Bug fix (audit #9): reset marker sync master saat logout. masterMax &
+  // lastMasterSyncAt itu device-wide, bukan per-akun — kalau dibiarkan, user
+  // lain yang login di device ini dapat app mengira master sudah pernah
+  // disinkronkan dan cuma menarik DELTA (date > maxDate lama). Kalau master
+  // cloud berubah/berkurang di rentang lama, data basi bertahan & baris yang
+  // hilang tidak akan pernah ter-download. Sama alasan dengan handleReset.
+  const handleLogout = useCallback(async () => {
+    await signOutAccount();
+    saveMasterMax("");
+    saveLastMasterSyncAt(0);
+    setLastMasterSyncAt(0);
+    setIsLoginOpen(false);
+    setUserRole(null);
+  }, [setLastMasterSyncAt]);
 
   // Muat data sesi terakhir (hasil upload/demo sebelumnya) dari IndexedDB saat
   // pertama aplikasi dibuka. Async, ditampilkan status loading singkat dulu.
@@ -367,14 +377,15 @@ export default function SalesMonitoringApp() {
   // ⚠️ Sprint 17h / bugfix: teruskan flag autoScroll dari slideshowConfig
   // supaya checkbox "Auto-scroll halus" di Settings benar-benar berfungsi
   // (sebelumnya flag diabaikan — rAF scroll selalu jalan).
+  // ⚠️ Audit #12 fix: onSync/isAuthed DIHAPUS — slideshow tidak lagi memicu
+  // syncMasterNow() otomatis. Master sync murni manual via tombol (arsitektur),
+  // dan auto-sync saat slideshow + admin klik "Simpan ke Master" berisiko race
+  // maxDate (audit #8). Slideshow hanya display; data diperbarui manual.
   const slideshow = useSlideshow({
     enabledTabs: slideshowConfig?.enabledTabs || ["executive", "main", "sales", "product", "focus"],
     tabDuration: slideshowConfig?.tabDuration || 30,
-    syncInterval: slideshowConfig?.syncInterval || 5,
     autoScroll: slideshowConfig?.autoScroll ?? true,
     onTabChange: (tab) => setActiveTab(tab),
-    onSync: () => { if (isAuthedRef.current) syncMasterNow(); },
-    isAuthed: isAuthedRef.current,
   });
 
   // ⚠️ Sprint 19 / Stock Module: hook untuk manage stock data

@@ -18,28 +18,22 @@ const DEFAULT_TABS = [
 ];
 
 const DEFAULT_TAB_DURATION = 30; // detik
-const DEFAULT_SYNC_INTERVAL = 5; // menit
 const SCROLL_DELAY_RATIO = 0.5; // scroll setelah 50% durasi tab
 
 export function useSlideshow({
   enabledTabs = DEFAULT_TABS,
   tabDuration = DEFAULT_TAB_DURATION,
-  syncInterval = DEFAULT_SYNC_INTERVAL,
   autoScroll = true,
   onTabChange,
-  onSync,
-  isAuthed = false,
 } = {}) {
   const [isActive, setIsActive] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [currentTabIndex, setCurrentTabIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(tabDuration);
-  const [lastSyncedAt, setLastSyncedAt] = useState(0);
 
   const tabTimerRef = useRef(null);
   const tickTimerRef = useRef(null);
   const scrollTimerRef = useRef(null);
-  const syncTimerRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const rafScrollRef = useRef(null);
   // ⚠️ Ref untuk onTabChange supaya effect tidak restart setiap kali
@@ -83,7 +77,7 @@ export function useSlideshow({
       document.exitFullscreen().catch(() => {});
     }
     // Clear semua timer + rAF
-    [tabTimerRef, tickTimerRef, scrollTimerRef, syncTimerRef].forEach(ref => {
+    [tabTimerRef, tickTimerRef, scrollTimerRef].forEach(ref => {
       if (ref.current) { clearTimeout(ref.current); clearInterval(ref.current); ref.current = null; }
     });
     if (rafScrollRef.current) { cancelAnimationFrame(rafScrollRef.current); rafScrollRef.current = null; }
@@ -239,24 +233,10 @@ export function useSlideshow({
     };
   }, [isActive, isPlaying, currentTabIndex, activeTabs.length, tabDuration, currentTab, autoScroll]);
 
-  // ---- Auto-sync effect ----
-  useEffect(() => {
-    if (!isActive || !isAuthed) return;
-
-    // Sync pertama saat slideshow dimulai
-    onSync?.();
-    setLastSyncedAt(Date.now());
-
-    // Sync berikutnya setiap syncInterval menit
-    syncTimerRef.current = setInterval(() => {
-      onSync?.();
-      setLastSyncedAt(Date.now());
-    }, syncInterval * 60 * 1000);
-
-    return () => {
-      if (syncTimerRef.current) { clearInterval(syncTimerRef.current); syncTimerRef.current = null; }
-    };
-  }, [isActive, isAuthed, syncInterval, onSync]);
+  // ---- Auto-sync effect DIHAPUS (audit #12) ----
+  // Slideshow tidak lagi memicu syncMasterNow() otomatis: master sync
+  // manual-only via tombol (arsitektur), dan auto-sync saat admin menjalankan
+  // "Simpan ke Master" berisiko race maxDate (lihat audit #8).
 
   // ---- Keyboard handler ----
   useEffect(() => {
@@ -293,7 +273,6 @@ export function useSlideshow({
     currentTab,
     currentTabIndex,
     timeLeft,
-    lastSyncedAt,
     activeTabs,
     tabDuration,
     progress: ((tabDuration - timeLeft) / tabDuration) * 100,
