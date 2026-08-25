@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Users, Package, CalendarDays, RefreshCw, Filter, X, ChevronDown } from "lucide-react";
 import { MultiSelect } from "./MultiSelect.jsx";
 import { getDatePresetOptions, resolveDatePreset, getDatePresetLabel } from "../../utils/datePresets.js";
+import { computeDropdownTop } from "../../utils/dropdownPosition.js";
 
 /* ============================================================================
    FILTERBAR
@@ -16,7 +17,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
   const dateMenuRef = useRef(null);
   const dateMenuTriggerRef = useRef(null);
   const [dateMenuPos, setDateMenuPos] = useState({ top: 0, left: 0 });
-  const active = filters.salesCodes.length + filters.groups.length + (filters.dateFrom ? 1 : 0) + (filters.dateTo ? 1 : 0);
+  const active = filters.salesCodes.length + filters.groups.length + ((filters.dateFrom || filters.dateTo) ? 1 : 0);
   const nameToCode = useMemo(() => Object.fromEntries(salesOptions.map((s) => [s.name, s.code])), [salesOptions]);
   const codeToName = useMemo(() => Object.fromEntries(salesOptions.map(s => [s.code, s.name])), [salesOptions]);
   const selectedNames = useMemo(() => filters.salesCodes.map(code => codeToName[code]).filter(Boolean), [filters.salesCodes, codeToName]);
@@ -65,7 +66,9 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
       const btn = dateMenuTriggerRef.current;
       if (!btn) return;
       const rect = btn.getBoundingClientRect();
-      setDateMenuPos({ top: rect.bottom + 8, left: rect.left });
+      const menuHeight = 300;
+      const top = computeDropdownTop(rect, menuHeight);
+      setDateMenuPos({ top, left: rect.left });
     };
     updatePos();
     window.addEventListener("resize", updatePos);
@@ -124,7 +127,17 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
       <MultiSelect label="Grup Barang" icon={Package} options={groupOptions} selected={filters.groups}
         onChange={(v) => setFilters((f) => ({ ...f, groups: v }))} placeholder="Cari grup..." colors={colors} />
       <div className="relative" ref={dateMenuTriggerRef}>
-        <button onClick={() => setDateMenuOpen((o) => !o)}
+        <button onClick={() => {
+          // Hitung posisi SEBELUM open supaya tidak flash di (0,0)
+          const btn = dateMenuTriggerRef.current;
+          if (btn) {
+            const rect = btn.getBoundingClientRect();
+            const menuHeight = 300;
+            const top = computeDropdownTop(rect, menuHeight);
+            setDateMenuPos({ top, left: rect.left });
+          }
+          setDateMenuOpen((o) => !o);
+        }}
           className="sm-btn flex items-center gap-2 px-3 py-2 rounded-xl text-sm"
           style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
           <CalendarDays size={14} style={{ color: colors.textMuted }} />
@@ -134,7 +147,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
         {dateMenuOpen && createPortal(
           <div
             ref={dateMenuRef}
-            className="sm-fadein fixed z-[60] w-52 rounded-xl overflow-hidden"
+            className="sm-fadein fixed z-[60] w-52 rounded-xl"
             style={{
               top: dateMenuPos.top,
               left: dateMenuPos.left,
@@ -144,6 +157,8 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
               WebkitBackdropFilter: "blur(32px) saturate(1.4)",
               border: `1px solid ${colors.dropdownBorder}`,
               boxShadow: `${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight || "rgba(255,255,255,0.08)"}`,
+              maxHeight: "60vh",
+              overflowY: "auto",
             }}
           >
             {presetOptions.map((p) => (

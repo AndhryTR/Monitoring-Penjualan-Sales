@@ -224,8 +224,21 @@ export function AvatarButton({
             zIndex: 50,
           }}
         >
-          {/* User info */}
-          <div style={{ padding: "10px 12px", borderBottom: `1px solid ${colors.glassBorder}`, marginBottom: 4 }}>
+          {/* User info — clickable untuk buka LoginModal/User modal */}
+          <div
+            onClick={() => handleMenuClick(onOpenLogin)}
+            style={{
+              padding: "10px 12px",
+              borderBottom: `1px solid ${colors.glassBorder}`,
+              marginBottom: 4,
+              cursor: "pointer",
+              borderRadius: 8,
+              transition: "background 0.12s ease",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = colors.glassFillStrong; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            title="Klik untuk kelola akun & sinkronisasi"
+          >
             <div style={{ fontSize: 13, fontWeight: 700, color: colors.text, display: "flex", alignItems: "center", gap: 6 }}>
               {displayName}
               {!isAuthed && (
@@ -276,23 +289,17 @@ export function AvatarButton({
 
             <div style={{ borderTop: `1px solid ${colors.glassBorder}`, margin: "4px 0" }} />
 
-            {isAuthed ? (
-              <PopoverItem
-                icon={LogOut}
-                label="Keluar"
-                colors={colors}
-                danger
-                onClick={() => handleMenuClick(onLogout)}
-              />
-            ) : (
-              <PopoverItem
-                icon={LogIn}
-                label="Masuk Akun Cloud"
-                colors={colors}
-                primary
-                onClick={() => handleMenuClick(onOpenLogin)}
-              />
-            )}
+            {/* ⚠️ Sprint 19h9: "Kelola Akun" selalu tampil (baik login maupun
+                tidak) — buka LoginModal yang berisi tombol sync, status sync,
+                dan tombol logout. Sebelumnya kalau sudah login hanya tampil
+                "Keluar" tanpa akses ke tombol sync. */}
+            <PopoverItem
+              icon={isAuthed ? UserCircle : LogIn}
+              label={isAuthed ? "Kelola Akun & Sync" : "Masuk Akun Cloud"}
+              colors={colors}
+              primary={!isAuthed}
+              onClick={() => handleMenuClick(onOpenLogin)}
+            />
           </div>
         </div>,
         document.body

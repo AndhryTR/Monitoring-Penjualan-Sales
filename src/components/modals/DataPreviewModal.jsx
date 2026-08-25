@@ -12,10 +12,11 @@ import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
    Excel. Menampilkan ringkasan: baris terbaca, baris dilewati, sales/grup
    terdeteksi, duplikat dihapus, file digabung, rentang tanggal, kolom
    terdeteksi/tidak. Kalau sudah ada data sebelumnya, user juga memilih mau
-   GABUNGKAN (dedup otomatis vs data lama) atau GANTI SEMUA. User bisa
+   GABUNGKAN, GANTI TANGGAL YANG SAMA (untuk koreksi nota), atau GANTI SEMUA.
+   User bisa
    konfirmasi "Gunakan Data Ini" atau batal.
 ============================================================================ */
-export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors }) {
+export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors, canReplaceDates = false }) {
   const hasMergeOption = !!(preview && preview.mergePreview);
   const [mode, setMode] = useState(hasMergeOption ? "merge" : "replace");
   // Reset pilihan ke default setiap kali preview baru muncul (file baru dipilih)
@@ -44,12 +45,13 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors 
           <button onClick={onCancel} className="sm-btn p-2 rounded-full" style={{ background: colors.glassFill }}><X size={16} /></button>
         </div>
         <div className="p-5 overflow-y-auto">
-          {hasMergeOption && (
+          {(hasMergeOption || canReplaceDates) && (
             <div className="mb-6">
-              <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>
+              {hasMergeOption && <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>
                 Sudah ada {fmtNum(mergePreview.existingRowCount)} baris data sebelumnya
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              </div>}
+              <div className={`grid grid-cols-1 ${hasMergeOption ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
+                {hasMergeOption && <>
                 <button
                   onClick={() => setMode("merge")}
                   className="sm-btn text-left p-3.5 rounded-xl"
@@ -68,6 +70,26 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors 
                     {" "}<b className="mono">{fmtNum(Math.max(0, mergePreview.newRowsAdded))}</b> baris baru ditambahkan.
                   </p>
                 </button>
+                </>}
+                {canReplaceDates && <>
+                <button
+                  onClick={() => setMode("replace_dates")}
+                  className="sm-btn text-left p-3.5 rounded-xl"
+                  style={{
+                    background: mode === "replace_dates" ? colors.gold + "1A" : colors.glassFill,
+                    border: `1px solid ${mode === "replace_dates" ? colors.gold + "66" : colors.glassBorder}`,
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <RefreshCcw size={15} style={{ color: mode === "replace_dates" ? colors.gold : colors.textMuted }} />
+                    <span className="text-sm font-semibold" style={{ color: mode === "replace_dates" ? colors.gold : colors.text }}>Ganti tanggal yang sama</span>
+                  </div>
+                  <p className="text-xs" style={{ color: colors.textMuted }}>
+                    Untuk koreksi nota. Data lama hanya pada tanggal yang ada di file akan diganti; tanggal lain tetap aman. Saat disimpan ke Master, tanggal tersebut juga diganti di cloud.
+                  </p>
+                </button>
+                </>}
+                {hasMergeOption && <>
                 <button
                   onClick={() => setMode("replace")}
                   className="sm-btn text-left p-3.5 rounded-xl"
@@ -84,6 +106,7 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors 
                     Data sebelumnya ({fmtNum(mergePreview.existingRowCount)} baris) akan dihapus, diganti total dengan file ini saja ({fmtNum(rows.length)} baris).
                   </p>
                 </button>
+                </>}
               </div>
             </div>
           )}
@@ -172,7 +195,7 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors 
             Batal
           </button>
           <button onClick={() => onConfirm(mode)} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.gold, color: "#0A1120" }}>
-            {mode === "merge" ? "Gabungkan Data" : "Gunakan Data Ini"}
+            {mode === "merge" ? "Gabungkan Data" : mode === "replace_dates" ? "Ganti Data per Tanggal" : "Gunakan Data Ini"}
           </button>
         </div>
       </div>

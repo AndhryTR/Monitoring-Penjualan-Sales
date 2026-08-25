@@ -183,8 +183,9 @@ export function SlideshowMode({
         style={{ scrollBehavior: "smooth" }}
         onClick={togglePlayPause}
       >
-        {/* Render page aktif */}
-        <div className="slideshow-content max-w-7xl mx-auto" style={{ fontSize: contentFontSize }}>
+        {/* Render page aktif — wrap dengan stopPropagation supaya klik pada
+            button/link di dalam page tidak trigger pause/resume slideshow */}
+        <div className="slideshow-content max-w-7xl mx-auto" style={{ fontSize: contentFontSize }} onClick={(e) => e.stopPropagation()}>
           {renderPage(currentTab)}
         </div>
       </div>

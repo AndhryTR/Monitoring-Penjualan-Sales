@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Search, Check } from "lucide-react";
+import { computeDropdownTop } from "../../utils/dropdownPosition.js";
 
 /* ============================================================================
    MULTISELECT
@@ -27,8 +28,10 @@ export function MultiSelect({ label, icon: Icon, options, selected, onChange, pl
       const btn = ref.current?.querySelector("button");
       if (!btn) return;
       const rect = btn.getBoundingClientRect();
+      const dropdownHeight = 300; // estimasi tinggi dropdown (max-h-56 + search + padding)
+      const top = computeDropdownTop(rect, dropdownHeight);
       setDropdownPos({
-        top: rect.bottom + 8,
+        top,
         left: rect.left,
         width: Math.max(256, rect.width),
       });

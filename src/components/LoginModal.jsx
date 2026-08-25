@@ -136,7 +136,7 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein p-4" onClick={handleClose}>
-      <div ref={modalRef} className="sm-card sm-modal-glass sm-scale-in w-full max-w-md p-6" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto" }}>
+      <div ref={modalRef} className="sm-card sm-modal-glass sm-scale-in w-full max-w-md p-6" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto", "--sm-mint": colors.mint }}>
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2.5">
