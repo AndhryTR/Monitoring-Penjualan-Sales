@@ -370,18 +370,6 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm font-medium">Auto-Sync Data</label>
-                      <span className="mono text-sm font-bold" style={{ color: colors.mint }}>{slideshowConfig.syncInterval}m</span>
-                    </div>
-                    <input type="range" min={1} max={30} step={1} value={slideshowConfig.syncInterval}
-                      onChange={(e) => setSlideshowConfig({ ...slideshowConfig, syncInterval: Number(e.target.value) })}
-                      className="w-full" style={{ accentColor: colors.mint }} />
-                    <div className="flex justify-between text-xs mt-1" style={{ color: colors.textMuted }}>
-                      <span>1m</span><span>30m</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
                       <label className="text-sm font-medium">Jeda Awal (baca header)</label>
                       <span className="mono text-sm font-bold" style={{ color: colors.blue }}>{slideshowConfig.scrollDelay}s</span>
                     </div>

@@ -34,7 +34,7 @@ const TAB_LABELS = {
 };
 
 export function SlideshowMode({
-  isActive, isPlaying, currentTab, currentTabIndex, timeLeft, lastSyncedAt,
+  isActive, isPlaying, currentTab, currentTabIndex, timeLeft,
   activeTabs, tabDuration, progress,
   start, stop, togglePlayPause, nextTab, prevTab,
   scrollContainerRef,
@@ -85,14 +85,7 @@ export function SlideshowMode({
     return () => clearInterval(interval);
   }, [isActive]);
 
-  // Format last synced time
-  const lastSyncedLabel = useMemo(() => {
-    if (!lastSyncedAt) return "Belum sync";
-    const diff = Math.floor((Date.now() - lastSyncedAt) / 1000);
-    if (diff < 60) return `${diff} dtk lalu`;
-    if (diff < 3600) return `${Math.floor(diff / 60)} mnt lalu`;
-    return `${Math.floor(diff / 3600)} jam lalu`;
-  }, [lastSyncedAt]);
+  // Format last synced time DIHAPUS (audit #12) — slideshow tidak sync otomatis lagi.
 
   // Format tanggal
   const dateLabel = useMemo(() => {
@@ -177,10 +170,16 @@ export function SlideshowMode({
       </div>
 
       {/* ===== Content area ===== */}
+      {/* ⚠️ Audit autoscroll fix: TANPA scrollBehavior:"smooth" — loop rAF di
+          useSlideshow sudah punya easing sendiri. Di Chromium, scroll-behavior
+          smooth bikin tiap penulisan c.scrollTop (60x/dtk) jadi permintaan
+          animasi baru yang meng-cancel animasi sebelumnya → posisi nyaris tak
+          maju (terlihat "tidak berfungsi"). Firefox konvergensinya beda sehingga
+          lolos. Tanpa CSS smooth, scrollTop = lompatan instan → easing rAF
+          terkontrol penuh, konsisten di semua browser. */}
       <div
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto p-8"
-        style={{ scrollBehavior: "smooth" }}
         onClick={togglePlayPause}
       >
         {/* Render page aktif — wrap dengan stopPropagation supaya klik pada
@@ -259,12 +258,8 @@ export function SlideshowMode({
             </button>
           </div>
 
-          {/* Kanan: sync status */}
+          {/* Kanan: info durasi (audit #12: indikator sync dihapus) */}
           <div className="flex items-center gap-3 text-xs" style={{ color: effectiveColors.textMuted }}>
-            <div className="flex items-center gap-1.5">
-              <Wifi size={12} style={{ color: lastSyncedAt ? effectiveColors.mint : effectiveColors.textMuted }} />
-              <span>{lastSyncedLabel}</span>
-            </div>
             <div className="flex items-center gap-1.5">
               <Clock size={12} />
               <span>Ganti setiap {tabDuration}s</span>
