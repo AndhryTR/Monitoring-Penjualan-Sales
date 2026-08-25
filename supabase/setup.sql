@@ -28,13 +28,6 @@ create table if not exists public.profiles (
   updated_by text
 );
 
--- tambahkan kolom role kalau profil sudah ada tanpa role (migrasi)
-do $$ begin
-  if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='profiles' and column_name='role') then
-    alter table public.profiles add column role text not null default 'user';
-  end if;
-end $$;
-
 -- ----------------------------------------------------------------------------
 -- 2) TABEL MASTER DATA (dataset transaksi global per depot; 1 baris/transaksi)
 --    RLS: SEMUA user terautentikasi boleh SELECT; hanya admin/supervisor
@@ -57,57 +50,13 @@ create table if not exists public.master_sales (
   value numeric,
   unit text,
   uploaded_by uuid references auth.users(id) on delete set null,
-  uploaded_at timestamptz default now()
+  uploaded_at timestamptz default now(),
+  constraint uq_master_sales_unique
+    unique (date, invoice_no, product_code, sales_code, outlet_code)
 );
 create index if not exists idx_master_sales_date on public.master_sales (date);
 create index if not exists idx_master_sales_sales on public.master_sales (sales_code);
 create index if not exists idx_master_sales_inv on public.master_sales (invoice_no);
-
--- ----------------------------------------------------------------------------
--- UNIQUE CONSTRAINT — deduplikat transaksi di level DB
--- Mencegah race condition sinkronisasi: bila dua device menekan "Sync"
--- bersamaan dan keduanya melihat maxDate lokal yang sama, keduanya akan
--- memasukkan baris yang identik. Tanpa constraint ini, angka penjualan di
--- dashboard cloud akan dobel secara diam-diam.
--- Constraint ini dipakai bersama `.upsert({ onConflict, ignoreDuplicates: true })`
--- di syncEngine.js#pushMasterRows.
---
--- Catatan: jalankan blok DO di bawah DULU untuk membersihkan duplikat yang
--- sudah ada (ALTER TABLE ... ADD CONSTRAINT akan gagal bila data eksisting
--- mengandung duplikat pada composite key).
--- ----------------------------------------------------------------------------
-do $$
-declare
-  dup_count integer;
-begin
-  -- Hapus duplikat eksisting: simpan 1 baris (id terkecil) per composite key.
-  -- Pakai ctid (physical row id) untuk identifikasi baris tanpa ambigu PK.
-  delete from public.master_sales m
-  where m.ctid not in (
-    select min(ctid)
-    from public.master_sales
-    group by date, invoice_no, product_code, sales_code
-  );
-
-  select count(*) into dup_count
-  from (
-    select date, invoice_no, product_code, sales_code
-    from public.master_sales
-    group by date, invoice_no, product_code, sales_code
-    having count(*) > 1
-  ) d;
-
-  if dup_count = 0 then
-    -- Aman menambah constraint unik composite.
-    if not exists (
-      select 1 from pg_constraint where conname = 'uq_master_sales_unique'
-    ) then
-      alter table public.master_sales
-        add constraint uq_master_sales_unique
-        unique (date, invoice_no, product_code, sales_code);
-    end if;
-  end if;
-end $$;
 
 -- Index pendukung untuk query by outlet_code & uploaded_by (audit + aggregasi).
 create index if not exists idx_master_sales_outlet on public.master_sales (outlet_code);
@@ -117,13 +66,6 @@ create index if not exists idx_master_sales_uploaded_by on public.master_sales (
 -- yang di-index — query ORDER BY uploaded_at / WHERE uploaded_at > X
 -- menyebabkan full scan di tabel besar.
 create index if not exists idx_master_sales_uploaded_at on public.master_sales (uploaded_at);
-
--- Migrasi: tambah kolom nama (kalau tabel sudah pernah dibuat tanpa kolom ini)
-alter table public.master_sales add column if not exists sales_name text;
-alter table public.master_sales add column if not exists outlet_name text;
-alter table public.master_sales add column if not exists product_name text;
-alter table public.master_sales add column if not exists qty_karton numeric;
-alter table public.master_sales add column if not exists unconvertible boolean;
 
 -- ----------------------------------------------------------------------------
 -- 3) TRIGGER PROFIL OTOMATIS SAAT REGISTRASI (role default 'user')
@@ -200,6 +142,59 @@ as $$
     where user_id = auth.uid()
   ), false);
 $$;
+
+-- Ganti seluruh snapshot transaksi pada tanggal yang ada di file koreksi.
+-- Satu pemanggilan RPC adalah satu transaksi PostgreSQL: jika insert gagal,
+-- penghapusan data lama otomatis dibatalkan.
+create or replace function public.replace_master_sales_dates(p_rows jsonb)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_dates text[];
+  v_deleted integer;
+  v_inserted integer;
+begin
+  if not public.is_editor() then
+    raise exception 'Hanya admin atau supervisor yang dapat mengganti master data';
+  end if;
+
+  select array_agg(distinct row_data->>'date')
+  into v_dates
+  from jsonb_array_elements(p_rows) row_data
+  where coalesce(row_data->>'date', '') <> '';
+
+  if coalesce(array_length(v_dates, 1), 0) = 0 then
+    raise exception 'File koreksi tidak memiliki tanggal valid';
+  end if;
+
+  delete from public.master_sales where date = any(v_dates);
+  get diagnostics v_deleted = row_count;
+
+  insert into public.master_sales (
+    date, sales_code, sales_name, outlet_code, outlet_name, invoice_no,
+    product_code, product_name, group_name, qty, qty_karton, unconvertible,
+    value, unit, uploaded_by
+  )
+  select
+    r.date, r.sales_code, r.sales_name, r.outlet_code, r.outlet_name, r.invoice_no,
+    r.product_code, r.product_name, r.group_name, r.qty, r.qty_karton, r.unconvertible,
+    r.value, r.unit, auth.uid()
+  from jsonb_to_recordset(p_rows) as r(
+    date text, sales_code text, sales_name text, outlet_code text, outlet_name text,
+    invoice_no text, product_code text, product_name text, group_name text,
+    qty numeric, qty_karton numeric, unconvertible boolean, value numeric, unit text
+  )
+  where r.date = any(v_dates)
+  on conflict (date, invoice_no, product_code, sales_code, outlet_code) do nothing;
+  get diagnostics v_inserted = row_count;
+
+  return jsonb_build_object('deleted', v_deleted, 'inserted', v_inserted);
+end;
+$$;
+revoke all on function public.replace_master_sales_dates(jsonb) from public;
+grant execute on function public.replace_master_sales_dates(jsonb) to authenticated;
 
 -- ----------------------------------------------------------------------------
 -- 6) ROW LEVEL SECURITY
