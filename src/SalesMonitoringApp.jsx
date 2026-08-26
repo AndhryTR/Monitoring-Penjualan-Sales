@@ -137,6 +137,7 @@ export default function SalesMonitoringApp() {
     deleteSales,
     resetAllSettings,
     applyCloudSettings,
+    flushPendingSettings,
   } = useSettings();
 
   const [rawRows, setRawRows] = useState([]);
@@ -209,6 +210,7 @@ export default function SalesMonitoringApp() {
     settingsGetters: { targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed },
     settingsSetters: { setTargets, setWorkDays, setDepotName, setTheme, setProjectionMethod, setSidebarCollapsed },
     settingsApplier: applyCloudSettings,
+    flushPendingSettings,
     dataState: { rawRows, parseMeta, setRawRows, setFileName, setParseMeta },
   });
 
@@ -915,7 +917,7 @@ export default function SalesMonitoringApp() {
         colors={colors}
       />
       <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
-      <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={(mode) => confirmPreview(mode)} preview={pendingPreview} colors={colors} canReplaceDates={isEditor} />
+      <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={(mode) => confirmPreview(mode)} preview={pendingPreview} colors={colors} canReplaceDates={true} />
       <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSave={saveHistorySnapshot} onApply={applyHistorySelection}
         onDelete={deleteHistorySnapshot}
         defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
