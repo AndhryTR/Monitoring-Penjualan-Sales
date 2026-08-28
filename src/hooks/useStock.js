@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   getActiveSnapshot,
   saveStockSnapshot,
@@ -40,29 +40,43 @@ export function useStock({ depotId, transactions = [], daysCount = 30 }) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
 
+  // ⚠️ Fix bug #2 (race depot): ref yang selalu menyimpan depotId TERKINI.
+  // dipakai sebagai guard saat uploadSnapshot in-flight — kalau depot berubah
+  // ketika async work sedang jalan, kita abort agar stok depot A tidak bocor
+  // ke depot B. useRef agar selalu baca nilai terbaru tanpa re-create callback.
+  const depotIdRef = useRef(depotId);
+  depotIdRef.current = depotId;
+
   // Load active snapshot + history + adjustments on mount / depot change
   useEffect(() => {
     if (!depotId) {
       setLoading(false);
       return;
     }
+    // ⚠️ Fix bug #2 (race ganti depo cepat): cancel flag. Kalau depot berubah
+    // sebelum Promise.all resolve, hasil depot lama DIBUANG (tidak menimpa
+    // depot baru). Pola sama dengan SalesMonitoringApp.jsx loadSession.
+    let cancelled = false;
     setLoading(true);
     Promise.all([
       getActiveSnapshot(depotId),
       getSnapshotHistory(depotId),
       getAdjustmentHistory(depotId),
     ]).then(([snap, history, adjs]) => {
+      if (cancelled) return;
       setActiveSnapshot(snap);
       setSnapshotHistory(history || []);
       setAdjustments(adjs || []);
       setLoading(false);
     }).catch((err) => {
       console.error("Failed to load stock:", err);
+      if (cancelled) return;
       setActiveSnapshot(null);
       setSnapshotHistory([]);
       setAdjustments([]);
       setLoading(false);
     });
+    return () => { cancelled = true; };
   }, [depotId]);
 
   // Compute current stock (memoized)
@@ -130,16 +144,19 @@ export function useStock({ depotId, transactions = [], daysCount = 30 }) {
       const orphanOld = (activeSnapshot?.products || []).filter(
         (p) => !newProductCodes.has(p.productCode)
       );
-      const mergedProducts = [
-        ...parsedData.products,
-        // Barang lama yang tidak ada di file baru → qty 0
-        ...orphanOld.map((p) => ({
-          ...p,
-          qtyBase: 0,
-          qtyKarton: 0,
-          totalValue: 0,
-        })),
-      ];
+      // ⚠️ Fix bug #1: dedupe by productCode supaya TIDAK pernah ada duplikat kode di
+      // snapshot. File baru (parsedData.products) MENANG — karena dibangun duluan.
+      // Barang lama yang tidak ada di file baru dipertahankan qty 0 hanya kalau
+      // kodenya belum ada (defensive — mencegah snapshot lama yang terlanjur korup
+      // berisi duplikat menyebarkan barang qty-0 ganda yang menimpa via Map.set).
+      const mergedMap = new Map();
+      parsedData.products.forEach((p) => mergedMap.set(p.productCode, p));
+      orphanOld.forEach((p) => {
+        if (!mergedMap.has(p.productCode)) {
+          mergedMap.set(p.productCode, { ...p, qtyBase: 0, qtyKarton: 0, totalValue: 0 });
+        }
+      });
+      const mergedProducts = Array.from(mergedMap.values());
 
       const newSnapshot = {
         id: `snap_${depotId}_${Date.now()}`,
@@ -164,10 +181,19 @@ export function useStock({ depotId, transactions = [], daysCount = 30 }) {
         setUploading(false);
         return { success: false, error: "Gagal menyimpan ke IndexedDB" };
       }
+      // ⚠️ Fix bug #2 (race depot): kalau depot BERUBAH selama `saveStockSnapshot`
+      // in-flight, jangan izinkan snapshot depot lama meng-override UI depot baru.
+      // Data sudah tersimpan (saveStockSnapshot memakai depotId dari closure —
+      // aman untuk DB), tapi kita BENTAL setState reload & jangan tulis adjustment
+      // log yang mengarah ke `activeSnapshot` depot lain.
+      if (depotIdRef.current !== depotId) {
+        setUploading(false);
+        return { success: false, error: "Depot berubah saat upload — snapshot tersimpan, tampilan tidak diperbarui" };
+      }
 
       // Save adjustment log if there was a diff (reconciliation)
       const diff = opts.diff;
-      if (diff) {
+      if (diff && depotIdRef.current === depotId) {
         const adjLog = {
           id: `adj_${newSnapshot.id}`,
           depotId,
@@ -192,6 +218,12 @@ export function useStock({ depotId, transactions = [], daysCount = 30 }) {
         getSnapshotHistory(depotId),
         getAdjustmentHistory(depotId),
       ]);
+      // ⚠️ Fix bug #2: cek sekali lagi sebelum setState — kalau depot sudah
+      // berubah sejak reload dimulai, jangan timpa state depot baru.
+      if (depotIdRef.current !== depotId) {
+        setUploading(false);
+        return { success: false, error: "Depot berubah saat upload — tampilan tidak diperbarui" };
+      }
       setActiveSnapshot(snap);
       setSnapshotHistory(history || []);
       setAdjustments(adjs || []);
