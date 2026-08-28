@@ -9,6 +9,7 @@ import { fmtRp, fmtNum } from "../utils/formatters.js";
 // di-load lazy via dynamic import() saat user benar-benar klik Export button.
 // save: ~1.2MB dari initial bundle.
 import { getLastDaySalesMap } from "../utils/aggregation.js";
+import { notifyExportSuccess } from "../utils/notifyExport.js";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, DrilldownButton, AchBarChartTooltip } from "../components/ui/index.jsx";
 import { Leaderboard } from "../components/cards/index.jsx";
@@ -36,6 +37,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName,
   const handleExportScorecard = async (salesRow) => {
     const { exportSalesScorecardPDF } = await import("../utils/pdfExport.js");
     exportSalesScorecardPDF(salesRow, agg, { workDays, depotName });
+    await notifyExportSuccess("Export berhasil", `Scorecard ${salesRow.name}`);
   };
   const groupRows = useMemo(() => rows.flatMap((sm) => sm.groups.map((g) => ({
     salesName: sm.name, groupName: g.name, value: g.realisasiValue, ao: g.realisasiAo, predicate: g.predicate,
@@ -65,6 +67,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName,
     exportSalesReportExcel(agg, groupRows, totalVsLastDayRows, {
       depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
     });
+    await notifyExportSuccess("Export berhasil", "Laporan Sales (Excel)");
   };
 
   // ⚠️ Bug fix (Sprint 3 / P4): sebelumnya `CustomTooltip` didefinisikan DI DALAM

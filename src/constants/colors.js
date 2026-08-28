@@ -122,3 +122,28 @@ export function applyPowerSaveColors(colors) {
     glassSheen: "transparent",
   };
 }
+
+// Mode Desktop Tauri (Acrylic): backdrop-filter CSS tidak bisa memblur layer
+// native Acrylic di belakang WebView — jadi elemen melayang diberi scrim
+// semi-opaque lebih pekat (alpha naik ~3x dari token web) supaya teks tetap
+// kontras tanpa blur. Dipanggil di SalesMonitoringApp hanya bila isTauri.
+// ⚠️ Hue scrim SENGAJA sama dengan meshBg (#0A1120 = rgb(10,17,32)) supaya
+// card/dropdown menyatu dengan latar app — sebelumnya pakai slate rgb(15,23,42)
+// yang hue-nya lebih abu → tampak tidak serasi vs navy app.
+export function applyTauriScrimColors(colors) {
+  const isDark = colors.colorScheme === "dark";
+  return {
+    ...colors,
+    // Header bar / card: TETAP TRANSPARAN (efek Acrylic terlihat) — hanya
+    // dropdown/tooltip & modal yang diberi scrim pekat demi keterbacaan teks.
+    glassFill: isDark ? "rgba(10,17,32,0.50)" : "rgba(255,255,255,0.55)",
+    glassFillStrong: isDark ? "rgba(10,17,32,0.60)" : "rgba(255,255,255,0.68)",
+    glassSheen: isDark ? "rgba(148,180,255,0.06)" : "rgba(255,255,255,0.30)",
+    // Dropdown/tooltip melayang tanpa overlay: butuh scrim pekat agar teks kecil terbaca.
+    dropdownBg: isDark ? "rgba(10,17,32,0.90)" : "rgba(255,255,255,0.97)",
+    modalPanelBg: isDark ? "rgba(10,17,32,0.94)" : "rgba(255,255,255,0.98)",
+    // Light theme + Acrylic: wallpaper tembus → label abu turun kontras.
+    // textMuted digelapkan supaya teks sekunder tetap terbaca di atas kaca transparan.
+    ...(isDark ? {} : { textMuted: "#374151", tableHeader: "#374151" }),
+  };
+}

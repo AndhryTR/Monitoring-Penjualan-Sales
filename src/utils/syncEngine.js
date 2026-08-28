@@ -331,7 +331,7 @@ export async function pushSettings(data) {
   try {
     const user = await currentUser();
     if (!user?.id) return { ok: false, reason: "no_session" };
-    const { error } = await supabase.from("profiles").upsert({
+    const payload = {
       user_id: user.id,
       targets: data.targets ?? null,
       work_days: data.workDays ?? null,
@@ -341,9 +341,13 @@ export async function pushSettings(data) {
       sidebar_collapsed: data.sidebarCollapsed ?? null,
       updated_at: Date.now(),
       updated_by: getDeviceId(),
-    }, { onConflict: "user_id" });
+    };
+    const { error } = await supabase.from("profiles").upsert(payload, { onConflict: "user_id" });
     if (error) return { ok: false, reason: error.message };
-    return { ok: true };
+    // ⚠️ Fix self-echo LWW: kembalikan timestamp yang ditulis ke cloud supaya
+    // caller (useCloudSync) bisa sinkronkan updated_at lokal — tanpa ini,
+    // trigger sync berikutnya selalu mengira cloud lebih baru → PULL echo.
+    return { ok: true, updated_at: payload.updated_at };
   } catch (e) {
     return { ok: false, reason: e.message };
   }

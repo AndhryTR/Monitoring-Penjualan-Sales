@@ -268,6 +268,36 @@ export function useSettings() {
   }, [theme, powerSaveMode, filters, projectionMethod, comparisonBase, sidebarCollapsed, slideshowConfig,
       depots, activeDepotId, activeDepot, persistedSettings]);
 
+  // ---- flushPendingSettings (untuk sync) ----
+  // ⚠️ Bug fix race sync-vs-autosave: syncSettingsNow membaca localStorage untuk
+  // dapat updated_at lokal, tapi auto-save di atas DEBOUNCED 400ms. Kalau sync
+  // trigger (fokus window balik saat modal settings tertutup) jalan sebelum
+  // timer, localTs = timestamp LAMA → LWW mengira cloud lebih baru → PULL →
+  // perubahan user yang belum ke-save KETIMPA nilai cloud. Fungsi ini memaksa
+  // tulis pending snapshot SEKARANG (sinkron) — dipanggil di awal
+  // syncSettingsNow supaya localTs selalu segar sebelum dibandingkan.
+  const flushPendingSettings = useCallback(() => {
+    const flatTargets = activeDepot?.targets ?? [];
+    const flatWorkDays = activeDepot?.workDays ?? WORK_DAYS_DEFAULT;
+    const flatDepotName = activeDepot?.name ?? DEFAULT_DEPOT_NAME;
+    const settingsSnapshot = {
+      theme, powerSaveMode, filters, projectionMethod, comparisonBase,
+      sidebarCollapsed, slideshowConfig,
+      depots, activeDepotId,
+      targets: flatTargets, workDays: flatWorkDays, depotName: flatDepotName,
+    };
+    const serialized = JSON.stringify(settingsSnapshot);
+    // Tidak ada perubahan pending — biarkan localStorage apa adanya.
+    if (lastSavedSettingsRef.current === serialized) return;
+    if (saveSettingsTimerRef.current) {
+      clearTimeout(saveSettingsTimerRef.current);
+      saveSettingsTimerRef.current = null;
+    }
+    saveSettings({ ...settingsSnapshot, updated_at: Date.now() });
+    lastSavedSettingsRef.current = serialized;
+  }, [theme, powerSaveMode, filters, projectionMethod, comparisonBase, sidebarCollapsed,
+      slideshowConfig, depots, activeDepotId, activeDepot]);
+
   // ---- applyCloudSettings (untuk sync dari cloud) ----
   // ⚠️ Sprint 18: cloud sync engine masih model v1 — apply ke depo aktif saja.
   // Bila user multi-depo, depo lain di localStorage tidak ter-overwrite.
@@ -404,5 +434,6 @@ export function useSettings() {
     // Reset & sync helpers
     resetAllSettings,
     applyCloudSettings,
+    flushPendingSettings,
   };
 }

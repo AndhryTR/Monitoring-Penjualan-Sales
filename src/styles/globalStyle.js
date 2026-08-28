@@ -11,6 +11,22 @@ export function createGlobalStyle(colors, powerSaveMode) {
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
 * { box-sizing: border-box; }
 .smapp { font-family: 'Inter', sans-serif; color: ${colors.text}; background: ${colors.meshBg}; position: relative; }
+/* --- Tauri desktop (Acrylic + hybrid scrim): latar app transparan supaya
+       material Acrylic Windows 11 di belakang WebView terlihat (class is-tauri
+       dipasang via deteksi __TAURI_INTERNALS__). Karena backdrop-filter CSS
+       TIDAK bisa memblur layer native di belakang webview, header bar & panel
+       melayang diberi scrim semi-opaque lebih pekat (naikkan alpha token glass)
+       supaya teks tetap kontras tanpa blur. Aurora mesh diredam jadi aksen tipis.
+       Browser/PWA tak berubah. --- */
+html, body { background: transparent; }
+.smapp.is-tauri { background: transparent; }
+.smapp.is-tauri .sm-mesh { opacity: .35; }
+/* Scrim hybrid: header bar (sm-card sticky) & elemen melayang butuh alpha lebih
+   tinggi di atas Acrylic — blur dihilangkan (tak ada bahan web untuk diblur). */
+.smapp.is-tauri .sm-card { backdrop-filter: none; -webkit-backdrop-filter: none; }
+.smapp.is-tauri .sm-btn { backdrop-filter: none; -webkit-backdrop-filter: none; }
+.smapp.is-tauri .sm-header-search { backdrop-filter: none; -webkit-backdrop-filter: none; }
+.smapp.is-tauri .sm-slider { backdrop-filter: none; -webkit-backdrop-filter: none; }
 .smapp .disp { font-family: 'Space Grotesk', sans-serif; }
 .smapp .mono { font-family: 'JetBrains Mono', monospace; }
 .smapp *::-webkit-scrollbar { height: 8px; width: 8px; }
@@ -51,6 +67,9 @@ export function createGlobalStyle(colors, powerSaveMode) {
 .sm-mesh.sm-scrolling .blob { animation-play-state: paused; }
 .sm-mesh.sm-scrolling .sm-noise { display: none; }
 .sm-fadeup { animation: smFadeUp .45s cubic-bezier(.16,1,.3,1) backwards; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
+/* Toast in-window (ToastHost) — slide dari kanan + fade */
+@keyframes smToastIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+.sm-toast-in { animation: smToastIn .3s cubic-bezier(.16,1,.3,1); }
 .sm-fadein { animation: smFadeIn .3s ease both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
 .sm-page-enter { animation: smPageIn .25s cubic-bezier(.16,1,.3,1); }
 .sm-pulse { animation: smPulse 1.8s ease-in-out infinite; }

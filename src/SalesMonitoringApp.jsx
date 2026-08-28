@@ -76,6 +76,7 @@ import { HistoryModal } from "./components/modals/HistoryModal.jsx";
 import { SettingsModal } from "./components/modals/SettingsModal.jsx";
 import { AboutModal } from "./components/modals/AboutModal.jsx";
 import { RangeDeleteModal } from "./components/modals/RangeDeleteModal.jsx";
+import { ToastHost } from "./components/ui/ToastHost.jsx";
 
 /* ============================================================================
    DESIGN TOKENS
@@ -83,7 +84,7 @@ import { RangeDeleteModal } from "./components/modals/RangeDeleteModal.jsx";
    violet = focus-product accent. Display: Space Grotesk, Body: Inter,
    Data/mono: JetBrains Mono.
 ============================================================================ */
-import { THEMES, applyPowerSaveColors } from "./constants/colors.js";
+import { THEMES, applyPowerSaveColors, applyTauriScrimColors } from "./constants/colors.js";
 // ⚠️ Sprint 6 / R3: createGlobalStyle dipindah dari inline (130+ baris CSS)
 // ke file sendiri supaya SalesMonitoringApp.jsx lebih ramping.
 import { createGlobalStyle } from "./styles/globalStyle.js";
@@ -173,6 +174,11 @@ export default function SalesMonitoringApp() {
 
   const cloudEnabled = !!supabase;
   const isEditor = userRole === "admin" || userRole === "supervisor";
+
+  // Deteksi runtime Tauri (desktop exe) — dipakai class `is-tauri` di root
+  // untuk CSS Mica-transparency: latar app transparan supaya material Mica
+  // Windows 11 (di belakang WebView) terlihat. Browser/PWA tidak berubah.
+  const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
   // Keluar dari akun — didefinisikan SETELAH useCloudSync (butuh setLastMasterSyncAt).
   // Muat role user saat login (dari tabel profiles).
@@ -345,8 +351,12 @@ export default function SalesMonitoringApp() {
 
   const colors = useMemo(() => {
     const base = THEMES[theme];
-    return powerSaveMode ? applyPowerSaveColors(base) : base;
-  }, [theme, powerSaveMode]);
+    const themed = powerSaveMode ? applyPowerSaveColors(base) : base;
+    // ⚠️ Tauri desktop (Acrylic): scrim hybrid — naikkan alpha token glass
+    // supaya header/dropdown kontras tanpa backdrop-filter (blur CSS tidak bisa
+    // memblur layer native Acrylic di belakang webview).
+    return isTauri ? applyTauriScrimColors(themed) : themed;
+  }, [theme, powerSaveMode, isTauri]);
   // ⚠️ Sprint 17h / bugfix: effective colors untuk slideshow saat forceDark.
   // Kalau user centang "Dark mode paksa" di Settings, slideshow (chrome +
   // konten page) harus selalu dark walau app lagi pakai light theme.
@@ -832,7 +842,7 @@ export default function SalesMonitoringApp() {
   }, []);
 
   return (
-    <div className={`smapp min-h-screen transition-colors duration-300 ${powerSaveMode ? "sm-powersave" : ""}`}>
+    <div className={`smapp min-h-screen transition-colors duration-300 ${powerSaveMode ? "sm-powersave" : ""} ${isTauri ? "is-tauri" : ""}`}>
       <style>{globalStyle}</style>
       {!powerSaveMode && (
         <div className="sm-mesh" aria-hidden="true" ref={meshRef}>
@@ -923,6 +933,9 @@ export default function SalesMonitoringApp() {
         defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
       <MobileFab onFile={handleFile} colors={colors} loading={loading} />
       <MobileBottomNav tabs={TABS} activeTab={activeTab} onChange={setActiveTab} colors={colors} />
+
+      {/* ⚠️ Toast Host — umpan balik export (selalu tampil). */}
+      <ToastHost colors={colors} />
 
       {/* ⚠️ Sprint 18d / Header Redesign: layout root kembali ke pola lama
           (Sidebar di kiri sejajar Header+Content di kanan) — user prefer ini.

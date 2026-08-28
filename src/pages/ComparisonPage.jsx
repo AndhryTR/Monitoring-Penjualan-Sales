@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { GitCompareArrows, Users, Package, Store, Wallet } from "lucide-react";
 import { MultiSelect } from "../components/ui/MultiSelect.jsx";
+import { notifyExportSuccess } from "../utils/notifyExport.js";
 import { SectionTitle } from "../components/ui/index.jsx";
 import { BaseSelector } from "../components/ui/BaseSelector.jsx";
 import { PeriodPicker } from "../components/comparison/PeriodPicker.jsx";
@@ -254,6 +255,7 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, depotName, 
         rangeLabel,
         chartImage,
       });
+      await notifyExportSuccess("Export berhasil", `Perbandingan ${metricLabel}`);
     } catch (e) {
       console.error("Gagal export perbandingan:", e);
     } finally {

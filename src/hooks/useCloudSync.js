@@ -4,7 +4,7 @@ import {
   fetchMasterMaxDate, fetchAllMasterRows, fetchMasterRowsSince, pushMasterRows, replaceMasterRowsForDates,
   deleteMasterRange, pushSettings, pullSettings, mergeMasterRows,
 } from "../utils/syncEngine.js";
-import { loadSettings, loadMasterMax, saveMasterMax, loadLastMasterSyncAt, saveLastMasterSyncAt } from "../utils/storage.js";
+import { loadSettings, saveSettings, loadMasterMax, saveMasterMax, loadLastMasterSyncAt, saveLastMasterSyncAt } from "../utils/storage.js";
 
 /* ============================================================================
    useCloudSync — hook untuk sinkronisasi cloud.
@@ -47,6 +47,7 @@ export function useCloudSync({
   settingsGetters,
   settingsSetters,
   settingsApplier,
+  flushPendingSettings,
   dataState,
 }) {
   const { targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed } = settingsGetters;
@@ -79,6 +80,13 @@ export function useCloudSync({
     settingsSyncInFlightRef.current = true;
     setSettingsSyncState("syncing"); setSettingsSyncMsg("");
     try {
+      // ⚠️ Bug fix race sync-vs-autosave: auto-save settings DEBOUNCED 400ms.
+      // Kalau sync trigger (fokus window balik saat modal tertutup) jalan
+      // sebelum timer, updated_at lokal yang dibaca di bawah masih LAMA →
+      // LWW salah mengira cloud lebih baru → PULL menimpa perubahan user yang
+      // belum ke-save. Flush dulu supaya localStorage selalu memuat state
+      // React terkini sebelum dibandingkan dengan cloud.
+      if (flushPendingSettings) flushPendingSettings();
       const localNow = loadSettings() || {};
       const localTs = Number(localNow.updated_at) || 0;
       const localDoc = { targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed };
@@ -125,6 +133,19 @@ export function useCloudSync({
           setSettingsSyncMsg("Gagal mengirim pengaturan ke cloud: " + (pushRes.reason || ""));
           return;
         }
+        // ⚠️ Bug fix self-echo LWW: pushSettings menulis updated_at = Date.now()
+        // DI CLOUD, tapi localStorage lokal masih memuat timestamp lama → pada
+        // trigger berikutnya cloudTs > localTs → LWW salah mengira "cloud lebih
+        // baru" → PULL ulang nilai yang barusan di-push sendiri. Kalau di antara
+        // push & pull user sempat edit lagi, edit itu KETIMPA. Tulis timestamp
+        // hasil push ke localStorage supaya perbandingan konvergen.
+        const pushedTs = Number(pushRes.updated_at) || Date.now();
+        const freshLocal = loadSettings() || {};
+        // Hanya bump kalau selama push tidak ada perubahan lokal baru masuk.
+        if (Number(freshLocal.updated_at) || 0) {
+          saveSettings({ ...freshLocal, updated_at: Math.max(pushedTs, Number(freshLocal.updated_at) || 0) });
+          lastSyncedSnapshotRef.current = null; // paksa effect snapshot re-eval tanpa sync ganda
+        }
       }
       setSettingsSyncState("done");
       setLastSettingsSyncAt(Date.now());
@@ -134,7 +155,7 @@ export function useCloudSync({
     } finally {
       settingsSyncInFlightRef.current = false;
     }
-  }, [targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed, setTargets, setWorkDays, setDepotName, setTheme, setProjectionMethod, setSidebarCollapsed, settingsApplier, isAuthedRef]);
+  }, [targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed, setTargets, setWorkDays, setDepotName, setTheme, setProjectionMethod, setSidebarCollapsed, settingsApplier, flushPendingSettings, isAuthedRef]);
 
   // ---- Master data: PULL (tombol manual) ----
   const syncMasterNow = useCallback(async () => {

@@ -5,6 +5,7 @@ import { AchBadge } from "../components/AchBadge.jsx";
 import { MultiSelect } from "../components/ui/MultiSelect.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
+import { notifyExportSuccess } from "../utils/notifyExport.js";
 // ⚠️ Sprint 5 / S3: reportExcelExport.js lazy-loaded di handler Export (~620KB).
 
 /* ============================================================================
@@ -28,6 +29,7 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown, onGroupDrilld
     exportProductFocusExcel(productRows, {
       depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
     });
+    await notifyExportSuccess("Export berhasil", "Produk Fokus (Excel)");
   };
 
   // ---- View: Grup Fokus ----
@@ -110,6 +112,7 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown, onGroupDrilld
                   exportFocusGroupExcel(groupRows, filteredRows || agg.filteredRows, {
                     depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
                   });
+                  await notifyExportSuccess("Export berhasil", "Grup Fokus (Excel)");
                 }}
                 className="sm-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}
@@ -122,6 +125,7 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown, onGroupDrilld
                   exportFocusGroupPDF(groupRows, filteredRows || agg.filteredRows, {
                     depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
                   });
+                  await notifyExportSuccess("Export berhasil", "Grup Fokus (PDF)");
                 }}
                 className="sm-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{ background: colors.violet + "1A", border: `1px solid ${colors.violet}55`, color: colors.violet }}

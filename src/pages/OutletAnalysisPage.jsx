@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { fmtRp, fmtNum } from "../utils/formatters.js";
 import { computeOutletAnalysis } from "../utils/aggregation.js";
+import { notifyExportSuccess } from "../utils/notifyExport.js";
 import { KpiCard } from "../components/KpiCard.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, createChartTooltipStyle } from "../components/ui/index.jsx";
@@ -55,6 +56,7 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
     exportOutletAnalysisExcel(list, summary, {
       depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
     });
+    await notifyExportSuccess("Export berhasil", "Analisis Outlet (Excel)");
   };
 
   return (

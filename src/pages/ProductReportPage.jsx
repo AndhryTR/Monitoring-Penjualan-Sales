@@ -3,6 +3,7 @@ import {
 } from "recharts";
 import { Boxes, Package, Download } from "lucide-react";
 import { fmtRp, fmtNum, fmtMixedUnits } from "../utils/formatters.js";
+import { notifyExportSuccess } from "../utils/notifyExport.js";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { ACH_TIERS } from "../constants/thresholds.js";
 import { DataTable } from "../components/ui/DataTable.jsx";
@@ -19,6 +20,7 @@ export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, 
     exportProductReportExcel(agg.byGroup, {
       depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
     });
+    await notifyExportSuccess("Export berhasil", "Laporan Produk (Excel)");
   };
 
   // Hitung stok per grup dari currentStock Map

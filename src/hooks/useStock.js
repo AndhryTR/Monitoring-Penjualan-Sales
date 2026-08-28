@@ -120,14 +120,42 @@ export function useStock({ depotId, transactions = [], daysCount = 30 }) {
     setUploading(true);
     try {
       const now = new Date().toISOString();
+      // ⚠️ Merge barang lama yang tidak ada di file master baru → qty 0 (bukan dihapus).
+      // Master stok hanya memuat barang dengan qty > 0; barang yang habis (qty 0)
+      // tidak ikut di file. Kalau kita simpan products apa adanya, barang habis itu
+      // HILANG dari daftar stok app. Solusi: gabungkan snapshot lama — produk lama
+      // yang tidak muncul di file baru dipertahankan dengan qtyBase/totalValue = 0
+      // (info produk lain diambil dari data lama), sehingga barang tetap tampil 0.
+      const newProductCodes = new Set(parsedData.products.map((p) => p.productCode));
+      const orphanOld = (activeSnapshot?.products || []).filter(
+        (p) => !newProductCodes.has(p.productCode)
+      );
+      const mergedProducts = [
+        ...parsedData.products,
+        // Barang lama yang tidak ada di file baru → qty 0
+        ...orphanOld.map((p) => ({
+          ...p,
+          qtyBase: 0,
+          qtyKarton: 0,
+          totalValue: 0,
+        })),
+      ];
+
       const newSnapshot = {
         id: `snap_${depotId}_${Date.now()}`,
         depotId,
         uploadedAt: now,
         snapshotDate: now.slice(0, 10),
         isActive: true,
-        products: parsedData.products,
-        summary: parsedData.stats,
+        products: mergedProducts,
+        // ⚠️ summary dihitung ulang dari mergedProducts (bukan parsedData.stats)
+        // supaya total qty/value konsisten dengan daftar yang benar-benar disimpan.
+        summary: {
+          ...parsedData.stats,
+          count: mergedProducts.length,
+          totalQtyBase: mergedProducts.reduce((s, p) => s + (p.qtyBase || 0), 0),
+          totalValue: mergedProducts.reduce((s, p) => s + (p.totalValue || 0), 0),
+        },
       };
 
       // Save snapshot (marks old as inactive)

@@ -22,11 +22,34 @@ export function usePwaInstall() {
   // registerType: 'prompt' di vite.config.js — kalau ada versi baru ter-deploy,
   // tidak langsung auto-reload (bisa bikin data yang lagi diisi hilang),
   // tapi tampilkan notifikasi dan biarkan user pilih kapan mau refresh.
+  //
+  // ⚠️ Fix cache UI lama di shell desktop (Tauri): di dalam WebView2 Tauri,
+  // service worker PWA justru merugikan — aset app sudah embedded di exe
+  // (offline pasti jalan), sedangkan SW dari build sebelumnya menyajikan
+  // bundle LAMA dari precache → exe baru tampil UI lama. Solusi: hook tetap
+  // dipanggil unconditional (aturan hooks), tapi opsi `immediate: false`
+  // di Tauri → registrasi SW tidak pernah dijalankan. Deteksi via
+  // `__TAURI_INTERNALS__` (global yang di-inject Tauri v2 di WebView2).
+  const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     offlineReady: [offlineReady, setOfflineReady],
     updateServiceWorker,
-  } = useRegisterSW({});
+  } = useRegisterSW({ immediate: !isTauri });
+
+  // Bersihkan SW basi yang mungkin sudah terlanjur terdaftar dari build
+  // desktop sebelumnya (sebelum fix ini). Unregister + hapus precache-nya.
+  useEffect(() => {
+    if (!isTauri || !navigator.serviceWorker) return;
+    navigator.serviceWorker.getRegistrations().then((regs) => {
+      regs.forEach((r) => r.unregister());
+      if (regs.length && typeof caches !== "undefined") {
+        caches.keys().then((keys) =>
+          keys.filter((k) => k.startsWith("workbox-precache")).forEach((k) => caches.delete(k))
+        );
+      }
+    }).catch(() => {});
+  }, [isTauri]);
 
   // ---- Install prompt (Chrome/Android/Edge) + iOS fallback hint ----
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
@@ -72,7 +95,7 @@ export function usePwaInstall() {
     }
   }, [installPromptEvent, isIOS]);
 
-  const canShowInstallButton = !isStandalone && (!!installPromptEvent || isIOS);
+  const canShowInstallButton = !isTauri && !isStandalone && (!!installPromptEvent || isIOS);
 
   return {
     // Service worker update
