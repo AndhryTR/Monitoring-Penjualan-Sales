@@ -5,6 +5,7 @@ import {
   FileText, Printer, Image as ImageIcon,
 } from "lucide-react";
 import { fmtPct } from "../../utils/formatters.js";
+import { notifyExportSuccess } from "../../utils/notifyExport.js";
 // ⚠️ Sprint 5 / S3: semua export module (pdfExport, excelExport, imageExport)
 // sebelumnya static import (~2.4MB total: jspdf+xlsx-js-style+html2canvas).
 // Sekarang lazy-load via dynamic import() di handler onClick. Initial bundle
@@ -300,6 +301,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
       const { exportHtmlAsImage } = await import("../../utils/imageExport.js");
       const { html } = await buildFnRef();
       await exportHtmlAsImage(html, filenameBase, format);
+      await notifyExportSuccess("Export berhasil", `${filenameBase}.${format}`);
     } catch (e) {
       // ⚠️ Bug fix (H12): exportHtmlAsImage bisa throw SecurityError bila canvas
       // tainted oleh gambar cross-origin. Tanpa catch, error propagate sebagai
@@ -355,6 +357,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
           // ⚠️ Sprint 5 / S3: lazy-load excelExport.js (~620KB).
           const { exportToExcel } = await import("../../utils/excelExport.js");
           exportToExcel(agg, targets, opts);
+          await notifyExportSuccess("Export berhasil", "Excel laporan utama");
           setOpen(false);
         }} />
 
@@ -365,6 +368,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
         onClick={async () => {
           const { exportSummaryPDF } = await import("../../utils/pdfExport.js");
           exportSummaryPDF(agg, targets, opts);
+          await notifyExportSuccess("Export berhasil", "Laporan Ringkasan (PDF)");
           setOpen(false);
         }} />
       <MenuItem icon={FileText} iconColor={colors.coral} label="Scorecard Semua Sales"
@@ -372,6 +376,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
         onClick={async () => {
           const { exportAllScorecardsPDF } = await import("../../utils/pdfExport.js");
           exportAllScorecardsPDF(agg, opts);
+          await notifyExportSuccess("Export berhasil", `Scorecard Semua Sales (${agg.bySales.length} sales)`);
           setOpen(false);
         }} />
       <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Perbandingan Sales"
@@ -379,6 +384,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
         onClick={async () => {
           const { exportSalesGroupComparisonPDF } = await import("../../utils/pdfExport.js");
           exportSalesGroupComparisonPDF(agg, opts);
+          await notifyExportSuccess("Export berhasil", "Laporan Perbandingan Sales (PDF)");
           setOpen(false);
         }} />
 
@@ -415,6 +421,7 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
               // ⚠️ Sprint 5 / S3: lazy-load pdfExport.js (~600KB).
               const { exportSalesScorecardPDF } = await import("../../utils/pdfExport.js");
               exportSalesScorecardPDF(sm, agg, opts);
+              await notifyExportSuccess("Export berhasil", `Scorecard ${sm.name}`);
               setOpen(false);
             }}
               className="sm-row w-full text-left pl-11 pr-4 py-2 flex items-center justify-between gap-2">

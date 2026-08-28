@@ -3,6 +3,7 @@ import { Settings, X, Plus, Download, Upload, Zap, Package, AlertTriangle, Check
 import { SectionTitle, CustomSlider } from "../ui/index.jsx";
 import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
 import { TargetSalesEditor } from "./TargetSalesEditor.jsx";
+import { notifyExportSuccess } from "../../utils/notifyExport.js";
 import { fmtRp, fmtNum } from "../../utils/formatters.js";
 
 /* ============================================================================
@@ -160,6 +161,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
       projectionMethod, history,
     });
     downloadBackupFile(payload);
+    await notifyExportSuccess("Export berhasil", "Backup Pengaturan (JSON)");
   };
 
   const handleImportFile = async (e) => {

@@ -4,6 +4,7 @@ import {
   AlertCircle, UserRound, Trash2, FileSpreadsheet, FileDown, Upload,
 } from "lucide-react";
 import { fmtRp, fmtNum } from "../../utils/formatters.js";
+import { notifyExportSuccess } from "../../utils/notifyExport.js";
 import { AddSalesModal } from "./AddSalesModal.jsx";
 import { MasterImportPreview } from "./MasterImportPreview.jsx";
 
@@ -91,6 +92,7 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors, depot
   const handleExportExcel = async () => {
     const { exportMasterExcel } = await import("../../utils/masterExport.js");
     exportMasterExcel(localTargets, { depotName });
+    await notifyExportSuccess("Export berhasil", "Master Target (Excel)");
   };
 
   // ---- Handlers (sama logic dengan versi lama, dipindah ke sini) ----

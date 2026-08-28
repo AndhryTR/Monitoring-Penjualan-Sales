@@ -4,6 +4,7 @@ import {
 } from "recharts";
 import { TrendingUp, ArrowUpRight, ArrowDownRight, History, Users, Wallet, Sparkles, Download, ChevronDown, FileSpreadsheet, FileText } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
+import { notifyExportSuccess } from "../../utils/notifyExport.js";
 import { SectionTitle, createChartTooltipStyle } from "../ui/index.jsx";
 import { MultiSelect } from "../ui/MultiSelect.jsx";
 import { ACH_TIERS, MAX_DEFAULT_TREND_LINES } from "../../constants/thresholds.js";
@@ -171,6 +172,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
       // ⚠️ Sprint 5 / S3: lazy-load trendExport.js (~1.2MB).
       const { exportTrendExcel } = await import("../../utils/trendExport.js");
       exportTrendExcel(comparisonData, effectiveSelectedNames, { depotName, chartImage, comparisonBase });
+      await notifyExportSuccess("Export berhasil", "Tren Periode (Excel)");
     } catch (e) {
       // ⚠️ Bug fix (H12): captureChartImage / exportTrendExcel bisa throw
       // (mis. SecurityError dari canvas tainted). Tanpa catch, error propagate
@@ -190,6 +192,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
       // ⚠️ Sprint 5 / S3: lazy-load trendExport.js (~1.2MB).
       const { exportTrendPDF } = await import("../../utils/trendExport.js");
       exportTrendPDF(comparisonData, effectiveSelectedNames, { depotName, chartImage, comparisonBase });
+      await notifyExportSuccess("Export berhasil", "Tren Periode (PDF)");
     } catch (e) {
       // ⚠️ Bug fix (H12): sama dengan handleExportExcel di atas.
       console.warn("Export PDF gagal:", e);

@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { CalendarDays, X, Download, AlertTriangle, Info } from "lucide-react";
 import { fmtNum } from "../../utils/formatters.js";
+import { notifyExportSuccess } from "../../utils/notifyExport.js";
 import { computeVisitPattern } from "../../utils/visitPattern.js";
 // ⚠️ Sprint 5 / S3: visitPatternExport.js lazy-loaded (~620KB).
 import { getLatestDataDate, addDays } from "../../utils/datePresets.js";
@@ -112,6 +113,7 @@ export function VisitPatternModal({ isOpen, onClose, rawRows, targets, colors, d
                     // ⚠️ Sprint 5 / S3: lazy-load visitPatternExport.js (~620KB).
                     const { exportVisitPatternExcel } = await import("../../utils/visitPatternExport.js");
                     exportVisitPatternExcel(pattern, salesName, depotName);
+                    await notifyExportSuccess("Export berhasil", `Pola Kunjungan ${salesName}`);
                   }}
                   className="sm-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
                   style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
