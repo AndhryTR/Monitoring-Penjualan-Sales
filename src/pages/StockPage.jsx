@@ -19,10 +19,16 @@ import { SectionTitle } from "../components/ui/index.jsx";
    - Empty state: belum ada data stok
    - Upload button: trigger file input di parent
 ============================================================================ */
-export function StockPage({ stockData, colors, onUploadStock }) {
+export function StockPage({ stockData, colors, onUploadStock, filters }) {
   const {
     loading, uploading, activeSnapshot, stockMetrics, stockSummary, snapshotHistory, adjustments,
   } = stockData;
+
+  const filteredStock = useMemo(() => {
+    const groups = filters?.groups || [];
+    if (!groups.length) return stockMetrics || [];
+    return (stockMetrics || []).filter((product) => groups.includes(product.group));
+  }, [stockMetrics, filters?.groups]);
 
   // Compute days since last upload (for stale warning)
   const daysSinceUpload = useMemo(() => {
@@ -109,34 +115,34 @@ export function StockPage({ stockData, colors, onUploadStock }) {
       )}
 
       {/* KPI Cards */}
-      {stockSummary && (
+      {filteredStock && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <KpiCard
             label="Total Produk"
-            value={stockSummary.totalProducts}
+            value={filteredStock.length}
             icon={Package}
             accent={colors.blue}
             colors={colors}
           />
           <KpiCard
             label="Total Stok"
-            value={fmtNum(stockSummary.totalQty)}
-            sub={`${stockSummary.totalProducts} SKU`}
+            value={fmtNum(filteredStock.reduce((s, p) => s + (p.currentQty || 0), 0))}
+            sub={`${filteredStock.length} SKU`}
             icon={Package}
             accent={colors.mint}
             colors={colors}
           />
           <KpiCard
             label="Nilai Stok"
-            value={fmtRp(stockSummary.totalValue)}
+            value={fmtRp(filteredStock.reduce((s, p) => s + (p.currentValue || 0), 0))}
             icon={TrendingDown}
             accent={colors.gold}
             colors={colors}
           />
           <KpiCard
             label="Stok Kritis"
-            value={stockSummary.lowStockCount + stockSummary.stockoutCount}
-            sub={`${stockSummary.stockoutCount} habis · ${stockSummary.lowStockCount} rendah`}
+            value={filteredStock.filter((p) => p.isLowStock || p.isStockout).length}
+            sub={`${filteredStock.filter((p) => p.isStockout).length} habis · ${filteredStock.filter((p) => p.isLowStock && !p.isStockout).length} rendah`}
             icon={AlertTriangle}
             accent={colors.coral}
             colors={colors}
@@ -151,7 +157,7 @@ export function StockPage({ stockData, colors, onUploadStock }) {
         searchable
         searchKeys={["productCode", "productName", "group"]}
         searchPlaceholder="Cari kode/nama produk..."
-        rows={stockMetrics}
+        rows={filteredStock}
         columns={[
           {
             key: "productCode",

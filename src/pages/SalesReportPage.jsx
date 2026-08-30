@@ -40,7 +40,14 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName,
     await notifyExportSuccess("Export berhasil", `Scorecard ${salesRow.name}`);
   };
   const groupRows = useMemo(() => rows.flatMap((sm) => sm.groups.map((g) => ({
-    salesName: sm.name, groupName: g.name, value: g.realisasiValue, ao: g.realisasiAo, predicate: g.predicate,
+    salesName: sm.name, groupName: g.name,
+    value: g.realisasiValue, ao: g.realisasiAo,
+    targetValue: g.targetValue || 0, targetAo: g.targetAo || 0,
+    ach: g.ach, deviasiValue: g.deviasiValue ?? 0,
+    // ⚠️ Deviasi tampilan (R-T): positif = target tercapai. Berbeda dari
+    // aggregation (T-R = sisa target). Dipakai render & sort kolom.
+    deviasiShow: (g.realisasiValue || 0) - (g.targetValue || 0),
+    predicate: g.predicate,
   }))), [rows]);
 
   // Perbandingan pencapaian TOTAL periode vs HARI TERAKHIR per sales.
@@ -114,7 +121,16 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName,
           columns={[
             { key: "salesName", label: "Sales" },
             { key: "groupName", label: "Grup Produk" },
+            { key: "targetValue", label: "Target", render: (r) => <span className="mono">{fmtRp(r.targetValue)}</span> },
             { key: "value", label: "Realisasi", render: (r) => <span className="mono">{fmtRp(r.value)}</span> },
+            { key: "ach", label: "ACH%", render: (r) => <AchBadge ach={r.ach} colors={colors} /> },
+            { key: "deviasiShow", label: "Deviasi", render: (r) => {
+              // ⚠️ Konvensi kolom ini: positif = target TERCAPAI (Realisasi - Target).
+              // (Berbeda dari aggregation.js yang pakai Target - Realisasi = sisa target.)
+              const d = r.deviasiShow;
+              const color = d > 0 ? colors.mint : d < 0 ? colors.coral : colors.textMuted;
+              return <span className="mono" style={{ color }}>{d > 0 ? "+" : ""}{fmtRp(d)}</span>;
+            } },
             { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(`${r.salesName} — ${r.groupName}`, "Outlet", r.predicate)} /> },
           ]}
           rows={groupRows}

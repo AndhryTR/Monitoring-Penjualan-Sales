@@ -16,8 +16,9 @@ import {
   parseWorkbookFile, dedupeRows,
 } from "./utils/excelParse.js";
 import {
-  useAggregates, computeAggregates, detectMonths, monthKey, getOutletBreakdown, getProductBreakdownForOutlet, getProductBreakdownForGroup,
+  computeAggregates, detectMonths, monthKey, getOutletBreakdown, getProductBreakdownForOutlet, getProductBreakdownForGroup,
 } from "./utils/aggregation.js";
+import { useAggregatesWorker } from "./hooks/useAggregatesWorker.js";
 import { useDataQualityNotes } from "./utils/dataQuality.js";
 import { buildHistorySnapshot, computeComparison, computeMultiPeriodComparison } from "./utils/history.js";
 import { generateSampleRows } from "./utils/sampleData.js";
@@ -44,6 +45,7 @@ import { GlobalSearch } from "./components/GlobalSearch.jsx";
 import { OnboardingWelcome } from "./components/OnboardingWelcome.jsx";
 // ⚠️ Sprint 17 / SS1+SS2: Slideshow mode untuk display monitor.
 import { useSlideshow } from "./hooks/useSlideshow.js";
+import { useScrollDirection } from "./hooks/useScrollDirection.js";
 // ⚠️ Sprint 19 / Stock Module
 import { useStock } from "./hooks/useStock.js";
 import { SlideshowMode } from "./components/SlideshowMode.jsx";
@@ -53,18 +55,24 @@ import { DashboardSkeleton } from "./components/ui/DashboardSkeleton.jsx";
 import { UploadDropzone, MobileBottomNav, MobileFab, ExportMenu } from "./components/upload/index.jsx";
 // ⚠️ Sprint 18 / Header Redesign: AvatarButton untuk header baru
 import { AvatarButton } from "./components/ui/AvatarButton.jsx";
+import { MobileHeaderMenu } from "./components/ui/MobileHeaderMenu.jsx";
 import { TrendPeriodePage } from "./components/trend/index.jsx";
-import { MainReportPage } from "./pages/MainReportPage.jsx";
-import { SalesReportPage } from "./pages/SalesReportPage.jsx";
-import { ProductReportPage } from "./pages/ProductReportPage.jsx";
-import { ProductFocusReportPage } from "./pages/ProductFocusReportPage.jsx";
-import { OutletAnalysisPage } from "./pages/OutletAnalysisPage.jsx";
-import { ComparisonPage } from "./pages/ComparisonPage.jsx";
 import { DataQualityPage } from "./pages/DataQualityPage.jsx";
-import { ExecutiveSummaryPage } from "./pages/ExecutiveSummaryPage.jsx";
-import { TransactionsPage } from "./pages/TransactionsPage.jsx";
+import { lazy, Suspense } from "react";
+// ⚠️ Lazy-load per halaman (code splitting): tiap page di-mount per tab, di-load
+// async saat pertama dibuka. Menghilangkan freeze ganti tab (chunk dari cache
+// setelah pertama), memperkecil bundle initial, dan memungkinkan fallback
+// skeleton via Suspense. Halaman yang kecil/jarang tetap eager.
+const MainReportPage = lazy(() => import("./pages/MainReportPage.jsx").then(m => ({ default: m.MainReportPage })));
+const ExecutiveSummaryPage = lazy(() => import("./pages/ExecutiveSummaryPage.jsx").then(m => ({ default: m.ExecutiveSummaryPage })));
+const SalesReportPage = lazy(() => import("./pages/SalesReportPage.jsx").then(m => ({ default: m.SalesReportPage })));
+const ProductReportPage = lazy(() => import("./pages/ProductReportPage.jsx").then(m => ({ default: m.ProductReportPage })));
+const ProductFocusReportPage = lazy(() => import("./pages/ProductFocusReportPage.jsx").then(m => ({ default: m.ProductFocusReportPage })));
+const OutletAnalysisPage = lazy(() => import("./pages/OutletAnalysisPage.jsx").then(m => ({ default: m.OutletAnalysisPage })));
+const ComparisonPage = lazy(() => import("./pages/ComparisonPage.jsx").then(m => ({ default: m.ComparisonPage })));
+const TransactionsPage = lazy(() => import("./pages/TransactionsPage.jsx").then(m => ({ default: m.TransactionsPage })));
+const StockPage = lazy(() => import("./pages/StockPage.jsx").then(m => ({ default: m.StockPage })));
 // ⚠️ Sprint 19 / Stock Module
-import { StockPage } from "./pages/StockPage.jsx";
 // ⚠️ Sprint 19 / Sprint 2: Reconciliation preview modal
 import { StockImportPreview } from "./components/modals/StockImportPreview.jsx";
 // ⚠️ Sprint 19e / Focus Group Drilldown
@@ -148,6 +156,35 @@ export default function SalesMonitoringApp() {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("executive");
+  const [tabLoading, setTabLoading] = useState(false);
+  const tabFrameRef = useRef(null);
+  // ⚠️ Sticky-hide header mobile: header disembunyikan saat scroll ke bawah,
+  // muncul lagi saat scroll ke atas. Desktop header selalu tampil.
+  const { hidden: headerHidden } = useScrollDirection();
+
+  // Tampilkan skeleton sebelum page baru di-mount. Satu frame pertama memberi
+  // browser kesempatan paint skeleton; frame berikutnya baru mengganti tab.
+  const goToTab = useCallback((tab) => {
+    if (!tab || tab === activeTab) return;
+    if (tabFrameRef.current) cancelAnimationFrame(tabFrameRef.current);
+    setTabLoading(true);
+    tabFrameRef.current = requestAnimationFrame(() => {
+      tabFrameRef.current = null;
+      setActiveTab(tab);
+    });
+  }, [activeTab]);
+
+  useEffect(() => () => {
+    if (tabFrameRef.current) cancelAnimationFrame(tabFrameRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (!tabLoading) return undefined;
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => setTabLoading(false));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeTab, tabLoading]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -369,16 +406,25 @@ export default function SalesMonitoringApp() {
   }, [colors, slideshowConfig?.forceDark]);
   const globalStyle = useMemo(() => createGlobalStyle(colors, powerSaveMode), [colors, powerSaveMode]);
 
+  const salesOptions = useMemo(() => targets.map((t) => ({ name: t.name, code: t.code })), [targets]);
+  const aggFinal = useAggregatesWorker(rawRows, targets, filters, workDays);
+  const dataQualityNotes = useDataQualityNotes(rawRows, targets, parseMeta);
+
+  // ⚠️ Stock must be initialized before groupOptions so stock-only groups can
+  // appear in the global filter without reading a variable in its TDZ.
+  const stockData = useStock({
+    depotId: activeDepotId,
+    transactions: rawRows,
+    daysCount: workDays || 30,
+  });
+
   const groupOptions = useMemo(() => {
     const s = new Set();
     targets.forEach((t) => t.groups.forEach((g) => s.add(g.name)));
     rawRows.forEach((r) => r.group && s.add(r.group));
+    (stockData.stockMetrics || []).forEach((p) => p.group && s.add(p.group));
     return Array.from(s).sort();
-  }, [targets, rawRows]);
-
-  const salesOptions = useMemo(() => targets.map((t) => ({ name: t.name, code: t.code })), [targets]);
-  const aggFinal = useAggregates(rawRows, targets, filters, workDays);
-  const dataQualityNotes = useDataQualityNotes(rawRows, targets, parseMeta);
+  }, [targets, rawRows, stockData.stockMetrics]);
 
   // ---- Global Search (Cmd+K / Ctrl+K) ----
   // ⚠️ Sprint 9 / GS1+GS3+GS4: command palette untuk search across semua data.
@@ -397,16 +443,9 @@ export default function SalesMonitoringApp() {
     enabledTabs: slideshowConfig?.enabledTabs || ["executive", "main", "sales", "product", "focus"],
     tabDuration: slideshowConfig?.tabDuration || 30,
     autoScroll: slideshowConfig?.autoScroll ?? true,
-    onTabChange: (tab) => setActiveTab(tab),
+    onTabChange: goToTab,
   });
 
-  // ⚠️ Sprint 19 / Stock Module: hook untuk manage stock data
-  // currentStock = snapshot - sales (untuk tanggal >= snapshot date)
-  const stockData = useStock({
-    depotId: activeDepotId,
-    transactions: rawRows,
-    daysCount: workDays || 30,
-  });
   // ⚠️ Sprint 19 / Sprint 2: state untuk StockImportPreview modal
   const [stockPreviewData, setStockPreviewData] = useState(null);
   const [stockPreviewOpen, setStockPreviewOpen] = useState(false);
@@ -463,7 +502,7 @@ export default function SalesMonitoringApp() {
     if (!item.action) return;
     const { action } = item;
     // Switch tab
-    if (action.tabKey) setActiveTab(action.tabKey);
+    if (action.tabKey) goToTab(action.tabKey);
     // Apply filter kalau ada
     if (action.filter) {
       setFilters((prev) => ({
@@ -599,7 +638,7 @@ export default function SalesMonitoringApp() {
     } else {
       setTrendSnapshotIds(ids);
       setComparisonSnapshot(null);
-      setActiveTab("trend");
+      goToTab("trend");
     }
     setIsHistoryOpen(false);
   }, [history]);
@@ -897,14 +936,20 @@ export default function SalesMonitoringApp() {
           const pageColors = effectiveSlideshowColors;
           const hideTables = slideshowConfig?.hideTables ?? true;
           const hideAlerts = slideshowConfig?.hideAlerts ?? true;
-          switch (tab) {
-            case "executive": return <ExecutiveSummaryPage agg={aggFinal} colors={pageColors} workDays={workDays} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} comparison={comparison} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} stockSummary={stockData.stockSummary} slideshowMode={hideTables} />;
-            case "main": return <MainReportPage agg={aggFinal} workDays={workDays} colors={pageColors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} slideshowMode={hideTables} hideAlerts={hideAlerts} />;
-            case "sales": return <SalesReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} slideshowMode={hideTables} />;
-            case "product": return <ProductReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} onGroupDrilldown={openProductGroupDrilldown} depotName={depotName} currentStock={stockData.currentStock} stockSummary={stockData.stockSummary} slideshowMode={hideTables} />;
-            case "focus": return <ProductFocusReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} depotName={depotName} filteredRows={aggFinal.filteredRows} slideshowMode={hideTables} />;
-            default: return null;
-          }
+          return (
+            <Suspense fallback={<DashboardSkeleton colors={pageColors} />}>
+              {(() => {
+                switch (tab) {
+                  case "executive": return <ExecutiveSummaryPage agg={aggFinal} colors={pageColors} workDays={workDays} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} comparison={comparison} onNavigate={goToTab} rawRows={rawRows} targets={targets} filters={filters} stockSummary={stockData.stockSummary} slideshowMode={hideTables} />;
+                  case "main": return <MainReportPage agg={aggFinal} workDays={workDays} colors={pageColors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={goToTab} rawRows={rawRows} targets={targets} filters={filters} slideshowMode={hideTables} hideAlerts={hideAlerts} />;
+                  case "sales": return <SalesReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} slideshowMode={hideTables} />;
+                  case "product": return <ProductReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} onGroupDrilldown={openProductGroupDrilldown} depotName={depotName} currentStock={stockData.currentStock} stockSummary={stockData.stockSummary} slideshowMode={hideTables} />;
+                  case "focus": return <ProductFocusReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} depotName={depotName} filteredRows={aggFinal.filteredRows} slideshowMode={hideTables} />;
+                  default: return null;
+                }
+              })()}
+            </Suspense>
+          );
         }}
       />
       {/* Modal hapus rentang master data (admin) */}
@@ -932,7 +977,7 @@ export default function SalesMonitoringApp() {
         onDelete={deleteHistorySnapshot}
         defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
       <MobileFab onFile={handleFile} colors={colors} loading={loading} />
-      <MobileBottomNav tabs={TABS} activeTab={activeTab} onChange={setActiveTab} colors={colors} />
+      <MobileBottomNav tabs={TABS} activeTab={activeTab} onChange={goToTab} colors={colors} />
 
       {/* ⚠️ Toast Host — umpan balik export (selalu tampil). */}
       <ToastHost colors={colors} />
@@ -943,7 +988,7 @@ export default function SalesMonitoringApp() {
       <div className="flex items-start">
 
         {/* ===== SIDEBAR (desktop, kiri) ===== */}
-        <Sidebar activeTab={activeTab} onChangeTab={setActiveTab} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+        <Sidebar activeTab={activeTab} onChangeTab={goToTab} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
           onOpenHistory={() => setIsHistoryOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} historyDisabled={!rawRows.length} colors={colors}
           // ⚠️ Sprint 18 / Multi-Depo: pass depo state + setters ke Sidebar
           depots={depots} activeDepotId={activeDepotId}
@@ -954,7 +999,16 @@ export default function SalesMonitoringApp() {
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-4 md:py-6 pb-24 md:pb-6">
 
         {/* ===== HEADER (glass card, di kolom kanan sidebar) ===== */}
-        <div className="sm-card sm-fadeup sticky top-2 z-40 mb-4" style={{ padding: "10px 12px" }}>
+        <div
+          className="sm-card sm-fadeup sticky top-2 z-40 mb-4"
+          style={{
+            padding: "10px 12px",
+            transition: "transform .32s cubic-bezier(.16,1,.3,1), opacity .32s ease",
+            transform: headerHidden ? "translateY(-130%)" : "translateY(0)",
+            opacity: headerHidden ? 0 : 1,
+            pointerEvents: headerHidden ? "none" : "auto",
+          }}
+        >
           {/* ⚠️ Sprint 18d9 / Responsive fix (revised per user feedback):
               Desktop: brand di kiri, search + actions di grup kanan (justify-between)
               Mobile: brand + actions sejajar di baris atas (manfaatkan space kosong),
@@ -969,9 +1023,9 @@ export default function SalesMonitoringApp() {
               <div className="p-1.5 rounded-lg shrink-0" style={{ background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})` }}>
                 <FileSpreadsheet size={14} color="#0A1120" />
               </div>
-              <div className="min-w-0 hidden sm:block">
+              <div className="min-w-0 block sm:block">
                 <h1 className="disp text-sm font-bold truncate" style={{ color: colors.text }}>Monitoring Penjualan</h1>
-                <p className="text-[10px] leading-tight" style={{ color: colors.textMuted }}>Dashboard sales & produk</p>
+                <p className="text-[10px] leading-tight hidden sm:block" style={{ color: colors.textMuted }}>Dashboard sales & produk</p>
               </div>
             </div>
 
@@ -995,17 +1049,8 @@ export default function SalesMonitoringApp() {
               {/* Actions group */}
               <div className="flex items-center gap-1.5">
 
-                {/* Mobile-only: Search icon button (di baris atas, sejajar actions lainnya).
-                    Desktop tidak butuh ini karena search bar prominent sudah ada di grup kanan. */}
-                <button onClick={() => setIsSearchOpen(true)} disabled={!rawRows.length}
-                  className="sm-btn p-2 rounded-lg flex md:hidden disabled:opacity-40 disabled:cursor-not-allowed"
-                  style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
-                  aria-label="Pencarian global"
-                  title="Pencarian global (Ctrl+K atau Cmd+K)">
-                  <Search size={14} />
-                </button>
-
-                {/* Grup 1: Aksi konten — slideshow + export */}
+                {/* ⚠️ Aksi ini inline utk SEMUA breakpoint — slideshow + export.
+                    Hamburger dipindah ke paling kanan (lihat bawah). */}
                 <button onClick={() => slideshow.start(activeTab)} disabled={!rawRows.length}
                   className="sm-btn p-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
@@ -1014,6 +1059,38 @@ export default function SalesMonitoringApp() {
                   <Monitor size={14} />
                 </button>
                 <ExportMenu agg={aggFinal} targets={targets} workDays={workDays} depotName={depotName} disabled={!rawRows.length} colors={colors} />
+                <button onClick={() => setIsSearchOpen(true)} disabled={!rawRows.length}
+                  className="sm-btn p-2 rounded-lg hidden md:flex disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
+                  aria-label="Pencarian global"
+                  title="Pencarian global (Ctrl+K atau Cmd+K)">
+                  <Search size={14} />
+                </button>
+
+                {/* Hamburger — PALING KANAN, mobile only */}
+                <div className="md:hidden">
+                  <MobileHeaderMenu
+                    colors={colors}
+                    theme={theme}
+                    sessionUser={sessionUser}
+                    syncState={settingsSyncState === "syncing" || masterSyncState === "syncing" ? "syncing"
+                      : settingsSyncState === "error" || masterSyncState === "error" ? "error"
+                      : settingsSyncState === "done" ? "done" : "idle"}
+                    onOpenSettings={() => setIsSettingsOpen(true)}
+                    onOpenLogin={() => setIsLoginOpen(true)}
+                    onLogout={handleLogout}
+                    onOpenBackup={() => { setIsSettingsOpen(true); }}
+                    onOpenSearch={() => setIsSearchOpen(true)}
+                    searchDisabled={!rawRows.length}
+                    onStartSlideshow={() => slideshow.start(activeTab)}
+                    slideshowDisabled={!rawRows.length}
+                    onOpenHistory={() => setIsHistoryOpen(true)}
+                    historyDisabled={!rawRows.length}
+                    onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
+                    onInstallPwa={handleInstallClick}
+                    canInstallPwa={canShowInstallButton}
+                  />
+                </div>
 
                 {/* Divider — desktop only */}
                 <div className="sm-header-divider hidden md:block" />
@@ -1030,31 +1107,31 @@ export default function SalesMonitoringApp() {
                 {/* Divider — desktop only */}
                 <div className="sm-header-divider hidden md:block" />
 
-                {/* Mobile-only: Snapshot — pindah ke SEBELUM avatar (sebelah kiri
-                    avatar) supaya urutan: ... | snapshot | avatar. Tombol Settings
-                    mobile dihapus karena sudah ada di menu avatar popover. */}
+                {/* Snapshot — desktop only */}
                 <button onClick={() => setIsHistoryOpen(true)} disabled={!rawRows.length}
-                  className="sm-btn p-2 rounded-lg flex md:hidden disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="sm-btn p-2 rounded-lg hidden md:flex disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
                   aria-label="Snapshot"
                   title="Snapshot Periode">
                   <History size={14} />
                 </button>
 
-                {/* Grup 3: Avatar — selalu tampil, terakhir di kanan */}
-                <AvatarButton
-                  sessionUser={sessionUser}
-                  syncState={settingsSyncState === "syncing" || masterSyncState === "syncing" ? "syncing"
-                    : settingsSyncState === "error" || masterSyncState === "error" ? "error"
-                    : settingsSyncState === "done" ? "done" : "idle"}
-                  onOpenSettings={() => setIsSettingsOpen(true)}
-                  onOpenLogin={() => setIsLoginOpen(true)}
-                  onLogout={handleLogout}
-                  onInstallPwa={handleInstallClick}
-                  canInstallPwa={canShowInstallButton}
-                  onOpenBackup={() => { setIsSettingsOpen(true); }}
-                  colors={colors}
-                />
+                {/* Avatar — desktop only (mobile masuk hamburger) */}
+                <div className="hidden md:block">
+                  <AvatarButton
+                    sessionUser={sessionUser}
+                    syncState={settingsSyncState === "syncing" || masterSyncState === "syncing" ? "syncing"
+                      : settingsSyncState === "error" || masterSyncState === "error" ? "error"
+                      : settingsSyncState === "done" ? "done" : "idle"}
+                    onOpenSettings={() => setIsSettingsOpen(true)}
+                    onOpenLogin={() => setIsLoginOpen(true)}
+                    onLogout={handleLogout}
+                    onInstallPwa={handleInstallClick}
+                    canInstallPwa={canShowInstallButton}
+                    onOpenBackup={() => { setIsSettingsOpen(true); }}
+                    colors={colors}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -1180,8 +1257,18 @@ export default function SalesMonitoringApp() {
                 </p>
               </div>
             )}
-            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} />}
-            {activeTab === "executive" && <ExecutiveSummaryPage agg={aggFinal} colors={colors} workDays={workDays} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} comparison={comparison} dataQualityNotes={dataQualityNotes} onNavigate={setActiveTab} rawRows={rawRows} targets={targets} filters={filters} stockSummary={stockData.stockSummary} />}
+            {/* ⚠️ Suspense per tab: page di-load async (lazy), fallback skeleton
+                tampil selama chunk di-load / render pertama. Menghilangkan
+                freeze ganti tab (main thread tidak blocked oleh render sinkron
+                komponen berat + chart). */}
+            {tabLoading ? (
+              <div className="mt-4" aria-busy="true" aria-label="Memuat tab">
+                <DashboardSkeleton colors={colors} />
+              </div>
+            ) : (
+            <Suspense fallback={<div className="mt-4"><DashboardSkeleton colors={colors} /></div>}>
+            {activeTab === "main" && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={goToTab} rawRows={rawRows} targets={targets} filters={filters} />}
+            {activeTab === "executive" && <ExecutiveSummaryPage agg={aggFinal} colors={colors} workDays={workDays} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} comparison={comparison} dataQualityNotes={dataQualityNotes} onNavigate={goToTab} rawRows={rawRows} targets={targets} filters={filters} stockSummary={stockData.stockSummary} />}
             {activeTab === "sales" && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} onGroupDrilldown={openProductGroupDrilldown} depotName={depotName} currentStock={stockData.currentStock} stockSummary={stockData.stockSummary} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} depotName={depotName} filteredRows={aggFinal.filteredRows} />}
@@ -1194,8 +1281,11 @@ export default function SalesMonitoringApp() {
               <StockPage
                 stockData={stockData}
                 colors={colors}
+                filters={filters}
                 onUploadStock={() => document.getElementById("stock-file-input")?.click()}
               />
+            )}
+            </Suspense>
             )}
             {/* Hidden file input for stock upload */}
             <input

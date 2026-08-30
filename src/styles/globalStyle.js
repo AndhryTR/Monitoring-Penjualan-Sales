@@ -70,6 +70,9 @@ html, body { background: transparent; }
 /* Toast in-window (ToastHost) — slide dari kanan + fade */
 @keyframes smToastIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
 .sm-toast-in { animation: smToastIn .3s cubic-bezier(.16,1,.3,1); }
+/* Bottom-sheet (mobile header drawer) — slide-up dari bawah + fade */
+@keyframes smSlideUp { from { transform: translateY(100%); opacity: .6; } to { transform: translateY(0); opacity: 1; } }
+.sm-slide-up { animation: smSlideUp .3s cubic-bezier(.16,1,.3,1); }
 .sm-fadein { animation: smFadeIn .3s ease both; transition: background .3s ease, border-color .3s ease, box-shadow .3s ease; }
 .sm-page-enter { animation: smPageIn .25s cubic-bezier(.16,1,.3,1); }
 .sm-pulse { animation: smPulse 1.8s ease-in-out infinite; }

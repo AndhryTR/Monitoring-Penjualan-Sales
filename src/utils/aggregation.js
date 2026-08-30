@@ -483,7 +483,7 @@ export function computeAggregates(rows, targets, filters, workDays) {
         const realisasi = sumBy(frs, effectiveKartonQty);
         const hasUnconvertible = frs.some((r) => r.unconvertible);
         const unit = resolveFocusUnit(frs);
-        return { name: f.name, target: f.target, realisasi, pct: f.target ? realisasi / f.target : null, hasUnconvertible, unit,
+        return { name: f.name, target: f.target, keyword: f.keyword, matchType: f.matchType, realisasi, pct: f.target ? realisasi / f.target : null, hasUnconvertible, unit,
           predicate: (row) => row.salesCode === t.code && matchFocus(row, f) };
       });
 
