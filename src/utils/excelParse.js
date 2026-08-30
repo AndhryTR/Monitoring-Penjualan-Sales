@@ -90,10 +90,11 @@ export function parseWorkbookFile(file) {
   });
 }
 
-// ⚠️ Sprint 5 / Worker: parse dari ArrayBuffer (sudah dibaca dari File). Pure —
-// bisa dipanggil di main thread (fallback) maupun di Web Worker tanpa UI freeze.
-// Sama persis dengan logika parseWorkbookFile, tanpa FileReader.
-export function parseWorkbookBuffer(arrayBuffer) {
+// ⚠️ Sprint 5 / Chunked parse: parse ArrayBuffer di MAIN THREAD dengan batch
+// chunked + yield antar batch. Ini menghindari Web Worker (yang rapuh dengan
+// xlsx CJS di production/Vercel/Tauri) sekaligus membuat UI tetap responsif
+// (bukan freeze total) dan progress akurat. `onProgress` dipanggil tiap batch.
+export async function parseWorkbookBuffer(arrayBuffer, onProgress) {
   const wb = XLSX.read(arrayBuffer, { type: "array" });
   const sheetName = wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
@@ -115,35 +116,52 @@ export function parseWorkbookBuffer(arrayBuffer) {
   const rows = [];
   let skippedBlankRows = 0;
   let rowsWithMissingDate = 0;
+  const total = aoa.length - 1;
+  const BATCH = 2000;
+  // Fase struktur selesai — beri sinyal progress (awal 30% tanpa granular)
+  onProgress?.(0.30, { phase: "structure" });
   for (let i = headerRowIdx + 1; i < aoa.length; i++) {
     const r = aoa[i];
-    if (!r || r.every((c) => c === null || c === "")) { skippedBlankRows++; continue; }
-    const get = (f) => (fmap[f] !== undefined ? r[fmap[f]] : null);
-    const dateRaw = get("date");
-    const dateStr = excelValueToDateStr(dateRaw);
-    if (!dateStr) rowsWithMissingDate++;
-    rows.push({
-      date: dateStr,
-      salesCode: String(get("salesCode") || "").trim(),
-      salesName: String(get("salesName") || "").trim(),
-      outletCode: String(get("outletCode") || "").trim(),
-      outletName: String(get("outletName") || "").trim(),
-      outletAddress: String(get("outletAddress") || "").trim(),
-      invoiceNo: String(get("invoiceNo") || "").trim(),
-      productCode: String(get("productCode") || "").trim(),
-      productName: String(get("productName") || "").trim(),
-      qty: Number(get("qty")) || 0,
-      unit: String(get("unit") || "").trim().toUpperCase(),
-      konv: Number(get("konv")) || 0,
-      baseUnit: String(get("baseUnit") || "").trim().toUpperCase(),
-      value: Number(get("value")) || 0,
-      group: String(get("group") || "").trim(),
-    });
+    if (!r || r.every((c) => c === null || c === "")) { skippedBlankRows++; }
+    else {
+      const get = (f) => (fmap[f] !== undefined ? r[fmap[f]] : null);
+      const dateStr = excelValueToDateStr(get("date"));
+      if (!dateStr) rowsWithMissingDate++;
+      rows.push({
+        date: dateStr,
+        salesCode: String(get("salesCode") || "").trim(),
+        salesName: String(get("salesName") || "").trim(),
+        outletCode: String(get("outletCode") || "").trim(),
+        outletName: String(get("outletName") || "").trim(),
+        outletAddress: String(get("outletAddress") || "").trim(),
+        invoiceNo: String(get("invoiceNo") || "").trim(),
+        productCode: String(get("productCode") || "").trim(),
+        productName: String(get("productName") || "").trim(),
+        qty: Number(get("qty")) || 0,
+        unit: String(get("unit") || "").trim().toUpperCase(),
+        konv: Number(get("konv")) || 0,
+        baseUnit: String(get("baseUnit") || "").trim().toUpperCase(),
+        value: Number(get("value")) || 0,
+        group: String(get("group") || "").trim(),
+      });
+    }
+    // Yield setiap BATCH baris supaya browser sempat paint/respond (tidak freeze)
+    if (i % BATCH === 0) {
+      onProgress?.(0.30 + 0.70 * (i / total), { phase: "rows", rowIdx: i, rowTotal: total });
+      await yieldToMainThread();
+    }
   }
+  onProgress?.(1, { phase: "done" });
   return {
     rows: attachKartonQty(rows),
-    parseMeta: { sheetName, totalDataRows: aoa.length - 1, skippedBlankRows, rowsWithMissingDate, duplicateRowsRemoved: 0, detectedFields, missingFields },
+    parseMeta: { sheetName, totalDataRows: total, skippedBlankRows, rowsWithMissingDate, duplicateRowsRemoved: 0, detectedFields, missingFields },
   };
+}
+
+// Yield ke main thread antar batch parse. setTimeout(0) cukup untuk memberi
+// browser kesempatan paint/respond di antara chunk kerja sinkron.
+export function yieldToMainThread() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 // Hapus baris yang persis sama (Tanggal + No Faktur + Kode Produk + Qty + Value) —
