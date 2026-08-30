@@ -50,15 +50,15 @@ export function UploadLoading({ colors, fileName, progress = 0 }) {
         <div className="text-sm" style={{ color: colors.textMuted }}>{fileName}</div>
       )}
 
-      {/* Progress bar */}
+      {/* Progress bar — progress masuk sebagai fraksi 0..1, tampilkan persen 0..100 */}
       <div className="w-64 max-w-[80vw]" style={{ marginTop: 4 }}>
         <div className="h-2 rounded-full" style={{ background: colors.glassSubtle, overflow: "hidden" }}>
           <div
             className="h-full rounded-full transition-all duration-150"
-            style={{ width: `${Math.max(0, Math.min(100, progress))}%`, background: `linear-gradient(90deg, ${colors.mint}, ${colors.blue})` }}
+            style={{ width: `${Math.max(0, Math.min(100, progress * 100))}%`, background: `linear-gradient(90deg, ${colors.mint}, ${colors.blue})` }}
           />
         </div>
-        <div className="mt-1.5 text-center text-xs" style={{ color: colors.textMuted }}>{progress}%</div>
+        <div className="mt-1.5 text-center text-xs" style={{ color: colors.textMuted }}>{Math.round(progress * 100)}%</div>
       </div>
 
       <div className="text-xs" style={{ color: colors.textMuted }}>
