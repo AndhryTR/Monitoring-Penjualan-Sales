@@ -13,8 +13,9 @@ import { supabase, getSession, onAuthChange, signOutAccount } from "./utils/clou
 import { fetchRole } from "./utils/syncEngine.js";
 import { LoginModal } from "./components/LoginModal.jsx";
 import {
-  parseWorkbookFile, dedupeRows,
+  dedupeRows,
 } from "./utils/excelParse.js";
+import { useExcelParseWorker } from "./hooks/useExcelParseWorker.js";
 import {
   computeAggregates, detectMonths, monthKey, getOutletBreakdown, getProductBreakdownForOutlet, getProductBreakdownForGroup,
 } from "./utils/aggregation.js";
@@ -56,6 +57,7 @@ import { UploadDropzone, MobileBottomNav, MobileFab, ExportMenu } from "./compon
 // ⚠️ Sprint 18 / Header Redesign: AvatarButton untuk header baru
 import { AvatarButton } from "./components/ui/AvatarButton.jsx";
 import { MobileHeaderMenu } from "./components/ui/MobileHeaderMenu.jsx";
+import { UploadLoading } from "./components/ui/UploadLoading.jsx";
 import { TrendPeriodePage } from "./components/trend/index.jsx";
 import { DataQualityPage } from "./pages/DataQualityPage.jsx";
 import { lazy, Suspense } from "react";
@@ -161,6 +163,10 @@ export default function SalesMonitoringApp() {
   // ⚠️ Sticky-hide header mobile: header disembunyikan saat scroll ke bawah,
   // muncul lagi saat scroll ke atas. Desktop header selalu tampil.
   const { hidden: headerHidden } = useScrollDirection();
+  // ⚠️ Sprint 5 / Worker: parse Excel di Web Worker supaya UI tidak freeze saat
+  // upload file besar. parseFiles mengembalikan hasil parse per file.
+  const { parseFiles, dispose: disposeParseWorker, progress: uploadProgress } = useExcelParseWorker();
+  useEffect(() => () => disposeParseWorker(), [disposeParseWorker]);
 
   // Tampilkan skeleton sebelum page baru di-mount. Satu frame pertama memberi
   // browser kesempatan paint skeleton; frame berikutnya baru mengganti tab.
@@ -692,7 +698,7 @@ export default function SalesMonitoringApp() {
     const fileList = Array.isArray(files) ? files : [files];
     setLoading(true); setError("");
     try {
-      const results = await Promise.all(fileList.map((f) => parseWorkbookFile(f)));
+      const results = await parseFiles(fileList);
       const combinedRowsRaw = results.flatMap((r) => r.rows);
       if (!combinedRowsRaw.length) {
         setError("File terbaca tapi tidak ada baris data yang cocok. Pastikan kolom sesuai format sell-out.");
@@ -977,6 +983,8 @@ export default function SalesMonitoringApp() {
         onDelete={deleteHistorySnapshot}
         defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
       <MobileFab onFile={handleFile} colors={colors} loading={loading} />
+      {/* ⚠️ Overlay loading saat parsing file Excel (upload) */}
+      {loading && <UploadLoading colors={colors} fileName={fileName} progress={uploadProgress} />}
       <MobileBottomNav tabs={TABS} activeTab={activeTab} onChange={goToTab} colors={colors} />
 
       {/* ⚠️ Toast Host — umpan balik export (selalu tampil). */}

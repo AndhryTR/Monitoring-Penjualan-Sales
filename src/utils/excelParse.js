@@ -82,69 +82,68 @@ export function parseWorkbookFile(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const wb = XLSX.read(e.target.result, { type: "array" });
-        const sheetName = wb.SheetNames[0];
-        const ws = wb.Sheets[sheetName];
-        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
-        if (!aoa.length) {
-          return resolve({
-            rows: [],
-            parseMeta: {
-              sheetName, totalDataRows: 0, skippedBlankRows: 0, rowsWithMissingDate: 0,
-              // duplicateRowsRemoved: default 0 — di-set oleh caller setelah
-              // dedupeRows() dijalankan. Tanpa default ini, parseMeta dari
-              // upload single-file yang tidak melewati combinedMeta (mis.
-              // sample data, master sync) tidak punya field ini, dan
-              // useDataQualityNotes menampilkan 0 lewat fallback `|| 0`.
-              duplicateRowsRemoved: 0,
-              detectedFields: [], missingFields: Object.keys(ALIASES),
-            },
-          });
-        }
-        const headerRowIdx = 0;
-        const fmap = buildFieldMap(aoa[headerRowIdx]);
-        const missingFields = Object.keys(ALIASES).filter((f) => fmap[f] === undefined);
-        const detectedFields = Object.keys(ALIASES).filter((f) => fmap[f] !== undefined);
-        const rows = [];
-        let skippedBlankRows = 0;
-        let rowsWithMissingDate = 0;
-        for (let i = headerRowIdx + 1; i < aoa.length; i++) {
-          const r = aoa[i];
-          if (!r || r.every((c) => c === null || c === "")) { skippedBlankRows++; continue; }
-          const get = (f) => (fmap[f] !== undefined ? r[fmap[f]] : null);
-          const dateRaw = get("date");
-          const dateStr = excelValueToDateStr(dateRaw);
-          if (!dateStr) rowsWithMissingDate++;
-          rows.push({
-            date: dateStr,
-            salesCode: String(get("salesCode") || "").trim(),
-            salesName: String(get("salesName") || "").trim(),
-            outletCode: String(get("outletCode") || "").trim(),
-            outletName: String(get("outletName") || "").trim(),
-            // ⚠️ Sprint 17i: alamat outlet — opsional. Bila header tidak ada
-            // di file, buildFieldMap tidak akan set fmap['outletAddress'] dan
-            // get() return null → jadi "" (string kosong). Aman.
-            outletAddress: String(get("outletAddress") || "").trim(),
-            invoiceNo: String(get("invoiceNo") || "").trim(),
-            productCode: String(get("productCode") || "").trim(),
-            productName: String(get("productName") || "").trim(),
-            qty: Number(get("qty")) || 0,
-            unit: String(get("unit") || "").trim().toUpperCase(),
-            konv: Number(get("konv")) || 0,
-            baseUnit: String(get("baseUnit") || "").trim().toUpperCase(),
-            value: Number(get("value")) || 0,
-            group: String(get("group") || "").trim(),
-          });
-        }
-        resolve({
-          rows: attachKartonQty(rows),
-          parseMeta: { sheetName, totalDataRows: aoa.length - 1, skippedBlankRows, rowsWithMissingDate, duplicateRowsRemoved: 0, detectedFields, missingFields },
-        });
+        resolve(parseWorkbookBuffer(e.target.result));
       } catch (err) { reject(err); }
     };
     reader.onerror = reject;
     reader.readAsArrayBuffer(file);
   });
+}
+
+// ⚠️ Sprint 5 / Worker: parse dari ArrayBuffer (sudah dibaca dari File). Pure —
+// bisa dipanggil di main thread (fallback) maupun di Web Worker tanpa UI freeze.
+// Sama persis dengan logika parseWorkbookFile, tanpa FileReader.
+export function parseWorkbookBuffer(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: "array" });
+  const sheetName = wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+  const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
+  if (!aoa.length) {
+    return {
+      rows: [],
+      parseMeta: {
+        sheetName, totalDataRows: 0, skippedBlankRows: 0, rowsWithMissingDate: 0,
+        duplicateRowsRemoved: 0,
+        detectedFields: [], missingFields: Object.keys(ALIASES),
+      },
+    };
+  }
+  const headerRowIdx = 0;
+  const fmap = buildFieldMap(aoa[headerRowIdx]);
+  const missingFields = Object.keys(ALIASES).filter((f) => fmap[f] === undefined);
+  const detectedFields = Object.keys(ALIASES).filter((f) => fmap[f] !== undefined);
+  const rows = [];
+  let skippedBlankRows = 0;
+  let rowsWithMissingDate = 0;
+  for (let i = headerRowIdx + 1; i < aoa.length; i++) {
+    const r = aoa[i];
+    if (!r || r.every((c) => c === null || c === "")) { skippedBlankRows++; continue; }
+    const get = (f) => (fmap[f] !== undefined ? r[fmap[f]] : null);
+    const dateRaw = get("date");
+    const dateStr = excelValueToDateStr(dateRaw);
+    if (!dateStr) rowsWithMissingDate++;
+    rows.push({
+      date: dateStr,
+      salesCode: String(get("salesCode") || "").trim(),
+      salesName: String(get("salesName") || "").trim(),
+      outletCode: String(get("outletCode") || "").trim(),
+      outletName: String(get("outletName") || "").trim(),
+      outletAddress: String(get("outletAddress") || "").trim(),
+      invoiceNo: String(get("invoiceNo") || "").trim(),
+      productCode: String(get("productCode") || "").trim(),
+      productName: String(get("productName") || "").trim(),
+      qty: Number(get("qty")) || 0,
+      unit: String(get("unit") || "").trim().toUpperCase(),
+      konv: Number(get("konv")) || 0,
+      baseUnit: String(get("baseUnit") || "").trim().toUpperCase(),
+      value: Number(get("value")) || 0,
+      group: String(get("group") || "").trim(),
+    });
+  }
+  return {
+    rows: attachKartonQty(rows),
+    parseMeta: { sheetName, totalDataRows: aoa.length - 1, skippedBlankRows, rowsWithMissingDate, duplicateRowsRemoved: 0, detectedFields, missingFields },
+  };
 }
 
 // Hapus baris yang persis sama (Tanggal + No Faktur + Kode Produk + Qty + Value) —
