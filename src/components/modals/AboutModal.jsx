@@ -91,7 +91,7 @@ export function AboutModal({ isOpen, onClose, colors }) {
           <div className="sm-card p-4 text-center" style={{ borderLeft: `3px solid ${colors.coral}` }}>
             <div className="text-xs" style={{ color: colors.textMuted }}>Dibuat oleh</div>
             <div className="disp text-2xl font-bold mt-0.5" style={{ color: colors.coral }}>Andri.S</div>
-            <div className="text-xs mt-2" style={{ color: colors.textMuted }}>React · Vite · Tailwind CSS &middot; v3.0.0</div>
+            <div className="text-xs mt-2" style={{ color: colors.textMuted }}>React · Vite · Tailwind CSS &middot; v3.5.0</div>
           </div>
         </div>
       </div>
