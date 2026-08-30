@@ -260,7 +260,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
       )}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <SectionTitle title="Tren Periode" sub={`Membandingkan ${periods.length} periode · Value & AO per sales`} icon={TrendingUp} colors={colors} accent={colors.mint} />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center flex-wrap gap-2">
           <BaseSelector value={comparisonBase} onChange={onBaseChange || (() => {})} colors={colors} />
           <div className="flex p-1 rounded-xl" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
             <button onClick={() => setMetric("value")}
