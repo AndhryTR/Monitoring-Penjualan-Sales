@@ -15,7 +15,7 @@ import { LoginModal } from "./components/LoginModal.jsx";
 import {
   dedupeRows,
 } from "./utils/excelParse.js";
-import { useExcelParse } from "./hooks/useExcelParse.js";
+import { useExcelParseWorker } from "./hooks/useExcelParseWorker.js";
 import {
   computeAggregates, detectMonths, monthKey, getOutletBreakdown, getProductBreakdownForOutlet, getProductBreakdownForGroup,
 } from "./utils/aggregation.js";
@@ -163,10 +163,10 @@ export default function SalesMonitoringApp() {
   // ⚠️ Sticky-hide header mobile: header disembunyikan saat scroll ke bawah,
   // muncul lagi saat scroll ke atas. Desktop header selalu tampil.
   const { hidden: headerHidden } = useScrollDirection();
-  // ⚠️ Sprint 5 / Parse: parse Excel di main thread dengan chunked batch + yield
-  // (stabil di dev/Vercel/Tauri). parseFiles mengembalikan hasil parse per file.
-  const { parseFiles, dispose: disposeParseWorker, progress: uploadProgress } = useExcelParse();
-  useEffect(() => () => disposeParseWorker(), [disposeParseWorker]);
+  // ⚠️ Sprint 5 / Worker: parse Excel production-safe di Web Worker; Vite
+  // membundle worker + xlsx browser build sebagai asset terpisah.
+  const { parseFiles, progress: uploadProgress } = useExcelParseWorker();
+  useEffect(() => () => {}, []);
 
   // Tampilkan skeleton sebelum page baru di-mount. Satu frame pertama memberi
   // browser kesempatan paint skeleton; frame berikutnya baru mengganti tab.
