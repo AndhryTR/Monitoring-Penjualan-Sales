@@ -46,9 +46,17 @@ export function useExcelParseWorker() {
   }), []);
 
   const parseFiles = useCallback(async (files) => {
-    setProgress(0);
+    setProgress(0.01);
     const buffers = await Promise.all(files.map(readAsArrayBuffer));
     const requestId = ++requestIdRef.current;
+    // XLSX.read/sheet_to_json tidak menyediakan progress callback. Beri fase
+    // "membaca" yang bergerak pelan sampai 25% agar loading tidak terlihat
+    // macet di 0% selama Worker sedang mengurai struktur ZIP Excel.
+    let phaseProgress = 0.01;
+    const phaseTimer = setInterval(() => {
+      phaseProgress = Math.min(0.25, phaseProgress + 0.01);
+      setProgress((current) => Math.max(current, phaseProgress));
+    }, 180);
 
     try {
       const results = await new Promise((resolve, reject) => {
@@ -65,13 +73,15 @@ export function useExcelParseWorker() {
           reject(error);
         }
       });
+      clearInterval(phaseTimer);
       setProgress(1);
       return results;
     } catch (workerError) {
+      clearInterval(phaseTimer);
       console.warn("Excel parser worker gagal, fallback main thread:", workerError);
       const results = [];
       for (const buffer of buffers) {
-        results.push(await parseWorkbookBuffer(buffer, (fraction) => setProgress(fraction)));
+        results.push(await parseWorkbookBuffer(buffer, (fraction) => setProgress(Math.max(0, Math.min(1, fraction)))));
       }
       setProgress(1);
       return results;
