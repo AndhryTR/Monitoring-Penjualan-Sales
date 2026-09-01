@@ -56,7 +56,23 @@ export default defineConfig({
       },
     }),
   ],
+  // Worker production harus berupa file fisik, bukan data: URL. Jika di-inline,
+  // import relatif di dalam worker tidak punya base URL dan worker mati di
+  // Vercel/Tauri.
+  worker: {
+    // IIFE memaksa dependency worker ikut dibundle ke file worker fisik.
+    // Format ES sebelumnya meninggalkan import ../utils/... yang tidak ada
+    // di dist/assets saat production.
+    format: 'iife',
+    rollupOptions: {
+      output: {
+        entryFileNames: 'assets/worker-[name]-[hash].js',
+      },
+    },
+  },
   build: {
+    // Paksa asset kecil (termasuk worker) tetap diekspor sebagai file.
+    assetsInlineLimit: 0,
     rollupOptions: {
       output: {
         // Pisah library besar jadi chunk masing-masing (bukan 1 bundle raksasa)
