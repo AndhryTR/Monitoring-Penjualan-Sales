@@ -9,37 +9,37 @@ import { FileSpreadsheet, Loader2 } from "lucide-react";
 ============================================================================ */
 export function UploadLoading({ colors, fileName, progress = 0 }) {
   const targetRef = useRef(0);
+  const displayRef = useRef(0);
   const animationRef = useRef(null);
   const [displayProgress, setDisplayProgress] = useState(0);
 
   useEffect(() => {
-    const nextTarget = Math.max(targetRef.current, Math.min(1, progress));
-    targetRef.current = nextTarget;
+    targetRef.current = Math.max(targetRef.current, Math.min(1, progress));
+    if (animationRef.current) return;
 
     const animate = () => {
-      setDisplayProgress((current) => {
-        const distance = nextTarget - current;
-        if (distance <= 0.001) {
-          animationRef.current = null;
-          return nextTarget;
-        }
-        // Ease-out: cepat mengejar awal target, melambat mendekati target.
-        const next = current + Math.max(0.002, distance * 0.12);
-        animationRef.current = requestAnimationFrame(animate);
-        return Math.min(next, nextTarget);
-      });
+      const current = displayRef.current;
+      const target = targetRef.current;
+      const distance = target - current;
+      if (distance <= 0.001) {
+        displayRef.current = target;
+        setDisplayProgress(target);
+        animationRef.current = null;
+        return;
+      }
+      // Ease-out kontinu: target boleh berubah tanpa membatalkan frame aktif.
+      const next = Math.min(target, current + Math.max(0.002, distance * 0.12));
+      displayRef.current = next;
+      setDisplayProgress(next);
+      animationRef.current = requestAnimationFrame(animate);
     };
 
-    if (!animationRef.current && nextTarget > displayProgress) {
-      animationRef.current = requestAnimationFrame(animate);
-    }
-    return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    };
-    // displayProgress sengaja tidak dimasukkan: effect hanya mengikuti target worker.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    animationRef.current = requestAnimationFrame(animate);
   }, [progress]);
+
+  useEffect(() => () => {
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
+  }, []);
 
   const percent = Math.round(displayProgress * 100);
 
