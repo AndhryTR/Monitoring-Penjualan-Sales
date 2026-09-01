@@ -131,6 +131,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName,
               const color = d > 0 ? colors.mint : d < 0 ? colors.coral : colors.textMuted;
               return <span className="mono" style={{ color }}>{d > 0 ? "+" : ""}{fmtRp(d)}</span>;
             } },
+            { key: "ao", label: "AO", render: (r) => <span className="mono">{fmtNum(r.ao)}</span> },
             { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(`${r.salesName} — ${r.groupName}`, "Outlet", r.predicate)} /> },
           ]}
           rows={groupRows}
