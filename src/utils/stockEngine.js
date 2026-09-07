@@ -63,8 +63,14 @@ export function computeCurrentStock(snapshot, transactions) {
   // - Kalau tidak ada konversi → fallback pakai r.qty (better than crash)
   if (transactions && transactions.length) {
     transactions.forEach((r) => {
-      // Skip transactions before snapshot date (already included in opening stock)
-      if (snapshotDate && r.date && r.date < snapshotDate) return;
+      // Skip transaksi PADA dan SEBELUM tanggal snapshot.
+      // ⚠️ Bugfix stok minus: snapshotDate = tanggal upload stok fisik, dan file
+      // stok itu SUDAH mencerminkan penjualan hari tersebut. Sebelumnya batas
+      // pakai `<` sehingga transaksi bertanggal sama dikurangkan lagi
+      // (double-deduct) → barang yang seharusnya 0 jadi minus saat upload
+      // penjualan lalu upload stok berdekatan. Data transaksi tidak punya jam
+      // (lihat ALIASES.date), jadi tanggal adalah presisi maksimal yang jujur.
+      if (snapshotDate && r.date && r.date <= snapshotDate) return;
 
       const stock = stockMap.get(r.productCode);
       if (!stock) return;
@@ -258,8 +264,10 @@ export function computeSalesByProduct(transactions, daysCount = 30, snapshotDate
   // BUKAN untuk hitung avgDailyQty (coverage).
   // Jika caller pass rawRows (bukan filteredRows), tetap filter by snapshotDate
   // sebagai safety net — detect via apakah transactions == salesTransactions.
+  // ⚠️ Bugfix stok minus (konsisten dengan computeCurrentStock): batas snapshot
+  // eksklusif — transaksi PADA tanggal snapshot sudah tercermin di stok fisik.
   const relevantTxns = snapshotDate
-    ? transactions.filter((r) => r.date && r.date >= snapshotDate)
+    ? transactions.filter((r) => r.date && r.date > snapshotDate)
     : transactions;
 
   relevantTxns.forEach((r) => {

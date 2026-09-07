@@ -456,8 +456,30 @@ export function computeAggregates(rows, targets, filters, workDays) {
       const rs = rowsBySales.get(t.code) || EMPTY_ARRAY;
       const value = sumBy(rs, "value");
       const ao = new Set(rs.map((r) => r.outletCode)).size;
-      const ach = t.total.value ? value / t.total.value : null;
-      const achAo = t.total.ao ? ao / t.total.ao : null;
+
+      // ⚠️ Sprint 5 / Target ikut filter grup: targetValue & targetAO per sales
+      // mengikuti filters.groups, bukan selalu target global (t.total.*).
+      // - Tanpa filter grup → pakai target global (t.total.value / t.total.ao).
+      // - Dengan filter grup → targetValue = SUM grup yang difilter (value aditif,
+      //   sudah diverifikasi sum grup ≈ total). targetAo = MAX grup yang difilter,
+      //   karena target AO antar grup TUMPAH (satu outlet bisa beli banyak grup)
+      //   sehingga tidak bisa dijumlah — pakai max supaya tidak melebihi total.ao.
+      const hasGroupFilter = filters.groups.length > 0;
+      let targetValue, targetAo;
+      if (!hasGroupFilter) {
+        targetValue = t.total.value;
+        targetAo = t.total.ao;
+      } else {
+        const filteredGroups = t.groups.filter((g) => filters.groups.includes(g.name));
+        targetValue = sumBy(filteredGroups, "value");
+        // Max group yang difilter; fallback ke total.ao kalau tidak ada grup match.
+        targetAo = filteredGroups.length
+          ? filteredGroups.reduce((m, g) => Math.max(m, g.ao || 0), 0)
+          : 0;
+      }
+
+      const ach = targetValue ? value / targetValue : null;
+      const achAo = targetAo ? ao / targetAo : null;
 
       // Breakdown per grup produk milik sales ini — pakai rowsBySalesGroup
       // (Map<salesCode|groupName, Array<row>>) yang sudah dibangun di
@@ -487,10 +509,10 @@ export function computeAggregates(rows, targets, filters, workDays) {
           predicate: (row) => row.salesCode === t.code && matchFocus(row, f) };
       });
 
-      return { code: t.code, name: t.name, tier: t.tier, targetValue: t.total.value, targetAo: t.total.ao,
+      return { code: t.code, name: t.name, tier: t.tier, targetValue, targetAo,
         realisasiValue: value, realisasiAo: ao, ach, achAo,
-        deviasiValue: t.total.value ? t.total.value - value : null,
-        deviasiAo: t.total.ao ? t.total.ao - ao : null,
+        deviasiValue: targetValue ? targetValue - value : null,
+        deviasiAo: targetAo ? targetAo - ao : null,
         groups, focus, focusGroups: groups.filter((g) => g.focus), predicate: (row) => row.salesCode === t.code };
     });
 

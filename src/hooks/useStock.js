@@ -13,6 +13,7 @@ import {
   computeSalesByProduct,
 } from "../utils/stockEngine.js";
 import { diffStock } from "../utils/stockDiff.js";
+import { todayLocalDateStr } from "../utils/excelParse.js";
 
 /* ============================================================================
    useStock — Sprint 19 / Stock Module (Sprint 2: + reconciliation)
@@ -162,7 +163,11 @@ export function useStock({ depotId, transactions = [], daysCount = 30 }) {
         id: `snap_${depotId}_${Date.now()}`,
         depotId,
         uploadedAt: now,
-        snapshotDate: now.slice(0, 10),
+        // ⚠️ Bugfix off-by-one UTC: `now` adalah ISO (UTC). Di zona UTC+8, upload
+        // sebelum jam 08:00 lokal menghasilkan tanggal HARI SEBELUMNYA jika
+        // di-slice dari ISO → batas snapshot geser 1 hari → stok minus.
+        // Pakai tanggal LOKAL untuk snapshotDate; uploadedAt tetap ISO.
+        snapshotDate: todayLocalDateStr(),
         isActive: true,
         products: mergedProducts,
         // ⚠️ summary dihitung ulang dari mergedProducts (bukan parsedData.stats)
