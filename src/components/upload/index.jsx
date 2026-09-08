@@ -209,7 +209,17 @@ export function MobileFab({ onFile, colors, loading }) {
 }
 
 
-export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors }) {
+export function ExportMenu({
+  agg,
+  targets,
+  workDays,
+  depotName,
+  disabled,
+  colors,
+  activeTab = "main",
+  outletThresholds,
+  tabExports = {},
+}) {
   const [open, setOpen] = useState(false);
   const [scorecardListOpen, setScorecardListOpen] = useState(false);
   // Item "Gambar" mana yang lagi expand pilihan format (PNG/JPEG) — null kalau
@@ -345,10 +355,40 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
     </>
   );
 
-  // Konten menu dibuat sekali lalu dipakai di dua wadah: dropdown absolut
-  // (desktop) dan modal terpusat (mobile). Duplikasi JSX dihindari supaya
-  // kalau ada item menu baru cukup ditambah di satu tempat.
-  const menuContent = (
+  const renderScorecardIndividual = () => (
+    <>
+      <button onClick={() => setScorecardListOpen((v) => !v)}
+        className="sm-row w-full text-left px-4 py-2.5 flex items-center justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <Printer size={15} className="mt-0.5 shrink-0" style={{ color: colors.gold }} />
+          <div className="min-w-0">
+            <div className="text-sm font-medium">Cetak Scorecard Individual</div>
+            <div className="text-xs" style={{ color: colors.textMuted }}>Pilih 1 sales untuk dicetak sendiri</div>
+          </div>
+        </div>
+        <ChevronDown size={13} style={{ color: colors.textMuted, transform: scorecardListOpen ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }} />
+      </button>
+      {scorecardListOpen && (
+        <div className="max-h-52 overflow-y-auto" style={{ borderTop: `1px solid ${colors.glassBorder}`, background: colors.glassFill }}>
+          {salesSorted.map((sm) => (
+            <button key={sm.code} onClick={async () => {
+              // ⚠️ Sprint 5 / S3: lazy-load pdfExport.js (~600KB).
+              const { exportSalesScorecardPDF } = await import("../../utils/pdfExport.js");
+              exportSalesScorecardPDF(sm, agg, opts);
+              await notifyExportSuccess("Export berhasil", `Scorecard ${sm.name}`);
+              setOpen(false);
+            }}
+              className="sm-row w-full text-left pl-11 pr-4 py-2 flex items-center justify-between gap-2">
+              <span className="text-sm truncate">{sm.name}</span>
+              <span className="text-xs mono shrink-0" style={{ color: colors.textMuted }}>{fmtPct(sm.ach)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
+  const renderDefaultMenu = () => (
     <>
       <SectionLabel>Excel</SectionLabel>
       <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Export ke Excel"
@@ -403,34 +443,220 @@ export function ExportMenu({ agg, targets, workDays, depotName, disabled, colors
         }} filenameBase={`Laporan_Perbandingan_Sales_Gambar_${agg.meta.lastDate || "export"}`} />
 
       <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
-      <button onClick={() => setScorecardListOpen((v) => !v)}
-        className="sm-row w-full text-left px-4 py-2.5 flex items-center justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <Printer size={15} className="mt-0.5 shrink-0" style={{ color: colors.gold }} />
-          <div className="min-w-0">
-            <div className="text-sm font-medium">Cetak Scorecard Individual</div>
-            <div className="text-xs" style={{ color: colors.textMuted }}>Pilih 1 sales untuk dicetak sendiri</div>
-          </div>
-        </div>
-        <ChevronDown size={13} style={{ color: colors.textMuted, transform: scorecardListOpen ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }} />
-      </button>
-      {scorecardListOpen && (
-        <div className="max-h-52 overflow-y-auto" style={{ borderTop: `1px solid ${colors.glassBorder}`, background: colors.glassFill }}>
-          {salesSorted.map((sm) => (
-            <button key={sm.code} onClick={async () => {
-              // ⚠️ Sprint 5 / S3: lazy-load pdfExport.js (~600KB).
-              const { exportSalesScorecardPDF } = await import("../../utils/pdfExport.js");
-              exportSalesScorecardPDF(sm, agg, opts);
-              await notifyExportSuccess("Export berhasil", `Scorecard ${sm.name}`);
+      {renderScorecardIndividual()}
+    </>
+  );
+
+  const TAB_LABELS = {
+    executive: "Executive Summary",
+    main: "Main Report",
+    sales: "Laporan Sales",
+    product: "Laporan Produk",
+    focus: "Produk & Grup Fokus",
+    outlet: "Analisis Outlet",
+    compare: "Perbandingan",
+    trend: "Tren Periode",
+    transactions: "Transaksi",
+    stock: "Stok Barang",
+    quality: "Kualitas Data",
+  };
+
+  const renderContent = () => {
+    if (activeTab === "sales") {
+      return (
+        <>
+          <SectionLabel>Excel</SectionLabel>
+          <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Sales (Excel)"
+            desc="2 Sheet: Per Grup Produk & Total vs Hari Terakhir"
+            onClick={async () => {
+              const { exportSalesReportExcel } = await import("../../utils/reportExcelExport.js");
+              const { getLastDaySalesMap } = await import("../../utils/aggregation.js");
+              const groupRows = agg.bySales.flatMap((sm) => sm.groups.map((g) => ({
+                salesName: sm.name, groupName: g.name,
+                value: g.realisasiValue, ao: g.realisasiAo,
+                targetValue: g.targetValue || 0, targetAo: g.targetAo || 0,
+                ach: g.ach, deviasiValue: g.deviasiValue ?? 0,
+                deviasiShow: (g.realisasiValue || 0) - (g.targetValue || 0),
+                predicate: g.predicate,
+              })));
+              const lastDaySalesMap = getLastDaySalesMap(agg.filteredRows, agg.meta.lastDate);
+              const totalVsLastDayRows = agg.bySales.map((sm) => {
+                const ld = lastDaySalesMap[sm.code] || { valueLastDay: 0, aoLastDay: 0 };
+                return {
+                  code: sm.code, salesName: sm.name,
+                  totalValue: sm.realisasiValue, totalAo: sm.realisasiAo, totalAch: sm.ach, totalAchAo: sm.achAo,
+                  lastDayValue: ld.valueLastDay, lastDayAo: ld.aoLastDay,
+                  predicate: sm.predicate,
+                };
+              });
+              exportSalesReportExcel(agg, groupRows, totalVsLastDayRows, opts);
+              await notifyExportSuccess("Export berhasil", "Laporan Sales (Excel)");
               setOpen(false);
-            }}
-              className="sm-row w-full text-left pl-11 pr-4 py-2 flex items-center justify-between gap-2">
-              <span className="text-sm truncate">{sm.name}</span>
-              <span className="text-xs mono shrink-0" style={{ color: colors.textMuted }}>{fmtPct(sm.ach)}</span>
-            </button>
-          ))}
-        </div>
-      )}
+            }} />
+
+          <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
+          <SectionLabel>PDF</SectionLabel>
+          <MenuItem icon={FileText} iconColor={colors.coral} label="Scorecard Semua Sales"
+            desc={`1 halaman per sales (${agg.bySales.length} sales)`}
+            onClick={async () => {
+              const { exportAllScorecardsPDF } = await import("../../utils/pdfExport.js");
+              exportAllScorecardsPDF(agg, opts);
+              await notifyExportSuccess("Export berhasil", `Scorecard Semua Sales (${agg.bySales.length} sales)`);
+              setOpen(false);
+            }} />
+
+          <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
+          {renderScorecardIndividual()}
+        </>
+      );
+    }
+
+    if (activeTab === "product") {
+      return (
+        <>
+          <SectionLabel>Excel</SectionLabel>
+          <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Detail Produk"
+            desc="Ranking performa, value, target & ACH per grup produk"
+            onClick={async () => {
+              const { exportProductReportExcel } = await import("../../utils/reportExcelExport.js");
+              exportProductReportExcel(agg.byGroup, opts);
+              await notifyExportSuccess("Export berhasil", "Laporan Produk (Excel)");
+              setOpen(false);
+            }} />
+        </>
+      );
+    }
+
+    if (activeTab === "focus") {
+      return (
+        <>
+          <SectionLabel>Excel</SectionLabel>
+          <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Produk Fokus"
+            desc="Detail kuantitas & pencapaian target produk fokus"
+            onClick={async () => {
+              const { exportProductFocusExcel } = await import("../../utils/reportExcelExport.js");
+              exportProductFocusExcel(agg.focusRows, opts);
+              await notifyExportSuccess("Export berhasil", "Produk Fokus (Excel)");
+              setOpen(false);
+            }} />
+          <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Grup Fokus"
+            desc="Target vs realisasi value & AO grup fokus per sales"
+            onClick={async () => {
+              const { exportFocusGroupExcel } = await import("../../utils/focusGroupExport.js");
+              exportFocusGroupExcel(agg.focusGroupRows, agg.filteredRows, opts);
+              await notifyExportSuccess("Export berhasil", "Grup Fokus (Excel)");
+              setOpen(false);
+            }} />
+
+          <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
+          <SectionLabel>PDF</SectionLabel>
+          <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Grup Fokus (PDF)"
+            desc="Dokumen tabel target vs realisasi grup fokus"
+            onClick={async () => {
+              const { exportFocusGroupPDF } = await import("../../utils/focusGroupExport.js");
+              exportFocusGroupPDF(agg.focusGroupRows, agg.filteredRows, opts);
+              await notifyExportSuccess("Export berhasil", "Grup Fokus (PDF)");
+              setOpen(false);
+            }} />
+        </>
+      );
+    }
+
+    if (activeTab === "outlet") {
+      return (
+        <>
+          <SectionLabel>Excel</SectionLabel>
+          <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Analisis Outlet"
+            desc="Klasifikasi status outlet (aktif, berisiko, dormant)"
+            onClick={async () => {
+              const { computeOutletAnalysis } = await import("../../utils/aggregation.js");
+              const { exportOutletAnalysisExcel } = await import("../../utils/reportExcelExport.js");
+              const { list, summary } = computeOutletAnalysis(agg.filteredRows, agg.meta, outletThresholds);
+              exportOutletAnalysisExcel(list, summary, opts);
+              await notifyExportSuccess("Export berhasil", "Analisis Outlet (Excel)");
+              setOpen(false);
+            }} />
+        </>
+      );
+    }
+
+    if (activeTab === "compare") {
+      return (
+        <>
+          <SectionLabel>Excel</SectionLabel>
+          <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Perbandingan Periode"
+            desc="Matriks perbandingan entitas lintas periode"
+            onClick={() => {
+              if (tabExports.compare?.onExportExcel) {
+                tabExports.compare.onExportExcel();
+              }
+              setOpen(false);
+            }} />
+        </>
+      );
+    }
+
+    if (activeTab === "trend") {
+      return (
+        <>
+          <SectionLabel>Excel</SectionLabel>
+          <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Tren Periode (Excel)"
+            desc="Data tren multi-periode value & AO per sales dengan grafik"
+            onClick={() => {
+              if (tabExports.trend?.onExportExcel) {
+                tabExports.trend.onExportExcel();
+              }
+              setOpen(false);
+            }} />
+
+          <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
+          <SectionLabel>PDF</SectionLabel>
+          <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Tren Periode (PDF)"
+            desc="Grafik tren & tabel pertumbuhan per sales"
+            onClick={() => {
+              if (tabExports.trend?.onExportPdf) {
+                tabExports.trend.onExportPdf();
+              }
+              setOpen(false);
+            }} />
+        </>
+      );
+    }
+
+    if (activeTab === "transactions") {
+      return (
+        <>
+          <SectionLabel>Excel</SectionLabel>
+          <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Data Transaksi"
+            desc="12 kolom lengkap: tanggal, sales, outlet, produk, grup, qty, satuan, value, invoice"
+            onClick={async () => {
+              if (tabExports.transactions?.onExportExcel) {
+                tabExports.transactions.onExportExcel();
+              } else {
+                const { exportTransactionsExcel } = await import("../../utils/reportExcelExport.js");
+                exportTransactionsExcel(agg.filteredRows, opts);
+                await notifyExportSuccess("Export berhasil", "Data Transaksi (Excel)");
+              }
+              setOpen(false);
+            }} />
+        </>
+      );
+    }
+
+    // Default: executive, main, stock, quality
+    return renderDefaultMenu();
+  };
+
+  // Konten menu dibuat sekali lalu dipakai di dua wadah: dropdown absolut
+  // (desktop) dan modal terpusat (mobile).
+  const menuContent = (
+    <>
+      <div className="px-4 py-2 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.glassBorder}` }}>
+        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: colors.gold }}>
+          Export · {TAB_LABELS[activeTab] || "Laporan"}
+        </span>
+      </div>
+      {renderContent()}
     </>
   );
 

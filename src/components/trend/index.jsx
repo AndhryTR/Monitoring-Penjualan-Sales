@@ -75,60 +75,17 @@ function GrowthTag({ growth, colors }) {
   );
 }
 
-/* ----------------------------------------------------------------------------
-   Dropdown export kecil khusus tab Tren Periode (Excel + PNG chart / PDF).
-   Beda dari ExportMenu global di header (yang export agg periode aktif) —
-   ini export data multi-periode (comparisonData) untuk sales yang dipilih
-   di chart saja.
------------------------------------------------------------------------------ */
-function TrendExportMenu({ colors, disabled, busy, onExportExcel, onExportPdf }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onClickOutside = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
-
-  const Item = ({ icon: Icon, iconColor, label, itemKey, onClick }) => (
-    <button onClick={onClick} disabled={!!busy}
-      className="sm-row w-full text-left px-3.5 py-2.5 flex items-center gap-2.5 disabled:opacity-50">
-      <Icon size={14} style={{ color: iconColor }} className="shrink-0" />
-      <span className="text-sm font-medium">{busy === itemKey ? "Memproses..." : label}</span>
-    </button>
-  );
-
-  return (
-    <div className="relative" ref={ref}>
-      <button onClick={() => setOpen((o) => !o)} disabled={disabled}
-        className="sm-btn inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-40"
-        style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
-        <Download size={13} /> Export
-        <ChevronDown size={12} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
-      </button>
-      {open && (
-        <div className="absolute right-0 z-30 mt-2 w-56 rounded-xl overflow-hidden sm-fadein"
-          style={{ background: colors.modalBg, backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)", border: `1px solid ${colors.modalBorder}`, boxShadow: colors.glassShadow }}>
-          <Item icon={FileSpreadsheet} iconColor={colors.mint} label="Export ke Excel" itemKey="excel"
-            onClick={() => { onExportExcel(); setOpen(false); }} />
-          <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
-          <Item icon={FileText} iconColor={colors.coral} label="Export ke PDF" itemKey="pdf"
-            onClick={() => { onExportPdf(); setOpen(false); }} />
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ============================================================================
    TREN PERIODE
    Tab baru: bandingkan Value & AO per sales lintas 3+ periode sekaligus
    (periode aktif + snapshot riwayat terpilih). Beda dengan PeriodComparisonCard
    (Main Report) yang cuma 1 vs 1 — ini untuk melihat tren beberapa bulan.
 ============================================================================ */
-export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPeriodPicker, selectedCount, depotName, comparisonBase = "prev", onBaseChange }) {
+export function TrendPeriodePage({
+  comparisonData, isAutoTrend, colors, onOpenPeriodPicker, selectedCount,
+  depotName, comparisonBase = "prev", onBaseChange,
+  registerTabExport, unregisterTabExport,
+}) {
   const [metric, setMetric] = useState("value"); // "value" | "ao"
   const chartRef = useRef(null);
   const [exportBusy, setExportBusy] = useState(null); // null | "excel" | "pdf"
@@ -225,6 +182,16 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
     return map;
   }, [comparisonData, comparisonBase]);
 
+  useEffect(() => {
+    registerTabExport?.("trend", {
+      onExportExcel: handleExportExcel,
+      onExportPdf: handleExportPdf,
+      busy: exportBusy,
+      disabled: !comparisonData || comparisonData.periods?.length < 2 || effectiveSelectedNames.length === 0,
+    });
+    return () => unregisterTabExport?.("trend");
+  }, [registerTabExport, unregisterTabExport, handleExportExcel, handleExportPdf, exportBusy, comparisonData, effectiveSelectedNames.length]);
+
   if (!comparisonData || comparisonData.periods.length < 2) {
     return (
       <div className="sm-page-enter">
@@ -309,11 +276,7 @@ export function TrendPeriodePage({ comparisonData, isAutoTrend, colors, onOpenPe
       <div className="sm-card p-5 sm-fadeup mb-6">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <SectionTitle title={`Tren ${metric === "value" ? "Value" : "AO"} per Sales`} sub="Pilih sales yang ingin ditampilkan" icon={TrendingUp} colors={colors} />
-          <div className="flex items-center gap-2">
-            <MultiSelect label="Sales" icon={Users} options={allSalesNames} selected={effectiveSelectedNames} onChange={setSelectedNames} placeholder="Cari sales..." colors={colors} />
-            <TrendExportMenu colors={colors} disabled={effectiveSelectedNames.length === 0} busy={exportBusy}
-              onExportExcel={handleExportExcel} onExportPdf={handleExportPdf} />
-          </div>
+          <MultiSelect label="Sales" icon={Users} options={allSalesNames} selected={effectiveSelectedNames} onChange={setSelectedNames} placeholder="Cari sales..." colors={colors} />
         </div>
         <div ref={chartRef}>
           <ResponsiveContainer width="100%" height={280}>
