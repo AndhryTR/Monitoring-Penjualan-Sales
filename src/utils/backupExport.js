@@ -13,12 +13,24 @@
 const BACKUP_APP_ID = "smapp-backup";
 const BACKUP_VERSION = 1;
 
-export function buildBackupPayload({ theme, filters, workDays, targets, depotName, projectionMethod, history }) {
+export function buildBackupPayload({
+  theme, filters, workDays, targets, depotName, projectionMethod, history,
+  depots, activeDepotId,
+}) {
   return {
     _app: BACKUP_APP_ID,
     _v: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
-    settings: { theme, filters, workDays, targets, depotName, projectionMethod },
+    settings: {
+      theme,
+      filters,
+      workDays,
+      targets,
+      depotName,
+      projectionMethod,
+      ...(depots ? { depots } : {}),
+      ...(activeDepotId ? { activeDepotId } : {}),
+    },
     history: history || [],
   };
 }
@@ -49,7 +61,7 @@ export function parseBackupFile(file) {
           return;
         }
         resolve(parsed);
-      } catch (e) {
+      } catch {
         reject(new Error("File tidak bisa dibaca — pastikan formatnya .json dan tidak rusak."));
       }
     };

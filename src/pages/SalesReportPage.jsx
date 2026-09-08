@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
-import { UserRound, Boxes, CalendarClock, Download } from "lucide-react";
+import { UserRound, Boxes, CalendarClock } from "lucide-react";
 import { fmtRp, fmtNum } from "../utils/formatters.js";
 // ⚠️ Sprint 5 / S3: pdfExport.js & reportExcelExport.js tidak di-import saat
 // initial bundle. Mereka berat (jspdf ~600KB, xlsx-js-style ~620KB). Sekarang
@@ -69,13 +69,6 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName,
     };
   }), [rows, lastDaySalesMap, agg.meta.lastDate]);
   const lastDateLabel = agg.meta.lastDate ? formatDateIDShort(agg.meta.lastDate) : "Hari Terakhir";
-  const handleExportExcel = async () => {
-    const { exportSalesReportExcel } = await import("../utils/reportExcelExport.js");
-    exportSalesReportExcel(agg, groupRows, totalVsLastDayRows, {
-      depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
-    });
-    await notifyExportSuccess("Export berhasil", "Laporan Sales (Excel)");
-  };
 
   // ⚠️ Bug fix (Sprint 3 / P4): sebelumnya `CustomTooltip` didefinisikan DI DALAM
   // body komponen. Setiap render produce new function ref → Recharts anggap
@@ -90,11 +83,6 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName,
 
       <div className="flex items-center justify-between flex-wrap gap-3 mb-0">
         <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} accent={colors.mint} />
-        <button onClick={handleExportExcel}
-          className="sm-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-          style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
-          <Download size={13} /> Export Excel
-        </button>
       </div>
       <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
         <BarChart data={rows} layout="vertical" margin={{ left: 10 }}>

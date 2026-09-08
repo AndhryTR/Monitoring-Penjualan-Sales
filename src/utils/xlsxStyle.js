@@ -9,7 +9,8 @@
    Sekarang: semua helper dipusatkan di sini. Modul export cukup import.
 ============================================================================ */
 
-import * as XLSX from "xlsx-js-style";
+import * as XLSX_MODULE from "xlsx-js-style";
+const XLSX = XLSX_MODULE.default || XLSX_MODULE;
 import { ACH_TIERS } from "../constants/thresholds.js";
 
 // ---- Number formats (Indonesia) ----

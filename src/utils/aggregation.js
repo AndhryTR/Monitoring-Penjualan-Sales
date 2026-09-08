@@ -297,7 +297,8 @@ export function getProductBreakdownForOutlet(rows, outletCode) {
 // last date — supaya modal drilldown tampilkan info lengkap per SKU.
 export function getProductBreakdownForGroup(rows, predicate) {
   const map = {};
-  rows.filter(predicate).forEach((r) => {
+  const matched = typeof predicate === "function" ? (rows || []).filter(predicate) : (rows || []);
+  matched.forEach((r) => {
     const key = r.productCode || r.productName || "UNKNOWN";
     if (!map[key]) {
       map[key] = {

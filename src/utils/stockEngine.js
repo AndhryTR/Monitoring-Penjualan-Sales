@@ -113,8 +113,8 @@ export function computeCurrentStock(snapshot, transactions) {
   for (const [, stock] of stockMap) {
     stock.currentValue = stock.currentQty * stock.unitCost;
     // Recompute qtyKarton based on current qty
-    const kartonConv = stock.conversions.find((c) => c.unit?.toUpperCase() === "KARTON");
-    if (kartonConv) {
+    const kartonConv = stock.conversions?.find((c) => c.unit?.toUpperCase() === "KARTON");
+    if (kartonConv && kartonConv.qty > 0) {
       stock.currentQtyKarton = stock.currentQty / kartonConv.qty;
       stock.soldQtyKarton = stock.soldQty / kartonConv.qty;
     } else {

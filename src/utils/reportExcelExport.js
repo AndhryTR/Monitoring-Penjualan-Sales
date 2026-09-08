@@ -1,4 +1,5 @@
-import * as XLSX from "xlsx-js-style";
+import * as XLSX_MODULE from "xlsx-js-style";
+const XLSX = XLSX_MODULE.default || XLSX_MODULE;
 import { todayLocalDateStr } from "./excelParse.js";
 // ⚠️ Sprint 4 / Q1: import langsung dari xlsxStyle.js (sebelumnya dari
 // excelExport.js + duplikat makeSheetBuilder inline). Sekarang shared.
@@ -174,4 +175,81 @@ export function exportOutletAnalysisExcel(list, summary, opts = {}) {
   // Total Value, Frekuensi, Grup, Tanggal, Jeda, Status).
   XLSX.utils.book_append_sheet(wb, b.finalize([14, 26, 32, 22, 18, 12, 12, 16, 12, 12]), "Analisis Outlet");
   XLSX.writeFile(wb, `Analisis_Outlet_${(depotName || "depo").replace(/[^a-z0-9]+/gi, "_")}_${todayLocalDateStr()}.xlsx`);
+}
+
+/* ---------------------------------------------------------------------------
+   6. TRANSAKSI — 1 sheet: Daftar transaksi dengan urutan kolom spesifik:
+   tanggal, kode sales, nama sales, kode outlet, nama outlet, alamat outlet,
+   produk, grup, qty, satuan, value, nomor invoice.
+--------------------------------------------------------------------------- */
+export function exportTransactionsExcel(rows, opts = {}) {
+  const { depotName = "", dateRangeLabel = "" } = opts;
+  const wb = XLSX.utils.book_new();
+  const b = makeSheetBuilder();
+
+  const subtitle = [
+    depotName,
+    dateRangeLabel,
+    `${rows.length} transaksi`,
+    `Dibuat ${todayLocalDateStr()}`,
+  ].filter(Boolean).join(" · ");
+
+  writeTitleBlock(b, "Laporan Transaksi Penjualan", subtitle, 12);
+
+  // Header row: 12 kolom
+  writeHeaderRow(b, 4, [
+    "Tanggal",
+    "Kode Sales",
+    "Nama Sales",
+    "Kode Outlet",
+    "Nama Outlet",
+    "Alamat Outlet",
+    "Produk",
+    "Grup",
+    "Qty",
+    "Satuan",
+    "Value",
+    "Nomor Invoice",
+  ]);
+
+  let totalQty = 0;
+  let totalValue = 0;
+
+  rows.forEach((r, i) => {
+    const row = 5 + i;
+    const q = Number(r.qty) || 0;
+    const v = Number(r.value) || 0;
+    totalQty += q;
+    totalValue += v;
+
+    b.setCell(row, 1, r.date || "-");
+    b.setCell(row, 2, r.salesCode || "-");
+    b.setCell(row, 3, r.salesName || "-");
+    b.setCell(row, 4, r.outletCode || "-");
+    b.setCell(row, 5, r.outletName || "-");
+    b.setCell(row, 6, r.outletAddress || "-");
+    b.setCell(row, 7, r.productName || r.productCode || "-");
+    b.setCell(row, 8, r.group || "-");
+    b.setCell(row, 9, q, { numFmt: XL_NUMFMT_INT });
+    b.setCell(row, 10, r.unit || "-", { align: "center" });
+    b.setCell(row, 11, v, { numFmt: XL_NUMFMT_MONEY });
+    b.setCell(row, 12, r.invoiceNo || "-");
+  });
+
+  if (rows.length > 0) {
+    const totalRow = 5 + rows.length;
+    b.setCell(totalRow, 1, "TOTAL", { bold: true, fill: XL_COLORS.headerCyan, align: "center" });
+    for (let c = 2; c <= 8; c++) {
+      b.setCell(totalRow, c, "", { fill: XL_COLORS.headerCyan });
+    }
+    b.merge(totalRow, 1, totalRow, 8);
+    b.setCell(totalRow, 9, totalQty, { bold: true, numFmt: XL_NUMFMT_INT, fill: XL_COLORS.headerCyan, align: "right" });
+    b.setCell(totalRow, 10, "", { fill: XL_COLORS.headerCyan });
+    b.setCell(totalRow, 11, totalValue, { bold: true, numFmt: XL_NUMFMT_MONEY, fill: XL_COLORS.headerCyan, align: "right" });
+    b.setCell(totalRow, 12, "", { fill: XL_COLORS.headerCyan });
+  }
+
+  // Lebar 12 kolom
+  XLSX.utils.book_append_sheet(wb, b.finalize([13, 12, 22, 14, 28, 32, 28, 16, 10, 10, 18, 18]), "Transaksi");
+  XLSX.writeFile(wb, `Transaksi_${(depotName || "depo").replace(/[^a-z0-9]+/gi, "_")}_${todayLocalDateStr()}.xlsx`);
 }

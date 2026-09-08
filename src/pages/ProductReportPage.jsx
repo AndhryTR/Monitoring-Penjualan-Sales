@@ -1,9 +1,8 @@
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
-import { Boxes, Package, Download } from "lucide-react";
+import { Boxes, Package } from "lucide-react";
 import { fmtRp, fmtNum, fmtMixedUnits } from "../utils/formatters.js";
-import { notifyExportSuccess } from "../utils/notifyExport.js";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { ACH_TIERS } from "../constants/thresholds.js";
 import { DataTable } from "../components/ui/DataTable.jsx";
@@ -15,14 +14,6 @@ import { SectionTitle, DrilldownButton, AchBarChartTooltip } from "../components
    ⚠️ Sprint G1: tambah kolom Stok Tersisa + Coverage dari stockData.
 ============================================================================ */
 export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, depotName, currentStock, stockSummary, slideshowMode = false }) {
-  const handleExport = async () => {
-    const { exportProductReportExcel } = await import("../utils/reportExcelExport.js");
-    exportProductReportExcel(agg.byGroup, {
-      depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
-    });
-    await notifyExportSuccess("Export berhasil", "Laporan Produk (Excel)");
-  };
-
   // Hitung stok per grup dari currentStock Map
   // currentStock = Map<productCode, StockItem>
   // agg.byGroup = [{ name, targetValue, realisasiValue, ach, realisasiAo, predicate }]
@@ -71,14 +62,7 @@ export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, 
       {/* Detail Grup Produk — di-hide di mode slideshow */}
       {!slideshowMode && (
       <div className="mt-8">
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-0">
-          <SectionTitle title="Detail Grup Produk" icon={Package} colors={colors} />
-          <button onClick={handleExport}
-            className="sm-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-            style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
-            <Download size={13} /> Export Excel
-          </button>
-        </div>
+        <SectionTitle title="Detail Grup Produk" icon={Package} colors={colors} />
         <DataTable
           key="product-report-table"
           rowKey="name"

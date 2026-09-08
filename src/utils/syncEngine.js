@@ -127,11 +127,20 @@ export async function fetchMasterRowsSince(maxDateLokal) {
 
 // Petakan baris master_sales (snake_case) ke bentuk lokal (camelCase).
 const mapMasterRow = (r) => ({
-  date: r.date, salesCode: r.sales_code, salesName: r.sales_name,
-  outletCode: r.outlet_code, outletName: r.outlet_name,
-  invoiceNo: r.invoice_no, productCode: r.product_code, productName: r.product_name,
-  group: r.group_name, qty: r.qty, qtyKarton: r.qty_karton, unconvertible: r.unconvertible,
-  value: r.value, unit: r.unit,
+  date: r.date,
+  salesCode: r.sales_code || "",
+  salesName: r.sales_name || "",
+  outletCode: r.outlet_code || "",
+  outletName: r.outlet_name || "",
+  invoiceNo: r.invoice_no || "",
+  productCode: r.product_code || "",
+  productName: r.product_name || "",
+  group: r.group_name || "",
+  qty: Number(r.qty) || 0,
+  qtyKarton: r.qty_karton !== null && r.qty_karton !== undefined ? Number(r.qty_karton) : null,
+  unconvertible: Boolean(r.unconvertible),
+  value: Number(r.value) || 0,
+  unit: r.unit || "",
 });
 
 const toMasterRow = (r, userId = null) => ({

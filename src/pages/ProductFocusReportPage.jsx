@@ -1,11 +1,10 @@
 import { useState, useMemo } from "react";
-import { Crosshair, Package, AlertTriangle, Download, ChevronRight } from "lucide-react";
+import { Crosshair, Package, AlertTriangle, ChevronRight } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "../utils/formatters.js";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { MultiSelect } from "../components/ui/MultiSelect.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
-import { notifyExportSuccess } from "../utils/notifyExport.js";
 // ⚠️ Sprint 5 / S3: reportExcelExport.js lazy-loaded di handler Export (~620KB).
 
 /* ============================================================================
@@ -24,13 +23,6 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown, onGroupDrilld
   // ---- View: Produk Fokus (konten lama) ----
   const focusNames = useMemo(() => Array.from(new Set(agg.focusRows.map((f) => f.name))), [agg.focusRows]);
   const productRows = focusFilter.length ? agg.focusRows.filter((f) => focusFilter.includes(f.name)) : agg.focusRows;
-  const handleExportProduct = async () => {
-    const { exportProductFocusExcel } = await import("../utils/reportExcelExport.js");
-    exportProductFocusExcel(productRows, {
-      depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
-    });
-    await notifyExportSuccess("Export berhasil", "Produk Fokus (Excel)");
-  };
 
   // ---- View: Grup Fokus ----
   const groupNames = useMemo(() => Array.from(new Set(agg.focusGroupRows.map((g) => g.name))), [agg.focusGroupRows]);
@@ -105,34 +97,6 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown, onGroupDrilld
 
           <div className="flex items-center justify-between flex-wrap gap-3 mb-0">
             <SectionTitle title="Detail Tabel Grup Fokus" icon={Package} colors={colors} />
-            <div className="flex gap-2">
-              <button
-                onClick={async () => {
-                  const { exportFocusGroupExcel } = await import("../utils/focusGroupExport.js");
-                  exportFocusGroupExcel(groupRows, filteredRows || agg.filteredRows, {
-                    depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
-                  });
-                  await notifyExportSuccess("Export berhasil", "Grup Fokus (Excel)");
-                }}
-                className="sm-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}
-              >
-                <Download size={13} /> Export Excel
-              </button>
-              <button
-                onClick={async () => {
-                  const { exportFocusGroupPDF } = await import("../utils/focusGroupExport.js");
-                  exportFocusGroupPDF(groupRows, filteredRows || agg.filteredRows, {
-                    depotName, dateRangeLabel: agg.meta.firstDate ? `${agg.meta.firstDate} — ${agg.meta.lastDate}` : "",
-                  });
-                  await notifyExportSuccess("Export berhasil", "Grup Fokus (PDF)");
-                }}
-                className="sm-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                style={{ background: colors.violet + "1A", border: `1px solid ${colors.violet}55`, color: colors.violet }}
-              >
-                <Download size={13} /> Export PDF
-              </button>
-            </div>
           </div>
           <DataTable
             key="group-focus-table"
@@ -200,11 +164,6 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown, onGroupDrilld
 
           <div className="flex items-center justify-between flex-wrap gap-3 mb-0">
             <SectionTitle title="Detail Tabel" icon={Crosshair} colors={colors} />
-            <button onClick={handleExportProduct}
-              className="sm-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-              style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
-              <Download size={13} /> Export Excel
-            </button>
           </div>
           <DataTable
             key="product-focus-table"

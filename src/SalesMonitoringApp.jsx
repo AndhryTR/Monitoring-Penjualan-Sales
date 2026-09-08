@@ -168,6 +168,19 @@ export default function SalesMonitoringApp() {
   const { parseFiles, progress: uploadProgress } = useExcelParseWorker();
   useEffect(() => () => {}, []);
 
+  // Registry export per tab: tab dengan state lokal (Comparison, Trend, Transaksi)
+  // mendaftarkan handler export ke header agar menu Export selalu context-aware.
+  const tabExportsRef = useRef({});
+  const [, setTabExportsTick] = useState(0);
+  const registerTabExport = useCallback((tab, handlers) => {
+    tabExportsRef.current[tab] = handlers;
+    setTabExportsTick((t) => t + 1);
+  }, []);
+  const unregisterTabExport = useCallback((tab) => {
+    delete tabExportsRef.current[tab];
+    setTabExportsTick((t) => t + 1);
+  }, []);
+
   // Tampilkan skeleton sebelum page baru di-mount. Satu frame pertama memberi
   // browser kesempatan paint skeleton; frame berikutnya baru mengganti tab.
   const goToTab = useCallback((tab) => {
@@ -1066,7 +1079,17 @@ export default function SalesMonitoringApp() {
                   aria-label="Mode Pajangan">
                   <Monitor size={14} />
                 </button>
-                <ExportMenu agg={aggFinal} targets={targets} workDays={workDays} depotName={depotName} disabled={!rawRows.length} colors={colors} />
+                <ExportMenu
+                  agg={aggFinal}
+                  targets={targets}
+                  workDays={workDays}
+                  depotName={depotName}
+                  disabled={!rawRows.length}
+                  colors={colors}
+                  activeTab={activeTab}
+                  outletThresholds={outletThresholds}
+                  tabExports={tabExportsRef.current}
+                />
                 <button onClick={() => setIsSearchOpen(true)} disabled={!rawRows.length}
                   className="sm-btn p-2 rounded-lg hidden md:flex disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
@@ -1281,8 +1304,8 @@ export default function SalesMonitoringApp() {
             {activeTab === "product" && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} onGroupDrilldown={openProductGroupDrilldown} depotName={depotName} currentStock={stockData.currentStock} stockSummary={stockData.stockSummary} />}
             {activeTab === "focus" && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} depotName={depotName} filteredRows={aggFinal.filteredRows} />}
             {activeTab === "outlet" && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} rawRows={rawRows} targets={targets} depotName={depotName} />}
-            {activeTab === "compare" && <ComparisonPage rawRows={rawRows} targets={targets} colors={colors} workDays={workDays} depotName={depotName} comparisonBase={comparisonBase} onBaseChange={setComparisonBase} />}
-            {activeTab === "transactions" && <TransactionsPage agg={aggFinal} colors={colors} onOutletDrilldown={openOutletDetail} />}
+            {activeTab === "compare" && <ComparisonPage rawRows={rawRows} targets={targets} colors={colors} workDays={workDays} depotName={depotName} comparisonBase={comparisonBase} onBaseChange={setComparisonBase} registerTabExport={registerTabExport} unregisterTabExport={unregisterTabExport} />}
+            {activeTab === "transactions" && <TransactionsPage agg={aggFinal} colors={colors} onOutletDrilldown={openOutletDetail} depotName={depotName} registerTabExport={registerTabExport} unregisterTabExport={unregisterTabExport} />}
             {activeTab === "quality" && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
             {/* ⚠️ Sprint 19 / Stock Module */}
             {activeTab === "stock" && (
@@ -1316,7 +1339,7 @@ export default function SalesMonitoringApp() {
               isFirstUpload={stockPreviewData?.isFirstUpload}
               colors={colors}
             />
-            {activeTab === "trend" && <TrendPeriodePage comparisonData={finalTrendComparisonData} isAutoTrend={isAutoTrend} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} depotName={depotName} comparisonBase={comparisonBase} onBaseChange={setComparisonBase} />}
+            {activeTab === "trend" && <TrendPeriodePage comparisonData={finalTrendComparisonData} isAutoTrend={isAutoTrend} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} depotName={depotName} comparisonBase={comparisonBase} onBaseChange={setComparisonBase} registerTabExport={registerTabExport} unregisterTabExport={unregisterTabExport} />}
           </>
         )}
 

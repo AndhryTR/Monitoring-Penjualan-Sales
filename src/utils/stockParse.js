@@ -132,7 +132,7 @@ export async function parseStockExcel(file) {
     // Find karton conversion (highest factor, usually "KARTON")
     const kartonConv = conversions.find((c) => c.unit?.toUpperCase() === "KARTON");
     const qtyBase = cellNum(r[fmap.qtyBase]);
-    const qtyKarton = kartonConv ? qtyBase / kartonConv.qty : 0;
+    const qtyKarton = kartonConv && kartonConv.qty > 0 ? qtyBase / kartonConv.qty : 0;
 
     const unit = cellStr(r[fmap.unit]) || "PCS";
     const unitCost = cellNum(r[fmap.unitCost]);

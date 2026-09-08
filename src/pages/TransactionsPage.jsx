@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Receipt, Filter, X, Store, Receipt as ReceiptIcon } from "lucide-react";
 import { fmtRp, fmtNum } from "../utils/formatters.js";
 import { filterTransactions, summarizeTransactions, getOutletOptions, getUnitOptions } from "../utils/transactions.js";
@@ -6,6 +6,7 @@ import { SectionTitle } from "../components/ui/index.jsx";
 import { TransactionTable } from "../components/transactions/TransactionTable.jsx";
 import { EmptyState } from "../components/ui/EmptyState.jsx";
 import { MultiSelect } from "../components/ui/MultiSelect.jsx";
+import { notifyExportSuccess } from "../utils/notifyExport.js";
 
 /* ============================================================================
    TAB: TRANSAKSI — REDESIGN (Sprint 12)
@@ -29,8 +30,12 @@ const DEFAULT_LOCAL_FILTERS = {
   unit: "",
 };
 
-export function TransactionsPage({ agg, colors, onOutletDrilldown }) {
+export function TransactionsPage({
+  agg, colors, onOutletDrilldown, depotName = "",
+  registerTabExport, unregisterTabExport,
+}) {
   const [localFilters, setLocalFilters] = useState(DEFAULT_LOCAL_FILTERS);
+  const [exportBusy, setExportBusy] = useState(false);
 
   const filteredRows = useMemo(
     () => filterTransactions(agg.filteredRows, localFilters),
@@ -71,27 +76,54 @@ export function TransactionsPage({ agg, colors, onOutletDrilldown }) {
 
   const handleResetFilters = () => setLocalFilters(DEFAULT_LOCAL_FILTERS);
 
+  const handleExportExcel = async () => {
+    if (!filteredRows.length || exportBusy) return;
+    setExportBusy(true);
+    try {
+      const { exportTransactionsExcel } = await import("../utils/reportExcelExport.js");
+      exportTransactionsExcel(filteredRows, {
+        depotName,
+        dateRangeLabel: periodLabel,
+      });
+      await notifyExportSuccess("Export berhasil", "Data Transaksi (Excel)");
+    } catch (err) {
+      console.error("Export transaksi gagal:", err);
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    registerTabExport?.("transactions", {
+      onExportExcel: handleExportExcel,
+      busy: exportBusy,
+      disabled: filteredRows.length === 0,
+    });
+    return () => unregisterTabExport?.("transactions");
+  }, [registerTabExport, unregisterTabExport, handleExportExcel, exportBusy, filteredRows.length]);
+
   const avgValue = summary.rowCount > 0 ? summary.totalValue / summary.rowCount : 0;
 
   return (
     <div className="sm-page-enter">
       {/* Header dengan inline stats */}
-      <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <SectionTitle
           title="Transaksi"
           sub={`${fmtNum(summary.rowCount)} baris · ${summary.uniqueSales} sales · ${summary.uniqueOutlets} outlet · ${periodLabel}`}
           icon={Receipt}
           colors={colors}
         />
-        {/* Inline summary: Total Value + Avg/baris */}
-        <div className="flex gap-3 shrink-0">
-          <div className="sm-card px-4 py-2.5">
+
+        {/* Stats summary (grid 2 kolom di mobile, flex di desktop) */}
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5 w-full sm:w-auto">
+          <div className="sm-card px-3.5 py-2 min-w-0">
             <div className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: colors.textMuted }}>Total Value</div>
-            <div className="mono text-base font-bold" style={{ color: colors.mint }}>{fmtRp(summary.totalValue)}</div>
+            <div className="mono text-sm sm:text-base font-bold truncate" style={{ color: colors.mint }}>{fmtRp(summary.totalValue)}</div>
           </div>
-          <div className="sm-card px-4 py-2.5">
+          <div className="sm-card px-3.5 py-2 min-w-0">
             <div className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: colors.textMuted }}>Rata-rata/baris</div>
-            <div className="mono text-base font-bold" style={{ color: colors.gold }}>{fmtRp(avgValue)}</div>
+            <div className="mono text-sm sm:text-base font-bold truncate" style={{ color: colors.gold }}>{fmtRp(avgValue)}</div>
           </div>
         </div>
       </div>

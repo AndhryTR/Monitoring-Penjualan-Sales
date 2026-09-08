@@ -21,7 +21,6 @@ import { fmtRp, fmtPct } from "../utils/formatters.js";
 // dipakai di tempat lain (tidak bisa di-code-split perlu jalan).
 import { captureChartImage } from "../utils/trendExport.js";
 import { computeBaseGrowth } from "../utils/comparisonBase.js";
-import { Download } from "lucide-react";
 
 /* ============================================================================
    TAB: PERBANDINGAN (Comparison Studio)
@@ -40,7 +39,10 @@ const MODES = [
   { key: "outlet", label: "Outlet", icon: Store },
 ];
 
-export function ComparisonPage({ rawRows, targets, colors, workDays, depotName, comparisonBase = "prev", onBaseChange }) {
+export function ComparisonPage({
+  rawRows, targets, colors, workDays, depotName, comparisonBase, onBaseChange,
+  registerTabExport, unregisterTabExport,
+}) {
   const [exportBusy, setExportBusy] = useState(false);
   const chartRef = useRef(null);
   // State di-restore dari localStorage (tab ini di-unmount tiap pindah tab —
@@ -263,6 +265,15 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, depotName, 
     }
   };
 
+  useEffect(() => {
+    registerTabExport?.("compare", {
+      onExportExcel: handleExport,
+      busy: exportBusy,
+      disabled: !ready,
+    });
+    return () => unregisterTabExport?.("compare");
+  }, [registerTabExport, unregisterTabExport, handleExport, exportBusy, ready]);
+
   return (
     <div className="sm-page-enter">
       <SectionTitle title="Perbandingan" sub="Bandingkan entitas (sales / grup / outlet) lintas periode pilihan Anda" icon={GitCompareArrows} colors={colors} accent={colors.violet} />
@@ -356,15 +367,8 @@ export function ComparisonPage({ rawRows, targets, colors, workDays, depotName, 
 
           {/* Bar chart */}
           <div className="sm-card p-5 mb-5 sm-fadeup" ref={chartRef}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs uppercase tracking-wider" style={{ color: colors.textMuted }}>
-                {metricLabel} per Periode
-              </div>
-              <button onClick={handleExport} disabled={exportBusy}
-                className="sm-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.mint }}>
-                <Download size={14} /> {exportBusy ? "Menyiapkan..." : "Export Excel"}
-              </button>
+            <div className="text-xs uppercase tracking-wider mb-3" style={{ color: colors.textMuted }}>
+              {metricLabel} per Periode
             </div>
             <GroupedBarChart data={chartData} periods={periods} periodColor={pickColor} metricKey={metric} isMoney={metricMeta.money} isPct={metricMeta.pct} colors={colors} />
           </div>
