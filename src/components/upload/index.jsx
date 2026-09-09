@@ -209,6 +209,32 @@ export function MobileFab({ onFile, colors, loading }) {
 }
 
 
+function MenuItem({ icon: Icon, iconColor, label, desc, onClick, colors }) {
+  return (
+    <button
+      onClick={onClick}
+      className="sm-row w-full text-left px-4 py-2.5 flex items-start gap-3 cursor-pointer"
+    >
+      <Icon size={15} className="mt-0.5 shrink-0" style={{ color: iconColor }} />
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{label}</div>
+        {desc && <div className="text-xs" style={{ color: colors?.textMuted }}>{desc}</div>}
+      </div>
+    </button>
+  );
+}
+
+function SectionLabel({ children, colors }) {
+  return (
+    <div
+      className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider"
+      style={{ color: colors?.textMuted }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function ExportMenu({
   agg,
   targets,
@@ -287,21 +313,7 @@ export function ExportMenu({
 
   const opts = { workDays, depotName };
   const salesSorted = useMemo(() => [...agg.bySales].sort((a, b) => a.name.localeCompare(b.name)), [agg.bySales]);
-
-  const MenuItem = ({ icon: Icon, iconColor, label, desc, onClick }) => (
-    <button onClick={onClick}
-      className="sm-row w-full text-left px-4 py-2.5 flex items-start gap-3">
-      <Icon size={15} className="mt-0.5 shrink-0" style={{ color: iconColor }} />
-      <div className="min-w-0">
-        <div className="text-sm font-medium">{label}</div>
-        {desc && <div className="text-xs" style={{ color: colors.textMuted }}>{desc}</div>}
-      </div>
-    </button>
-  );
-
-  const SectionLabel = ({ children }) => (
-    <div className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: colors.textMuted }}>{children}</div>
-  );
+  const currentTabExports = (tabExports && tabExports.current) ? tabExports.current : (tabExports || {});
 
   const handleImageExport = async (key, buildFnRef, filenameBase, format) => {
     setImageBusy(key);
@@ -390,9 +402,10 @@ export function ExportMenu({
 
   const renderDefaultMenu = () => (
     <>
-      <SectionLabel>Excel</SectionLabel>
+      <SectionLabel colors={colors}>Excel</SectionLabel>
       <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Export ke Excel"
         desc="Format lengkap dengan target, deviasi & produk fokus"
+        colors={colors}
         onClick={async () => {
           // ⚠️ Sprint 5 / S3: lazy-load excelExport.js (~620KB).
           const { exportToExcel } = await import("../../utils/excelExport.js");
@@ -402,9 +415,10 @@ export function ExportMenu({
         }} />
 
       <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
-      <SectionLabel>PDF</SectionLabel>
+      <SectionLabel colors={colors}>PDF</SectionLabel>
       <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Ringkasan"
         desc="KPI, leaderboard sales & rekap grup produk"
+        colors={colors}
         onClick={async () => {
           const { exportSummaryPDF } = await import("../../utils/pdfExport.js");
           exportSummaryPDF(agg, targets, opts);
@@ -413,6 +427,7 @@ export function ExportMenu({
         }} />
       <MenuItem icon={FileText} iconColor={colors.coral} label="Scorecard Semua Sales"
         desc={`1 halaman per sales (${agg.bySales.length} sales)`}
+        colors={colors}
         onClick={async () => {
           const { exportAllScorecardsPDF } = await import("../../utils/pdfExport.js");
           exportAllScorecardsPDF(agg, opts);
@@ -421,6 +436,7 @@ export function ExportMenu({
         }} />
       <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Perbandingan Sales"
         desc="Rekap per grup, per sales & hari terakhir — 1 dokumen gabungan"
+        colors={colors}
         onClick={async () => {
           const { exportSalesGroupComparisonPDF } = await import("../../utils/pdfExport.js");
           exportSalesGroupComparisonPDF(agg, opts);
@@ -429,7 +445,7 @@ export function ExportMenu({
         }} />
 
       <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
-      <SectionLabel>Gambar</SectionLabel>
+      <SectionLabel colors={colors}>Gambar</SectionLabel>
       <ImageMenuItem itemKey="excel" label="Export ke Excel" desc="Tampilan sama seperti file Excel, jadi 1 gambar"
         buildFn={async () => {
           // ⚠️ Sprint 5 / S3: lazy-load imageExport.js (~1.2MB).
@@ -465,9 +481,10 @@ export function ExportMenu({
     if (activeTab === "sales") {
       return (
         <>
-          <SectionLabel>Excel</SectionLabel>
+          <SectionLabel colors={colors}>Excel</SectionLabel>
           <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Sales (Excel)"
             desc="2 Sheet: Per Grup Produk & Total vs Hari Terakhir"
+            colors={colors}
             onClick={async () => {
               const { exportSalesReportExcel } = await import("../../utils/reportExcelExport.js");
               const { getLastDaySalesMap } = await import("../../utils/aggregation.js");
@@ -495,9 +512,10 @@ export function ExportMenu({
             }} />
 
           <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
-          <SectionLabel>PDF</SectionLabel>
+          <SectionLabel colors={colors}>PDF</SectionLabel>
           <MenuItem icon={FileText} iconColor={colors.coral} label="Scorecard Semua Sales"
             desc={`1 halaman per sales (${agg.bySales.length} sales)`}
+            colors={colors}
             onClick={async () => {
               const { exportAllScorecardsPDF } = await import("../../utils/pdfExport.js");
               exportAllScorecardsPDF(agg, opts);
@@ -514,9 +532,10 @@ export function ExportMenu({
     if (activeTab === "product") {
       return (
         <>
-          <SectionLabel>Excel</SectionLabel>
+          <SectionLabel colors={colors}>Excel</SectionLabel>
           <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Detail Produk"
             desc="Ranking performa, value, target & ACH per grup produk"
+            colors={colors}
             onClick={async () => {
               const { exportProductReportExcel } = await import("../../utils/reportExcelExport.js");
               exportProductReportExcel(agg.byGroup, opts);
@@ -530,9 +549,10 @@ export function ExportMenu({
     if (activeTab === "focus") {
       return (
         <>
-          <SectionLabel>Excel</SectionLabel>
+          <SectionLabel colors={colors}>Excel</SectionLabel>
           <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Produk Fokus"
             desc="Detail kuantitas & pencapaian target produk fokus"
+            colors={colors}
             onClick={async () => {
               const { exportProductFocusExcel } = await import("../../utils/reportExcelExport.js");
               exportProductFocusExcel(agg.focusRows, opts);
@@ -541,6 +561,7 @@ export function ExportMenu({
             }} />
           <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Grup Fokus"
             desc="Target vs realisasi value & AO grup fokus per sales"
+            colors={colors}
             onClick={async () => {
               const { exportFocusGroupExcel } = await import("../../utils/focusGroupExport.js");
               exportFocusGroupExcel(agg.focusGroupRows, agg.filteredRows, opts);
@@ -549,9 +570,10 @@ export function ExportMenu({
             }} />
 
           <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
-          <SectionLabel>PDF</SectionLabel>
+          <SectionLabel colors={colors}>PDF</SectionLabel>
           <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Grup Fokus (PDF)"
             desc="Dokumen tabel target vs realisasi grup fokus"
+            colors={colors}
             onClick={async () => {
               const { exportFocusGroupPDF } = await import("../../utils/focusGroupExport.js");
               exportFocusGroupPDF(agg.focusGroupRows, agg.filteredRows, opts);
@@ -565,9 +587,10 @@ export function ExportMenu({
     if (activeTab === "outlet") {
       return (
         <>
-          <SectionLabel>Excel</SectionLabel>
+          <SectionLabel colors={colors}>Excel</SectionLabel>
           <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Analisis Outlet"
             desc="Klasifikasi status outlet (aktif, berisiko, dormant)"
+            colors={colors}
             onClick={async () => {
               const { computeOutletAnalysis } = await import("../../utils/aggregation.js");
               const { exportOutletAnalysisExcel } = await import("../../utils/reportExcelExport.js");
@@ -583,12 +606,13 @@ export function ExportMenu({
     if (activeTab === "compare") {
       return (
         <>
-          <SectionLabel>Excel</SectionLabel>
+          <SectionLabel colors={colors}>Excel</SectionLabel>
           <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Perbandingan Periode"
             desc="Matriks perbandingan entitas lintas periode"
+            colors={colors}
             onClick={() => {
-              if (tabExports.compare?.onExportExcel) {
-                tabExports.compare.onExportExcel();
+              if (currentTabExports.compare?.onExportExcel) {
+                currentTabExports.compare.onExportExcel();
               }
               setOpen(false);
             }} />
@@ -599,23 +623,25 @@ export function ExportMenu({
     if (activeTab === "trend") {
       return (
         <>
-          <SectionLabel>Excel</SectionLabel>
+          <SectionLabel colors={colors}>Excel</SectionLabel>
           <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Tren Periode (Excel)"
             desc="Data tren multi-periode value & AO per sales dengan grafik"
+            colors={colors}
             onClick={() => {
-              if (tabExports.trend?.onExportExcel) {
-                tabExports.trend.onExportExcel();
+              if (currentTabExports.trend?.onExportExcel) {
+                currentTabExports.trend.onExportExcel();
               }
               setOpen(false);
             }} />
 
           <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
-          <SectionLabel>PDF</SectionLabel>
+          <SectionLabel colors={colors}>PDF</SectionLabel>
           <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Tren Periode (PDF)"
             desc="Grafik tren & tabel pertumbuhan per sales"
+            colors={colors}
             onClick={() => {
-              if (tabExports.trend?.onExportPdf) {
-                tabExports.trend.onExportPdf();
+              if (currentTabExports.trend?.onExportPdf) {
+                currentTabExports.trend.onExportPdf();
               }
               setOpen(false);
             }} />
@@ -626,12 +652,13 @@ export function ExportMenu({
     if (activeTab === "transactions") {
       return (
         <>
-          <SectionLabel>Excel</SectionLabel>
+          <SectionLabel colors={colors}>Excel</SectionLabel>
           <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Data Transaksi"
             desc="12 kolom lengkap: tanggal, sales, outlet, produk, grup, qty, satuan, value, invoice"
+            colors={colors}
             onClick={async () => {
-              if (tabExports.transactions?.onExportExcel) {
-                tabExports.transactions.onExportExcel();
+              if (currentTabExports.transactions?.onExportExcel) {
+                currentTabExports.transactions.onExportExcel();
               } else {
                 const { exportTransactionsExcel } = await import("../../utils/reportExcelExport.js");
                 exportTransactionsExcel(agg.filteredRows, opts);

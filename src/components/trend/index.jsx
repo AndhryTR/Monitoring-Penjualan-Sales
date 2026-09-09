@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from "recharts";
@@ -121,7 +121,7 @@ export function TrendPeriodePage({
   // terpisah) & PDF (embed langsung). backgroundColor pakai colors.surface
   // supaya area transparan di sekitar SVG ikut warna kartu, bukan hitam/putih
   // polos yang tidak sesuai tema aktif.
-  const handleExportExcel = async () => {
+  const handleExportExcel = useCallback(async () => {
     if (!comparisonData || exportBusy) return;
     setExportBusy("excel");
     try {
@@ -139,9 +139,9 @@ export function TrendPeriodePage({
     } finally {
       setExportBusy(null);
     }
-  };
+  }, [comparisonData, exportBusy, effectiveSelectedNames, depotName, comparisonBase, colors.surface]);
 
-  const handleExportPdf = async () => {
+  const handleExportPdf = useCallback(async () => {
     if (!comparisonData || exportBusy) return;
     setExportBusy("pdf");
     try {
@@ -157,7 +157,7 @@ export function TrendPeriodePage({
     } finally {
       setExportBusy(null);
     }
-  };
+  }, [comparisonData, exportBusy, effectiveSelectedNames, depotName, comparisonBase, colors.surface]);
 
   // Growth per sales dihitung ulang sesuai opsi pembanding (comparisonBase).
   // `series` = nilai kronologis per periode (skip missing) utk value & ao.
