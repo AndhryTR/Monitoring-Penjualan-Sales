@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Receipt, Filter, X, Store, Receipt as ReceiptIcon } from "lucide-react";
 import { fmtRp, fmtNum } from "../utils/formatters.js";
 import { filterTransactions, summarizeTransactions, getOutletOptions, getUnitOptions } from "../utils/transactions.js";
@@ -76,7 +76,7 @@ export function TransactionsPage({
 
   const handleResetFilters = () => setLocalFilters(DEFAULT_LOCAL_FILTERS);
 
-  const handleExportExcel = async () => {
+  const handleExportExcel = useCallback(async () => {
     if (!filteredRows.length || exportBusy) return;
     setExportBusy(true);
     try {
@@ -91,7 +91,7 @@ export function TransactionsPage({
     } finally {
       setExportBusy(false);
     }
-  };
+  }, [filteredRows, exportBusy, depotName, periodLabel]);
 
   useEffect(() => {
     registerTabExport?.("transactions", {

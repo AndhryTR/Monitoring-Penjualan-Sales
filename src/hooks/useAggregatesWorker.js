@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { computeAggregates, matchFocus } from "../utils/aggregation.js";
 
-const aggregationWorkerUrl = new URL("../workers/aggregation.worker.js", import.meta.url);
-
 function reviveWorkerValue(value) {
   if (Array.isArray(value)) return value.map(reviveWorkerValue);
   if (value && typeof value === "object") {
@@ -91,7 +89,10 @@ export function useAggregatesWorker(rows, targets, filters, workDays) {
 
   useEffect(() => {
     const requestId = ++requestIdRef.current;
-    const worker = new Worker(aggregationWorkerUrl, { type: "module" });
+    const worker = new Worker(
+      new URL("../workers/aggregation.worker.js", import.meta.url),
+      { type: "module" }
+    );
     workerRef.current = worker;
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
@@ -106,9 +107,10 @@ export function useAggregatesWorker(rows, targets, filters, workDays) {
     };
     worker.onerror = (event) => {
       if (requestId !== requestIdRef.current) return;
-      console.error("Aggregation Worker gagal:", event.error || event.message);
+      const errorMsg = event.message || event.error?.message || (event.filename ? `${event.filename}:${event.lineno}` : "Worker initialization failed");
+      console.error("Aggregation Worker gagal:", errorMsg);
       // Fallback menjaga app tetap bisa dipakai bila browser memblokir Worker.
-      setState({ loading: false, error: event.message || "Worker gagal", value: computeAggregates(rows, targets, filters, workDays) });
+      setState({ loading: false, error: errorMsg, value: computeAggregates(rows, targets, filters, workDays) });
     };
     worker.postMessage({ requestId, rows, targets, filters, workDays });
 

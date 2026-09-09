@@ -170,15 +170,13 @@ export default function SalesMonitoringApp() {
 
   // Registry export per tab: tab dengan state lokal (Comparison, Trend, Transaksi)
   // mendaftarkan handler export ke header agar menu Export selalu context-aware.
+  // Disimpan dalam ref stabil tanpa setState agar tidak memicu re-render loop.
   const tabExportsRef = useRef({});
-  const [, setTabExportsTick] = useState(0);
   const registerTabExport = useCallback((tab, handlers) => {
     tabExportsRef.current[tab] = handlers;
-    setTabExportsTick((t) => t + 1);
   }, []);
   const unregisterTabExport = useCallback((tab) => {
     delete tabExportsRef.current[tab];
-    setTabExportsTick((t) => t + 1);
   }, []);
 
   // Tampilkan skeleton sebelum page baru di-mount. Satu frame pertama memberi
@@ -1088,7 +1086,7 @@ export default function SalesMonitoringApp() {
                   colors={colors}
                   activeTab={activeTab}
                   outletThresholds={outletThresholds}
-                  tabExports={tabExportsRef.current}
+                  tabExports={tabExportsRef}
                 />
                 <button onClick={() => setIsSearchOpen(true)} disabled={!rawRows.length}
                   className="sm-btn p-2 rounded-lg hidden md:flex disabled:opacity-40 disabled:cursor-not-allowed"

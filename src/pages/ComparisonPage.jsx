@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { GitCompareArrows, Users, Package, Store, Wallet } from "lucide-react";
 import { MultiSelect } from "../components/ui/MultiSelect.jsx";
 import { notifyExportSuccess } from "../utils/notifyExport.js";
@@ -237,7 +237,7 @@ export function ComparisonPage({
     ? `${periods[0].label} — ${periods[periods.length - 1].label}`
     : "";
 
-  const handleExport = async () => {
+  const handleExport = useCallback(async () => {
     if (!ready || exportBusy) return;
     setExportBusy(true);
     try {
@@ -263,7 +263,7 @@ export function ComparisonPage({
     } finally {
       setExportBusy(false);
     }
-  };
+  }, [ready, exportBusy, kpiRows, periods, depotName, mode, metric, metricLabel, rangeLabel, colors.surface]);
 
   useEffect(() => {
     registerTabExport?.("compare", {
