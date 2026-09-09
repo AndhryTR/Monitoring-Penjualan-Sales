@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { computeAggregates, matchFocus } from "../utils/aggregation.js";
 
-const aggregationWorkerUrl = new URL("../workers/aggregation.worker.js", import.meta.url);
 
 function reviveWorkerValue(value) {
   if (Array.isArray(value)) return value.map(reviveWorkerValue);
@@ -91,7 +90,7 @@ export function useAggregatesWorker(rows, targets, filters, workDays) {
 
   useEffect(() => {
     const requestId = ++requestIdRef.current;
-    const worker = new Worker(aggregationWorkerUrl, { type: "module" });
+    const worker = new Worker(new URL("../workers/aggregation.worker.js", import.meta.url), { type: "module" });
     workerRef.current = worker;
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
