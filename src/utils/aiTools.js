@@ -144,21 +144,33 @@ function normalizeTargetUpdates(params) {
   if (Array.isArray(params.targets)) {
     return params.targets
       .filter((t) => t && t.kode != null)
-      .map((t) => ({ kode: String(t.kode), nilai: Number(t.nilai ?? t.value ?? 0) }));
+      .map((t) => ({
+        kode: String(t.kode),
+        nilai: Number(t.nilai ?? t.value ?? 0),
+        ao: t.ao != null ? Number(t.ao) : null,
+      }));
   }
-  if (params.targets && typeof params.targets === "object") {
-    return Object.entries(params.targets).map(([kode, nilai]) => ({ kode, nilai: Number(nilai) }));
+  if (params.targets && typeof params.targets === "object" && !Array.isArray(params.targets)) {
+    return Object.entries(params.targets).map(([kode, v]) => {
+      if (v && typeof v === "object") return { kode, nilai: Number(v.nilai ?? v.value ?? 0), ao: v.ao != null ? Number(v.ao) : null };
+      return { kode, nilai: Number(v), ao: null };
+    });
   }
-  if (params.kode != null) return [{ kode: String(params.kode), nilai: Number(params.nilai ?? 0) }];
+  if (params.kode != null) return [{ kode: String(params.kode), nilai: Number(params.nilai ?? 0), ao: params.ao != null ? Number(params.ao) : null }];
   return [];
 }
 
 function currentTargetValue(targets, kode) {
   if (Array.isArray(targets)) {
-    const f = targets.find((t) => String(t.kode ?? t.id ?? "") === kode);
-    return f?.nilai ?? f?.value ?? f?.target ?? null;
+    const f = targets.find((t) => String(t.code ?? t.id ?? "") === kode);
+    return f ? { value: f.total?.value ?? f.value ?? null, ao: f.total?.ao ?? f.ao ?? null } : null;
   }
-  if (targets && typeof targets === "object") return targets[kode] ?? null;
+  if (targets && typeof targets === "object") {
+    const v = targets[kode];
+    if (v == null) return null;
+    if (typeof v === "object") return { value: v.total?.value ?? v.value ?? null, ao: v.total?.ao ?? v.ao ?? null };
+    return { value: v, ao: null };
+  }
   return null;
 }
 
@@ -167,7 +179,9 @@ function buildSetTarget(params = {}, ctx = {}, deps = {}) {
   if (updates.length === 0) return { ok: false, reason: "setTarget: params.targets kosong." };
   const baris = updates.map((u) => {
     const lama = currentTargetValue(ctx.targets, u.kode);
-    return `${u.kode}: ${lama ?? "-"} -> ${u.nilai}`;
+    const lamaTxt = lama != null ? `${lama.value}${lama.ao != null ? ` (AO ${lama.ao})` : ""}` : "-";
+    const aoTxt = u.ao != null ? ` (AO ${u.ao})` : "";
+    return `${u.kode}: ${lamaTxt} -> ${u.nilai}${aoTxt}`;
   });
   const preview = { judul: `Ubah target (${updates.length} item)`, baris };
   let ran = false;
@@ -175,15 +189,23 @@ function buildSetTarget(params = {}, ctx = {}, deps = {}) {
     ran = true;
     const setTargets = deps.setTargets;
     if (typeof setTargets === "function") {
-      // Pola setter existing (useSettings): setTargets(next|updaterFn) update depo aktif.
+      // Skema target asli: { code, name, total:{value,ao}, groups[], focus[] }.
+      // Tulis total.value (+ total.ao bila diberikan), bukan field hantu.
       const next = Array.isArray(ctx.targets)
         ? ctx.targets.map((t) => {
-            const k = String(t.kode ?? t.id ?? "");
+            const k = String(t.code ?? t.id ?? "");
             const u = updates.find((x) => x.kode === k);
-            return u ? { ...t, nilai: u.nilai } : t;
+            if (!u) return t;
+            return { ...t, total: { ...(t.total || {}), value: u.nilai, ...(u.ao != null ? { ao: u.ao } : {}) } };
           })
-        : { ...(ctx.targets || {}), ...Object.fromEntries(updates.map((u) => [u.kode, u.nilai])) };
-      // Dukung setter sync maupun updater-fn.
+        : Object.fromEntries(
+            Object.entries(ctx.targets || {}).map(([k, t]) => {
+              const u = updates.find((x) => x.kode === k);
+              if (!u) return [k, t];
+              if (t && typeof t === "object") return [k, { ...t, total: { ...(t.total || {}), value: u.nilai, ...(u.ao != null ? { ao: u.ao } : {}) } }];
+              return [k, u.nilai];
+            }),
+          );
       await setTargets(next);
       return { ok: true, changed: updates.length };
     }
