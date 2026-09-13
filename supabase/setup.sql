@@ -24,6 +24,7 @@ create table if not exists public.profiles (
   theme text,
   projection_method text,
   sidebar_collapsed boolean,
+  settings_full jsonb,
   updated_at bigint,
   updated_by text
 );
