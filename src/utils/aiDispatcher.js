@@ -71,6 +71,50 @@ export function mapDispatchError(err, res) {
   return err instanceof Error ? err : new Error(String(err ?? "Gagal memanggil AI."));
 }
 
+// Parse respons OpenAI-compatible, mendukung JSON standar maupun fallback stream SSE (data: {...}).
+export function parseOpenAiResponseText(rawText) {
+  const text = String(rawText || "").trim();
+  if (!text) return "";
+
+  // 1. Coba parse sebagai JSON biasa
+  try {
+    const data = JSON.parse(text);
+    const content = data?.choices?.[0]?.message?.content;
+    if (content !== undefined) return content;
+    // Jika format alternatif (mis. non-standard wrapper)
+    if (data?.text) return data.text;
+    if (data?.response) return data.response;
+  } catch {
+    // Bukan JSON standar, lanjut ke fallback SSE
+  }
+
+  // 2. Fallback: Parse Server-Sent Events (data: {...})
+  const lines = text.split("\n");
+  let combinedContent = "";
+  let hasValidSse = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed === "data: [DONE]") continue;
+    if (trimmed.startsWith("data:")) {
+      try {
+        const jsonStr = trimmed.slice(5).trim();
+        const parsed = JSON.parse(jsonStr);
+        const delta =
+          parsed?.choices?.[0]?.delta?.content ??
+          parsed?.choices?.[0]?.message?.content ??
+          "";
+        combinedContent += delta;
+        hasValidSse = true;
+      } catch {
+        // Abaikan baris SSE yang tidak valid
+      }
+    }
+  }
+
+  if (hasValidSse) return combinedContent;
+  throw new Error(`Format respons AI tidak valid: ${text.slice(0, 120)}`);
+}
+
 // POST {baseURL}/chat/completions, timeout 60s, retry 1x khusus network error.
 export async function callDirect(settings, messages, opts = {}) {
   const baseURL = String(settings?.baseURL ?? "").replace(/\/+$/, "");
@@ -80,6 +124,7 @@ export async function callDirect(settings, messages, opts = {}) {
   const body = {
     model: settings.model,
     messages,
+    stream: false,
     ...(settings?.apiType !== "custom" ? { response_format: { type: "json_object" } } : {}),
   };
   const fetchFn = opts.fetchFn ?? fetch;
@@ -99,8 +144,8 @@ export async function callDirect(settings, messages, opts = {}) {
         signal: ctrl.signal,
       });
       if (!res.ok) throw Object.assign(mapDispatchError(null, res), { status: res.status });
-      const data = await res.json();
-      return data?.choices?.[0]?.message?.content ?? "";
+      const rawText = await res.text();
+      return parseOpenAiResponseText(rawText);
     } catch (e) {
       throw e;
     } finally {

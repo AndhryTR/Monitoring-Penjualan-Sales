@@ -5,7 +5,7 @@ import {
   AlertTriangle, RefreshCw, Eye, EyeOff, ArrowRight,
 } from "lucide-react";
 import { loadAiSettings, saveAiSettings } from "../../utils/aiSettings.js";
-import { dispatch } from "../../utils/aiDispatcher.js";
+import { dispatch, parseOpenAiResponseText } from "../../utils/aiDispatcher.js";
 import { executeAiTool, isWriteTool } from "../../utils/aiTools.js";
 import { useScrollLock, useEscapeKey, useFocusTrap } from "../../hooks/useModalA11y.js";
 
@@ -119,14 +119,15 @@ export function AiChatDrawer({
           model: aiSettings.model,
           messages: [{ role: "user", content: "Halo, jawab 'OK' jika terhubung." }],
           max_tokens: 10,
+          stream: false,
         }),
       });
 
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       }
-      const data = await res.json();
-      const reply = data?.choices?.[0]?.message?.content || "Terhubung!";
+      const rawText = await res.text();
+      const reply = parseOpenAiResponseText(rawText) || "Terhubung!";
       setTestResult({ ok: true, msg: `Koneksi sukses! Balasan: "${reply.trim()}"` });
     } catch (e) {
       setTestResult({ ok: false, msg: `Koneksi gagal: ${e.message}` });
