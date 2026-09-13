@@ -1,0 +1,166 @@
+// aiDispatcher — konteks ringkas + transport Direct + parse + validasi (Task 3).
+// Catatan: ALLOWLIST didefinisikan di sini; Task 4 (aiTools.js) akan memilikinya
+// dan modul ini cukup re-export agar impor tunggal dari aiTools.
+
+export const ALLOWLIST = [
+  "queryData",
+  "bacaTarget",
+  "bacaJadwal",
+  "bacaStok",
+  "bacaTransaksi",
+  "analisis",
+  "setTarget",
+  "setJadwal",
+  "hapusDataAktif",
+  "exportCustom",
+];
+
+const WRITE_TOOLS = new Set(["setTarget", "setJadwal", "hapusDataAktif", "exportCustom"]);
+
+function num(n, d = 0) {
+  const v = Number(n);
+  return Number.isFinite(v) ? Number(v.toFixed(d)) : 0;
+}
+
+function str(v, max = 80) {
+  const s = String(v ?? "");
+  return s.length > max ? s.slice(0, max) + "…" : s;
+}
+
+// Ringkasan konteks — TIDAK pernah menyertakan rawRows mentah.
+export function buildContext(input = {}) {
+  const { agg = {}, targets = {}, filters = {}, sales = [], extra = {} } = input;
+  const salesList = Array.isArray(sales)
+    ? sales.slice(0, 100).map((s) => ({
+        kode: str(s.kode ?? s.id ?? "", 24),
+        nama: str(s.nama ?? s.name ?? "", 40),
+        ach: num(s.ach ?? s.achievement ?? 0, 1),
+        total: num(s.total ?? s.value ?? 0, 0),
+      }))
+    : [];
+  return {
+    total: num(agg.total ?? agg.totalValue ?? 0, 0),
+    ao: num(agg.ao ?? agg.activeOutlet ?? 0, 0),
+    achGlobal: num(agg.ach ?? agg.achGlobal ?? 0, 1),
+    nBaris: num(agg.nBaris ?? agg.rows ?? salesList.length, 0),
+    filterAktif: filters && typeof filters === "object" ? filters : {},
+    sales: salesList,
+    targets: targets && typeof targets === "object" ? targets : {},
+    extra: extra && typeof extra === "object" ? extra : {},
+  };
+}
+
+export const SYSTEM_PROMPT = [
+  "Kamu dispatcher tool untuk aplikasi monitoring sales.",
+  "Jawab HANYA JSON valid: {\"tool\": string, \"params\": object, \"ringkasan\": string}.",
+  "Tanpa markdown, tanpa kode fence, tanpa teks di luar JSON.",
+  "tool wajib salah satu dari: " + ALLOWLIST.join(", ") + ".",
+  "Selain daftar itu DILARANG — jangan buat nama tool lain.",
+  "params wajib object (boleh {}). ringkasan wajib string Bahasa Indonesia singkat.",
+  "Bila perintah tak jelas, pilih tool baca paling dekat dan jelaskan di ringkasan.",
+].join("\n");
+
+export function mapDispatchError(err, res) {
+  const status = res?.status ?? err?.status;
+  if (status === 401) return new Error("API key salah / habis (401). Periksa key di setelan AI.");
+  if (status === 429) return new Error("Limit tercapai (429). Tunggu sebentar lalu coba lagi.");
+  if (err instanceof TypeError || err?.name === "TypeError") {
+    return new Error("Base URL tak reachable / CORS diblokir — periksa baseURL atau coba mode Proxy.");
+  }
+  if (err?.name === "AbortError") return new Error("Timeout 60 detik — server AI tak merespons.");
+  return err instanceof Error ? err : new Error(String(err ?? "Gagal memanggil AI."));
+}
+
+// POST {baseURL}/chat/completions, timeout 60s, retry 1x khusus network error.
+export async function callDirect(settings, messages, opts = {}) {
+  const baseURL = String(settings?.baseURL ?? "").replace(/\/+$/, "");
+  if (!baseURL) throw new Error("baseURL kosong — isi di setelan AI.");
+  if (!settings?.model) throw new Error("model kosong — isi di setelan AI.");
+  const url = baseURL + "/chat/completions";
+  const body = {
+    model: settings.model,
+    messages,
+    ...(settings?.apiType !== "custom" ? { response_format: { type: "json_object" } } : {}),
+  };
+  const fetchFn = opts.fetchFn ?? fetch;
+  const timeoutMs = opts.timeoutMs ?? 60000;
+
+  async function once() {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetchFn(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(settings?.key ? { Authorization: "Bearer " + settings.key } : {}),
+        },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw Object.assign(mapDispatchError(null, res), { status: res.status });
+      const data = await res.json();
+      return data?.choices?.[0]?.message?.content ?? "";
+    } catch (e) {
+      throw e;
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  try {
+    return await once();
+  } catch (e) {
+    // Retry 1x hanya untuk network error (TypeError fetch / gagal koneksi), bukan HTTP status.
+    if (e instanceof TypeError || (e?.name === "TypeError" && e?.status == null)) {
+      try {
+        return await once();
+      } catch (e2) {
+        throw mapDispatchError(e2);
+      }
+    }
+    throw e;
+  }
+}
+
+// Validasi tool call. Sukses: {ok:true, tool, params, ringkasan}.
+// Gagal: {ok:false, reason, raw}.
+export function parseToolCall(text) {
+  const raw = String(text ?? "");
+  let obj;
+  try {
+    obj = JSON.parse(raw);
+  } catch {
+    return { ok: false, reason: "JSON rusak — tampilkan mentah.", raw };
+  }
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+    return { ok: false, reason: "Format bukan object JSON.", raw };
+  }
+  const { tool, params, ringkasan } = obj;
+  if (typeof tool !== "string" || !ALLOWLIST.includes(tool)) {
+    return { ok: false, reason: `Tool asing/dilarang: ${String(tool ?? "?")}.`, raw };
+  }
+  if (params !== undefined && (typeof params !== "object" || params === null || Array.isArray(params))) {
+    return { ok: false, reason: "params harus object.", raw };
+  }
+  if (typeof ringkasan !== "string") {
+    return { ok: false, reason: "ringkasan harus string.", raw };
+  }
+  const out = { ok: true, tool, params: params ?? {}, ringkasan };
+  if (WRITE_TOOLS.has(tool) && (!out.params || typeof out.params !== "object")) {
+    return { ok: false, reason: "Tool tulis wajib params object.", raw };
+  }
+  return out;
+}
+
+// Orkestrasi satu putaran: konteks -> pesan -> panggil -> parse.
+export async function dispatch(userText, ctxInput, settings, opts = {}) {
+  const ctx = buildContext(ctxInput);
+  const messages = [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: JSON.stringify({ perintah: String(userText ?? ""), konteks: ctx }) },
+  ];
+  const text = await callDirect(settings, messages, opts);
+  const parsed = parseToolCall(text);
+  return { text, parsed, ctx };
+}
