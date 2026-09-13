@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Settings, X, Plus, Download, Upload, Zap, Package, AlertTriangle, CheckCircle2, FileText, Monitor, Play } from "lucide-react";
 import { SectionTitle, CustomSlider } from "../ui/index.jsx";
+import { ConfirmDialog } from "../ui/ConfirmDialog.jsx";
 import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
 import { TargetSalesEditor } from "./TargetSalesEditor.jsx";
 import { notifyExportSuccess } from "../../utils/notifyExport.js";
@@ -26,6 +27,10 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
   const [localWorkDays, setLocalWorkDays] = useState(workDays);
   const [localDepotName, setLocalDepotName] = useState(depotName);
   const [importError, setImportError] = useState("");
+  const [importSuccess, setImportSuccess] = useState("");
+  // Konfirmasi impor backup + hapus semua (pengganti window.confirm/alert)
+  const [importConfirm, setImportConfirm] = useState(null); // { settings, historyCount }
+  const [clearConfirm, setClearConfirm] = useState(false);
   const fileInputRef = useRef(null);
   const [activeSection, setActiveSection] = useState("general");
   // ⚠️ Sprint 7 / D3: track apakah user klik "Review Perubahan" — untuk show
@@ -169,26 +174,31 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
     e.target.value = "";
     if (!file) return;
     setImportError("");
+    setImportSuccess("");
     try {
       const { parseBackupFile } = await import("../../utils/backupExport.js");
       const parsed = await parseBackupFile(file);
       const s = parsed.settings || {};
       const historyCount = (parsed.history || []).length;
-      const ok = window.confirm(
-        `Impor akan MENGGANTI Target, Hari Kerja, Nama Depo, Tema, Filter & Metode Proyeksi dengan isi file ini, dan MENGGABUNGKAN ${historyCount} riwayat snapshot dari file ke riwayat yang sudah ada di device ini. Lanjutkan?`
-      );
-      if (!ok) return;
-      if (s.targets) setLocalTargets(s.targets);
-      if (s.workDays != null) setLocalWorkDays(s.workDays);
-      if (s.depotName != null) setLocalDepotName(s.depotName);
-      if (s.theme) setTheme?.(s.theme);
-      if (s.filters) setFilters?.(s.filters);
-      if (s.projectionMethod) setProjectionMethod?.(s.projectionMethod);
-      if (parsed.history?.length) onImportHistory?.(parsed.history);
-      window.alert("Impor berhasil diterapkan.");
+      // Buka ConfirmDialog dulu — apply sesudah konfirm
+      setImportConfirm({ settings: s, history: parsed.history || [], historyCount });
     } catch (err) {
       setImportError(err.message || "Gagal mengimpor file.");
     }
+  };
+
+  const handleImportConfirm = () => {
+    if (!importConfirm) return;
+    const s = importConfirm.settings || {};
+    if (s.targets) setLocalTargets(s.targets);
+    if (s.workDays != null) setLocalWorkDays(s.workDays);
+    if (s.depotName != null) setLocalDepotName(s.depotName);
+    if (s.theme) setTheme?.(s.theme);
+    if (s.filters) setFilters?.(s.filters);
+    if (s.projectionMethod) setProjectionMethod?.(s.projectionMethod);
+    if (importConfirm.history?.length) onImportHistory?.(importConfirm.history);
+    setImportConfirm(null);
+    setImportSuccess("Impor berhasil diterapkan.");
   };
 
   // Label tombol simpan dinamis: "Simpan Perubahan" → "Konfirmasi & Simpan"
@@ -319,6 +329,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                   <input ref={fileInputRef} type="file" accept="application/json,.json" onChange={handleImportFile} className="hidden" />
                 </div>
                 {importError && <p className="text-xs mt-2" style={{ color: colors.coral }}>{importError}</p>}
+                {importSuccess && <p className="text-xs mt-2" style={{ color: colors.mint }}>{importSuccess}</p>}
               </div>
 
               {/* Danger zone */}
@@ -336,12 +347,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                   </div>
                 </div>
                 <button
-                  onClick={() => {
-                    if (window.confirm("Yakin ingin menghapus semua data & pengaturan tersimpan di perangkat ini? Tindakan ini tidak bisa dibatalkan.")) {
-                      onClearAll?.();
-                      onClose();
-                    }
-                  }}
+                  onClick={() => setClearConfirm(true)}
                   className="sm-btn px-3 py-2 rounded-lg text-sm font-semibold"
                   style={{ background: colors.coral + "1A", color: colors.coral, border: `1px solid ${colors.coral}4D` }}
                 >
@@ -579,6 +585,30 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!importConfirm}
+        onCancel={() => setImportConfirm(null)}
+        onConfirm={handleImportConfirm}
+        title="Impor backup?"
+        subtitle={importConfirm
+          ? `Impor akan MENGGANTI Target, Hari Kerja, Nama Depo, Tema, Filter & Metode Proyeksi dengan isi file ini, dan MENGGABUNGKAN ${importConfirm.historyCount} riwayat snapshot ke device ini.`
+          : ""}
+        confirmLabel="Impor"
+        variant="danger"
+        colors={colors}
+      />
+
+      <ConfirmDialog
+        isOpen={clearConfirm}
+        onCancel={() => setClearConfirm(false)}
+        onConfirm={() => { setClearConfirm(false); onClearAll?.(); onClose(); }}
+        title="Hapus semua data?"
+        subtitle="Semua target, hari kerja, nama depo, tema, dan data upload di perangkat ini dihapus. Tidak bisa dibatalkan."
+        confirmLabel="Hapus Semua"
+        variant="danger"
+        colors={colors}
+      />
     </div>
   );
 }

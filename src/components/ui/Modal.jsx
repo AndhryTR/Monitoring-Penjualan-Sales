@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
+import { useScrollLock, useEscapeKey, useFocusTrap } from "../../hooks/useModalA11y.js";
 
 /**
  * Komponen Modal tunggal berbasis createPortal ke document.body.
@@ -60,6 +60,9 @@ export function Modal({
   const cardRef = useRef(null);
   useScrollLock(isOpen);
   useEscapeKey(isOpen, onClose);
+  // U-6: kunci Tab di dalam modal (WAI-ARIA dialog pattern).
+  // Semua modal berbasis komponen ini ikut sekaligus.
+  useFocusTrap(isOpen, cardRef);
 
   if (!isOpen) return null;
 

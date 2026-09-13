@@ -152,7 +152,8 @@ export function useEscapeKey(active, onEscape) {
     const onKey = (e) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onEscape();
+        // U-6: null-guard — ConfirmDialog kirim undefined saat busy.
+        onEscape?.();
       }
     };
     document.addEventListener("keydown", onKey);

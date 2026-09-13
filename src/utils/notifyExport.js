@@ -13,7 +13,7 @@ import { showToast } from "./toastBus.js";
 
 export async function notifyExportSuccess(title, body) {
   // Jaminan feedback — selalu tampil, tidak peduli native jalan atau tidak.
-  showToast({ title: title || "Export berhasil", body });
+  showToast({ title: title || "Export berhasil", body, kind: "success" });
 
   const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   if (!isTauri) return;
@@ -29,4 +29,11 @@ export async function notifyExportSuccess(title, body) {
     // Native gagal — biarkan toast in-window yang tampil.
     console.warn("[notifyExport] native toast gagal, fallback in-window:", e);
   }
+}
+
+// Umpan balik GAGAL — toast error in-window (pengganti alert browser).
+// Native Tauri tidak dipanggil (notifikasi OS untuk error bikin bising;
+// user butuh baca detail di layar).
+export function notifyError(title, body) {
+  showToast({ title: title || "Gagal", body, kind: "error" });
 }

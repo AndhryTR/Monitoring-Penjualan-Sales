@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Search, Monitor, History as HistoryIcon, Settings as SettingsIcon, Sun, Moon, UserCircle, LogIn, Smartphone, Download, Menu, X } from "lucide-react";
-import { useEscapeKey } from "../../hooks/useModalA11y.js";
+import { useEscapeKey, useFocusTrap, useScrollLock } from "../../hooks/useModalA11y.js";
 
 /* ============================================================================
    MOBILE HEADER MENU — hamburger drawer (mobile only)
@@ -36,6 +36,9 @@ export function MobileHeaderMenu({
   const sheetRef = useRef(null);
 
   useEscapeKey(open, () => setOpen(false));
+  // U-6: kunci Tab di dalam sheet + kunci scroll via hook bersama (counter-safe).
+  useFocusTrap(open, sheetRef);
+  useScrollLock(open);
 
   // Tutup saat klik di luar (backdrop). Trigger button juga dicek
   // supaya toggle tidak konflik.
@@ -47,14 +50,6 @@ export function MobileHeaderMenu({
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  // Scroll lock saat drawer terbuka (konsisten dengan pola modal lain).
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
   }, [open]);
 
   const close = useCallback(() => setOpen(false), []);
@@ -79,6 +74,8 @@ export function MobileHeaderMenu({
         className="sm-btn w-9 h-9 rounded-xl flex md:hidden items-center justify-center shrink-0"
         style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
         aria-label="Menu"
+        aria-expanded={open}
+        aria-haspopup="dialog"
         title="Menu"
       >
         {open ? <X size={15} /> : <Menu size={15} />}
@@ -94,6 +91,9 @@ export function MobileHeaderMenu({
           {/* Bottom sheet */}
           <div
             ref={sheetRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu"
             className="sm-slide-up"
             style={{
               position: "fixed",

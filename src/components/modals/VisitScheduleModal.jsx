@@ -7,6 +7,7 @@ import {
 import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
 import { fmtRp } from "../../utils/formatters.js";
 import { CustomSelect } from "../ui/CustomSelect.jsx";
+import { ConfirmDialog } from "../ui/ConfirmDialog.jsx";
 import {
   DAYS_OF_WEEK, DAY_LABELS, DAY_COLORS,
   getStoredSchedule, saveStoredSchedule,
@@ -41,6 +42,8 @@ export function VisitScheduleModal({
   const [isSaving, setIsSaving] = useState(false);
   const [notification, setNotification] = useState(null); // { type: 'success'|'error', text: '' }
   const [copiedWA, setCopiedWA] = useState(false);
+  // Konfirmasi reset jadwal sales (pengganti window.confirm)
+  const [resetConfirm, setResetConfirm] = useState(false);
 
   // Tab export & quick-assign state
   const [exportDay, setExportDay] = useState("senin");
@@ -241,9 +244,9 @@ export function VisitScheduleModal({
     );
   };
 
-  // 3. Reset jadwal sales saat ini
+  // 3. Reset jadwal sales saat ini (via ConfirmDialog)
   const handleResetSalesSchedule = () => {
-    if (!window.confirm("Apakah Anda yakin ingin menghapus jadwal untuk sales ini?")) return;
+    setResetConfirm(false);
     const next = { ...schedule };
     currentSalesOutlets.forEach((o) => {
       delete next[o.outletCode];
@@ -613,7 +616,7 @@ export function VisitScheduleModal({
                   </button>
 
                   <button
-                    onClick={handleResetSalesSchedule}
+                    onClick={() => setResetConfirm(true)}
                     className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-500 hover:bg-rose-500/10 transition-all inline-flex items-center gap-1.5"
                   >
                     <RotateCcw size={14} /> Reset Jadwal Sales Ini
@@ -1018,6 +1021,17 @@ export function VisitScheduleModal({
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={resetConfirm}
+        onCancel={() => setResetConfirm(false)}
+        onConfirm={handleResetSalesSchedule}
+        title="Reset jadwal sales ini?"
+        subtitle={`${currentSalesName}: ${currentSalesOutlets.length} outlet dihapus dari jadwal. Data transaksi tidak ikut terhapus.`}
+        confirmLabel="Reset"
+        variant="danger"
+        colors={colors}
+      />
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { supabase, getSession, onAuthChange, signOutAccount } from "./utils/clou
 // dipakai di hook useCloudSync.js. SalesMonitoringApp hanya butuh fetchRole
 // untuk refreshRole callback.
 import { fetchRole } from "./utils/syncEngine.js";
+import { notifyError } from "./utils/notifyExport.js";
 import { LoginModal } from "./components/LoginModal.jsx";
 import {
   dedupeRows,
@@ -502,7 +503,7 @@ export default function SalesMonitoringApp() {
       const { parseStockExcel } = await import("./utils/stockParse.js");
       const result = await parseStockExcel(file);
       if (!result.products.length) {
-        alert("Gagal parse file stok: " + (result.errors[0]?.message || "Format tidak dikenali"));
+        notifyError("Gagal parse file stok", result.errors[0]?.message || "Format tidak dikenali");
         return;
       }
 
@@ -515,7 +516,7 @@ export default function SalesMonitoringApp() {
       setStockPreviewOpen(true);
     } catch (err) {
       console.error("Stock upload error:", err);
-      alert("Gagal upload stok: " + (err.message || String(err)));
+      notifyError("Gagal upload stok", err.message || String(err));
     }
   };
 
@@ -527,7 +528,7 @@ export default function SalesMonitoringApp() {
 
     const uploadResult = await stockData.uploadSnapshot(parsedData, { diff });
     if (!uploadResult.success) {
-      alert("Gagal simpan stok: " + (uploadResult.error || "Unknown error"));
+      notifyError("Gagal simpan stok", uploadResult.error || "Unknown error");
     }
   };
 

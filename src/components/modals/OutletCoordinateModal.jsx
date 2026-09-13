@@ -7,6 +7,7 @@ import {
   parseCoordinateExcel, geocodeAddress,
 } from "../../utils/geoStorage.js";
 import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
+import { ConfirmDialog } from "../ui/ConfirmDialog.jsx";
 
 /* ============================================================================
    OUTLET COORDINATE MODAL (Fitur B4 - Kelola Koordinat GPS Outlet)
@@ -32,6 +33,8 @@ export function OutletCoordinateModal({
   const [isGeocodingAll, setIsGeocodingAll] = useState(false);
   const [geocodingProgress, setGeocodingProgress] = useState(null); // { current, total }
   const [singleGeocodingCode, setSingleGeocodingCode] = useState(null);
+  // Konfirmasi batch geocode (pengganti window.confirm/alert)
+  const [geocodeConfirm, setGeocodeConfirm] = useState(null); // { count }
 
   const fileInputRef = useRef(null);
   const cancelGeocodingRef = useRef(false);
@@ -194,7 +197,10 @@ export function OutletCoordinateModal({
     const code = outlet.outletCode;
     const addr = outlet.outletAddress || coords[code]?.address;
     if (!addr || !addr.trim()) {
-      alert("Alamat toko ini kosong. Silakan lengkapi alamat terlebih dahulu.");
+      setImportStatus({
+        type: "error",
+        text: "Alamat toko ini kosong. Silakan lengkapi alamat terlebih dahulu.",
+      });
       return;
     }
 
@@ -233,7 +239,8 @@ export function OutletCoordinateModal({
   };
 
   // Batch geocode semua outlet yang punya alamat tapi belum berkoordinat
-  const handleBatchGeocode = async () => {
+  // Tahap 1: hitung target, buka ConfirmDialog (atau info bila nol).
+  const handleBatchGeocode = () => {
     const targets = outlets.filter((o) => {
       const c = coords[o.outletCode];
       const hasCoord = c && c.lat !== undefined && c.lng !== undefined;
@@ -241,14 +248,21 @@ export function OutletCoordinateModal({
     });
 
     if (targets.length === 0) {
-      alert("Semua outlet yang memiliki alamat sudah terpetakan, atau tidak ada alamat toko yang dapat dicari.");
+      setImportStatus({
+        type: "error",
+        text: "Semua outlet yang memiliki alamat sudah terpetakan, atau tidak ada alamat toko yang dapat dicari.",
+      });
       return;
     }
 
-    const confirmRun = window.confirm(
-      `Akan mencari koordinat untuk ${targets.length} outlet secara bertahap via OpenStreetMap.\nProses membutuhkan waktu sekitar ${targets.length} detik agar mematuhi batas request server.\n\nLanjutkan?`
-    );
-    if (!confirmRun) return;
+    setGeocodeConfirm({ targets });
+  };
+
+  // Tahap 2: eksekusi sesudah konfirm.
+  const runBatchGeocode = async () => {
+    const targets = geocodeConfirm?.targets || [];
+    if (!targets.length) { setGeocodeConfirm(null); return; }
+    setGeocodeConfirm(null);
 
     setIsGeocodingAll(true);
     cancelGeocodingRef.current = false;
@@ -633,6 +647,19 @@ export function OutletCoordinateModal({
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!geocodeConfirm}
+        onCancel={() => setGeocodeConfirm(null)}
+        onConfirm={runBatchGeocode}
+        title="Cari koordinat otomatis?"
+        subtitle={geocodeConfirm
+          ? `Mencari koordinat untuk ${geocodeConfirm.targets.length} outlet via OpenStreetMap, sekitar ${geocodeConfirm.targets.length} detik (batas request server).`
+          : ""}
+        confirmLabel="Cari"
+        variant="default"
+        colors={colors}
+      />
     </div>
   );
 }

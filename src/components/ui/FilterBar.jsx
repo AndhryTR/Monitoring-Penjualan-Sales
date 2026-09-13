@@ -118,6 +118,9 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
       <div className="relative" ref={dateMenuTriggerRef}>
         <button
           onClick={() => setDateMenuOpen((o) => !o)}
+          aria-haspopup="listbox"
+          aria-expanded={dateMenuOpen}
+          aria-label="Filter periode tanggal"
           className="sm-btn flex items-center gap-2 px-3 py-2 rounded-xl text-sm"
           style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
           <CalendarDays size={14} style={{ color: colors.textMuted }} />
@@ -127,6 +130,8 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
         {dateMenuOpen && createPortal(
           <div
             ref={dateMenuRef}
+            role="listbox"
+            aria-label="Periode tanggal"
             className="sm-fadein fixed z-[60] w-52 rounded-xl"
             style={{
               top: dateMenuPos.top,
@@ -143,6 +148,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
           >
             {presetOptions.map((p) => (
               <button key={p.key} onClick={() => handlePickPreset(p.key)}
+                role="option" aria-selected={datePreset === p.key}
                 className="sm-row w-full text-left px-3.5 py-2.5 text-sm"
                 style={{ color: datePreset === p.key ? colors.gold : colors.text, fontWeight: datePreset === p.key ? 600 : 400 }}>
                 {p.label}
@@ -150,6 +156,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
             ))}
             <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
             <button onClick={() => handlePickPreset("custom")}
+              role="option" aria-selected={datePreset === "custom"}
               className="sm-row w-full text-left px-3.5 py-2.5 text-sm"
               style={{ color: datePreset === "custom" ? colors.gold : colors.text, fontWeight: datePreset === "custom" ? 600 : 400 }}>
               Custom...

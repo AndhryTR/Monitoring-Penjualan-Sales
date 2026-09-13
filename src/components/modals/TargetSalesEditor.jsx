@@ -8,6 +8,7 @@ import { notifyExportSuccess } from "../../utils/notifyExport.js";
 import { AddSalesModal } from "./AddSalesModal.jsx";
 import { MasterImportPreview } from "./MasterImportPreview.jsx";
 import { CustomSelect } from "../ui/CustomSelect.jsx";
+import { ConfirmDialog } from "../ui/ConfirmDialog.jsx";
 
 /* ============================================================================
    TARGET SALES EDITOR — master-detail layout untuk edit target sales.
@@ -46,6 +47,8 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors, depot
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   // ⚠️ Sprint 18 / C: state untuk MasterImportPreview modal
   const [importOpen, setImportOpen] = useState(false);
+  // Konfirmasi salin grup/fokus dari sales lain (pengganti window.confirm)
+  const [copyConfirm, setCopyConfirm] = useState(null); // { kind: 'groups'|'focus', salesCode, sourceCode }
 
   // Filter sales berdasarkan search query
   const filteredTargets = useMemo(() => {
@@ -155,7 +158,7 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors, depot
   const handleGroupCopyFrom = (salesCode, sourceCode) => {
     const source = localTargets.find((t) => t.code === sourceCode);
     if (!source || !source.groups.length) return;
-    if (!window.confirm(`Salin ${source.groups.length} target grup dari ${source.name}? Daftar grup yang sudah ada di sales ini akan diganti.`)) return;
+    setCopyConfirm(null);
     setLocalTargets((prev) => prev.map((t) =>
       t.code === salesCode
         ? { ...t, groups: source.groups.map((g) => ({ ...g })) }
@@ -193,7 +196,7 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors, depot
   const handleFocusCopyFrom = (salesCode, sourceCode) => {
     const source = localTargets.find((t) => t.code === sourceCode);
     if (!source || !source.focus.length) return;
-    if (!window.confirm(`Salin ${source.focus.length} produk fokus dari ${source.name}? Daftar fokus yang sudah ada di sales ini akan diganti.`)) return;
+    setCopyConfirm(null);
     setLocalTargets((prev) => prev.map((t) =>
       t.code === salesCode
         ? { ...t, focus: source.focus.map((f) => ({ ...f })) }
@@ -478,7 +481,7 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors, depot
                     <div className="p-2 rounded-lg" style={{ background: colors.glassSubtle }}>
                       <CustomSelect
                         value=""
-                        onChange={(val) => val && handleGroupCopyFrom(selected.code, val)}
+                        onChange={(val) => val && setCopyConfirm({ kind: "groups", salesCode: selected.code, sourceCode: val })}
                         placeholder="Salin grup dari sales lain..."
                         icon={Copy}
                         size="xs"
@@ -584,7 +587,7 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors, depot
                     <div className="p-2 rounded-lg" style={{ background: colors.glassSubtle }}>
                       <CustomSelect
                         value=""
-                        onChange={(val) => val && handleFocusCopyFrom(selected.code, val)}
+                        onChange={(val) => val && setCopyConfirm({ kind: "focus", salesCode: selected.code, sourceCode: val })}
                         placeholder="Salin fokus dari sales lain..."
                         icon={Copy}
                         size="xs"
@@ -748,6 +751,30 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors, depot
           onConfirm={() => handleDeleteSales(deleteConfirm.code)}
         />
       )}
+
+      {/* Konfirmasi salin grup/fokus (pengganti window.confirm) */}
+      {(() => {
+        if (!copyConfirm) return null;
+        const source = localTargets.find((t) => t.code === copyConfirm.sourceCode);
+        const isGroups = copyConfirm.kind === "groups";
+        const count = isGroups ? (source?.groups.length || 0) : (source?.focus.length || 0);
+        return (
+          <ConfirmDialog
+            isOpen={!!copyConfirm}
+            onCancel={() => setCopyConfirm(null)}
+            onConfirm={() => isGroups
+              ? handleGroupCopyFrom(copyConfirm.salesCode, copyConfirm.sourceCode)
+              : handleFocusCopyFrom(copyConfirm.salesCode, copyConfirm.sourceCode)}
+            title={isGroups ? "Salin target grup?" : "Salin produk fokus?"}
+            subtitle={source
+              ? `Salin ${count} ${isGroups ? "target grup" : "produk fokus"} dari ${source.name}? Daftar yang sudah ada di sales ini akan diganti.`
+              : ""}
+            confirmLabel="Salin"
+            variant="default"
+            colors={colors}
+          />
+        );
+      })()}
     </div>
   );
 }

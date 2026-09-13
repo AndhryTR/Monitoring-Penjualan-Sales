@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useId } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Search, Check } from "lucide-react";
 import { useFloatingDropdown } from "../../hooks/useFloatingDropdown.js";
@@ -29,6 +29,8 @@ export function CustomSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
+  const menuId = useId();
 
   const isLight = colors?.colorScheme === "light";
 
@@ -88,10 +90,16 @@ export function CustomSelect({
     margin: 12,
   });
 
-  // Reset filter query saat dropdown ditutup
+  // Reset filter query + active index saat dropdown dibuka/ditutup
   useEffect(() => {
     if (!open) setQ("");
+    else setActiveIndex(0);
   }, [open]);
+
+  // Clamp active index saat filter berubah
+  useEffect(() => {
+    setActiveIndex((i) => Math.min(i, Math.max(0, filteredOptions.length - 1)));
+  }, [filteredOptions.length]);
 
   // Styling ukuran tombol
   const sizeClasses = {
@@ -109,6 +117,39 @@ export function CustomSelect({
     setOpen(false);
   };
 
+  // U-6 Batch B: navigasi keyboard (WAI-ARIA listbox pattern).
+  // Panah gerakkan active, Enter pilih, Home/End lompat, Tab tutup.
+  // Escape sudah ditutup via useFloatingDropdown.
+  const handleTriggerKeyDown = (e) => {
+    if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      setOpen(true);
+      return;
+    }
+    if (!open) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, filteredOptions.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setActiveIndex(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setActiveIndex(filteredOptions.length - 1);
+    } else if (e.key === "Enter") {
+      const opt = filteredOptions[activeIndex];
+      if (opt) {
+        e.preventDefault();
+        handleSelect(opt);
+      }
+    } else if (e.key === "Tab") {
+      setOpen(false);
+    }
+  };
+
   return (
     <div className={`relative inline-block ${fullWidth ? "w-full" : ""}`}>
       <button
@@ -116,6 +157,7 @@ export function CustomSelect({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((prev) => !prev)}
+        onKeyDown={handleTriggerKeyDown}
         className={`sm-btn flex items-center justify-between font-semibold transition-all cursor-pointer select-none ${sizeClasses} ${
           fullWidth ? "w-full" : ""
         } ${disabled ? "opacity-40 cursor-not-allowed" : ""} ${className}`}
@@ -127,6 +169,8 @@ export function CustomSelect({
         }}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={menuId}
+        aria-activedescendant={open && filteredOptions[activeIndex] ? `${menuId}-${activeIndex}` : undefined}
       >
         <span className="flex items-center gap-1.5 min-w-0 truncate">
           {Icon && (
@@ -168,6 +212,8 @@ export function CustomSelect({
           <div
             ref={dropdownRef}
             role="listbox"
+            id={menuId}
+            aria-label={placeholder}
             className="sm-fadein fixed z-[99999] rounded-xl p-1.5 shadow-2xl flex flex-col"
             style={{
               top: dropdownPos.top,
@@ -194,9 +240,15 @@ export function CustomSelect({
                 <Search size={12} style={{ color: colors.textMuted || "#94A3B8" }} />
                 <input
                   type="text"
-                  autoFocus
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Panah/Enter di kotak search teruskan ke navigasi opsi
+                    if (["ArrowDown", "ArrowUp", "Home", "End", "Enter"].includes(e.key)) {
+                      e.preventDefault();
+                      handleTriggerKeyDown(e);
+                    }
+                  }}
                   placeholder={searchPlaceholder}
                   className="bg-transparent outline-none text-xs w-full"
                   style={{ color: colors.text || "#F8FAFC" }}
@@ -211,21 +263,28 @@ export function CustomSelect({
                   Tidak ada hasil
                 </div>
               ) : (
-                filteredOptions.map((opt) => {
+                filteredOptions.map((opt, idx) => {
                   const isSelected = opt.value === value;
+                  const isActive = idx === activeIndex;
                   return (
                     <button
                       key={String(opt.value)}
                       type="button"
+                      role="option"
+                      id={`${menuId}-${idx}`}
+                      aria-selected={isSelected}
                       disabled={opt.disabled}
                       onClick={() => handleSelect(opt)}
+                      onMouseEnter={() => setActiveIndex(idx)}
                       className={`sm-row w-full text-left flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
                         opt.disabled ? "opacity-40 cursor-not-allowed" : ""
                       }`}
                       style={{
                         background: isSelected
                           ? (colors.mint || "#10B981") + "20"
-                          : "transparent",
+                          : isActive
+                            ? (colors.glassFillStrong || "rgba(255,255,255,0.08)")
+                            : "transparent",
                         color: isSelected
                           ? (colors.mint || "#10B981")
                           : opt.color || (colors.text || "#F8FAFC"),

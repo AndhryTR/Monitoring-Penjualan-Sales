@@ -30,7 +30,12 @@ export function MultiSelect({ label, icon: Icon, options, selected, onChange, pl
 
   return (
     <div className={`relative z-20 ${fullWidth ? "w-full" : ""}`} ref={ref}>
-      <button onClick={() => setOpen(!open)} className={`sm-btn flex items-center gap-2 px-3 py-2 rounded-xl text-sm ${fullWidth ? "w-full justify-between" : ""}`}
+      <button
+        onClick={() => setOpen(!open)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={label}
+        className={`sm-btn flex items-center gap-2 px-3 py-2 rounded-xl text-sm ${fullWidth ? "w-full justify-between" : ""}`}
         style={{ background: colors.glassFill, border: `1px solid ${selected.length ? colors.gold + "88" : colors.glassBorder}` }}>
         <span className="flex items-center gap-2 min-w-0">
           <Icon size={14} style={{ color: colors.textMuted }} className="shrink-0" />
@@ -41,6 +46,9 @@ export function MultiSelect({ label, icon: Icon, options, selected, onChange, pl
       {open && createPortal(
         <div
           ref={dropdownRef}
+          role="listbox"
+          aria-label={label}
+          aria-multiselectable="true"
           className="sm-fadein fixed z-[60] rounded-xl p-2"
           style={{
             top: dropdownPos.top,
@@ -62,7 +70,7 @@ export function MultiSelect({ label, icon: Icon, options, selected, onChange, pl
           <div className="max-h-56 overflow-y-auto">
             {filtered.length === 0 && <div className="text-xs px-2 py-2" style={{ color: colors.textMuted }}>Tidak ada hasil</div>}
             {filtered.map((o) => (
-              <button key={o} onClick={() => toggle(o)} className="sm-row w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm">
+              <button key={o} onClick={() => toggle(o)} role="option" aria-selected={selected.includes(o)} className="sm-row w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm">
                 <div className="w-4 h-4 rounded flex items-center justify-center" style={{ background: selected.includes(o) ? colors.gold : "transparent", border: `1px solid ${selected.includes(o) ? colors.gold : colors.glassBorder}` }}>
                   {selected.includes(o) && <Check size={11} color="#0A1120" />}
                 </div>

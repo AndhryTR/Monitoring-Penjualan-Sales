@@ -4,7 +4,7 @@ import {
 } from "recharts";
 import { TrendingUp, History, Users, Wallet, Sparkles, Download, ChevronDown, FileSpreadsheet, FileText } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct, fmtCompactNum } from "../../utils/formatters.js";
-import { notifyExportSuccess } from "../../utils/notifyExport.js";
+import { notifyExportSuccess, notifyError } from "../../utils/notifyExport.js";
 import { SectionTitle, createChartTooltipStyle, GrowthBadge, TableScrollWrapper } from "../ui/index.jsx";
 import { MultiSelect } from "../ui/MultiSelect.jsx";
 import { ACH_TIERS, MAX_DEFAULT_TREND_LINES } from "../../constants/thresholds.js";
@@ -113,7 +113,7 @@ export function TrendPeriodePage({
       // (mis. SecurityError dari canvas tainted). Tanpa catch, error propagate
       // sebagai unhandled rejection dan user tidak dapat feedback.
       console.warn("Export Excel gagal:", e);
-      alert("Export Excel gagal: " + (e?.message || String(e)));
+      notifyError("Export Excel gagal", e?.message || String(e));
     } finally {
       setExportBusy(null);
     }
@@ -131,7 +131,7 @@ export function TrendPeriodePage({
     } catch (e) {
       // ⚠️ Bug fix (H12): sama dengan handleExportExcel di atas.
       console.warn("Export PDF gagal:", e);
-      alert("Export PDF gagal: " + (e?.message || String(e)));
+      notifyError("Export PDF gagal", e?.message || String(e));
     } finally {
       setExportBusy(null);
     }

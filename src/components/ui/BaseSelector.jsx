@@ -28,16 +28,20 @@ export function BaseSelector({ value, onChange, colors, compact = false }) {
   return (
     <div className="relative" ref={ref}>
       <button onClick={openMenu}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="Pembanding growth"
         className="sm-btn inline-flex items-center gap-1.5 rounded-xl text-xs font-semibold"
         style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text, padding: compact ? "5px 10px" : "6px 12px" }}>
         {!compact && <span style={{ color: colors.textMuted }}>Pembanding:</span>} {current.label}
         <ChevronDown size={12} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && pos && createPortal(
-        <div ref={ddRef} className="fixed z-[9999] w-60 rounded-xl overflow-hidden sm-fadein"
+        <div ref={ddRef} role="listbox" aria-label="Pembanding growth" className="fixed z-[9999] w-60 rounded-xl overflow-hidden sm-fadein"
           style={{ top: pos.top, left: pos.left >= 0 ? pos.left : 8, background: colors.modalBg, backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)", border: `1px solid ${colors.modalBorder}`, boxShadow: colors.glassShadow }}>
           {COMPARISON_BASE_OPTIONS.map((o) => (
             <button key={o.key} onClick={() => { onChange(o.key); setOpen(false); }}
+              role="option" aria-selected={value === o.key}
               className="sm-row w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-2"
               style={{ color: value === o.key ? colors.mint : colors.text }}>
               <span className="text-sm font-medium">{o.label}</span>

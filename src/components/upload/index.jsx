@@ -5,8 +5,9 @@ import {
   FileText, Printer, Image as ImageIcon, MessageSquare, CloudUpload, AlertTriangle,
 } from "lucide-react";
 import { fmtPct, fmtNum } from "../../utils/formatters.js";
-import { notifyExportSuccess } from "../../utils/notifyExport.js";
+import { notifyExportSuccess, notifyError } from "../../utils/notifyExport.js";
 import { useFloatingDropdown } from "../../hooks/useFloatingDropdown.js";
+import { ConfirmDialog } from "../ui/ConfirmDialog.jsx";
 export { GlobalDragOverlay } from "./GlobalDragOverlay.jsx";
 // ⚠️ Sprint 5 / S3: semua export module (pdfExport, excelExport, imageExport)
 // sebelumnya static import (~2.4MB total: jspdf+xlsx-js-style+html2canvas).
@@ -39,6 +40,8 @@ export function UploadDropzone({
   const [isExpanded, setIsExpanded] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef(null);
+  // Konfirmasi hapus data aktif (anti salah-tekan — onReset hanya sesudah konfirm)
+  const [clearConfirm, setClearConfirm] = useState(false);
 
   const allowSaveMaster = (!canAccess || canAccess("btn:save_master")) && isEditor;
   const allowDeleteMaster = (!canAccess || canAccess("btn:delete_master")) && isEditor;
@@ -62,6 +65,7 @@ export function UploadDropzone({
   // =========================================================================
   if (hasData && !isExpanded) {
     return (
+      <>
       <div
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
@@ -185,7 +189,7 @@ export function UploadDropzone({
           {allowClear && (
             <button
               type="button"
-              onClick={onReset}
+              onClick={() => setClearConfirm(true)}
               className="sm-btn text-xs p-1.5 rounded-lg font-medium transition-colors"
               style={{
                 background: colors.coral + "14",
@@ -216,6 +220,20 @@ export function UploadDropzone({
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={clearConfirm}
+        onCancel={() => setClearConfirm(false)}
+        onConfirm={() => { setClearConfirm(false); onReset?.(); }}
+        title="Hapus data aktif?"
+        subtitle={fileName
+          ? `${fileName} (${rowCount} baris) dihapus dari tampilan. Master cloud tidak ikut terhapus.`
+          : "Data aktif dihapus dari tampilan. Master cloud tidak ikut terhapus."}
+        confirmLabel="Hapus"
+        variant="danger"
+        colors={colors}
+      />
+      </>
     );
   }
 
@@ -223,6 +241,7 @@ export function UploadDropzone({
   // MODE 2: FULL DROPZONE — Saat data belum ada atau diperbesar manual
   // =========================================================================
   return (
+    <>
     <div>
       <div
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -287,7 +306,7 @@ export function UploadDropzone({
               {allowClear && (
                 <button
                   type="button"
-                  onClick={onReset}
+                  onClick={() => setClearConfirm(true)}
                   className="sm-btn text-xs px-3 py-2 rounded-lg font-medium flex items-center gap-1.5"
                   style={{ background: colors.coral + "14", border: `1px solid ${colors.coral}33`, color: colors.coral }}
                 >
@@ -308,7 +327,21 @@ export function UploadDropzone({
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={clearConfirm}
+        onCancel={() => setClearConfirm(false)}
+        onConfirm={() => { setClearConfirm(false); onReset?.(); }}
+        title="Hapus data aktif?"
+        subtitle={fileName
+          ? `${fileName} (${rowCount} baris) dihapus dari tampilan. Master cloud tidak ikut terhapus.`
+          : "Data aktif dihapus dari tampilan. Master cloud tidak ikut terhapus."}
+        confirmLabel="Hapus"
+        variant="danger"
+        colors={colors}
+      />
     </div>
+    </>
   );
 }
 
@@ -616,6 +649,11 @@ export function ExportMenu({
     margin: 16,
     estimatedHeight: 520,
     additionalRefs: additionalDropdownRefs,
+    // Mobile sheet (bottom-sheet portal) jangan auto-close saat scroll:
+    // scroll halaman / viewport shift (address bar) menggeser rect trigger
+    // sesaat -> hook kira trigger keluar layar -> sheet keluar sendiri.
+    // Desktop dropdown tetap ikut posisi via listener yang sama.
+    autoCloseOnScrollOut: false,
   });
 
   // Ditutup lagi tiap kali menu utama ditutup/dibuka ulang, supaya tidak
@@ -640,7 +678,7 @@ export function ExportMenu({
       // tainted oleh gambar cross-origin. Tanpa catch, error propagate sebagai
       // unhandled rejection dan menu diam-diam tutup tanpa feedback ke user.
       console.warn("Export gambar gagal:", e);
-      alert("Export gambar gagal: " + (e?.message || String(e)));
+      notifyError("Export gambar gagal", e?.message || String(e));
     } finally {
       setImageBusy(null);
       setOpen(false);
