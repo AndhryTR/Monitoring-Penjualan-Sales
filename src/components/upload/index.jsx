@@ -1,11 +1,13 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
-  Upload, Download, X, ChevronDown, RefreshCw, FileSpreadsheet,
-  FileText, Printer, Image as ImageIcon,
+  Upload, Download, X, ChevronDown, ChevronUp, RefreshCw, FileSpreadsheet,
+  FileText, Printer, Image as ImageIcon, MessageSquare, CloudUpload, AlertTriangle,
 } from "lucide-react";
-import { fmtPct } from "../../utils/formatters.js";
+import { fmtPct, fmtNum } from "../../utils/formatters.js";
 import { notifyExportSuccess } from "../../utils/notifyExport.js";
+import { useFloatingDropdown } from "../../hooks/useFloatingDropdown.js";
+export { GlobalDragOverlay } from "./GlobalDragOverlay.jsx";
 // ⚠️ Sprint 5 / S3: semua export module (pdfExport, excelExport, imageExport)
 // sebelumnya static import (~2.4MB total: jspdf+xlsx-js-style+html2canvas).
 // Sekarang lazy-load via dynamic import() di handler onClick. Initial bundle
@@ -17,10 +19,209 @@ import { notifyExportSuccess } from "../../utils/notifyExport.js";
 // (tanpa dep berat) — boleh tetap static, tapi karena satu file dengan
 // exportHtmlAsImage (yang berat html2canvas), sekalian di-lazy-load.
 
-export function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, loading, sampleLoading, colors }) {
+export function UploadDropzone({
+  onFile,
+  hasData,
+  rowCount = 0,
+  fileName,
+  onReset,
+  onSample,
+  loading,
+  sampleLoading,
+  colors,
+  isEditor = false,
+  onSaveMaster,
+  masterBusy = false,
+  masterResult = null,
+  onOpenMasterRange,
+  canAccess,
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef(null);
-  const handleFiles = (files) => { if (files && files.length) onFile(Array.from(files)); };
+
+  const allowSaveMaster = (!canAccess || canAccess("btn:save_master")) && isEditor;
+  const allowDeleteMaster = (!canAccess || canAccess("btn:delete_master")) && isEditor;
+  const allowSample = !canAccess || canAccess("feat:sample_data");
+  const allowClear = !canAccess || canAccess("btn:clear_all");
+
+  // Jika data direset/kosong, kembalikan ke mode default
+  useEffect(() => {
+    if (!hasData) {
+      setIsExpanded(false);
+    }
+  }, [hasData]);
+
+  const handleFiles = (files) => {
+    if (files && files.length) onFile(Array.from(files));
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  // =========================================================================
+  // MODE 1: COMPACT STATUS BAR (~40px) — Aktif otomatis saat data sudah dimuat
+  // =========================================================================
+  if (hasData && !isExpanded) {
+    return (
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
+        className={`sm-card px-3 py-2 rounded-xl flex flex-wrap items-center justify-between gap-2.5 transition-all duration-200 ${dragOver ? "sm-pulse" : ""}`}
+        style={{
+          border: `1px ${dragOver ? "dashed " + colors.mint : "solid " + (colors.glassBorder || "rgba(255,255,255,0.08)")}`,
+          background: dragOver ? colors.mint + "14" : colors.glassSubtle || colors.glassFill,
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
+        }}
+      >
+        <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+
+        {/* Sisi Kiri: Badge file & jumlah baris */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div
+            className="p-1.5 rounded-lg shrink-0 flex items-center justify-center"
+            style={{ background: colors.mint + "1A", color: colors.mint }}
+          >
+            <FileSpreadsheet size={15} />
+          </div>
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className="disp text-xs sm:text-sm font-semibold truncate max-w-[150px] sm:max-w-[260px] md:max-w-[340px]"
+              style={{ color: colors.text }}
+              title={fileName}
+            >
+              {fileName}
+            </span>
+            {rowCount > 0 && (
+              <span
+                className="mono text-[11px] px-2 py-0.5 rounded-md font-medium shrink-0"
+                style={{
+                  background: colors.mint + "18",
+                  color: colors.mint,
+                  border: `1px solid ${colors.mint}33`,
+                }}
+              >
+                {fmtNum(rowCount)} baris
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Sisi Kanan: Aksi cepat */}
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+          {/* Tombol Ganti File */}
+          <button
+            type="button"
+            onClick={() => inputRef.current && inputRef.current.click()}
+            className="sm-btn text-xs px-2.5 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition-colors"
+            style={{
+              background: colors.glassFill,
+              border: `1px solid ${colors.glassBorder}`,
+              color: colors.text,
+            }}
+            title="Upload file baru untuk mengganti atau menggabungkan data"
+            disabled={loading}
+          >
+            {loading ? (
+              <RefreshCw size={13} className="sm-pulse" style={{ color: colors.gold }} />
+            ) : (
+              <Upload size={13} style={{ color: colors.gold }} />
+            )}
+            <span className="hidden sm:inline">Ganti/Tambah File</span>
+          </button>
+
+          {/* Admin / Supervisor: Simpan Master */}
+          {allowSaveMaster && onSaveMaster && (
+            <button
+              type="button"
+              onClick={onSaveMaster}
+              disabled={masterBusy || !rowCount}
+              className="sm-btn text-xs px-2.5 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition-colors disabled:opacity-40"
+              style={{
+                background: colors.mint + "1A",
+                color: colors.mint,
+                border: `1px solid ${colors.mint}44`,
+              }}
+              title="Simpan data saat ini ke Master Cloud"
+            >
+              <CloudUpload size={13} />
+              <span className="hidden sm:inline">Simpan Master</span>
+            </button>
+          )}
+
+          {/* Admin / Supervisor: Hapus Rentang */}
+          {allowDeleteMaster && onOpenMasterRange && (
+            <button
+              type="button"
+              onClick={onOpenMasterRange}
+              disabled={masterBusy}
+              className="sm-btn text-xs px-2 py-1.5 rounded-lg font-medium flex items-center gap-1 transition-colors disabled:opacity-40"
+              style={{
+                background: colors.glassFill,
+                color: colors.coral,
+                border: `1px solid ${colors.coral}33`,
+              }}
+              title="Hapus data rentang tanggal dari Master"
+            >
+              <AlertTriangle size={13} />
+              <span className="hidden md:inline">Hapus Rentang</span>
+            </button>
+          )}
+
+          {/* Feedback hasil master bila ada */}
+          {masterResult && (
+            <span
+              className="text-[11px] font-medium px-2 py-0.5 rounded"
+              style={{
+                color: masterResult.startsWith("Gagal") ? colors.coral : colors.mint,
+                background: masterResult.startsWith("Gagal") ? colors.coral + "14" : colors.mint + "14",
+              }}
+            >
+              {masterResult}
+            </span>
+          )}
+
+          {/* Tombol Hapus Data */}
+          {allowClear && (
+            <button
+              type="button"
+              onClick={onReset}
+              className="sm-btn text-xs p-1.5 rounded-lg font-medium transition-colors"
+              style={{
+                background: colors.coral + "14",
+                border: `1px solid ${colors.coral}33`,
+                color: colors.coral,
+              }}
+              title="Hapus data aktif"
+              aria-label="Hapus data aktif"
+            >
+              <X size={13} />
+            </button>
+          )}
+
+          {/* Tombol Buka Dropzone Penuh */}
+          <button
+            type="button"
+            onClick={() => setIsExpanded(true)}
+            className="sm-btn text-xs p-1.5 rounded-lg font-medium transition-colors"
+            style={{
+              background: colors.glassFill,
+              border: `1px solid ${colors.glassBorder}`,
+              color: colors.textMuted,
+            }}
+            title="Tampilkan area dropzone penuh"
+            aria-label="Perbesar area dropzone"
+          >
+            <ChevronDown size={13} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // MODE 2: FULL DROPZONE — Saat data belum ada atau diperbesar manual
+  // =========================================================================
   return (
     <div>
       <div
@@ -28,7 +229,7 @@ export function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, l
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
         onClick={() => inputRef.current && inputRef.current.click()}
-        className={`sm-drop cursor-pointer rounded-2xl p-6 flex items-center gap-4 transition-colors ${dragOver ? "sm-pulse" : ""}`}
+        className={`sm-drop cursor-pointer rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 transition-colors relative ${dragOver ? "sm-pulse" : ""}`}
         style={{
           border: `2px dashed ${dragOver ? colors.mint + "66" : colors.glassBorderElevated}`,
           background: dragOver ? colors.mint + "0F" : colors.glassSubtle,
@@ -37,30 +238,75 @@ export function UploadDropzone({ onFile, hasData, fileName, onReset, onSample, l
         }}
       >
         <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
-        <div className="p-3 rounded-xl" style={{ background: colors.gold + "1A" }}>
-          {loading ? <RefreshCw size={20} className="sm-pulse" style={{ color: colors.gold }} /> : <Upload size={20} style={{ color: colors.gold }} />}
-        </div>
-        <div className="flex-1">
-          <div className="text-sm font-semibold disp">{loading ? "Memproses file..." : "Upload file Excel sell-out"}</div>
-          <div className="text-xs mt-0.5" style={{ color: colors.textMuted }}>
-            {hasData ? `Sumber aktif: ${fileName}` : "Tarik & lepas file di sini (bisa lebih dari satu untuk digabung), atau klik untuk memilih"}
+
+        <div className="flex items-center gap-4 flex-1 min-w-0 w-full sm:w-auto">
+          <div className="p-3 rounded-xl shrink-0" style={{ background: colors.gold + "1A" }}>
+            {loading ? <RefreshCw size={20} className="sm-pulse" style={{ color: colors.gold }} /> : <Upload size={20} style={{ color: colors.gold }} />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold disp" style={{ color: colors.text }}>
+              {loading ? "Memproses file..." : "Upload file Excel sell-out"}
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: colors.textMuted }}>
+              {hasData
+                ? `Sumber aktif: ${fileName} (${fmtNum(rowCount)} baris)`
+                : "Tarik & lepas file di sini (bisa lebih dari satu untuk digabung), atau klik untuk memilih"}
+            </div>
           </div>
         </div>
-        {!hasData && (
-          <button onClick={(e) => { e.stopPropagation(); onSample(); }} className="sm-btn text-xs px-3 py-2 rounded-lg font-medium"
-            style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.textMuted }}
-            disabled={sampleLoading}>
-            {sampleLoading
-              ? <span className="flex items-center gap-1.5"><RefreshCw size={13} className="sm-pulse" /> Memuat...</span>
-              : "Coba data contoh"}
-          </button>
-        )}
-        {hasData && (
-          <button onClick={(e) => { e.stopPropagation(); onReset(); }} className="sm-btn text-xs px-3 py-2 rounded-lg font-medium flex items-center gap-1.5"
-            style={{ background: colors.coral + "14", border: `1px solid ${colors.coral}33`, color: colors.coral }}>
-            <X size={13} /> Hapus data
-          </button>
-        )}
+
+        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center" onClick={(e) => e.stopPropagation()}>
+          {!hasData && allowSample && (
+            <button
+              type="button"
+              onClick={onSample}
+              className="sm-btn text-xs px-3 py-2 rounded-lg font-medium"
+              style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.textMuted }}
+              disabled={sampleLoading}
+            >
+              {sampleLoading ? (
+                <span className="flex items-center gap-1.5"><RefreshCw size={13} className="sm-pulse" /> Memuat...</span>
+              ) : (
+                "Coba data contoh"
+              )}
+            </button>
+          )}
+          {hasData && (
+            <>
+              {allowSaveMaster && onSaveMaster && (
+                <button
+                  type="button"
+                  onClick={onSaveMaster}
+                  disabled={masterBusy || !rowCount}
+                  className="sm-btn text-xs px-3 py-2 rounded-lg font-medium flex items-center gap-1.5 disabled:opacity-40"
+                  style={{ background: colors.mint + "1A", color: colors.mint, border: `1px solid ${colors.mint}44` }}
+                >
+                  <CloudUpload size={13} /> Simpan Master
+                </button>
+              )}
+              {allowClear && (
+                <button
+                  type="button"
+                  onClick={onReset}
+                  className="sm-btn text-xs px-3 py-2 rounded-lg font-medium flex items-center gap-1.5"
+                  style={{ background: colors.coral + "14", border: `1px solid ${colors.coral}33`, color: colors.coral }}
+                >
+                  <X size={13} /> Hapus data
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsExpanded(false)}
+                className="sm-btn text-xs p-2 rounded-lg font-medium flex items-center gap-1"
+                style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.textMuted }}
+                title="Ciutkan area upload"
+                aria-label="Ciutkan area upload"
+              >
+                <ChevronUp size={14} />
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -224,6 +470,36 @@ function MenuItem({ icon: Icon, iconColor, label, desc, onClick, colors }) {
   );
 }
 
+function FormatPill({ label, active, disabled, onClick, colors, title }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className="px-2.5 py-1 rounded-md text-[11px] font-bold transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-95"
+      style={{
+        background: hovered
+          ? (active ? colors.gold : colors.glassFillStrong)
+          : (active ? `${colors.gold}25` : colors.glassFill),
+        border: `1px solid ${hovered ? colors.gold : (active ? `${colors.gold}66` : colors.glassBorder)}`,
+        color: hovered
+          ? (active ? "#0A1120" : colors.text)
+          : (active ? colors.gold : colors.textMuted),
+        boxShadow: hovered ? `0 2px 8px ${colors.gold}44` : "none",
+      }}
+      title={title}
+    >
+      {label}
+    </button>
+  );
+}
+
 function SectionLabel({ children, colors }) {
   return (
     <div
@@ -231,6 +507,71 @@ function SectionLabel({ children, colors }) {
       style={{ color: colors?.textMuted }}
     >
       {children}
+    </div>
+  );
+}
+
+// Item menu "Gambar" dengan aksi 1-klik langsung download PNG (standar kualitas tinggi)
+// serta tombol opsi JPG di sebelah kanan dengan hover visual aktif.
+function ImageMenuItem({
+  itemKey,
+  label,
+  desc,
+  buildFn,
+  filenameBase,
+  imageBusy,
+  onImageExport,
+  colors,
+}) {
+  const isBusy = imageBusy === itemKey;
+
+  return (
+    <div
+      onClick={() => !isBusy && onImageExport(itemKey, buildFn, filenameBase, "png")}
+      className="sm-row w-full px-4 py-2.5 flex items-center justify-between gap-3 cursor-pointer transition-colors"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          if (!isBusy) onImageExport(itemKey, buildFn, filenameBase, "png");
+        }
+      }}
+    >
+      <div className="flex items-start gap-3 min-w-0 flex-1">
+        {isBusy ? (
+          <RefreshCw size={15} className="mt-0.5 shrink-0 sm-pulse" style={{ color: colors.gold }} />
+        ) : (
+          <ImageIcon size={15} className="mt-0.5 shrink-0" style={{ color: colors.blue || colors.gold }} />
+        )}
+        <div className="min-w-0">
+          <div className="text-sm font-medium flex items-center gap-2">
+            <span className="truncate">{label}</span>
+            {isBusy && <span className="text-[11px] font-semibold shrink-0" style={{ color: colors.gold }}>Memproses...</span>}
+          </div>
+          <div className="text-xs truncate" style={{ color: colors.textMuted }}>{desc}</div>
+        </div>
+      </div>
+
+      {/* Format pills: 1-klik download PNG atau JPG dengan hover visual interaktif */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        <FormatPill
+          label="PNG"
+          active={true}
+          disabled={isBusy}
+          colors={colors}
+          title="Download gambar format PNG (Resolusi tinggi)"
+          onClick={() => onImageExport(itemKey, buildFn, filenameBase, "png")}
+        />
+        <FormatPill
+          label="JPG"
+          active={false}
+          disabled={isBusy}
+          colors={colors}
+          title="Download gambar format JPG / JPEG"
+          onClick={() => onImageExport(itemKey, buildFn, filenameBase, "jpeg")}
+        />
+      </div>
     </div>
   );
 }
@@ -245,74 +586,44 @@ export function ExportMenu({
   activeTab = "main",
   outletThresholds,
   tabExports = {},
+  onOpenDailyReport,
+  canAccess,
 }) {
   const [open, setOpen] = useState(false);
   const [scorecardListOpen, setScorecardListOpen] = useState(false);
-  // Item "Gambar" mana yang lagi expand pilihan format (PNG/JPEG) — null kalau
-  // tidak ada yang expand. imageBusy: nama item yang sedang diproses
-  // html2canvas (proses async, bisa beberapa detik untuk tabel besar), dipakai
-  // buat kasih feedback "Memproses..." supaya user tidak klik berkali-kali.
-  const [imageFormatFor, setImageFormatFor] = useState(null);
   const [imageBusy, setImageBusy] = useState(null);
-  const ref = useRef(null);
-  // Ref terpisah untuk bottom-sheet mobile -- sheet di-render via Portal ke
-  // document.body (lihat createPortal di bawah) supaya position:fixed bekerja
-  // relative ke viewport, bukan relative ke header yang ber-transform akibat
-  // animation sm-fadeup (transform pada ancestor membuatnya menjadi containing
-  // block untuk fixed descendant -- bug klasik CSS).
   const sheetRef = useRef(null);
-  // ⚠️ Sprint 18d / Header Redesign bugfix: ref + state untuk desktop dropdown
-  // yang juga di-portal ke body. Posisi dihitung dari bounding rect tombol
-  // trigger saat open, lalu di-update saat resize/scroll.
-  const desktopDropdownRef = useRef(null);
-  const [desktopDropdownPos, setDesktopDropdownPos] = useState({ top: 0, left: 0 });
 
-  // Hitung posisi dropdown saat open — relatif ke viewport (fixed positioning)
-  useEffect(() => {
-    if (!open) return;
-    const updatePos = () => {
-      const btn = ref.current?.querySelector("button");
-      if (!btn) return;
-      const rect = btn.getBoundingClientRect();
-      const dropdownWidth = 320; // w-80 = 20rem = 320px
-      let left = rect.right - dropdownWidth;
-      if (left < 16) left = 16;
-      setDesktopDropdownPos({
-        top: rect.bottom + 8,
-        left,
-      });
-    };
-    updatePos();
-    window.addEventListener("resize", updatePos);
-    window.addEventListener("scroll", updatePos, true);
-    return () => {
-      window.removeEventListener("resize", updatePos);
-      window.removeEventListener("scroll", updatePos, true);
-    };
-  }, [open]);
+  const allowDaily = !canAccess || canAccess("feat:daily_report");
+  const allowExcel = !canAccess || canAccess("btn:export_excel");
+  const allowPdf = !canAccess || canAccess("btn:export_pdf");
+  const allowImage = !canAccess || canAccess("btn:export_image");
+  const hasAnyExport = allowDaily || allowExcel || allowPdf || allowImage;
 
-  useEffect(() => {
-    if (!open) return;
-    // Jangan tutup kalau klik terjadi di dalam tombol/container ExportMenu
-    // (ref) atau di dalam bottom-sheet mobile (sheetRef) yang sudah di-portal
-    // ke body, ATAU di dalam desktop dropdown (desktopDropdownRef) yang juga
-    // sudah di-portal ke body.
-    const onClickOutside = (e) => {
-      if (ref.current && ref.current.contains(e.target)) return;
-      if (sheetRef.current && sheetRef.current.contains(e.target)) return;
-      if (desktopDropdownRef.current && desktopDropdownRef.current.contains(e.target)) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
+  const handleClose = useCallback(() => setOpen(false), []);
+  const additionalDropdownRefs = useMemo(() => [sheetRef], []);
+
+  const {
+    triggerRef: ref,
+    floatingRef: desktopDropdownRef,
+    position: desktopDropdownPos,
+  } = useFloatingDropdown({
+    isOpen: open,
+    onClose: handleClose,
+    align: "right",
+    width: 320,
+    gap: 8,
+    margin: 16,
+    estimatedHeight: 520,
+    additionalRefs: additionalDropdownRefs,
+  });
 
   // Ditutup lagi tiap kali menu utama ditutup/dibuka ulang, supaya tidak
   // "nyangkut" kebuka pas dropdown dipakai lagi lain waktu.
-  useEffect(() => { if (!open) { setScorecardListOpen(false); setImageFormatFor(null); } }, [open]);
+  useEffect(() => { if (!open) { setScorecardListOpen(false); } }, [open]);
 
   const opts = { workDays, depotName };
-  const salesSorted = useMemo(() => [...agg.bySales].sort((a, b) => a.name.localeCompare(b.name)), [agg.bySales]);
+  const salesSorted = useMemo(() => [...(agg?.bySales || [])].sort((a, b) => a.name.localeCompare(b.name)), [agg?.bySales]);
   const currentTabExports = (tabExports && tabExports.current) ? tabExports.current : (tabExports || {});
 
   const handleImageExport = async (key, buildFnRef, filenameBase, format) => {
@@ -323,7 +634,7 @@ export function ExportMenu({
       const { exportHtmlAsImage } = await import("../../utils/imageExport.js");
       const { html } = await buildFnRef();
       await exportHtmlAsImage(html, filenameBase, format);
-      await notifyExportSuccess("Export berhasil", `${filenameBase}.${format}`);
+      await notifyExportSuccess("Export berhasil", `${filenameBase}.${format === "jpeg" ? "jpg" : "png"}`);
     } catch (e) {
       // ⚠️ Bug fix (H12): exportHtmlAsImage bisa throw SecurityError bila canvas
       // tainted oleh gambar cross-origin. Tanpa catch, error propagate sebagai
@@ -332,40 +643,9 @@ export function ExportMenu({
       alert("Export gambar gagal: " + (e?.message || String(e)));
     } finally {
       setImageBusy(null);
-      setImageFormatFor(null);
       setOpen(false);
     }
   };
-
-  // Item menu "Gambar" yang expand jadi 2 tombol format (PNG/JPEG) saat diklik
-  // — bukan langsung download, supaya user pilih formatnya dulu tiap export.
-  const ImageMenuItem = ({ itemKey, label, desc, buildFn, filenameBase }) => (
-    <>
-      <button onClick={() => setImageFormatFor((v) => (v === itemKey ? null : itemKey))}
-        className="sm-row w-full text-left px-4 py-2.5 flex items-center justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <ImageIcon size={15} className="mt-0.5 shrink-0" style={{ color: colors.blue || colors.gold }} />
-          <div className="min-w-0">
-            <div className="text-sm font-medium">{label}</div>
-            <div className="text-xs" style={{ color: colors.textMuted }}>{desc}</div>
-          </div>
-        </div>
-        <ChevronDown size={13} style={{ color: colors.textMuted, transform: imageFormatFor === itemKey ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }} />
-      </button>
-      {imageFormatFor === itemKey && (
-        <div className="flex gap-2 px-4 pb-3 pl-11">
-          {["png", "jpeg"].map((fmt) => (
-            <button key={fmt} disabled={imageBusy === itemKey}
-              onClick={() => handleImageExport(itemKey, buildFn, filenameBase, fmt)}
-              className="sm-btn px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
-              style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
-              {imageBusy === itemKey ? "Memproses..." : fmt.toUpperCase()}
-            </button>
-          ))}
-        </div>
-      )}
-    </>
-  );
 
   const renderScorecardIndividual = () => (
     <>
@@ -400,68 +680,123 @@ export function ExportMenu({
     </>
   );
 
-  const renderDefaultMenu = () => (
-    <>
-      <SectionLabel colors={colors}>Excel</SectionLabel>
-      <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Export ke Excel"
-        desc="Format lengkap dengan target, deviasi & produk fokus"
-        colors={colors}
-        onClick={async () => {
-          // ⚠️ Sprint 5 / S3: lazy-load excelExport.js (~620KB).
-          const { exportToExcel } = await import("../../utils/excelExport.js");
-          exportToExcel(agg, targets, opts);
-          await notifyExportSuccess("Export berhasil", "Excel laporan utama");
-          setOpen(false);
-        }} />
+  const renderDefaultMenu = () => {
+    if (!hasAnyExport) {
+      return (
+        <div className="px-4 py-3 text-center text-xs" style={{ color: colors.textMuted }}>
+          Akses export dibatasi oleh administrator.
+        </div>
+      );
+    }
+    return (
+      <>
+        {allowDaily && (
+          <>
+            <SectionLabel colors={colors}>Pesan Singkat & Harian</SectionLabel>
+            <MenuItem icon={MessageSquare} iconColor={colors.mint} label="Laporan Ringkas Harian"
+              desc="Format teks WhatsApp & kartu gambar ringkas (PNG)"
+              colors={colors}
+              onClick={() => {
+                setOpen(false);
+                onOpenDailyReport?.();
+              }} />
+          </>
+        )}
 
-      <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
-      <SectionLabel colors={colors}>PDF</SectionLabel>
-      <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Ringkasan"
-        desc="KPI, leaderboard sales & rekap grup produk"
-        colors={colors}
-        onClick={async () => {
-          const { exportSummaryPDF } = await import("../../utils/pdfExport.js");
-          exportSummaryPDF(agg, targets, opts);
-          await notifyExportSuccess("Export berhasil", "Laporan Ringkasan (PDF)");
-          setOpen(false);
-        }} />
-      <MenuItem icon={FileText} iconColor={colors.coral} label="Scorecard Semua Sales"
-        desc={`1 halaman per sales (${agg.bySales.length} sales)`}
-        colors={colors}
-        onClick={async () => {
-          const { exportAllScorecardsPDF } = await import("../../utils/pdfExport.js");
-          exportAllScorecardsPDF(agg, opts);
-          await notifyExportSuccess("Export berhasil", `Scorecard Semua Sales (${agg.bySales.length} sales)`);
-          setOpen(false);
-        }} />
-      <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Perbandingan Sales"
-        desc="Rekap per grup, per sales & hari terakhir — 1 dokumen gabungan"
-        colors={colors}
-        onClick={async () => {
-          const { exportSalesGroupComparisonPDF } = await import("../../utils/pdfExport.js");
-          exportSalesGroupComparisonPDF(agg, opts);
-          await notifyExportSuccess("Export berhasil", "Laporan Perbandingan Sales (PDF)");
-          setOpen(false);
-        }} />
+        {allowExcel && (
+          <>
+            {allowDaily && <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />}
+            <SectionLabel colors={colors}>Excel</SectionLabel>
+            <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Export ke Excel"
+              desc="Format lengkap dengan target, deviasi & produk fokus"
+              colors={colors}
+              onClick={async () => {
+                // ⚠️ Sprint 5 / S3: lazy-load excelExport.js (~620KB).
+                const { exportToExcel } = await import("../../utils/excelExport.js");
+                exportToExcel(agg, targets, opts);
+                await notifyExportSuccess("Export berhasil", "Excel laporan utama");
+                setOpen(false);
+              }} />
+          </>
+        )}
 
-      <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
-      <SectionLabel colors={colors}>Gambar</SectionLabel>
-      <ImageMenuItem itemKey="excel" label="Export ke Excel" desc="Tampilan sama seperti file Excel, jadi 1 gambar"
-        buildFn={async () => {
-          // ⚠️ Sprint 5 / S3: lazy-load imageExport.js (~1.2MB).
-          const { buildExcelReportHTML } = await import("../../utils/imageExport.js");
-          return { html: buildExcelReportHTML(agg, targets, opts) };
-        }} filenameBase={`Laporan_Sales_Gambar_${agg.meta.lastDate || "export"}`} />
-      <ImageMenuItem itemKey="comparison" label="Laporan Perbandingan Sales" desc="Tampilan sama seperti PDF, jadi 1 gambar"
-        buildFn={async () => {
-          const { buildSalesGroupComparisonHTML } = await import("../../utils/imageExport.js");
-          return { html: buildSalesGroupComparisonHTML(agg, opts) };
-        }} filenameBase={`Laporan_Perbandingan_Sales_Gambar_${agg.meta.lastDate || "export"}`} />
+        {allowPdf && (
+          <>
+            {(allowDaily || allowExcel) && <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />}
+            <SectionLabel colors={colors}>PDF</SectionLabel>
+            <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Ringkasan"
+              desc="KPI, leaderboard sales & rekap grup produk"
+              colors={colors}
+              onClick={async () => {
+                const { exportSummaryPDF } = await import("../../utils/pdfExport.js");
+                exportSummaryPDF(agg, targets, opts);
+                await notifyExportSuccess("Export berhasil", "Laporan Ringkasan (PDF)");
+                setOpen(false);
+              }} />
+            <MenuItem icon={FileText} iconColor={colors.coral} label="Scorecard Semua Sales"
+              desc={`1 halaman per sales (${agg.bySales.length} sales)`}
+              colors={colors}
+              onClick={async () => {
+                const { exportAllScorecardsPDF } = await import("../../utils/pdfExport.js");
+                exportAllScorecardsPDF(agg, opts);
+                await notifyExportSuccess("Export berhasil", `Scorecard Semua Sales (${agg.bySales.length} sales)`);
+                setOpen(false);
+              }} />
+            <MenuItem icon={FileText} iconColor={colors.coral} label="Laporan Perbandingan Sales"
+              desc="Rekap per grup, per sales & hari terakhir — 1 dokumen gabungan"
+              colors={colors}
+              onClick={async () => {
+                const { exportSalesGroupComparisonPDF } = await import("../../utils/pdfExport.js");
+                exportSalesGroupComparisonPDF(agg, opts);
+                await notifyExportSuccess("Export berhasil", "Laporan Perbandingan Sales (PDF)");
+                setOpen(false);
+              }} />
+          </>
+        )}
 
-      <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
-      {renderScorecardIndividual()}
-    </>
-  );
+        {allowImage && (
+          <>
+            {(allowDaily || allowExcel || allowPdf) && <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />}
+            <SectionLabel colors={colors}>Gambar</SectionLabel>
+            <ImageMenuItem
+              itemKey="excel"
+              label="Laporan Tabel Utama (Gambar)"
+              desc="Tampilan visual tabel laporan utama (PNG / JPG)"
+              imageBusy={imageBusy}
+              onImageExport={handleImageExport}
+              colors={colors}
+              buildFn={async () => {
+                // ⚠️ Sprint 5 / S3: lazy-load imageExport.js (~1.2MB).
+                const { buildExcelReportHTML } = await import("../../utils/imageExport.js");
+                return { html: buildExcelReportHTML(agg, targets, opts) };
+              }}
+              filenameBase={`Laporan_Sales_Gambar_${agg?.meta?.lastDate || "export"}`}
+            />
+            <ImageMenuItem
+              itemKey="comparison"
+              label="Laporan Perbandingan Sales (Gambar)"
+              desc="Tampilan visual rekap perbandingan (PNG / JPG)"
+              imageBusy={imageBusy}
+              onImageExport={handleImageExport}
+              colors={colors}
+              buildFn={async () => {
+                const { buildSalesGroupComparisonHTML } = await import("../../utils/imageExport.js");
+                return { html: buildSalesGroupComparisonHTML(agg, opts) };
+              }}
+              filenameBase={`Laporan_Perbandingan_Sales_Gambar_${agg?.meta?.lastDate || "export"}`}
+            />
+          </>
+        )}
+
+        {allowPdf && (
+          <>
+            <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
+            {renderScorecardIndividual()}
+          </>
+        )}
+      </>
+    );
+  };
 
   const TAB_LABELS = {
     executive: "Executive Summary",
@@ -525,6 +860,16 @@ export function ExportMenu({
 
           <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
           {renderScorecardIndividual()}
+
+          <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
+          <SectionLabel colors={colors}>Pesan Singkat</SectionLabel>
+          <MenuItem icon={MessageSquare} iconColor={colors.mint} label="Laporan Ringkas Harian"
+            desc="Format teks WhatsApp & kartu gambar ringkas (PNG)"
+            colors={colors}
+            onClick={() => {
+              setOpen(false);
+              onOpenDailyReport?.();
+            }} />
         </>
       );
     }
@@ -674,25 +1019,24 @@ export function ExportMenu({
     return renderDefaultMenu();
   };
 
-  // Konten menu dibuat sekali lalu dipakai di dua wadah: dropdown absolut
-  // (desktop) dan modal terpusat (mobile).
-  const menuContent = (
+  // Konten menu dibuat hanya saat menu terbuka
+  const menuContent = open ? (
     <>
-      <div className="px-4 py-2 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.glassBorder}` }}>
-        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: colors.gold }}>
+      <div className="px-4 py-2 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors?.glassBorder}` }}>
+        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: colors?.gold }}>
           Export · {TAB_LABELS[activeTab] || "Laporan"}
         </span>
       </div>
       {renderContent()}
     </>
-  );
+  ) : null;
 
   return (
     <div className="relative z-20" ref={ref}>
       <button onClick={() => setOpen((o) => !o)} disabled={disabled}
         // ⚠️ Sprint 18d8 / Responsive: padding p-2 di mobile (sama dengan icon button
         // lain di header), px-4 py-2.5 di desktop (label visible).
-        className="sm-btn flex items-center gap-2 p-2 md:px-4 md:py-2.5 rounded-lg md:rounded-xl text-sm font-semibold disabled:opacity-40"
+        className="sm-btn flex items-center gap-1.5 h-9 px-2.5 md:px-3.5 rounded-xl text-xs font-semibold disabled:opacity-40 shrink-0"
         style={{ background: colors.gold, color: "#0A1120" }}>
         <Download size={14} /> <span className="hidden md:inline">Export</span> <ChevronDown size={13} className="hidden md:inline" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
@@ -714,7 +1058,7 @@ export function ExportMenu({
           {createPortal(
             <div
               ref={desktopDropdownRef}
-              className="hidden md:block fixed z-50 w-80 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden sm-fadein"
+              className="hidden md:block fixed z-50 w-80 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-5rem)] overflow-y-auto rounded-xl sm-fadein"
               style={{
                 top: desktopDropdownPos.top,
                 left: desktopDropdownPos.left,

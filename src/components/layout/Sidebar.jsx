@@ -1,4 +1,4 @@
-import { ChevronsLeft, ChevronsRight } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, Lock } from "lucide-react";
 import { SIDEBAR_SECTIONS } from "../../constants/tabs.js";
 import { DepotSwitcher } from "../modals/DepotSwitcher.jsx";
 
@@ -19,7 +19,9 @@ const WIDTH_COLLAPSED = 68;
 ============================================================================ */
 export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, onOpenHistory, onOpenSettings, historyDisabled, colors,
   // ⚠️ Sprint 18: multi-depo props
-  depots, activeDepotId, onSelectDepot, onAddDepot, onDeleteDepot }) {
+  depots, activeDepotId, onSelectDepot, onAddDepot, onDeleteDepot,
+  // ⚠️ Superuser Admin Dashboard: permission props
+  isSuperuser, canAccess }) {
   const width = collapsed ? WIDTH_COLLAPSED : WIDTH_EXPANDED;
 
   const handleItemClick = (item) => {
@@ -29,7 +31,16 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
   };
 
   const isItemActive = (item) => item.tabKey && item.tabKey === activeTab;
-  const isItemDisabled = (item) => item.action === "history" && historyDisabled;
+  const isItemDisabled = (item) => {
+    if (item.action === "history") {
+      return historyDisabled || (canAccess ? !canAccess("feat:history_snap") : false);
+    }
+    if (item.tabKey && canAccess) {
+      if (item.tabKey === "admin-access") return !isSuperuser;
+      return !canAccess("page:" + item.tabKey);
+    }
+    return false;
+  };
 
   return (
     <aside
@@ -42,7 +53,7 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
       style={{ width, height: "calc(100vh - 2rem)", marginLeft: "16px", marginTop: "16px", borderRadius: "20px" }}
     >
       {/* Depot Switcher — di paling atas supaya selalu terlihat */}
-      {depots && activeDepotId && onSelectDepot && (
+      {depots && activeDepotId && onSelectDepot && (!canAccess || canAccess("feat:depot_switch")) && (
         <div className="px-3 pt-3 shrink-0">
           <DepotSwitcher
             depots={depots}
@@ -62,7 +73,20 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
           DepotSwitcher tetap di paling atas (jika ada), lalu nav sections. */}
 
       <nav className="flex-1 overflow-y-auto px-2.5 pb-3 pt-2">
-        {SIDEBAR_SECTIONS.map((section) => (
+        {SIDEBAR_SECTIONS.map((section) => {
+          // Sembunyikan section superuserOnly jika bukan superuser
+          if (section.superuserOnly && !isSuperuser) return null;
+
+          // Filter items: menu Admin Dashboard khusus superuser (disembunyikan untuk selain superuser)
+          // Menu lainnya tetap ditampilkan (akan redup/disabled jika tidak punya izin)
+          const visibleItems = section.items.filter((item) => {
+            if (item.tabKey === "admin-access") return isSuperuser;
+            return true;
+          });
+
+          if (visibleItems.length === 0) return null;
+
+          return (
           <div key={section.label} className="mb-4">
             {collapsed ? (
               <div className="mx-1.5 my-2 border-t" style={{ borderColor: colors.glassBorder }} />
@@ -72,7 +96,7 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
               </div>
             )}
             <div className="flex flex-col gap-0.5">
-              {section.items.map((item) => {
+              {visibleItems.map((item) => {
                 const Icon = item.icon;
                 const active = isItemActive(item);
                 const disabled = isItemDisabled(item);
@@ -81,24 +105,36 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
                     key={item.key}
                     onClick={() => !disabled && handleItemClick(item)}
                     disabled={disabled}
-                    title={collapsed ? item.label : undefined}
+                    title={
+                      disabled
+                        ? `${item.label} (Akses dibatasi)`
+                        : collapsed
+                        ? item.label
+                        : undefined
+                    }
                     className="sm-row flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-left disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{
                       background: active ? colors.mint + "1F" : "transparent",
-                      color: active ? colors.mint : colors.text,
+                      color: disabled ? colors.textMuted : active ? colors.mint : colors.text,
                       borderLeft: `2px solid ${active ? colors.mint : "transparent"}`,
                       boxShadow: active ? `0 0 16px ${colors.mint}33` : "none",
                       justifyContent: collapsed ? "center" : "flex-start",
                     }}
                   >
                     <Icon size={16} className="shrink-0" />
-                    {!collapsed && <span className="truncate">{item.label}</span>}
+                    {!collapsed && (
+                      <span className="truncate flex-1 flex items-center justify-between gap-1.5">
+                        <span className="truncate">{item.label}</span>
+                        {disabled && <Lock size={12} className="shrink-0 opacity-60" />}
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </div>
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Toggle collapse — di bawah sidebar, pola umum (mirip VSCode/Notion) */}

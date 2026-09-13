@@ -76,12 +76,12 @@ export function MobileHeaderMenu({
       {/* Trigger: hamburger — hanya mobile */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="sm-btn p-2 rounded-lg flex md:hidden"
+        className="sm-btn w-9 h-9 rounded-xl flex md:hidden items-center justify-center shrink-0"
         style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
         aria-label="Menu"
         title="Menu"
       >
-        {open ? <X size={14} /> : <Menu size={14} />}
+        {open ? <X size={15} /> : <Menu size={15} />}
       </button>
 
       {open && createPortal(

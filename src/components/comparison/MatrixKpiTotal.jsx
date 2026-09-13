@@ -1,5 +1,5 @@
-import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
+import { GrowthBadge } from "../ui/GrowthBadge.jsx";
 
 /* ============================================================================
    MATRIXKPITOTAL — nilai metrik periode TERAKHIR per entitas + growth badge.
@@ -12,8 +12,6 @@ import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
    dengan % growth di bawah → membingungkan. Sekarang value = current.
 ============================================================================ */
 export function MatrixKpiTotal({ label, value, periodLabel, growth, isMoney, isPct, accent, colors }) {
-  const growthColor = growth === null ? colors.textMuted : growth >= 0 ? colors.mint : colors.coral;
-  const GrowthIcon = growth === null ? null : growth >= 0 ? ArrowUpRight : ArrowDownRight;
   const display = value === null || value === undefined
     ? "-"
     : isPct ? fmtPct(value) : isMoney ? fmtRp(value) : fmtNum(value);
@@ -26,8 +24,9 @@ export function MatrixKpiTotal({ label, value, periodLabel, growth, isMoney, isP
         <div className="text-[10px] mt-0.5 truncate" style={{ color: colors.textMuted }}>{periodLabel}</div>
       )}
       {growth !== null && (
-        <div className="flex items-center gap-1 text-xs mt-1 font-semibold" style={{ color: growthColor }}>
-          {GrowthIcon && <GrowthIcon size={13} />} {fmtPct(Math.abs(growth))} <span className="font-normal opacity-70" style={{ color: colors.textMuted }}>vs prev</span>
+        <div className="flex items-center gap-1 text-xs mt-1 font-semibold">
+          <GrowthBadge growth={growth} colors={colors} variant="inline" />
+          <span className="font-normal opacity-70" style={{ color: colors.textMuted }}>vs prev</span>
         </div>
       )}
     </div>

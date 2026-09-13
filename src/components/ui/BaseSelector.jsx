@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Check } from "lucide-react";
 import { COMPARISON_BASE_OPTIONS } from "../../utils/comparisonBase.js";
+import { useFloatingDropdown } from "../../hooks/useFloatingDropdown.js";
 
 /* ============================================================================
    BASESELECTOR — dropdown pilihan pembanding growth (prev / avg3 / avg6 / yoy)
@@ -12,62 +13,17 @@ import { COMPARISON_BASE_OPTIONS } from "../../utils/comparisonBase.js";
 ============================================================================ */
 export function BaseSelector({ value, onChange, colors, compact = false }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState(null); // { top, left } utk portal fixed
-  const ref = useRef(null);
-  const ddRef = useRef(null); // ref dropdown (dirender di portal/body)
-
-  useEffect(() => {
-    if (!open) return;
-    const onClickOutside = (e) => {
-      if (ref.current && ref.current.contains(e.target)) return;
-      if (ddRef.current && ddRef.current.contains(e.target)) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
-
-  // ⚠️ Sprint 4 / M1: update posisi dropdown saat scroll/resize — sebelumnya
-  // posisi hanya dihitung saat openMenu (1x). User scroll page → dropdown
-  // fixed di posisi viewport lama, lepas dari tombol. PeriodPicker punya
-  // pattern yang sama (line 53-83) dan sudah fix; BaseSelector belum.
-  // Sekarang: pasang scroll (capture) + resize listener, recompute pos sama
-  // seperti openMenu. Dropdown auto-close kalau tombol di-scroll keluar viewport
-  // (supaya tidak tinggal di layar tanpa anchor).
-  useEffect(() => {
-    if (!open || !ref.current) return;
-    const update = () => {
-      const el = ref.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      // Kalau tombol sudah di-scroll keluar viewport vertikal, tutup dropdown
-      // (jaga-jaga — lebih baik daripada dropdown melayang tanpa anchor).
-      if (r.bottom < 0 || r.top > window.innerHeight) {
-        setOpen(false);
-        return;
-      }
-      setPos({ top: r.bottom + 4, left: r.left });
-    };
-    update();
-    window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
-    return () => {
-      window.removeEventListener("resize", update);
-      window.removeEventListener("scroll", update, true);
-    };
-  }, [open]);
+  const { triggerRef: ref, floatingRef: ddRef, position: pos } = useFloatingDropdown({
+    isOpen: open,
+    onClose: () => setOpen(false),
+    width: 240,
+    estimatedHeight: 200,
+    gap: 4,
+  });
 
   const current = COMPARISON_BASE_OPTIONS.find((o) => o.key === value) || COMPARISON_BASE_OPTIONS[0];
 
-  const openMenu = () => {
-    setOpen((o) => !o);
-    // Posisi awal dihitung saat klik; effect [open] di atas akan terus update
-    // saat scroll/resize.
-    if (ref.current) {
-      const r = ref.current.getBoundingClientRect();
-      setPos({ top: r.bottom + 4, left: r.left });
-    }
-  };
+  const openMenu = () => setOpen((o) => !o);
 
   return (
     <div className="relative" ref={ref}>

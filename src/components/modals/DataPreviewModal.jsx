@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import {
-  FileSpreadsheet, X, AlertTriangle, CheckCircle2, XCircle, GitMerge, RefreshCcw,
+  FileSpreadsheet, AlertTriangle, CheckCircle2, XCircle, GitMerge, RefreshCcw,
 } from "lucide-react";
 import { fmtNum } from "../../utils/formatters.js";
 import { FIELD_LABELS } from "../../constants/aliases.js";
-import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
+import { Modal } from "../ui/Modal.jsx";
 
 /* ============================================================================
    DATA PREVIEW MODAL
@@ -13,17 +13,13 @@ import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
    terdeteksi, duplikat dihapus, file digabung, rentang tanggal, kolom
    terdeteksi/tidak. Kalau sudah ada data sebelumnya, user juga memilih mau
    GABUNGKAN, GANTI TANGGAL YANG SAMA (untuk koreksi nota), atau GANTI SEMUA.
-   User bisa
-   konfirmasi "Gunakan Data Ini" atau batal.
+   User bisa konfirmasi "Gunakan Data Ini" atau batal.
 ============================================================================ */
 export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors, canReplaceDates = false }) {
   const hasMergeOption = !!(preview && preview.mergePreview);
   const [mode, setMode] = useState(hasMergeOption ? "merge" : "replace");
   // Reset pilihan ke default setiap kali preview baru muncul (file baru dipilih)
   useEffect(() => { setMode(hasMergeOption ? "merge" : "replace"); }, [preview, hasMergeOption]);
-  // ⚠️ Sprint 4 / A1+A2: lock background scroll + Escape tutup modal.
-  useScrollLock(isOpen);
-  useEscapeKey(isOpen, onCancel);
 
   if (!isOpen || !preview) return null;
   const { rows, parseMeta, fileName, mergePreview } = preview;
@@ -32,19 +28,26 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors,
   const uniqueGroups = new Set(rows.map((r) => r.group).filter(Boolean)).size;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
-      <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col">
-        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.glassBorder}` }}>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl" style={{ background: colors.gold + "1A" }}><FileSpreadsheet size={16} style={{ color: colors.gold }} /></div>
-            <div>
-              <div className="disp text-base font-semibold">Preview Data</div>
-              <div className="text-xs" style={{ color: colors.textMuted }}>{fileName}</div>
-            </div>
-          </div>
-          <button onClick={onCancel} className="sm-btn p-2 rounded-full" style={{ background: colors.glassFill }}><X size={16} /></button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onCancel}
+      title="Preview Data"
+      subtitle={fileName}
+      icon={FileSpreadsheet}
+      colors={colors}
+      maxWidth="max-w-2xl"
+      maxHeight="max-h-[85vh]"
+      footer={
+        <div className="flex justify-end gap-3 w-full">
+          <button onClick={onCancel} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
+            Batal
+          </button>
+          <button onClick={() => onConfirm(mode)} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.gold, color: "#0A1120" }}>
+            {mode === "merge" ? "Gabungkan Data" : mode === "replace_dates" ? "Ganti Data per Tanggal" : "Gunakan Data Ini"}
+          </button>
         </div>
-        <div className="p-5 overflow-y-auto">
+      }
+    >
           {(hasMergeOption || canReplaceDates) && (
             <div className="mb-6">
               {hasMergeOption && <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>
@@ -189,16 +192,6 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors,
               <AlertTriangle size={13} /> {fmtNum(parseMeta.rowsWithMissingDate)} baris punya tanggal yang tidak terbaca.
             </div>
           )}
-        </div>
-        <div className="p-5 flex justify-end gap-3" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
-          <button onClick={onCancel} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
-            Batal
-          </button>
-          <button onClick={() => onConfirm(mode)} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.gold, color: "#0A1120" }}>
-            {mode === "merge" ? "Gabungkan Data" : mode === "replace_dates" ? "Ganti Data per Tanggal" : "Gunakan Data Ini"}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

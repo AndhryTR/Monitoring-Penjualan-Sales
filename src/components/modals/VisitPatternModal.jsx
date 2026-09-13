@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
-import { CalendarDays, X, Download, AlertTriangle, Info } from "lucide-react";
+import { CalendarDays, X, Download, AlertTriangle, Info, Users } from "lucide-react";
 import { fmtNum } from "../../utils/formatters.js";
 import { notifyExportSuccess } from "../../utils/notifyExport.js";
 import { computeVisitPattern } from "../../utils/visitPattern.js";
+import { CustomSelect } from "../ui/CustomSelect.jsx";
 // ⚠️ Sprint 5 / S3: visitPatternExport.js lazy-loaded (~620KB).
 import { getLatestDataDate, addDays } from "../../utils/datePresets.js";
 import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
@@ -45,7 +46,7 @@ export function VisitPatternModal({ isOpen, onClose, rawRows, targets, colors, d
   const salesName = targets.find((t) => t.code === salesCode)?.name || "";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md sm-fadein">
       <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-4xl max-h-[88vh] flex flex-col">
         <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.glassBorder}` }}>
           <div className="flex items-center gap-2.5 min-w-0">
@@ -71,11 +72,18 @@ export function VisitPatternModal({ isOpen, onClose, rawRows, targets, colors, d
         <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-xs mb-1.5" style={{ color: colors.textMuted }}>Sales</label>
-            <select value={salesCode} onChange={(e) => setSalesCode(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text, colorScheme: colors.colorScheme }}>
-              <option value="">Pilih sales...</option>
-              {targets.map((t) => <option key={t.code} value={t.code}>{t.name}</option>)}
-            </select>
+            <CustomSelect
+              value={salesCode}
+              onChange={setSalesCode}
+              placeholder="Pilih sales..."
+              icon={Users}
+              colors={colors}
+              fullWidth={true}
+              size="md"
+              searchable={true}
+              searchPlaceholder="Cari sales..."
+              options={targets.map((t) => ({ value: t.code, label: t.name }))}
+            />
           </div>
           <div>
             <label className="block text-xs mb-1.5" style={{ color: colors.textMuted }}>Dari Tanggal</label>
@@ -162,10 +170,10 @@ function VisitOutletRow({ outlet: o, colors }) {
   );
 }
 
+const MAX_DAYS = VISIT_PATTERN_MAX_DAYS;
+
 function VisitHeatmap({ pattern, colors }) {
   // ⚠️ Sprint 5 / S1: import dari constants/thresholds.js
-  // (sebelumnya dideklarasi lokal sebagai magic number 45).
-  const MAX_DAYS = VISIT_PATTERN_MAX_DAYS;
   const { dates, wasClipped } = useMemo(() => {
     const out = [];
     const cur = new Date(pattern.dateFrom + "T00:00:00");
@@ -180,7 +188,7 @@ function VisitHeatmap({ pattern, colors }) {
     // heatmap DI LAYAR ke 45 hari terakhir (paling relevan untuk pola
     // kunjungan terkini) — file Excel yang di-export TETAP mencakup rentang
     // penuh yang dipilih, cuma tampilan grid interaktifnya yang dibatasi.
-    if (out.length > MAX_DAYS) return { dates: out.slice(-MAX_DAYS), wasClipped: true };
+    if (out.length > VISIT_PATTERN_MAX_DAYS) return { dates: out.slice(-VISIT_PATTERN_MAX_DAYS), wasClipped: true };
     return { dates: out, wasClipped: false };
   }, [pattern.dateFrom, pattern.dateTo]);
 

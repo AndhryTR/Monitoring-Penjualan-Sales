@@ -1,6 +1,6 @@
 import { Store } from "lucide-react";
 import { fmtRp } from "../../utils/formatters.js";
-import { ACH_TIERS } from "../../constants/thresholds.js";
+import { getAchColor } from "../../constants/thresholds.js";
 
 /* ============================================================================
    SECTIONTITLE
@@ -66,7 +66,7 @@ export const createChartTooltipStyle = (colors) => ({
 export function AchBarChartTooltip({ active, payload, label, colors }) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
-    const barColor = data.ach >= ACH_TIERS.onPace ? colors.mint : data.ach >= ACH_TIERS.warning ? colors.gold : colors.coral;
+    const barColor = getAchColor(data.ach, colors);
     return (
       <div className="p-3" style={{ background: colors.modalBg, backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)", border: `1px solid ${colors.modalBorder}`, borderRadius: 10, fontSize: 12, boxShadow: colors.glassShadow }}>
         <div className="font-semibold mb-1" style={{ color: colors.text }}>{label}</div>
@@ -80,3 +80,9 @@ export function AchBarChartTooltip({ active, payload, label, colors }) {
 }
 
 export { CustomSlider } from "./CustomSlider.jsx";
+export { CustomSelect } from "./CustomSelect.jsx";
+export { GrowthBadge } from "./GrowthBadge.jsx";
+export { OutletStatusBadge } from "./OutletStatusBadge.jsx";
+export { TableScrollWrapper } from "./TableScrollWrapper.jsx";
+export { Skeleton, KpiCardSkeleton } from "./Skeleton.jsx";
+export { Modal } from "./Modal.jsx";

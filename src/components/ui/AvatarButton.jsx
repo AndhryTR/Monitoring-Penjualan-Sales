@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  Settings as SettingsIcon, Smartphone, Download, LogOut, LogIn, UserCircle,
+  Settings as SettingsIcon, Smartphone, Download, UserCircle, LogIn,
 } from "lucide-react";
-import { useEscapeKey } from "../../hooks/useModalA11y.js";
+import { useFloatingDropdown } from "../../hooks/useFloatingDropdown.js";
 
 /* ============================================================================
    AVATAR BUTTON — Sprint 18 / Header Redesign
@@ -41,53 +41,19 @@ export function AvatarButton({
   colors,
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef(null);
-  // ⚠️ Sprint 18d / Header Redesign bugfix: popover dirender via createPortal
-  // ke document.body supaya KELUAR dari parent `.sm-card` header yang punya
-  // backdrop-filter sendiri. Itu bikin stacking context baru → backdrop-filter
-  // child tidak blur konten di belakang parent → efek glass tidak terlihat.
-  const popoverRef = useRef(null);
-  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
 
-  // Hitung posisi popover saat open — relatif ke viewport (fixed positioning)
-  useEffect(() => {
-    if (!isOpen) return;
-    const updatePos = () => {
-      const btn = containerRef.current?.querySelector("button");
-      if (!btn) return;
-      const rect = btn.getBoundingClientRect();
-      const popoverWidth = 260;
-      // Posisi: di bawah tombol, sejajar kanan tombol
-      let left = rect.right - popoverWidth;
-      if (left < 16) left = 16;
-      setPopoverPos({
-        top: rect.bottom + 8, // 8px gap di bawah tombol
-        left,
-      });
-    };
-    updatePos();
-    window.addEventListener("resize", updatePos);
-    window.addEventListener("scroll", updatePos, true);
-    return () => {
-      window.removeEventListener("resize", updatePos);
-      window.removeEventListener("scroll", updatePos, true);
-    };
-  }, [isOpen]);
-
-  // Tutup popover saat klik di luar (cek containerRef untuk trigger button
-  // DAN popoverRef untuk popover yang sudah di-portal ke body)
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e) => {
-      if (containerRef.current && containerRef.current.contains(e.target)) return;
-      if (popoverRef.current && popoverRef.current.contains(e.target)) return;
-      setIsOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [isOpen]);
-
-  useEscapeKey(isOpen, () => setIsOpen(false));
+  const {
+    triggerRef: containerRef,
+    floatingRef: popoverRef,
+    position: popoverPos,
+  } = useFloatingDropdown({
+    isOpen,
+    onClose: () => setIsOpen(false),
+    align: "right",
+    width: 260,
+    gap: 8,
+    margin: 16,
+  });
 
   const isAuthed = !!sessionUser;
 

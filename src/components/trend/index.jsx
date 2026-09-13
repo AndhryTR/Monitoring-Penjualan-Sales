@@ -2,10 +2,10 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from "recharts";
-import { TrendingUp, ArrowUpRight, ArrowDownRight, History, Users, Wallet, Sparkles, Download, ChevronDown, FileSpreadsheet, FileText } from "lucide-react";
-import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
+import { TrendingUp, History, Users, Wallet, Sparkles, Download, ChevronDown, FileSpreadsheet, FileText } from "lucide-react";
+import { fmtRp, fmtNum, fmtPct, fmtCompactNum } from "../../utils/formatters.js";
 import { notifyExportSuccess } from "../../utils/notifyExport.js";
-import { SectionTitle, createChartTooltipStyle } from "../ui/index.jsx";
+import { SectionTitle, createChartTooltipStyle, GrowthBadge, TableScrollWrapper } from "../ui/index.jsx";
 import { MultiSelect } from "../ui/MultiSelect.jsx";
 import { ACH_TIERS, MAX_DEFAULT_TREND_LINES } from "../../constants/thresholds.js";
 // ⚠️ Sprint 5 / S3: trendExport.js (exportTrendExcel, exportTrendPDF) tidak
@@ -52,28 +52,6 @@ function getLineColor(index, colors) {
   return `hsl(${hue}, 70%, 55%)`;
 }
 
-// Formatter ringkas khusus label sumbu Y chart (mis. "1,2 Jt" / "850 Rb") — fmtRp
-// dari utils/formatters.js sengaja tidak diubah karena dipakai di banyak tempat
-// lain yang butuh format penuh "Rp 12.345.678".
-function compactAxisValue(n) {
-  if (n === null || n === undefined || Number.isNaN(n)) return "-";
-  const abs = Math.abs(n);
-  if (abs >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1).replace(/\.0$/, "") + " M";
-  if (abs >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + " Jt";
-  if (abs >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, "") + " Rb";
-  return String(Math.round(n));
-}
-
-function GrowthTag({ growth, colors }) {
-  if (growth === null || growth === undefined) return <span className="mono text-xs" style={{ color: colors.textMuted }}>-</span>;
-  const positive = growth >= 0;
-  return (
-    <span className="mono text-xs font-semibold inline-flex items-center gap-0.5" style={{ color: positive ? colors.mint : colors.coral }}>
-      {positive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-      {fmtPct(Math.abs(growth))}
-    </span>
-  );
-}
 
 /* ============================================================================
    TREN PERIODE
@@ -284,7 +262,7 @@ export function TrendPeriodePage({
               <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} vertical={false} />
               <XAxis dataKey="label" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
               <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false}
-                tickFormatter={(v) => metric === "value" ? compactAxisValue(v) : fmtNum(v)} width={56} />
+                tickFormatter={(v) => metric === "value" ? fmtCompactNum(v, { space: " " }) : fmtNum(v)} width={56} />
               <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => metric === "value" ? fmtRp(v) : fmtNum(v)} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               {effectiveSelectedNames.map((name, i) => (
@@ -299,7 +277,7 @@ export function TrendPeriodePage({
       {/* Tabel detail per sales */}
       <div className="sm-card p-5 sm-fadeup mb-8">
         <SectionTitle title={`Detail ${metric === "value" ? "Value" : "AO"} per Sales`} sub="Kolom terakhir = periode aktif · pertumbuhan dihitung antar 2 titik data terakhir yang tersedia" icon={Users} colors={colors} />
-        <div className="overflow-x-auto -mx-1">
+        <TableScrollWrapper colors={colors} className="-mx-1">
           <table key={periods.map((p) => p.id).join("|")} className="w-full text-sm border-separate" style={{ borderSpacing: 0 }}>
             <thead>
               <tr>
@@ -331,13 +309,13 @@ export function TrendPeriodePage({
                     </td>
                   ))}
                   <td className="text-right px-3 py-2 whitespace-nowrap">
-                    <GrowthTag growth={metric === "value" ? (growthBySales.get(s.code)?.growthValue ?? null) : (growthBySales.get(s.code)?.growthAo ?? null)} colors={colors} />
+                    <GrowthBadge growth={metric === "value" ? (growthBySales.get(s.code)?.growthValue ?? null) : (growthBySales.get(s.code)?.growthAo ?? null)} colors={colors} variant="inline" />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScrollWrapper>
       </div>
     </div>
   );

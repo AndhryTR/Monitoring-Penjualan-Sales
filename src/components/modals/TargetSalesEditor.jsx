@@ -7,6 +7,7 @@ import { fmtRp, fmtNum } from "../../utils/formatters.js";
 import { notifyExportSuccess } from "../../utils/notifyExport.js";
 import { AddSalesModal } from "./AddSalesModal.jsx";
 import { MasterImportPreview } from "./MasterImportPreview.jsx";
+import { CustomSelect } from "../ui/CustomSelect.jsx";
 
 /* ============================================================================
    TARGET SALES EDITOR — master-detail layout untuk edit target sales.
@@ -474,19 +475,21 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors, depot
                 <div className="space-y-3">
                   {/* Copy from other sales */}
                   {otherSalesWithGroups.length > 0 && (
-                    <div className="flex items-center gap-2 p-2.5 rounded-lg" style={{ background: colors.glassSubtle }}>
-                      <Copy size={14} style={{ color: colors.textMuted }} className="shrink-0" />
-                      <select
+                    <div className="p-2 rounded-lg" style={{ background: colors.glassSubtle }}>
+                      <CustomSelect
                         value=""
-                        onChange={(e) => e.target.value && handleGroupCopyFrom(selected.code, e.target.value)}
-                        className="flex-1 px-2.5 py-1.5 rounded-md text-xs outline-none"
-                        style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text, colorScheme: colors.colorScheme }}
-                      >
-                        <option value="">Salin grup dari sales lain...</option>
-                        {otherSalesWithGroups.map((o) => (
-                          <option key={o.code} value={o.code}>{o.name} ({o.groups.length} grup)</option>
-                        ))}
-                      </select>
+                        onChange={(val) => val && handleGroupCopyFrom(selected.code, val)}
+                        placeholder="Salin grup dari sales lain..."
+                        icon={Copy}
+                        size="xs"
+                        fullWidth={true}
+                        colors={colors}
+                        options={otherSalesWithGroups.map((o) => ({
+                          value: o.code,
+                          label: o.name,
+                          badge: `${o.groups.length} grup`,
+                        }))}
+                      />
                     </div>
                   )}
 
@@ -578,19 +581,21 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors, depot
               {subTab === "focus" && (
                 <div className="space-y-3">
                   {otherSalesWithFocus.length > 0 && (
-                    <div className="flex items-center gap-2 p-2.5 rounded-lg" style={{ background: colors.glassSubtle }}>
-                      <Copy size={14} style={{ color: colors.textMuted }} className="shrink-0" />
-                      <select
+                    <div className="p-2 rounded-lg" style={{ background: colors.glassSubtle }}>
+                      <CustomSelect
                         value=""
-                        onChange={(e) => e.target.value && handleFocusCopyFrom(selected.code, e.target.value)}
-                        className="flex-1 px-2.5 py-1.5 rounded-md text-xs outline-none"
-                        style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text, colorScheme: colors.colorScheme }}
-                      >
-                        <option value="">Salin fokus dari sales lain...</option>
-                        {otherSalesWithFocus.map((o) => (
-                          <option key={o.code} value={o.code}>{o.name} ({o.focus.length} produk)</option>
-                        ))}
-                      </select>
+                        onChange={(val) => val && handleFocusCopyFrom(selected.code, val)}
+                        placeholder="Salin fokus dari sales lain..."
+                        icon={Copy}
+                        size="xs"
+                        fullWidth={true}
+                        colors={colors}
+                        options={otherSalesWithFocus.map((o) => ({
+                          value: o.code,
+                          label: o.name,
+                          badge: `${o.focus.length} produk`,
+                        }))}
+                      />
                     </div>
                   )}
 
@@ -631,14 +636,18 @@ export function TargetSalesEditor({ localTargets, setLocalTargets, colors, depot
                             </div>
                             <div>
                               <label className="block text-xs mb-1" style={{ color: colors.textMuted }}>Tipe Pencocokan</label>
-                              <select
+                              <CustomSelect
                                 value={matchType}
-                                onChange={(e) => handleFocusChange(selected.code, i, "matchType", e.target.value)}
-                                className="w-full px-2.5 py-1.5 rounded text-sm outline-none"
-                                style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text, colorScheme: colors.colorScheme }}
-                              >
-                                {MATCH_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                              </select>
+                                onChange={(val) => handleFocusChange(selected.code, i, "matchType", val)}
+                                size="sm"
+                                fullWidth={true}
+                                colors={colors}
+                                searchable={false}
+                                options={MATCH_TYPE_OPTIONS.map((o) => ({
+                                  value: o.value,
+                                  label: o.label,
+                                }))}
+                              />
                             </div>
                           </div>
 

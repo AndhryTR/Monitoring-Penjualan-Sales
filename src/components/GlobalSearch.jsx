@@ -94,7 +94,7 @@ export function GlobalSearch({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-start justify-center bg-black/60 backdrop-blur-sm sm-fadein p-4 pt-[10vh]"
+      className="fixed inset-0 z-[9999] flex items-start justify-center bg-black/60 backdrop-blur-md sm-fadein p-4 pt-[10vh]"
       onClick={onClose}
       role="dialog"
       aria-modal="true"

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { X, UserPlus, AlertCircle } from "lucide-react";
-import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
+import { UserPlus, AlertCircle } from "lucide-react";
+import { Modal } from "../ui/Modal.jsx";
 
 /* ============================================================================
    ADD SALES MODAL — Sprint 18 / Multi-Depo
@@ -28,9 +28,6 @@ export function AddSalesModal({ isOpen, onClose, onAdd, existingCodes = [], colo
   const [targetAo, setTargetAo] = useState("");
   const [error, setError] = useState("");
 
-  useScrollLock(isOpen);
-  useEscapeKey(isOpen, onClose);
-
   // Reset form saat modal ditutup
   useEffect(() => {
     if (!isOpen) {
@@ -42,8 +39,6 @@ export function AddSalesModal({ isOpen, onClose, onAdd, existingCodes = [], colo
       setError("");
     }
   }, [isOpen]);
-
-  if (!isOpen) return null;
 
   const codeUpper = code.toUpperCase().trim();
   const nameTrim = name.trim();
@@ -74,34 +69,37 @@ export function AddSalesModal({ isOpen, onClose, onAdd, existingCodes = [], colo
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }}
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md rounded-2xl overflow-hidden"
-        style={{ background: colors.modalPanelBg || colors.glassFillStrong, border: `1px solid ${colors.glassBorder}` }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.glassBorder}` }}>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg" style={{ background: colors.mint + "1A" }}>
-              <UserPlus size={18} style={{ color: colors.mint }} />
-            </div>
-            <div>
-              <div className="text-lg font-bold disp" style={{ color: colors.text }}>Tambah Sales Baru</div>
-              <p className="text-xs" style={{ color: colors.textMuted }}>
-                Sales akan ditambahkan ke depo aktif
-              </p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg" style={{ background: colors.glassSubtle, color: colors.textMuted }}>
-            <X size={16} />
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Tambah Sales Baru"
+      subtitle="Sales akan ditambahkan ke depo aktif"
+      icon={UserPlus}
+      iconColor={colors.mint}
+      iconBg={colors.mint + "1A"}
+      colors={colors}
+      maxWidth="max-w-md"
+      contentClassName="space-y-4"
+      footer={
+        <div className="flex gap-2 w-full">
+          <button
+            onClick={onClose}
+            className="flex-1 sm-btn px-4 py-2 rounded-lg text-sm font-semibold"
+            style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
+          >
+            Batal
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: colors.mint, color: "#0A1120" }}
+          >
+            Simpan Sales Baru
           </button>
         </div>
-
-        {/* Form */}
-        <div className="p-5 space-y-4">
+      }
+    >
           {/* Kode Sales */}
           <div>
             <label className="block text-xs font-semibold mb-1.5" style={{ color: colors.textMuted }}>
@@ -215,27 +213,6 @@ export function AddSalesModal({ isOpen, onClose, onAdd, existingCodes = [], colo
           <div className="p-3 rounded-lg text-xs" style={{ background: colors.glassSubtle, color: colors.textMuted }}>
             Grup produk & produk fokus bisa diisi nanti lewat editor detail sales, setelah sales ini dibuat.
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="p-5 flex gap-2" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
-          <button
-            onClick={onClose}
-            className="flex-1 sm-btn px-4 py-2 rounded-lg text-sm font-semibold"
-            style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
-          >
-            Batal
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: colors.mint, color: "#0A1120" }}
-          >
-            Simpan Sales Baru
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

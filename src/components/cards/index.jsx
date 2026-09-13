@@ -7,6 +7,7 @@ import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
 import { AchBadge } from "../AchBadge.jsx";
 import { SectionTitle, DrilldownButton } from "../ui/index.jsx";
 import { ACH_TIERS } from "../../constants/thresholds.js";
+import { GrowthBadge } from "../ui/GrowthBadge.jsx";
 
 export function Leaderboard({ rows, colors, onDrilldown, onExportScorecard }) {
   const [metric, setMetric] = useState("value"); // "value" | "ao"
@@ -177,7 +178,6 @@ export function ProjectionCard({ projection, colors, method = "linear", onMethod
 // Kartu perbandingan periode — muncul di Main Report saat ada snapshot riwayat terpilih.
 export function PeriodComparisonCard({ comparison, colors, onClear }) {
   if (!comparison) return null;
-  const growthColor = comparison.growth === null ? colors.textMuted : comparison.growth >= 0 ? colors.mint : colors.coral;
   return (
     <div className="sm-card p-5 sm-fadeup mb-6">
       <div className="flex items-center justify-between mb-4">
@@ -195,8 +195,8 @@ export function PeriodComparisonCard({ comparison, colors, onClear }) {
         </div>
         <div>
           <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Pertumbuhan</div>
-          <div className="mono text-lg font-bold flex items-center gap-1" style={{ color: growthColor }}>
-            {comparison.growth === null ? "-" : <>{comparison.growth >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}{fmtPct(Math.abs(comparison.growth))}</>}
+          <div className="mono text-lg font-bold flex items-center gap-1">
+            <GrowthBadge growth={comparison.growth} colors={colors} size="lg" variant="inline" />
           </div>
         </div>
       </div>
@@ -218,9 +218,7 @@ export function PeriodComparisonCard({ comparison, colors, onClear }) {
               )}
             </span>
             <span className="mono text-xs mr-3" style={{ color: colors.textMuted }}>{fmtRp(s.nowValue)}</span>
-            <span className="mono font-semibold" style={{ color: s.growth === null ? colors.textMuted : s.growth >= 0 ? colors.mint : colors.coral }}>
-              {s.growth === null ? "-" : `${s.growth >= 0 ? "+" : ""}${fmtPct(s.growth)}`}
-            </span>
+            <GrowthBadge growth={s.growth} colors={colors} variant="inline" />
           </div>
         ))}
       </div>

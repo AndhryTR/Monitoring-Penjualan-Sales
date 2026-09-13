@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Search, Check } from "lucide-react";
-import { computeDropdownTop } from "../../utils/dropdownPosition.js";
+import { useFloatingDropdown } from "../../hooks/useFloatingDropdown.js";
 
 /* ============================================================================
    MULTISELECT
@@ -17,45 +17,13 @@ import { computeDropdownTop } from "../../utils/dropdownPosition.js";
 export function MultiSelect({ label, icon: Icon, options, selected, onChange, placeholder, colors, fullWidth }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const ref = useRef(null);
-  const dropdownRef = useRef(null);
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 256 });
 
-  // Hitung posisi dropdown saat open
-  useEffect(() => {
-    if (!open) return;
-    const updatePos = () => {
-      const btn = ref.current?.querySelector("button");
-      if (!btn) return;
-      const rect = btn.getBoundingClientRect();
-      const dropdownHeight = 300; // estimasi tinggi dropdown (max-h-56 + search + padding)
-      const top = computeDropdownTop(rect, dropdownHeight);
-      setDropdownPos({
-        top,
-        left: rect.left,
-        width: Math.max(256, rect.width),
-      });
-    };
-    updatePos();
-    window.addEventListener("resize", updatePos);
-    window.addEventListener("scroll", updatePos, true);
-    return () => {
-      window.removeEventListener("resize", updatePos);
-      window.removeEventListener("scroll", updatePos, true);
-    };
-  }, [open]);
-
-  // Tutup dropdown saat klik di luar
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e) => {
-      if (ref.current && ref.current.contains(e.target)) return;
-      if (dropdownRef.current && dropdownRef.current.contains(e.target)) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
+  const { triggerRef: ref, floatingRef: dropdownRef, position: dropdownPos } = useFloatingDropdown({
+    isOpen: open,
+    onClose: () => setOpen(false),
+    minWidth: 256,
+    estimatedHeight: 300,
+  });
 
   const filtered = options.filter((o) => o.toLowerCase().includes(q.toLowerCase()));
   const toggle = (o) => onChange(selected.includes(o) ? selected.filter((x) => x !== o) : [...selected, o]);

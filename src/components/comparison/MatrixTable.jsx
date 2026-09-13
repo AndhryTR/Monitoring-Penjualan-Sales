@@ -1,6 +1,7 @@
-import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
-import { ACH_TIERS } from "../../constants/thresholds.js";
+import { getAchColor } from "../../constants/thresholds.js";
+import { GrowthBadge } from "../ui/GrowthBadge.jsx";
+import { TableScrollWrapper } from "../ui/TableScrollWrapper.jsx";
 
 /* ============================================================================
    MATRIXTABLE — baris entitas × kolom periode + kolom growth.
@@ -10,7 +11,7 @@ import { ACH_TIERS } from "../../constants/thresholds.js";
 export function MatrixTable({ rows, periods, periodColor, metricKey, isMoney, isPct, showAch, colors }) {
   if (!rows.length) return null;
   return (
-    <div className="overflow-x-auto -mx-1">
+    <TableScrollWrapper colors={colors} className="-mx-1">
       <table key={periods.map((p) => p.id).join("|") + ":" + metricKey} className="w-full text-sm border-separate" style={{ borderSpacing: 0 }}>
         <thead>
           <tr>
@@ -41,7 +42,7 @@ export function MatrixTable({ rows, periods, periodColor, metricKey, isMoney, is
                       <div>
                         <div className="mono">{v === null || v === undefined ? "-" : isPct ? fmtPct(v) : isMoney ? fmtRp(v) : fmtNum(v)}</div>
                         {showAch && c.exists && c.ach !== null && metricKey !== "ach" && (
-                          <div className="text-[10px] mono" style={{ color: c.ach >= ACH_TIERS.onPace ? colors.mint : c.ach >= ACH_TIERS.warning ? colors.gold : colors.coral }}>
+                          <div className="text-[10px] mono" style={{ color: getAchColor(c.ach, colors) }}>
                             {fmtPct(c.ach)}
                           </div>
                         )}
@@ -51,19 +52,12 @@ export function MatrixTable({ rows, periods, periodColor, metricKey, isMoney, is
                 );
               })}
               <td className="text-right px-3 py-2 whitespace-nowrap">
-                {r.growth === null || r.growth === undefined ? (
-                  <span className="mono text-xs" style={{ color: colors.textMuted }}>-</span>
-                ) : (
-                  <span className="mono text-xs font-semibold inline-flex items-center gap-0.5" style={{ color: r.growth >= 0 ? colors.mint : colors.coral }}>
-                    {r.growth >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                    {fmtPct(Math.abs(r.growth))}
-                  </span>
-                )}
+                <GrowthBadge growth={r.growth} colors={colors} variant="inline" />
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-    </div>
+    </TableScrollWrapper>
   );
 }

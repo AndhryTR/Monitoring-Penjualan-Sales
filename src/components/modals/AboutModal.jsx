@@ -1,18 +1,14 @@
 import {
-  FileSpreadsheet, X, LayoutDashboard, TrendingUp, Store, Crosshair, Download, Users, Shield,
+  FileSpreadsheet, LayoutDashboard, TrendingUp, Store, Crosshair, Download, Users, Shield,
   Package, History,
 } from "lucide-react";
-import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
+import { Modal } from "../ui/Modal.jsx";
 
 /* ============================================================================
    ABOUT MODAL — "Tentang Aplikasi"
    Info singkat tentang aplikasi + kredit pembuat. Dibuka lewat link di footer
    (bukan tab navigasi — kontennya referensial, jarang dibuka ulang setelah
    pertama kali, jadi tidak perlu makan slot di sidebar/bottom-nav).
-
-   ⚠️ Sprint 4 / A1+A2: pakai useScrollLock + useEscapeKey (background scroll
-   di-lock saat modal terbuka, Escape tutup modal). Focus trap opsional untuk
-   modal info-only seperti ini — content tidak interactive.
 ============================================================================ */
 
 const FEATURES = [
@@ -27,28 +23,22 @@ const FEATURES = [
 ];
 
 export function AboutModal({ isOpen, onClose, colors }) {
-  // Hooks harus dipanggil SEBELUM conditional return — aturan Hooks.
-  useScrollLock(isOpen);
-  useEscapeKey(isOpen, onClose);
-
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein" onClick={onClose}>
-      <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-lg max-h-[88vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="p-5 flex items-center justify-between shrink-0" style={{ borderBottom: `1px solid ${colors.glassBorder}` }}>
-          <div className="disp text-base font-semibold">Tentang Aplikasi</div>
-          <button onClick={onClose} className="sm-btn p-2 rounded-full" style={{ background: colors.glassFill }}><X size={16} /></button>
-        </div>
-
-        <div className="p-5 overflow-y-auto space-y-5">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Tentang Aplikasi"
+      colors={colors}
+      maxWidth="max-w-lg"
+      contentClassName="space-y-5"
+    >
           {/* Header identitas */}
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl shrink-0" style={{ background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})` }}>
               <FileSpreadsheet size={20} color="#0A1120" />
             </div>
             <div>
-              <div className="disp text-lg font-bold">Monitoring Penjualan Sales</div>
+              <div className="disp text-lg font-bold" style={{ color: colors.text }}>Monitoring Penjualan Sales</div>
               <p className="text-xs" style={{ color: colors.textMuted }}>Dashboard performa sales real-time dari file Excel</p>
             </div>
           </div>
@@ -67,7 +57,7 @@ export function AboutModal({ isOpen, onClose, colors }) {
               {FEATURES.map((f) => (
                 <div key={f.label} className="sm-card p-3">
                   <f.icon size={15} style={{ color: colors.violet, marginBottom: 6 }} />
-                  <div className="text-xs font-semibold">{f.label}</div>
+                  <div className="text-xs font-semibold" style={{ color: colors.text }}>{f.label}</div>
                   <div className="text-xs mt-0.5" style={{ color: colors.textMuted }}>{f.desc}</div>
                 </div>
               ))}
@@ -91,10 +81,8 @@ export function AboutModal({ isOpen, onClose, colors }) {
           <div className="sm-card p-4 text-center" style={{ borderLeft: `3px solid ${colors.coral}` }}>
             <div className="text-xs" style={{ color: colors.textMuted }}>Dibuat oleh</div>
             <div className="disp text-2xl font-bold mt-0.5" style={{ color: colors.coral }}>Andri.S</div>
-            <div className="text-xs mt-2" style={{ color: colors.textMuted }}>React · Vite · Tailwind CSS &middot; v3.5.0</div>
+            <div className="text-xs mt-2" style={{ color: colors.textMuted }}>React · Vite · Tailwind CSS &middot; v4.0.0</div>
           </div>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

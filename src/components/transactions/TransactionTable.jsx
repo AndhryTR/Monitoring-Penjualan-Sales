@@ -65,6 +65,7 @@ export function TransactionTable({ rows, colors, onOutletDrilldown }) {
   return (
     <DataTable
       colors={colors}
+      rowKey={(r, i) => `${r.date}|${r.invoiceNo}|${r.productCode}|${i}`}
       columns={columns}
       rows={rows}
       pageSize={PAGE_SIZE}

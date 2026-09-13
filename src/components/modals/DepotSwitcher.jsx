@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Plus, Trash2, Building2, Check, AlertTriangle } from "lucide-react";
 import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
+import { CustomSelect } from "../ui/CustomSelect.jsx";
 
 /* ============================================================================
    DEPOT SWITCHER — Sprint 18 / Multi-Depo
@@ -309,16 +310,19 @@ function AddDepotDialog({ depots, colors, onClose, onAdd }) {
               <label className="block text-xs font-semibold mb-1.5" style={{ color: colors.textMuted }}>
                 Salin dari Depo
               </label>
-              <select
+              <CustomSelect
                 value={sourceDepotId}
-                onChange={(e) => setSourceDepotId(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-                style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}`, color: colors.text }}
-              >
-                {depots.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
-                ))}
-              </select>
+                onChange={setSourceDepotId}
+                icon={Building2}
+                fullWidth={true}
+                size="md"
+                colors={colors}
+                options={depots.map((d) => ({
+                  value: d.id,
+                  label: d.name,
+                  badge: d.code,
+                }))}
+              />
             </div>
           )}
         </div>

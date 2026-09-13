@@ -1,31 +1,20 @@
-import { Sparkles, TrendingUp, TrendingDown, Minus, Gauge } from "lucide-react";
+import { useState } from "react";
+import { Sparkles, TrendingUp, TrendingDown, Minus, Gauge, BarChart2, ChevronDown, Calendar, Flame } from "lucide-react";
 import { fmtPct, fmtRp } from "../utils/formatters.js";
 import { computePaceStatus } from "../utils/aggregation.js";
+import { GoalTrackerChart } from "./GoalTrackerChart.jsx";
 
 /* ============================================================================
-   PACE STRIP — REDESIGN (Sprint 15)
-   ⚠️ Sebelumnya: bar progress horizontal tanpa context actionable. Hanya
-   menampilkan "ACH 75.0%" dan "Time Gone 44.4%" tanpa delta atau hint apa
-   yang harus dilakukan user.
-
-   Improvements:
-   1. Delta absolut: "ACH +30.6% di atas pace" (bukan hanya warna hijau/merah)
-   2. Status icon: TrendingUp (ahead), TrendingDown (behind), Minus (on pace)
-   3. Visual markers: ACH bar + Time Gone marker + target zone shading
-   4. Contextual hint: "Perlu Rp X/hari untuk capai target" atau "Sudah on track"
-   5. Dual metrics: ACH bar (kiri) + Time Gone bar (kanan) untuk visual comparison
-   6. Font lebih besar, layout lebih jelas
-
-   Props (extended, backward compatible):
-   - timeGonePct: 0-1 (persentase waktu yang sudah berjalan)
-   - achPct: 0-1+ (pencapaian vs target)
-   - colors: theme colors
-   - targetValue: number (opsional — untuk hitung "perlu Rp X/hari")
-   - realisasiValue: number (opsional — untuk hitung sisa)
-   - workDays: number (opsional — untuk hitung sisa hari)
-   - uniqueDays: number (opsional — untuk hitung rate harian)
+   PACE STRIP & GOAL TRACKER (Sprint 19)
+   Diperkaya dengan:
+   1. 3 KPI Pill actionable: Realisasi Kumulatif, Target Harian Sisa, Run-rate
+   2. Toggle interaktif untuk membuka Burn-up Chart Progress Harian
+   3. GoalTrackerChart: Kurva akumulasi vs garis target linear s/d akhir bulan
 ============================================================================ */
-export function PaceStrip({ timeGonePct, achPct, colors, targetValue, realisasiValue, workDays, uniqueDays }) {
+export function PaceStrip({
+  timeGonePct, achPct, colors, targetValue, realisasiValue,
+  workDays, uniqueDays, dailySeries = [], _dateMeta,
+}) {
   const achCapped = Math.min(100, (achPct || 0) * 100);
   const timeCapped = Math.min(100, (timeGonePct || 0) * 100);
   const { isAhead } = computePaceStatus(achPct, timeGonePct);
@@ -48,17 +37,20 @@ export function PaceStrip({ timeGonePct, achPct, colors, targetValue, realisasiV
   const cfg = statusConfig[status];
   const StatusIcon = cfg.icon;
 
+  const [showChart, setShowChart] = useState(false);
+
+  const sisaHari = (workDays && uniqueDays) ? Math.max(0, workDays - uniqueDays) : 0;
+  const sisaTarget = (targetValue || 0) - (realisasiValue || 0);
+  const rateSekarang = uniqueDays > 0 ? (realisasiValue || 0) / uniqueDays : 0;
+  const perluPerHari = sisaHari > 0 && sisaTarget > 0 ? sisaTarget / sisaHari : 0;
+  const hasDailyData = dailySeries && dailySeries.length > 0;
+
   // Contextual hint: berapa perlu per hari untuk capai target
   let hint = null;
   if (targetValue && realisasiValue !== undefined && workDays && uniqueDays) {
-    const sisaHari = Math.max(0, workDays - uniqueDays);
-    const sisaTarget = (targetValue || 0) - (realisasiValue || 0);
-
     if (sisaTarget <= 0) {
       hint = `Target tercapai! Realisasi ${fmtRp(realisasiValue)} dari target ${fmtRp(targetValue)}`;
     } else if (sisaHari > 0) {
-      const perluPerHari = sisaTarget / sisaHari;
-      const rateSekarang = uniqueDays > 0 ? realisasiValue / uniqueDays : 0;
       const rasio = rateSekarang > 0 ? (perluPerHari / rateSekarang) : null;
 
       if (rasio !== null && rasio <= 1) {
@@ -76,7 +68,7 @@ export function PaceStrip({ timeGonePct, achPct, colors, targetValue, realisasiV
   return (
     <div className="sm-card sm-fadeup p-5 mb-6" style={{ borderLeft: `3px solid ${cfg.color}` }}>
       {/* Header row */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2.5">
           <div className="p-2 rounded-xl shrink-0" style={{ background: cfg.color + "1A" }}>
             <StatusIcon size={16} style={{ color: cfg.color }} />
@@ -93,11 +85,37 @@ export function PaceStrip({ timeGonePct, achPct, colors, targetValue, realisasiV
             </div>
           </div>
         </div>
-        {/* Right: ACH summary */}
-        <div className="text-right shrink-0">
-          <div className="text-xs" style={{ color: colors.textMuted }}>Achievement</div>
-          <div className="mono text-lg font-bold" style={{ color: cfg.color }}>
-            {achPct !== null && achPct !== undefined ? fmtPct(achPct) : "-"}
+
+        {/* Action buttons & ACH summary */}
+        <div className="flex items-center gap-3 shrink-0">
+          {hasDailyData && (
+            <button
+              onClick={() => setShowChart(!showChart)}
+              className="sm-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer select-none"
+              style={{
+                background: showChart ? cfg.color + "22" : colors.glassFill,
+                border: `1px solid ${showChart ? cfg.color + "66" : colors.glassBorder}`,
+                color: showChart ? cfg.color : colors.text,
+              }}
+              title={showChart ? "Tutup grafik progress harian" : "Buka grafik burn-up progress harian"}
+            >
+              <BarChart2 size={13} />
+              <span>{showChart ? "Tutup Grafik" : "Grafik Harian"}</span>
+              <ChevronDown
+                size={13}
+                style={{
+                  transform: showChart ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                }}
+              />
+            </button>
+          )}
+
+          <div className="text-right">
+            <div className="text-xs" style={{ color: colors.textMuted }}>Achievement</div>
+            <div className="mono text-lg font-bold" style={{ color: cfg.color }}>
+              {achPct !== null && achPct !== undefined ? fmtPct(achPct) : "-"}
+            </div>
           </div>
         </div>
       </div>
@@ -143,6 +161,47 @@ export function PaceStrip({ timeGonePct, achPct, colors, targetValue, realisasiV
         </div>
       </div>
 
+      {/* Mini KPI Pills: Realisasi, Target Harian Sisa, Run-Rate */}
+      {targetValue > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-3 pt-3" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
+          {/* Pill 1: Realisasi vs Target */}
+          <div className="p-2.5 rounded-xl flex items-center justify-between sm:flex-col sm:items-start gap-1" style={{ background: colors.glassFill }}>
+            <span className="text-[11px] flex items-center gap-1.5" style={{ color: colors.textMuted }}>
+              <Flame size={12} style={{ color: cfg.color }} /> Realisasi / Target
+            </span>
+            <div className="text-xs mono font-bold truncate" style={{ color: colors.text }}>
+              {fmtRp(realisasiValue)}{" "}
+              <span className="text-[10px] font-normal" style={{ color: colors.textMuted }}>
+                / {fmtRp(targetValue)}
+              </span>
+            </div>
+          </div>
+
+          {/* Pill 2: Target Harian Sisa */}
+          <div className="p-2.5 rounded-xl flex items-center justify-between sm:flex-col sm:items-start gap-1" style={{ background: colors.glassFill }}>
+            <span className="text-[11px] flex items-center gap-1.5" style={{ color: colors.textMuted }}>
+              <Calendar size={12} style={{ color: colors.blue }} /> Target Sisa Hari
+            </span>
+            <div className="text-xs mono font-bold truncate" style={{ color: sisaTarget <= 0 ? colors.mint : colors.blue }}>
+              {sisaTarget <= 0 ? "Target Tercapai!" : (sisaHari > 0 ? `${fmtRp(perluPerHari)}/hari` : "Periode Selesai")}
+            </div>
+          </div>
+
+          {/* Pill 3: Run-Rate Aktual */}
+          <div className="p-2.5 rounded-xl flex items-center justify-between sm:flex-col sm:items-start gap-1" style={{ background: colors.glassFill }}>
+            <span className="text-[11px] flex items-center gap-1.5" style={{ color: colors.textMuted }}>
+              <TrendingUp size={12} style={{ color: colors.mint }} /> Run-rate Aktual
+            </span>
+            <div className="text-xs mono font-bold truncate" style={{ color: colors.text }}>
+              {rateSekarang > 0 ? `${fmtRp(rateSekarang)}/hari` : "—"}{" "}
+              <span className="text-[10px] font-normal" style={{ color: colors.textMuted }}>
+                ({sisaHari} HK sisa)
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Legend */}
       <div className="flex items-center gap-4 mt-3 text-xs" style={{ color: colors.textMuted }}>
         <span className="flex items-center gap-1.5">
@@ -167,6 +226,18 @@ export function PaceStrip({ timeGonePct, achPct, colors, targetValue, realisasiV
             {hint}
           </p>
         </div>
+      )}
+
+      {/* Expandable Daily Goal Tracker Chart */}
+      {showChart && hasDailyData && (
+        <GoalTrackerChart
+          dailySeries={dailySeries}
+          targetValue={targetValue}
+          workDays={workDays || 27}
+          uniqueDays={uniqueDays || dailySeries.length}
+          colors={colors}
+          isAhead={isAhead}
+        />
       )}
     </div>
   );

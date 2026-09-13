@@ -1,5 +1,6 @@
 import { useCountUp } from "../hooks/useCountUp";
 import { fmtRp, fmtNum } from "../utils/formatters.js";
+import { KpiCardSkeleton } from "./ui/index.jsx";
 
 /* ============================================================================
    KPI BIG CARD — card KPI besar dengan sparkline/progress bar + delta + hint.
@@ -74,9 +75,19 @@ export function KpiBigCard({
   sparkData, progressValue, progressGradient,
   footerLabel, footerDelta, footerDeltaType = "neutral",
   delay = 0,
+  loading = false,
 }) {
   const numeric = isPct ? (value || 0) * 100 : (value || 0);
   const animated = useCountUp(numeric);
+
+  if (loading) {
+    return (
+      <div className="sm-fadeup min-w-0 h-full" style={{ animationDelay: `${delay}ms` }}>
+        <KpiCardSkeleton colors={colors} />
+      </div>
+    );
+  }
+
   const displayText = isMoney ? fmtRp(animated) : isPct ? animated.toFixed(1) + "%" : isPlain ? value : fmtNum(animated);
 
   const deltaColor = footerDeltaType === "pos" ? colors.mint : footerDeltaType === "neg" ? colors.coral : colors.textMuted;

@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Plus, Trash2, CalendarRange, ChevronDown } from "lucide-react";
 import { getDatePresetOptions, resolveDatePreset, getDatePresetLabel } from "../../utils/datePresets.js";
 import { MAX_PERIODS } from "../../constants/thresholds.js";
+import { useFloatingDropdown } from "../../hooks/useFloatingDropdown.js";
 
 /* ============================================================================
    PERIODPICKER
@@ -26,62 +27,20 @@ export function PeriodPicker({ periods, onChange, colors, rawRows }) {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [presetOpen, setPresetOpen] = useState(false);
-  const [presetPos, setPresetPos] = useState(null);
-  const presetRef = useRef(null);
-  const dropdownRef = useRef(null);
+
+  const {
+    triggerRef: presetRef,
+    floatingRef: dropdownRef,
+    position: presetPos,
+  } = useFloatingDropdown({
+    isOpen: presetOpen,
+    onClose: () => setPresetOpen(false),
+    width: "match-trigger",
+    estimatedHeight: 300,
+    gap: 8,
+  });
 
   const presetOptions = getDatePresetOptions(rawRows);
-
-  // Tutup dropdown preset saat klik di luar — sama seperti FilterBar. Klik DI
-  // DALAM dropdown portal (dropdownRef) TIDAK menutup: kalau ditutup saat
-  // mousedown, React menghapus tombol opsi dari DOM sebelum event click sempat
-  // di-fire — preset tidak akan pernah tertambah.
-  useEffect(() => {
-    if (!presetOpen) return;
-    const onClick = (e) => {
-      const inToggle = presetRef.current && presetRef.current.contains(e.target);
-      const inDropdown = dropdownRef.current && dropdownRef.current.contains(e.target);
-      if (!inToggle && !inDropdown) setPresetOpen(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [presetOpen]);
-
-  // Posisi dropdown portal (fixed, relatif viewport) — dihitung dari tombol,
-  // di-update saat scroll/resize supaya tetap menempel. Kalau ruang di bawah
-  // tombol sempit, dropdown dibuka ke ATAS; tinggi dibatasi supaya tidak keluar
-  // layar (daftar panjang bisa di-scroll di dalam dropdown).
-  useEffect(() => {
-    if (!presetOpen) { setPresetPos(null); return; }
-    const update = () => {
-      const el = presetRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const MAX = 320;
-      const gap = 8;
-      const spaceBelow = window.innerHeight - r.bottom - gap;
-      const spaceAbove = r.top - gap;
-      let top, maxHeight;
-      if (spaceBelow >= 200) {
-        top = r.bottom + gap;
-        maxHeight = Math.min(MAX, spaceBelow);
-      } else if (spaceAbove >= 200) {
-        maxHeight = Math.min(MAX, spaceAbove);
-        top = r.top - gap - maxHeight;
-      } else {
-        top = r.bottom + gap;
-        maxHeight = Math.max(120, spaceBelow);
-      }
-      setPresetPos({ top, left: r.left, width: r.width, maxHeight });
-    };
-    update();
-    window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
-    return () => {
-      window.removeEventListener("resize", update);
-      window.removeEventListener("scroll", update, true);
-    };
-  }, [presetOpen]);
 
   // Tambah periode dari preset rentang (klik 1 preset = 1 periode baru).
   const addFromPreset = (key) => {
@@ -159,7 +118,7 @@ export function PeriodPicker({ periods, onChange, colors, rawRows }) {
               <div ref={dropdownRef} className="sm-fadein rounded-xl overflow-y-auto"
                 style={{
                   position: "fixed", top: presetPos.top, left: presetPos.left, width: presetPos.width,
-                  maxHeight: presetPos.maxHeight,
+                  maxHeight: 320,
                   zIndex: 9999,
                   background: colors.modalBg, backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)",
                   border: `1px solid ${colors.modalBorder}`, boxShadow: colors.glassShadow,

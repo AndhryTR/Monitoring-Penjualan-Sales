@@ -18,7 +18,7 @@ import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
    Data source: agg.filteredRows + agg.daily + agg.meta.lastDate + targets
 ============================================================================ */
 export function SnapshotHariIni({ agg, workDays, colors }) {
-  const { filteredRows, daily, meta, bySales } = agg;
+  const { filteredRows, daily, meta } = agg;
   const lastDate = meta?.lastDate;
   const targetValue = agg.totals.targetValue;
 
@@ -26,10 +26,31 @@ export function SnapshotHariIni({ agg, workDays, colors }) {
   const stats = useMemo(() => {
     if (!lastDate || !filteredRows.length) return null;
 
-    // Baris hari terakhir
-    const lastDayRows = filteredRows.filter((r) => r.date === lastDate);
-    const lastDayValue = lastDayRows.reduce((sum, r) => sum + (r.value || 0), 0);
-    const lastDayOutlets = new Set(lastDayRows.map((r) => r.outletCode).filter(Boolean));
+    // Single-pass: akumulasi value, outlets, dan salesMap untuk hari terakhir
+    let lastDayValue = 0;
+    let lastDayRowCount = 0;
+    const lastDayOutlets = new Set();
+    const salesMap = new Map();
+
+    for (let i = 0; i < filteredRows.length; i++) {
+      const r = filteredRows[i];
+      if (r.date !== lastDate) continue;
+
+      lastDayRowCount++;
+      const val = r.value || 0;
+      lastDayValue += val;
+      if (r.outletCode) lastDayOutlets.add(r.outletCode);
+
+      if (r.salesCode) {
+        let cur = salesMap.get(r.salesCode);
+        if (!cur) {
+          cur = { code: r.salesCode, name: r.salesName || r.salesCode, value: 0, outlets: new Set() };
+          salesMap.set(r.salesCode, cur);
+        }
+        cur.value += val;
+        if (r.outletCode) cur.outlets.add(r.outletCode);
+      }
+    }
 
     // Baris hari sebelumnya (untuk delta)
     const dailySorted = [...daily].sort((a, b) => a.date.localeCompare(b.date));
@@ -47,15 +68,12 @@ export function SnapshotHariIni({ agg, workDays, colors }) {
     const dailyAch = targetPerDay > 0 ? lastDayValue / targetPerDay : null;
 
     // Top performer hari terakhir
-    const salesMap = new Map();
-    lastDayRows.forEach((r) => {
-      if (!r.salesCode) return;
-      const cur = salesMap.get(r.salesCode) || { code: r.salesCode, name: r.salesName || r.salesCode, value: 0, outlets: new Set() };
-      cur.value += r.value || 0;
-      if (r.outletCode) cur.outlets.add(r.outletCode);
-      salesMap.set(r.salesCode, cur);
-    });
-    const topPerformer = Array.from(salesMap.values()).sort((a, b) => b.value - a.value)[0] || null;
+    let topPerformer = null;
+    for (const cur of salesMap.values()) {
+      if (!topPerformer || cur.value > topPerformer.value) {
+        topPerformer = cur;
+      }
+    }
 
     return {
       lastDayValue, lastDayOutlets: lastDayOutlets.size,
@@ -63,7 +81,7 @@ export function SnapshotHariIni({ agg, workDays, colors }) {
       prevDayValue, prevDayOutlets,
       targetPerDay, dailyAch,
       topPerformer,
-      rowCount: lastDayRows.length,
+      rowCount: lastDayRowCount,
     };
   }, [lastDate, filteredRows, daily, workDays, targetValue]);
 

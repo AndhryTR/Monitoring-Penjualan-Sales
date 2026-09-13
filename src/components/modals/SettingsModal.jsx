@@ -195,7 +195,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
   const saveButtonLabel = showChangesPreview ? "Konfirmasi & Simpan" : "Simpan Perubahan";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md sm-fadein p-4">
       <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="p-5 flex items-center justify-between shrink-0" style={{ borderBottom: `1px solid ${colors.glassBorder}` }}>
@@ -473,7 +473,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
 
           {/* ---- ChangesPreview panel (overlay saat user klik Simpan) ---- */}
           {showChangesPreview && changes && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-md p-4">
               <div className="sm-card w-full max-w-lg max-h-[80vh] overflow-y-auto p-5" style={{ background: colors.modalBg }}>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-base font-semibold disp">Review Perubahan</h3>

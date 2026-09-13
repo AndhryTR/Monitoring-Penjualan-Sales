@@ -27,7 +27,7 @@ export function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets
   const totalValue = sumBy(filteredOutlets, "value");
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md sm-fadein">
       <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col">
         <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.glassBorder}` }}>
           <div className="flex items-center gap-2.5">

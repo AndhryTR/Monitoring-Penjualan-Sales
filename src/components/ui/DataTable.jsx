@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { fmtNum } from "../../utils/formatters.js";
+import { TableScrollWrapper } from "./TableScrollWrapper.jsx";
 
 /* ============================================================================
    DATATABLE
@@ -14,13 +15,27 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
   const [sortDir, setSortDir] = useState("desc");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(pageSize || null);
+
+  useEffect(() => {
+    if (pageSize) setPerPage(pageSize);
+  }, [pageSize]);
+
+  const effectivePageSize = perPage || pageSize;
+
+  const pageSizeOptions = useMemo(() => {
+    const defaults = [25, 50, 100, 250, 500];
+    if (effectivePageSize && !defaults.includes(effectivePageSize)) {
+      return [...defaults, effectivePageSize].sort((a, b) => a - b);
+    }
+    return defaults;
+  }, [effectivePageSize]);
 
   // Reset ke halaman pertama setiap kali dataset SUMBER berubah (mis. filter
-  // global/lokal berubah) atau query pencarian berubah — supaya user tidak
-  // "stuck" melihat halaman ke-30 dari hasil filter baru yang cuma 3 halaman.
+  // global/lokal berubah), query pencarian berubah, atau perPage berubah.
   // Sengaja TIDAK reset saat ganti sortKey/sortDir: re-sort tetap beroperasi
   // di atas SELURUH data, jadi user boleh ganti urutan tanpa kehilangan posisi halaman.
-  useEffect(() => { setPage(1); }, [rows, query, pageSize]);
+  useEffect(() => { setPage(1); }, [rows, query, perPage]);
 
   // Kolom yang dijadikan target pencarian: pakai searchKeys eksplisit kalau ada,
   // kalau tidak, fallback ke semua kolom yang nilainya berupa string di baris pertama.
@@ -52,9 +67,9 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
   // data masuk ke DataTable, jadi search & sort bekerja di seluruh hasil
   // filter, bukan di window yang sudah "dimuat" — user tidak salah baca data
   // (mis. sort by Value tetap mengurutkan semua transaksi, bukan cuma halaman ini).
-  const totalPages = pageSize ? Math.max(1, Math.ceil(sorted.length / pageSize)) : 1;
+  const totalPages = effectivePageSize ? Math.max(1, Math.ceil(sorted.length / effectivePageSize)) : 1;
   const currentPage = Math.min(page, totalPages);
-  const visibleRows = pageSize ? sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize) : sorted;
+  const visibleRows = effectivePageSize ? sorted.slice((currentPage - 1) * effectivePageSize, currentPage * effectivePageSize) : sorted;
 
   // Nomor halaman yang ditampilkan sebagai pill: kalau total sedikit (≤7)
   // tampilkan semua; kalau banyak, tampilkan halaman pertama/terakhir + 1
@@ -119,7 +134,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
       )}
 
       {/* Desktop (≥640px): tabel klasik dengan sticky header & sort */}
-      <div className="hidden sm:block overflow-auto max-h-[65vh]">
+      <TableScrollWrapper colors={colors} className="max-h-[65vh] overflow-y-auto" wrapperClassName="hidden sm:block">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">
             <tr style={{ background: colors.glassFillStrong, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
@@ -148,7 +163,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
               // - Sales/Group tables punya code/name unik → safe
               // - Transaction/Outlet tables tidak punya code/name → fallback ke
               //   index r-${i} yang selalu unik dalam satu render
-              <tr key={rowKey ? row[rowKey] : (row.code || row.name || `r-${i}`)} className="sm-row" style={{ borderTop: `1px solid ${colors.glassBorder}`, background: i % 2 === 1 ? colors.glassSubtle : "transparent" }}>
+              <tr key={typeof rowKey === "function" ? rowKey(row, i) : (rowKey && row[rowKey] !== undefined ? row[rowKey] : (row.code || row.name || `r-${i}`))} className="sm-row" style={{ borderTop: `1px solid ${colors.glassBorder}`, background: i % 2 === 1 ? colors.glassSubtle : "transparent" }}>
                 {columns.map((c) => (
                   <td key={c.key} className="px-4 py-3 whitespace-nowrap">
                     {c.render ? c.render(row) : row[c.key]}
@@ -163,7 +178,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
             )}
           </tbody>
         </table>
-      </div>
+      </TableScrollWrapper>
 
       {/* Mobile (<640px): card-stack — tiap baris jadi kartu dengan judul +
           grid 2-kolom label-value + optional footer aksi. Menghindari horizontal
@@ -180,7 +195,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
                 // ⚠️ Sprint 4 / K2: stable key (mirip dengan table view di atas).
                 // ⚠️ Sprint 18d16 / Bugfix: hapus salesName & productName dari
                 // fallback (tidak unik untuk transaksi) → pakai index r-${i}.
-                key={rowKey ? row[rowKey] : (row.code || row.name || `r-${i}`)}
+                key={typeof rowKey === "function" ? rowKey(row, i) : (rowKey && row[rowKey] !== undefined ? row[rowKey] : (row.code || row.name || `r-${i}`))}
                 className="px-4 py-3.5"
                 style={{ borderTop: i === 0 ? "none" : `1px solid ${colors.glassBorder}` }}
               >
@@ -240,53 +255,80 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
         )}
       </div>
 
-      {pageSize && sorted.length > 0 && totalPages > 1 && (
+      {effectivePageSize && sorted.length > 0 && (
         <div className="flex items-center justify-between gap-3 px-4 py-3 flex-wrap" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
-          <div className="text-xs" style={{ color: colors.textMuted }}>
-            Menampilkan {fmtNum((currentPage - 1) * pageSize + 1)}–{fmtNum(Math.min(currentPage * pageSize, sorted.length))} dari {fmtNum(sorted.length)} baris
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="text-xs" style={{ color: colors.textMuted }}>
+              Menampilkan {fmtNum((currentPage - 1) * effectivePageSize + 1)}–{fmtNum(Math.min(currentPage * effectivePageSize, sorted.length))} dari {fmtNum(sorted.length)} baris
+            </div>
+            <div className="flex items-center gap-1.5 text-xs" style={{ color: colors.textMuted }}>
+              <span>Baris:</span>
+              <select
+                value={effectivePageSize}
+                onChange={(e) => {
+                  setPerPage(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="border rounded-lg px-2 py-0.5 text-xs outline-none cursor-pointer"
+                style={{
+                  borderColor: colors.glassBorder,
+                  color: colors.text,
+                  background: colors.glassFill,
+                }}
+                aria-label="Pilih jumlah baris per halaman"
+              >
+                {pageSizeOptions.map((sz) => (
+                  <option key={sz} value={sz} style={{ background: colors.dropdownBg || "#111827", color: colors.text || "#F3F4F6" }}>
+                    {sz}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              aria-label="Halaman sebelumnya"
-              className="sm-btn w-8 h-8 rounded-lg flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
-              style={{ color: colors.text }}
-            >
-              <ChevronLeft size={14} />
-            </button>
-            {pageNumbers.map((p, idx) => {
-              const prevP = pageNumbers[idx - 1];
-              const showEllipsis = prevP !== undefined && p - prevP > 1;
-              const active = p === currentPage;
-              return (
-                <span key={p} className="flex items-center gap-1">
-                  {showEllipsis && <span className="px-1 text-xs" style={{ color: colors.textMuted }}>…</span>}
-                  <button
-                    onClick={() => setPage(p)}
-                    aria-current={active ? "page" : undefined}
-                    className="sm-btn min-w-8 h-8 px-2 rounded-lg text-xs font-semibold mono"
-                    style={{
-                      background: active ? colors.mint + "1F" : colors.glassFill,
-                      border: `1px solid ${active ? colors.mint + "55" : colors.glassBorder}`,
-                      color: active ? colors.mint : colors.text,
-                    }}
-                  >
-                    {p}
-                  </button>
-                </span>
-              );
-            })}
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              aria-label="Halaman berikutnya"
-              className="sm-btn w-8 h-8 rounded-lg flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
-              style={{ color: colors.text }}
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                aria-label="Halaman sebelumnya"
+                className="sm-btn w-8 h-8 rounded-lg flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ color: colors.text }}
+              >
+                <ChevronLeft size={14} />
+              </button>
+              {pageNumbers.map((p, idx) => {
+                const prevP = pageNumbers[idx - 1];
+                const showEllipsis = prevP !== undefined && p - prevP > 1;
+                const active = p === currentPage;
+                return (
+                  <span key={p} className="flex items-center gap-1">
+                    {showEllipsis && <span className="px-1 text-xs" style={{ color: colors.textMuted }}>…</span>}
+                    <button
+                      onClick={() => setPage(p)}
+                      aria-current={active ? "page" : undefined}
+                      className="sm-btn min-w-8 h-8 px-2 rounded-lg text-xs font-semibold mono"
+                      style={{
+                        background: active ? colors.mint + "1F" : colors.glassFill,
+                        border: `1px solid ${active ? colors.mint + "55" : colors.glassBorder}`,
+                        color: active ? colors.mint : colors.text,
+                      }}
+                    >
+                      {p}
+                    </button>
+                  </span>
+                );
+              })}
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                aria-label="Halaman berikutnya"
+                className="sm-btn w-8 h-8 rounded-lg flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ color: colors.text }}
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Users, Package, CalendarDays, RefreshCw, Filter, X, ChevronDown } from "lucide-react";
 import { MultiSelect } from "./MultiSelect.jsx";
 import { getDatePresetOptions, resolveDatePreset, getDatePresetLabel } from "../../utils/datePresets.js";
-import { computeDropdownTop } from "../../utils/dropdownPosition.js";
+import { useFloatingDropdown } from "../../hooks/useFloatingDropdown.js";
 
 /* ============================================================================
    FILTERBAR
@@ -14,13 +14,39 @@ import { computeDropdownTop } from "../../utils/dropdownPosition.js";
 export function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors, theme, rawRows }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
-  const dateMenuRef = useRef(null);
-  const dateMenuTriggerRef = useRef(null);
-  const [dateMenuPos, setDateMenuPos] = useState({ top: 0, left: 0 });
-  const active = filters.salesCodes.length + filters.groups.length + ((filters.dateFrom || filters.dateTo) ? 1 : 0);
+
+  const {
+    triggerRef: dateMenuTriggerRef,
+    floatingRef: dateMenuRef,
+    position: dateMenuPos,
+  } = useFloatingDropdown({
+    isOpen: dateMenuOpen,
+    onClose: () => setDateMenuOpen(false),
+    minWidth: 208, // w-52 = 13rem = 208px
+    estimatedHeight: 300,
+  });
+
+  const hasActiveDate = Boolean((filters.datePreset && filters.datePreset !== "all") || filters.dateFrom || filters.dateTo);
+  const active = filters.salesCodes.length + filters.groups.length + (hasActiveDate ? 1 : 0);
   const nameToCode = useMemo(() => Object.fromEntries(salesOptions.map((s) => [s.name, s.code])), [salesOptions]);
   const codeToName = useMemo(() => Object.fromEntries(salesOptions.map(s => [s.code, s.name])), [salesOptions]);
   const selectedNames = useMemo(() => filters.salesCodes.map(code => codeToName[code]).filter(Boolean), [filters.salesCodes, codeToName]);
+
+  const handleRemoveSales = (code) => {
+    setFilters((f) => ({ ...f, salesCodes: f.salesCodes.filter((c) => c !== code) }));
+  };
+
+  const handleRemoveGroup = (groupName) => {
+    setFilters((f) => ({ ...f, groups: f.groups.filter((g) => g !== groupName) }));
+  };
+
+  const handleRemoveDate = () => {
+    setFilters((f) => ({ ...f, datePreset: "all", dateFrom: "", dateTo: "" }));
+  };
+
+  const handleResetAll = () => {
+    setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" });
+  };
 
   // Preset tanggal aktif — fallback aman untuk filters lama (dari sebelum fitur
   // ini ada) yang belum punya field datePreset: kalau dateFrom/dateTo terisi
@@ -41,43 +67,6 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawRows, datePreset]);
-
-  // Tutup dropdown preset tanggal saat klik di luar.
-  // ⚠️ dateMenuRef sekarang attached ke portal dropdown (di document.body),
-  // bukan ke tombol trigger. Cek juga tombol trigger untuk mencegah toggle
-  // konflik saat klik tombol.
-  useEffect(() => {
-    if (!dateMenuOpen) return;
-    const onClickOutside = (e) => {
-      if (dateMenuRef.current && dateMenuRef.current.contains(e.target)) return;
-      // Cek apakah klik adalah tombol trigger (untuk toggle, bukan close)
-      const triggerBtn = dateMenuTriggerRef.current;
-      if (triggerBtn && triggerBtn.contains(e.target)) return;
-      setDateMenuOpen(false);
-    };
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [dateMenuOpen]);
-
-  // Hitung posisi date menu saat open
-  useEffect(() => {
-    if (!dateMenuOpen) return;
-    const updatePos = () => {
-      const btn = dateMenuTriggerRef.current;
-      if (!btn) return;
-      const rect = btn.getBoundingClientRect();
-      const menuHeight = 300;
-      const top = computeDropdownTop(rect, menuHeight);
-      setDateMenuPos({ top, left: rect.left });
-    };
-    updatePos();
-    window.addEventListener("resize", updatePos);
-    window.addEventListener("scroll", updatePos, true);
-    return () => {
-      window.removeEventListener("resize", updatePos);
-      window.removeEventListener("scroll", updatePos, true);
-    };
-  }, [dateMenuOpen]);
 
   const handlePickPreset = (key) => {
     setDateMenuOpen(false);
@@ -127,17 +116,8 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
       <MultiSelect label="Grup Barang" icon={Package} options={groupOptions} selected={filters.groups}
         onChange={(v) => setFilters((f) => ({ ...f, groups: v }))} placeholder="Cari grup..." colors={colors} />
       <div className="relative" ref={dateMenuTriggerRef}>
-        <button onClick={() => {
-          // Hitung posisi SEBELUM open supaya tidak flash di (0,0)
-          const btn = dateMenuTriggerRef.current;
-          if (btn) {
-            const rect = btn.getBoundingClientRect();
-            const menuHeight = 300;
-            const top = computeDropdownTop(rect, menuHeight);
-            setDateMenuPos({ top, left: rect.left });
-          }
-          setDateMenuOpen((o) => !o);
-        }}
+        <button
+          onClick={() => setDateMenuOpen((o) => !o)}
           className="sm-btn flex items-center gap-2 px-3 py-2 rounded-xl text-sm"
           style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
           <CalendarDays size={14} style={{ color: colors.textMuted }} />
@@ -188,7 +168,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
         </div>
       )}
       {active > 0 && (
-        <button onClick={() => setFilters({ salesCodes: [], groups: [], dateFrom: "", dateTo: "", datePreset: "all" })}
+        <button onClick={handleResetAll}
           className="sm-btn flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm" style={{ color: colors.coral, background: colors.coral + "14", border: `1px solid ${colors.coral}33` }}>
           <RefreshCw size={13} /> Reset ({active})
         </button>
@@ -199,7 +179,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
   return (
     <>
       {/* Mobile: tombol pemicu bottom-sheet */}
-      <div className="md:hidden mb-4">
+      <div className={`md:hidden ${active > 0 ? "mb-2.5" : "mb-4"}`}>
         <button
           onClick={() => setMobileOpen(true)}
           className="sm-btn flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold w-full"
@@ -225,9 +205,115 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
       </div>
 
       {/* Desktop: inline filter bar (flex-wrap) */}
-      <div className="hidden md:flex flex-wrap items-center gap-3 mb-6">
+      <div className={`hidden md:flex flex-wrap items-center gap-3 ${active > 0 ? "mb-3" : "mb-6"}`}>
         {filterContent}
       </div>
+
+      {/* Active Filter Chips (Desktop & Mobile) */}
+      {active > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-5 sm-fadein" aria-label="Filter aktif">
+          <span className="text-xs font-medium mr-0.5 flex items-center gap-1" style={{ color: colors.textMuted }}>
+            <Filter size={11} /> Filter aktif:
+          </span>
+
+          {/* Sales Chips */}
+          {filters.salesCodes.map((code) => {
+            const name = codeToName[code] || code;
+            return (
+              <span
+                key={code}
+                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-all"
+                style={{
+                  background: colors.glassFill,
+                  borderColor: `${colors.gold}44`,
+                  color: colors.text,
+                }}
+              >
+                <span className="text-[10px] uppercase font-bold tracking-wider" style={{ color: colors.gold }}>
+                  Sales
+                </span>
+                <span className="font-medium max-w-[150px] truncate">{name}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveSales(code)}
+                  aria-label={`Hapus filter sales ${name}`}
+                  className="hover:opacity-60 rounded p-0.5 transition-opacity"
+                  style={{ color: colors.textMuted }}
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            );
+          })}
+
+          {/* Group Chips */}
+          {filters.groups.map((group) => (
+            <span
+              key={group}
+              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-all"
+              style={{
+                background: colors.glassFill,
+                borderColor: `${colors.cyan || colors.mint}44`,
+                color: colors.text,
+              }}
+            >
+              <span className="text-[10px] uppercase font-bold tracking-wider" style={{ color: colors.cyan || colors.mint }}>
+                Grup
+              </span>
+              <span className="font-medium max-w-[150px] truncate">{group}</span>
+              <button
+                type="button"
+                onClick={() => handleRemoveGroup(group)}
+                aria-label={`Hapus filter grup ${group}`}
+                className="hover:opacity-60 rounded p-0.5 transition-opacity"
+                style={{ color: colors.textMuted }}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+
+          {/* Date Chip */}
+          {hasActiveDate && (
+            <span
+              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-all"
+              style={{
+                background: colors.glassFill,
+                borderColor: `${colors.mint}44`,
+                color: colors.text,
+              }}
+            >
+              <span className="text-[10px] uppercase font-bold tracking-wider" style={{ color: colors.mint }}>
+                Tanggal
+              </span>
+              <span className="font-medium max-w-[180px] truncate">
+                {datePreset === "custom"
+                  ? `${filters.dateFrom || "..."} - ${filters.dateTo || "..."}`
+                  : presetLabel}
+              </span>
+              <button
+                type="button"
+                onClick={handleRemoveDate}
+                aria-label="Hapus filter tanggal"
+                className="hover:opacity-60 rounded p-0.5 transition-opacity"
+                style={{ color: colors.textMuted }}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+
+          {/* Reset All Button */}
+          <button
+            type="button"
+            onClick={handleResetAll}
+            className="text-xs px-2 py-1 rounded-lg hover:underline transition-all flex items-center gap-1 font-medium ml-1"
+            style={{ color: colors.coral }}
+          >
+            Hapus Semua
+          </button>
+        </div>
+      )}
 
       {/* Mobile: bottom sheet — ⚠️ Bug fix (Sprint 3 / P6): sebelumnya
           mobile sheet dirender inline (tanpa createPortal). Bila ada ancestor
@@ -244,7 +330,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
           aria-modal="true"
           aria-label="Filter data"
         >
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" />
           <div
             className="relative w-full rounded-t-2xl p-5 max-h-[88vh] overflow-y-auto sm-scale-in sm-modal-glass"
             style={{

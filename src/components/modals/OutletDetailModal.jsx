@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { Store, X, Search } from "lucide-react";
+import { Store, Search } from "lucide-react";
 import { fmtRp, fmtNum } from "../../utils/formatters.js";
-import { OutletStatusBadge } from "../../pages/OutletAnalysisPage.jsx";
-import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
+import { OutletStatusBadge } from "../ui/OutletStatusBadge.jsx";
+import { Modal } from "../ui/Modal.jsx";
 
 /* ============================================================================
    OUTLET DETAIL MODAL
@@ -13,9 +13,6 @@ import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
 export function OutletDetailModal({ isOpen, onClose, outlet, products, colors }) {
   const [query, setQuery] = useState("");
   useEffect(() => { if (isOpen) setQuery(""); }, [isOpen, outlet]);
-  // ⚠️ Sprint 4 / A1+A2: lock background scroll + Escape tutup modal.
-  useScrollLock(isOpen);
-  useEscapeKey(isOpen, onClose);
 
   if (!isOpen || !outlet) return null;
 
@@ -24,18 +21,19 @@ export function OutletDetailModal({ isOpen, onClose, outlet, products, colors })
     : products;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm-fadein">
-      <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-2xl max-h-[85vh] flex flex-col">
-        <div className="p-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${colors.glassBorder}` }}>
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="p-2 rounded-xl shrink-0" style={{ background: colors.blue + "1A" }}><Store size={16} style={{ color: colors.blue }} /></div>
-            <div className="min-w-0">
-              <div className="disp text-base font-semibold truncate">{outlet.outletName}</div>
-              <div className="text-xs" style={{ color: colors.textMuted }}>Sales: {outlet.salesLabel}</div>
-            </div>
-          </div>
-          <button onClick={onClose} className="sm-btn p-2 rounded-full shrink-0" style={{ background: colors.glassFill }}><X size={16} /></button>
-        </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={outlet.outletName}
+      subtitle={`Sales: ${outlet.salesLabel}`}
+      icon={Store}
+      iconColor={colors.blue}
+      iconBg={colors.blue + "1A"}
+      colors={colors}
+      maxWidth="max-w-2xl"
+      maxHeight="max-h-[85vh]"
+      contentClassName="p-0"
+    >
 
         <div className="p-5 pb-0 grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="sm-card p-3">
@@ -96,7 +94,6 @@ export function OutletDetailModal({ isOpen, onClose, outlet, products, colors })
             </table>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
