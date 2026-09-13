@@ -115,6 +115,30 @@ export function parseOpenAiResponseText(rawText) {
   throw new Error(`Format respons AI tidak valid: ${text.slice(0, 120)}`);
 }
 
+// POST ke backend proxy same-origin; API key provider tetap berada di server.
+export async function callProxy(settings, messages, opts = {}) {
+  const proxyURL = String(settings?.backendURL || "/api/ai").trim().replace(/\/+$/, "") || "/api/ai";
+  if (!settings?.model) throw new Error("model kosong — isi di setelan AI.");
+  const fetchFn = opts.fetchFn ?? fetch;
+  const timeoutMs = opts.timeoutMs ?? 60000;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetchFn(proxyURL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: settings.model, messages, stream: false }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw Object.assign(mapDispatchError(null, res), { status: res.status });
+    return parseOpenAiResponseText(await res.text());
+  } catch (e) {
+    throw e instanceof TypeError ? mapDispatchError(e) : e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // POST {baseURL}/chat/completions, timeout 60s, retry 1x khusus network error.
 export async function callDirect(settings, messages, opts = {}) {
   const baseURL = String(settings?.baseURL ?? "").replace(/\/+$/, "");
@@ -125,7 +149,6 @@ export async function callDirect(settings, messages, opts = {}) {
     model: settings.model,
     messages,
     stream: false,
-    ...(settings?.apiType !== "custom" ? { response_format: { type: "json_object" } } : {}),
   };
   const fetchFn = opts.fetchFn ?? fetch;
   const timeoutMs = opts.timeoutMs ?? 60000;
@@ -146,16 +169,68 @@ export async function callDirect(settings, messages, opts = {}) {
       if (!res.ok) throw Object.assign(mapDispatchError(null, res), { status: res.status });
       const rawText = await res.text();
       return parseOpenAiResponseText(rawText);
-    } catch (e) {
-      throw e;
     } finally {
       clearTimeout(t);
+    }
+  }
+
+  async function _callProxyInternal(settings, messages, opts = {}) {
+    const proxyURL = String(settings?.backendURL || "/api/ai").trim().replace(/\/+$/, "") || "/api/ai";
+    if (!settings?.model) throw new Error("model kosong — isi di setelan AI.");
+    const fetchFn = opts.fetchFn ?? fetch;
+    const timeoutMs = opts.timeoutMs ?? 60000;
+    const body = {
+      model: settings.model,
+      messages,
+      stream: false,
+    };
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetchFn(proxyURL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(settings?.proxyKey ? { Authorization: `Bearer ${settings.proxyKey}` } : {}),
+        },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw Object.assign(mapDispatchError(null, res), { status: res.status });
+      return parseOpenAiResponseText(await res.text());
+    } catch (e) {
+      if (e instanceof TypeError) throw mapDispatchError(e);
+      throw e;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
   try {
     return await once();
   } catch (e) {
+    if (e?.status === 400 || e?.status === 404 || e?.status === 422) {
+      const fallbackCtrl = new AbortController();
+      const fallbackTimer = setTimeout(() => fallbackCtrl.abort(), timeoutMs);
+      try {
+        const fallbackRes = await fetchFn(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(settings?.key ? { Authorization: "Bearer " + settings.key } : {}),
+          },
+          body: JSON.stringify(body),
+          signal: fallbackCtrl.signal,
+        });
+        if (!fallbackRes.ok) {
+          throw Object.assign(mapDispatchError(null, fallbackRes), { status: fallbackRes.status });
+        }
+        return parseOpenAiResponseText(await fallbackRes.text());
+      } finally {
+        clearTimeout(fallbackTimer);
+      }
+    }
     // Retry 1x hanya untuk network error (TypeError fetch / gagal koneksi), bukan HTTP status.
     if (e instanceof TypeError || (e?.name === "TypeError" && e?.status == null)) {
       try {
@@ -205,7 +280,9 @@ export async function dispatch(userText, ctxInput, settings, opts = {}) {
     { role: "system", content: SYSTEM_PROMPT },
     { role: "user", content: JSON.stringify({ perintah: String(userText ?? ""), konteks: ctx }) },
   ];
-  const text = await callDirect(settings, messages, opts);
+  const text = settings?.mode === "proxy"
+    ? await callProxy(settings, messages, opts)
+    : await callDirect(settings, messages, opts);
   const parsed = parseToolCall(text);
   return { text, parsed, ctx };
 }

@@ -5,7 +5,7 @@ import {
   AlertTriangle, RefreshCw, Eye, EyeOff, ArrowRight,
 } from "lucide-react";
 import { loadAiSettings, saveAiSettings } from "../../utils/aiSettings.js";
-import { dispatch, parseOpenAiResponseText } from "../../utils/aiDispatcher.js";
+import { callDirect, callProxy, dispatch, parseOpenAiResponseText } from "../../utils/aiDispatcher.js";
 import { executeAiTool, isWriteTool } from "../../utils/aiTools.js";
 import { useScrollLock, useEscapeKey, useFocusTrap } from "../../hooks/useModalA11y.js";
 
@@ -101,7 +101,27 @@ export function AiChatDrawer({
     setTestResult(null);
   };
 
-  const handleTestConnection = async () => {
+  const handleTestConnectionViaTransport = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      if (!aiSettings.model) throw new Error("Model AI wajib diisi.");
+      if (aiSettings.mode !== "proxy" && !aiSettings.baseURL) {
+        throw new Error("Base URL wajib diisi untuk mode Direct.");
+      }
+      const call = aiSettings.mode === "proxy" ? callProxy : callDirect;
+      const reply = await call(aiSettings, [
+        { role: "user", content: "Halo, jawab 'OK' jika terhubung." },
+      ], { timeoutMs: 30000 }) || "Terhubung!";
+      setTestResult({ ok: true, msg: `Koneksi sukses! Balasan: "${reply.trim()}"` });
+    } catch (e) {
+      setTestResult({ ok: false, msg: `Koneksi gagal: ${e.message}` });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const _handleTestConnection = async () => {
     setTesting(true);
     setTestResult(null);
     try {
@@ -140,7 +160,7 @@ export function AiChatDrawer({
     const text = (textToSend || input).trim();
     if (!text || busy) return;
 
-    if (!aiSettings.baseURL || !aiSettings.model) {
+    if ((aiSettings.mode !== "proxy" && !aiSettings.baseURL) || !aiSettings.model) {
       setSettingsOpen(true);
       notifyError("Konfigurasi AI Diperlukan", "Silakan atur Base URL dan Model AI di setelan.");
       return;
@@ -412,13 +432,16 @@ export function AiChatDrawer({
             {/* Base URL */}
             <div>
               <label className="block text-xs font-semibold mb-1" style={{ color: colors.textMuted }}>
-                Base URL (OpenAI-compatible)
+                {aiSettings.mode === "proxy" ? "URL Backend Proxy" : "Base URL (OpenAI-compatible)"}
               </label>
               <input
                 type="text"
-                value={aiSettings.baseURL}
-                onChange={(e) => setAiSettings((s) => ({ ...s, baseURL: e.target.value }))}
-                placeholder="mis. https://api.openai.com/v1 atau https://openrouter.ai/api/v1"
+                value={aiSettings.mode === "proxy" ? aiSettings.backendURL : aiSettings.baseURL}
+                onChange={(e) => setAiSettings((s) => ({
+                  ...s,
+                  [s.mode === "proxy" ? "backendURL" : "baseURL"]: e.target.value,
+                }))}
+                placeholder={aiSettings.mode === "proxy" ? "kosongkan untuk /api/ai" : "mis. https://api.openai.com/v1"}
                 className="w-full px-3 py-1.5 rounded-lg text-xs outline-none mono"
                 style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}
               />
@@ -443,7 +466,7 @@ export function AiChatDrawer({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-semibold" style={{ color: colors.textMuted }}>
-                  API Key
+                  {aiSettings.mode === "proxy" ? "Token Proxy (opsional)" : "API Key"}
                 </label>
                 <button
                   type="button"
@@ -459,7 +482,7 @@ export function AiChatDrawer({
                 type={showKey ? "text" : "password"}
                 value={aiSettings.key}
                 onChange={(e) => setAiSettings((s) => ({ ...s, key: e.target.value }))}
-                placeholder="sk-..."
+                placeholder={aiSettings.mode === "proxy" ? "opsional" : "sk-..."}
                 className="w-full px-3 py-1.5 rounded-lg text-xs outline-none mono"
                 style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}
               />
@@ -484,7 +507,7 @@ export function AiChatDrawer({
             <div className="flex items-center gap-2 pt-1">
               <button
                 type="button"
-                onClick={handleTestConnection}
+                onClick={handleTestConnectionViaTransport}
                 disabled={testing}
                 className="sm-btn flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border disabled:opacity-40"
                 style={{ borderColor: colors.glassBorder, color: colors.text }}
