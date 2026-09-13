@@ -50,9 +50,10 @@ export default defineConfig({
         ],
       },
       devOptions: {
-        // Aktifkan service worker juga saat `npm run dev`, supaya bisa dites
-        // langsung tanpa perlu build production dulu.
-        enabled: true,
+        // Service worker dinonaktifkan saat dev agar console bersih dari spam
+        // Workbox ("Precaching did not find a match", "No route found") dan
+        // HMR tetap cepat. PWA SW tetap aktif penuh saat production build.
+        enabled: false,
       },
     }),
   ],
@@ -82,7 +83,7 @@ export default defineConfig({
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
           'vendor-charts': ['recharts'],
-          'vendor-pdf': ['jspdf', 'jspdf-autotable', 'html2canvas'],
+          'vendor-pdf': ['jspdf', 'jspdf-autotable', 'html2canvas-pro'],
           'vendor-excel': ['xlsx-js-style'],
           'vendor-icons': ['lucide-react'],
         },
