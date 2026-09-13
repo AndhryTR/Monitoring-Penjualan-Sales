@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   Bot, Sparkles, X, Send, Settings, Trash2, CheckCircle2,
-  AlertTriangle, RefreshCw, Eye, EyeOff, ShieldAlert, ArrowRight, CornerDownLeft
+  AlertTriangle, RefreshCw, Eye, EyeOff, ArrowRight,
 } from "lucide-react";
-import { loadAiSettings, saveAiSettings, clearAiKey } from "../../utils/aiSettings.js";
+import { loadAiSettings, saveAiSettings } from "../../utils/aiSettings.js";
 import { dispatch } from "../../utils/aiDispatcher.js";
 import { executeAiTool, isWriteTool } from "../../utils/aiTools.js";
-import { ConfirmDialog } from "../ui/ConfirmDialog.jsx";
 import { useScrollLock, useEscapeKey, useFocusTrap } from "../../hooks/useModalA11y.js";
 
 const CHAT_LOG_KEY = "smapp:ai_chat_log:v1";
@@ -92,7 +91,7 @@ export function AiChatDrawer({
 
   const handleClearHistory = () => {
     setMessages([]);
-    try { window.localStorage.removeItem(CHAT_LOG_KEY); } catch {}
+    try { window.localStorage.removeItem(CHAT_LOG_KEY); } catch (_e) { /* ignore */ }
   };
 
   const handleSaveSettings = (newSettings) => {

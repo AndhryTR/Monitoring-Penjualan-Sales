@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import sumBy from "lodash/sumBy";
 import {
   X, RefreshCw, Sun, Moon, CloudUpload,
-  Smartphone, Share, Search, Bot,
+  Smartphone, Share, Search, Bot, Sparkles,
   FileSpreadsheet, AlertTriangle, CheckCircle2, ShieldCheck,
 } from "lucide-react";
 import { saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState, saveMasterMax, saveLastMasterSyncAt } from "./utils/storage.js";
