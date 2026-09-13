@@ -242,6 +242,16 @@ export const PERMISSION_CATALOG = [
     defaultSupervisor: true,
     defaultAdmin: true,
   },
+  {
+    id: "feat:ai_chat",
+    category: "feature",
+    name: "Chat AI Automasi",
+    description: "Panel chat AI untuk analisis dan automasi penjualan.",
+    defaultOffline: false,
+    defaultUser: false,
+    defaultSupervisor: true,
+    defaultAdmin: true,
+  },
 
   /* ── Tombol & Aksi ─────────────────────────────────────────────────────── */
   {
