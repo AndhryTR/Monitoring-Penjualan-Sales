@@ -5,7 +5,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 
 export default [
-  { ignores: ["dist/**", "node_modules/**", "dev-dist/**", "*.config.js"] },
+  { ignores: ["dist/**", "node_modules/**", "dev-dist/**", "android/**", "src-tauri/**", "*.config.js"] },
 
   // Base JS recommended
   js.configs.recommended,
