@@ -2,47 +2,18 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
 import { Boxes, Package } from "lucide-react";
-import { fmtRp, fmtNum, fmtMixedUnits } from "../utils/formatters.js";
+import { fmtRp, fmtCompactNum } from "../utils/formatters.js";
 import { AchBadge } from "../components/AchBadge.jsx";
-import { ACH_TIERS } from "../constants/thresholds.js";
+import { getAchColor } from "../constants/thresholds.js";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, DrilldownButton, AchBarChartTooltip } from "../components/ui/index.jsx";
 
 /* ============================================================================
    TAB: PRODUCT REPORT
    Bar chart vertical per grup produk + tabel detail grup.
-   ⚠️ Sprint G1: tambah kolom Stok Tersisa + Coverage dari stockData.
 ============================================================================ */
-export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, depotName, currentStock, stockSummary, slideshowMode = false }) {
-  // Hitung stok per grup dari currentStock Map
-  // currentStock = Map<productCode, StockItem>
-  // agg.byGroup = [{ name, targetValue, realisasiValue, ach, realisasiAo, predicate }]
-  // Kita aggregate stok per grup dengan filter transaksi by predicate
-  const stockByGroup = agg.byGroup.map((g) => {
-    if (!currentStock || !currentStock.size) return { ...g, stockQty: null, stockValue: null, stockKarton: null, coverageDays: null };
-    let totalQty = 0, totalValue = 0, totalKarton = 0;
-    let productCount = 0, criticalCount = 0;
-    for (const [, stock] of currentStock) {
-      if (stock.group !== g.name) continue;
-      totalQty += stock.currentQty || 0;
-      totalValue += stock.currentValue || 0;
-      totalKarton += stock.currentQtyKarton || 0;
-      productCount++;
-      if (stock.currentQty <= 0 || (stock.openingQty > 0 && stock.currentQty < stock.openingQty * 0.2)) criticalCount++;
-    }
-    // Coverage: berapa hari stok aman berdasarkan rate penjualan
-    // realisasiValue per grup / uniqueDays = avg daily value
-    // stockValue / avgDailyValue = coverage days
-    const avgDailyValue = agg.meta.uniqueDays > 0 ? (g.realisasiValue / agg.meta.uniqueDays) : 0;
-    const coverageDays = avgDailyValue > 0 && totalValue > 0 ? totalValue / avgDailyValue : null;
-    return { ...g, stockQty: totalQty, stockValue: totalValue, stockKarton: totalKarton, coverageDays, productCount, criticalCount };
-  });
-  // ⚠️ Bug fix (Sprint 3 / P4): sebelumnya `CustomTooltip` didefinisikan DI DALAM
-  // body komponen. Setiap render produce new function ref → Recharts anggap
-  // new component type → `<Tooltip content={<CustomTooltip />}>` unmount+remount
-  // subtree di setiap render. Fix: pakai shared `AchBarChartTooltip` yang sudah
-  // di-hoist ke module scope di components/ui/index.jsx, pass `colors` lewat
-  // props. Hilangkan duplikasi dengan SalesReportPage.
+export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, slideshowMode = false }) {
+  // ⚠️ Bug fix (Sprint 3 / P4): shared AchBarChartTooltip dari components/ui/index.jsx
 
   return (
     <div className="sm-page-enter">
@@ -50,11 +21,11 @@ export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, 
       <ResponsiveContainer width="100%" height={Math.max(240, agg.byGroup.length * 42)}>
         <BarChart data={agg.byGroup} layout="vertical" margin={{ left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} horizontal={false} />
-          <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
+          <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={fmtCompactNum} />
           <YAxis type="category" dataKey="name" width={170} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
           <Tooltip content={<AchBarChartTooltip colors={colors} />} cursor={{ fill: colors.glassSubtle }} />
           <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
-            {agg.byGroup.map((r, i) => <Cell key={i} fill={r.ach >= ACH_TIERS.onPace ? colors.mint : r.ach >= ACH_TIERS.warning ? colors.gold : colors.coral} />)}
+            {agg.byGroup.map((r, i) => <Cell key={i} fill={getAchColor(r.ach, colors)} />)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>

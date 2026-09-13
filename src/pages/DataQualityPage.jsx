@@ -200,7 +200,7 @@ export function DataQualityPage({ notes, colors, onDrilldown }) {
                   colors={colors}
                   initialSortKey="value"
                   searchable={false}
-                  rowKey="group"
+                  rowKey={(r) => `${r.salesCode}|${r.group}`}
                   columns={[
                     { key: "salesName", label: "Sales" },
                     { key: "group", label: "Grup Produk" },

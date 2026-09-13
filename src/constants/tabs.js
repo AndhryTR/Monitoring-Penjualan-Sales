@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, UserRound, Boxes, Crosshair, Store, ClipboardList, TrendingUp, Receipt,
-  History, Settings, Gauge, GitCompareArrows, Package,
+  History, Settings, Gauge, GitCompareArrows, Package, ShieldCheck,
 } from "lucide-react";
 
 /* ============================================================================
@@ -68,6 +68,15 @@ export const SIDEBAR_SECTIONS = [
     items: [
       { key: "history", label: "Snapshot Periode", icon: History, action: "history" },
       { key: "settings", label: "Pengaturan", icon: Settings, action: "settings" },
+    ],
+  },
+  // ⚠️ Superuser Admin Dashboard — hanya tampil di sidebar jika isSuperuser === true.
+  // TIDAK ditambahkan ke TABS (tidak muncul di MobileBottomNav).
+  {
+    label: "Superuser",
+    superuserOnly: true,
+    items: [
+      { key: "admin-access", label: "Admin Dashboard", icon: ShieldCheck, tabKey: "admin-access" },
     ],
   },
 ];

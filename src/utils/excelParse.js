@@ -127,6 +127,32 @@ export async function parseWorkbookBuffer(arrayBuffer, onProgress) {
       const get = (f) => (fmap[f] !== undefined ? r[fmap[f]] : null);
       const dateStr = excelValueToDateStr(get("date"));
       if (!dateStr) rowsWithMissingDate++;
+
+      let lat = undefined;
+      let lng = undefined;
+      const rawLat = get("latitude");
+      const rawLng = get("longitude");
+      const rawCoords = get("coordinates");
+      if (rawLat !== null && rawLat !== undefined && rawLat !== "") {
+        const pLat = Number(String(rawLat).replace(/,/g, "."));
+        if (!Number.isNaN(pLat) && pLat >= -90 && pLat <= 90) lat = pLat;
+      }
+      if (rawLng !== null && rawLng !== undefined && rawLng !== "") {
+        const pLng = Number(String(rawLng).replace(/,/g, "."));
+        if (!Number.isNaN(pLng) && pLng >= -180 && pLng <= 180) lng = pLng;
+      }
+      if ((lat === undefined || lng === undefined) && rawCoords) {
+        const parts = String(rawCoords).split(/[,;]/);
+        if (parts.length === 2) {
+          const cLat = Number(parts[0].replace(/,/g, ".").trim());
+          const cLng = Number(parts[1].replace(/,/g, ".").trim());
+          if (!Number.isNaN(cLat) && !Number.isNaN(cLng) && cLat >= -90 && cLat <= 90 && cLng >= -180 && cLng <= 180) {
+            lat = cLat;
+            lng = cLng;
+          }
+        }
+      }
+
       rows.push({
         date: dateStr,
         salesCode: String(get("salesCode") || "").trim(),
@@ -143,6 +169,8 @@ export async function parseWorkbookBuffer(arrayBuffer, onProgress) {
         baseUnit: String(get("baseUnit") || "").trim().toUpperCase(),
         value: Number(get("value")) || 0,
         group: String(get("group") || "").trim(),
+        lat,
+        lng,
       });
     }
     // Yield setiap BATCH baris supaya browser sempat paint/respond (tidak freeze)
@@ -193,15 +221,15 @@ export function dedupeRows(rows) {
 // tidak bisa diturunkan — qtyKarton diberi null dan ditandai lewat `unconvertible: true`
 // supaya tetap terlihat di UI, bukan diam-diam dianggap benar.
 export function attachKartonQty(rows) {
-  const kartonFactor = {};
+  const kartonFactor = new Map();
   rows.forEach((r) => {
-    if (r.unit === "KARTON" && r.konv > 0 && r.productCode && !(r.productCode in kartonFactor)) {
-      kartonFactor[r.productCode] = r.konv;
+    if (r.unit === "KARTON" && r.konv > 0 && r.productCode && !kartonFactor.has(r.productCode)) {
+      kartonFactor.set(r.productCode, r.konv);
     }
   });
   return rows.map((r) => {
     if (r.unit === "KARTON") return { ...r, qtyKarton: r.qty, unconvertible: false };
-    const factor = kartonFactor[r.productCode];
+    const factor = kartonFactor.get(r.productCode);
     if (factor && r.konv > 0) {
       return { ...r, qtyKarton: (r.qty * r.konv) / factor, unconvertible: false };
     }

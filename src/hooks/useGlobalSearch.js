@@ -1,4 +1,5 @@
-import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
+import { fmtCompactRp, fmtCompactNum } from "../utils/formatters.js";
 
 /* ============================================================================
    useGlobalSearch — hook untuk global search / command palette.
@@ -29,106 +30,116 @@ export function useGlobalSearch({ targets, rawRows, agg }) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // ---- Build search index (memoized, hanya rebuild kalau data berubah) ----
-  const index = useMemo(() => {
+  // 1. Sales index: hanya dibangun ulang jika konfigurasi target sales berubah
+  const salesIndex = useMemo(() => {
     const sales = [];
-    const outlets = [];
-    const products = [];
-    const groups = [];
-
-    // Index sales dari targets (config, selalu ada walau belum upload data)
     (targets || []).forEach((t) => {
       sales.push({
         type: "sales",
         key: t.code,
         label: t.name,
-        sublabel: `Kode: ${t.code} · ${t.groups.length} grup · ${t.focus.length} fokus`,
+        sublabel: `Kode: ${t.code} · ${t.groups?.length || 0} grup · ${t.focus?.length || 0} fokus`,
         searchTarget: (t.name + " " + t.code).toLowerCase(),
         action: { tabKey: "sales", filter: { salesCodes: [t.code] } },
       });
     });
+    return sales;
+  }, [targets]);
 
-    // Index outlets + products dari rawRows (kalau ada data)
-    if (rawRows && rawRows.length) {
-      const outletMap = new Map(); // key=outletCode, value={name, code, salesCodes:Set, count}
-      const productMap = new Map(); // key=productCode, value={name, code, count, value}
+  // 2. Outlets & Products index: loop linear cepat atas rawRows, HANYA rebuild saat file data baru diunggah
+  const outletsAndProductsIndex = useMemo(() => {
+    const outlets = [];
+    const products = [];
+    if (!rawRows || !rawRows.length) return { outlets, products };
 
-      rawRows.forEach((r) => {
-        // Outlet
-        if (r.outletCode || r.outletName) {
-          const ok = r.outletCode || r.outletName;
-          if (!outletMap.has(ok)) {
-            outletMap.set(ok, {
-              name: r.outletName || r.outletCode || ok,
-              code: r.outletCode || ok,
-              salesCodes: new Set(),
-              count: 0,
-              value: 0,
-            });
-          }
-          const o = outletMap.get(ok);
-          if (r.salesCode) o.salesCodes.add(r.salesCode);
-          o.count++;
-          o.value += r.value || 0;
+    const outletMap = new Map();
+    const productMap = new Map();
+
+    for (let i = 0; i < rawRows.length; i++) {
+      const r = rawRows[i];
+      // Outlet
+      if (r.outletCode || r.outletName) {
+        const ok = r.outletCode || r.outletName;
+        let o = outletMap.get(ok);
+        if (!o) {
+          o = {
+            name: r.outletName || r.outletCode || ok,
+            code: r.outletCode || ok,
+            salesCodes: new Set(),
+            count: 0,
+            value: 0,
+          };
+          outletMap.set(ok, o);
         }
+        if (r.salesCode) o.salesCodes.add(r.salesCode);
+        o.count++;
+        o.value += (r.value || 0);
+      }
 
-        // Product
-        if (r.productCode || r.productName) {
-          const pk = r.productCode || r.productName;
-          if (!productMap.has(pk)) {
-            productMap.set(pk, {
-              name: r.productName || r.productCode || pk,
-              code: r.productCode || pk,
-              group: r.group || "-",
-              count: 0,
-              qty: 0,
-            });
-          }
-          const p = productMap.get(pk);
-          p.count++;
-          p.qty += r.qty || 0;
+      // Product
+      if (r.productCode || r.productName) {
+        const pk = r.productCode || r.productName;
+        let p = productMap.get(pk);
+        if (!p) {
+          p = {
+            name: r.productName || r.productCode || pk,
+            code: r.productCode || pk,
+            group: r.group || "-",
+            count: 0,
+            qty: 0,
+          };
+          productMap.set(pk, p);
         }
-      });
-
-      outletMap.forEach((o) => {
-        outlets.push({
-          type: "outlet",
-          key: o.code,
-          label: o.name,
-          sublabel: `${o.count} transaksi · ${o.salesCodes.size} sales · ${fmtRpShort(o.value)}`,
-          searchTarget: (o.name + " " + o.code).toLowerCase(),
-          action: { tabKey: "transactions", drilldown: { title: o.name, predicate: (row) => row.outletCode === o.code } },
-        });
-      });
-
-      productMap.forEach((p) => {
-        products.push({
-          type: "product",
-          key: p.code,
-          label: p.name,
-          sublabel: `Grup: ${p.group} · ${p.count} transaksi · ${fmtNumShort(p.qty)} qty`,
-          searchTarget: (p.name + " " + p.code + " " + p.group).toLowerCase(),
-          action: { tabKey: "product" },
-        });
-      });
+        p.count++;
+        p.qty += (r.qty || 0);
+      }
     }
 
-    // Index groups dari agg.byGroup
-    if (agg?.byGroup) {
-      agg.byGroup.forEach((g) => {
-        groups.push({
-          type: "group",
-          key: g.name,
-          label: g.name,
-          sublabel: `Target: ${fmtRpShort(g.targetValue)} · Realisasi: ${fmtRpShort(g.realisasiValue)}`,
-          searchTarget: (g.name || "").toLowerCase(),
-          action: { tabKey: "product", filter: { groups: [g.name] } },
-        });
+    outletMap.forEach((o) => {
+      outlets.push({
+        type: "outlet",
+        key: o.code,
+        label: o.name,
+        sublabel: `${o.count} transaksi · ${o.salesCodes.size} sales · ${fmtCompactRp(o.value)}`,
+        searchTarget: (o.name + " " + o.code).toLowerCase(),
+        action: { tabKey: "transactions", drilldown: { title: o.name, predicate: (row) => row.outletCode === o.code } },
       });
-    }
+    });
 
-    return { sales, outlets, products, groups };
-  }, [targets, rawRows, agg]);
+    productMap.forEach((p) => {
+      products.push({
+        type: "product",
+        key: p.code,
+        label: p.name,
+        sublabel: `Grup: ${p.group} · ${p.count} transaksi · ${fmtCompactNum(p.qty)} qty`,
+        searchTarget: (p.name + " " + p.code + " " + p.group).toLowerCase(),
+        action: { tabKey: "product" },
+      });
+    });
+
+    return { outlets, products };
+  }, [rawRows]);
+
+  // 3. Groups index: hanya bergantung pada agg.byGroup
+  const groupsIndex = useMemo(() => {
+    if (!agg?.byGroup) return [];
+    return agg.byGroup.map((g) => ({
+      type: "group",
+      key: g.name,
+      label: g.name,
+      sublabel: `Target: ${fmtCompactRp(g.targetValue)} · Realisasi: ${fmtCompactRp(g.realisasiValue)}`,
+      searchTarget: (g.name || "").toLowerCase(),
+      action: { tabKey: "product", filter: { groups: [g.name] } },
+    }));
+  }, [agg?.byGroup]);
+
+  // Gabungan index pencarian
+  const index = useMemo(() => ({
+    sales: salesIndex,
+    outlets: outletsAndProductsIndex.outlets,
+    products: outletsAndProductsIndex.products,
+    groups: groupsIndex,
+  }), [salesIndex, outletsAndProductsIndex, groupsIndex]);
 
   // ---- Search function ----
   const results = useMemo(() => {
@@ -189,20 +200,4 @@ export function useGlobalSearch({ targets, rawRows, agg }) {
       groups: index.groups.length,
     },
   };
-}
-
-// Helper: format Rupiah singkat (mis. "Rp 12.3jt" untuk 12.300.000)
-function fmtRpShort(n) {
-  if (!n) return "Rp 0";
-  if (n >= 1e9) return "Rp " + (n / 1e9).toFixed(1).replace(/\.0$/, "") + " M";
-  if (n >= 1e6) return "Rp " + (n / 1e6).toFixed(1).replace(/\.0$/, "") + " jt";
-  if (n >= 1e3) return "Rp " + (n / 1e3).toFixed(0) + " rb";
-  return "Rp " + Math.round(n);
-}
-
-function fmtNumShort(n) {
-  if (!n) return "0";
-  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "jt";
-  if (n >= 1e3) return (n / 1e3).toFixed(0) + "rb";
-  return String(Math.round(n));
 }

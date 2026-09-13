@@ -15,6 +15,7 @@
  * - unit: string satuan spesifik (kosong/null = semua satuan)
  */
 export function filterTransactions(rows, localFilters) {
+  if (!rows || !rows.length) return [];
   const {
     outletCodes = [],
     qtyMin = null,
@@ -24,25 +25,52 @@ export function filterTransactions(rows, localFilters) {
     unit = "",
   } = localFilters || {};
 
-  return rows.filter((r) => {
-    if (outletCodes.length && !outletCodes.includes(r.outletCode)) return false;
-    if (qtyMin !== null && qtyMin !== "" && (r.qty || 0) < Number(qtyMin)) return false;
-    if (qtyMax !== null && qtyMax !== "" && (r.qty || 0) > Number(qtyMax)) return false;
-    if (valueMin !== null && valueMin !== "" && (r.value || 0) < Number(valueMin)) return false;
-    if (valueMax !== null && valueMax !== "" && (r.value || 0) > Number(valueMax)) return false;
-    if (unit && r.unit !== unit) return false;
-    return true;
-  });
+  const hasOutletFilter = outletCodes.length > 0;
+  const outletSet = hasOutletFilter ? new Set(outletCodes) : null;
+  const minQ = (qtyMin !== null && qtyMin !== "") ? Number(qtyMin) : null;
+  const maxQ = (qtyMax !== null && qtyMax !== "") ? Number(qtyMax) : null;
+  const minV = (valueMin !== null && valueMin !== "") ? Number(valueMin) : null;
+  const maxV = (valueMax !== null && valueMax !== "") ? Number(valueMax) : null;
+
+  const result = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (hasOutletFilter && !outletSet.has(r.outletCode)) continue;
+    if (minQ !== null && (r.qty || 0) < minQ) continue;
+    if (maxQ !== null && (r.qty || 0) > maxQ) continue;
+    if (minV !== null && (r.value || 0) < minV) continue;
+    if (maxV !== null && (r.value || 0) > maxV) continue;
+    if (unit && r.unit !== unit) continue;
+    result.push(r);
+  }
+  return result;
 }
 
 /**
- * Hitung statistik ringkas untuk header TransactionsPage.
+ * Hitung statistik ringkas untuk header TransactionsPage dalam single-pass loop linear.
  * Mengembalikan: rowCount, uniqueSales, uniqueOutlets, totalValue.
  */
 export function summarizeTransactions(rows) {
-  const uniqueSales = new Set(rows.map((r) => r.salesCode).filter(Boolean));
-  const uniqueOutlets = new Set(rows.map((r) => r.outletCode).filter(Boolean));
-  const totalValue = rows.reduce((sum, r) => sum + (r.value || 0), 0);
+  if (!rows || !rows.length) {
+    return {
+      rowCount: 0,
+      uniqueSales: 0,
+      uniqueOutlets: 0,
+      totalValue: 0,
+    };
+  }
+
+  const uniqueSales = new Set();
+  const uniqueOutlets = new Set();
+  let totalValue = 0;
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.salesCode) uniqueSales.add(r.salesCode);
+    if (r.outletCode) uniqueOutlets.add(r.outletCode);
+    totalValue += (r.value || 0);
+  }
+
   return {
     rowCount: rows.length,
     uniqueSales: uniqueSales.size,

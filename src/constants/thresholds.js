@@ -71,6 +71,13 @@ export const OUTLET_DEFAULT_THRESHOLDS = {
   dormantMinDays: 30,
 };
 
+export const OUTLET_STATUS_META = {
+  active: { label: "Aktif", color: "mint" },
+  at_risk: { label: "Berisiko", color: "gold" },
+  dormant: { label: "Dormant", color: "coral" },
+  unknown: { label: "-", color: "textMuted" },
+};
+
 /** Tingkatan pencapaian (ACH) untuk penentuan warna. Dipakai konsisten di
  *  seluruh UI badge, tooltip chart, dan export PDF — supaya tidak ada lagi
  *  ambiguitas seperti sebelumnya (UI pakai 70%, PDF pakai 80%).
@@ -85,8 +92,34 @@ export const ACH_TIERS = {
 
 /** Helper kecil: ambil key tier berdasarkan nilai ach. */
 export function achTier(ach) {
-  if (ach === null || ach === undefined) return "unknown";
+  if (ach === null || ach === undefined || Number.isNaN(ach)) return "unknown";
   if (ach >= ACH_TIERS.onPace) return "onPace";
   if (ach >= ACH_TIERS.warning) return "warning";
   return "danger";
+}
+
+/**
+ * Ambil warna tema berdasarkan nilai pencapaian (ACH).
+ * @param {number|null} ach - rasio 0.0 - 1.0+
+ * @param {object} colors - objek token warna aktif
+ * @returns {string} kode warna hex/rgb
+ */
+export function getAchColor(ach, colors) {
+  if (ach === null || ach === undefined || Number.isNaN(ach)) return colors.textMuted;
+  if (ach >= ACH_TIERS.onPace) return colors.mint;
+  if (ach >= ACH_TIERS.warning) return colors.gold;
+  return colors.coral;
+}
+
+/**
+ * Status teks singkat untuk pencapaian ACH.
+ * @param {number|null} ach
+ * @returns {string}
+ */
+export function getAchStatus(ach) {
+  const tier = achTier(ach);
+  if (tier === "onPace") return "Tercapai";
+  if (tier === "warning") return "Mendekati";
+  if (tier === "danger") return "Di Bawah Target";
+  return "-";
 }

@@ -31,16 +31,17 @@ export function usePwaInstall() {
   // di Tauri → registrasi SW tidak pernah dijalankan. Deteksi via
   // `__TAURI_INTERNALS__` (global yang di-inject Tauri v2 di WebView2).
   const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  const isDev = Boolean(import.meta.env.DEV);
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     offlineReady: [offlineReady, setOfflineReady],
     updateServiceWorker,
-  } = useRegisterSW({ immediate: !isTauri });
+  } = useRegisterSW({ immediate: !isTauri && !isDev });
 
-  // Bersihkan SW basi yang mungkin sudah terlanjur terdaftar dari build
-  // desktop sebelumnya (sebelum fix ini). Unregister + hapus precache-nya.
+  // Bersihkan SW basi yang mungkin terdaftar dari build desktop sebelumnya
+  // atau dari sesi dev terdahulu saat devOptions.enabled masih true.
   useEffect(() => {
-    if (!isTauri || !navigator.serviceWorker) return;
+    if ((!isTauri && !isDev) || !navigator.serviceWorker) return;
     navigator.serviceWorker.getRegistrations().then((regs) => {
       regs.forEach((r) => r.unregister());
       if (regs.length && typeof caches !== "undefined") {
@@ -49,7 +50,7 @@ export function usePwaInstall() {
         );
       }
     }).catch(() => {});
-  }, [isTauri]);
+  }, [isTauri, isDev]);
 
   // ---- Install prompt (Chrome/Android/Edge) + iOS fallback hint ----
   const [installPromptEvent, setInstallPromptEvent] = useState(null);

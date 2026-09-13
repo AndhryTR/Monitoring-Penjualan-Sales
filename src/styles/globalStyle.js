@@ -8,7 +8,7 @@
 
 export function createGlobalStyle(colors, powerSaveMode) {
   return `
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap');
 * { box-sizing: border-box; }
 .smapp { font-family: 'Inter', sans-serif; color: ${colors.text}; background: ${colors.meshBg}; position: relative; }
 /* --- Tauri desktop (Acrylic + hybrid scrim): latar app transparan supaya
@@ -18,7 +18,11 @@ export function createGlobalStyle(colors, powerSaveMode) {
        melayang diberi scrim semi-opaque lebih pekat (naikkan alpha token glass)
        supaya teks tetap kontras tanpa blur. Aurora mesh diredam jadi aksen tipis.
        Browser/PWA tak berubah. --- */
-html, body { background: transparent; }
+html, body {
+  background: transparent;
+  font-family: 'Inter', sans-serif;
+  color: ${colors.text};
+}
 .smapp.is-tauri { background: transparent; }
 .smapp.is-tauri .sm-mesh { opacity: .35; }
 /* Scrim hybrid: header bar (sm-card sticky) & elemen melayang butuh alpha lebih
@@ -27,11 +31,11 @@ html, body { background: transparent; }
 .smapp.is-tauri .sm-btn { backdrop-filter: none; -webkit-backdrop-filter: none; }
 .smapp.is-tauri .sm-header-search { backdrop-filter: none; -webkit-backdrop-filter: none; }
 .smapp.is-tauri .sm-slider { backdrop-filter: none; -webkit-backdrop-filter: none; }
-.smapp .disp { font-family: 'Space Grotesk', sans-serif; }
-.smapp .mono { font-family: 'JetBrains Mono', monospace; }
-.smapp *::-webkit-scrollbar { height: 8px; width: 8px; }
-.smapp *::-webkit-scrollbar-thumb { background: ${colors.border}; border-radius: 4px; border: 2px solid ${colors.ink}; }
-.smapp *::-webkit-scrollbar-track { background: transparent; }
+.disp, .smapp .disp { font-family: 'Space Grotesk', sans-serif; }
+.mono, .smapp .mono { font-family: 'JetBrains Mono', monospace; }
+*::-webkit-scrollbar, .smapp *::-webkit-scrollbar { height: 8px; width: 8px; }
+*::-webkit-scrollbar-thumb, .smapp *::-webkit-scrollbar-thumb { background: ${colors.border}; border-radius: 4px; border: 2px solid ${colors.ink}; }
+*::-webkit-scrollbar-track, .smapp *::-webkit-scrollbar-track { background: transparent; }
 /* Sembunyikan scrollbar pada mobile bottom nav (scroll-snap horizontal) */
 .sm-scrollhide::-webkit-scrollbar { display: none; }
 /* --- Aurora mesh background (Fase 4 — final spec, 5 blobs) --- */
@@ -95,8 +99,8 @@ html, body { background: transparent; }
 .sm-btn:hover { transform: translateY(-2px); background: ${colors.glassFillStrong}; box-shadow: 0 6px 20px rgba(0,0,0,.22), inset 0 1px 0 ${colors.glassHighlight}; }
 .sm-btn:active { transform: translateY(0); box-shadow: inset 0 2px 8px rgba(0,0,0,.25); }
 .sm-progress-fill { transition: width 1s cubic-bezier(.16,1,.3,1); }
-.sm-drop { transition: border-color .2s ease, background .2s ease; }
-.sm-scale-in { animation: smFadeUp .5s cubic-bezier(.16,1,.3,1); }
+@keyframes smModalPop { 0% { opacity: 0; transform: scale(0.96) translateY(8px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+.sm-scale-in { animation: smModalPop .24s cubic-bezier(.16,1,.3,1) both; }
 
 /* --- Header Redesign (Sprint 18 / Header Redesign) --- */
 /* Divider vertikal antar grup tombol di header utama. Gradient transparan di

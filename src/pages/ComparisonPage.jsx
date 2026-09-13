@@ -22,6 +22,8 @@ import { fmtRp, fmtPct } from "../utils/formatters.js";
 import { captureChartImage } from "../utils/trendExport.js";
 import { computeBaseGrowth } from "../utils/comparisonBase.js";
 
+const EMPTY_ARRAY = [];
+
 /* ============================================================================
    TAB: PERBANDINGAN (Comparison Studio)
    Matriks entitas × periode: pilih 2+ entitas (sales/grup/outlet) dan 2+
@@ -81,7 +83,7 @@ export function ComparisonPage({
   const [metric, setMetric] = useState(saved.metric || "value");
 
   // Helper derive: ambil selection untuk mode aktif.
-  const selectedEntities = selectedByMode[mode] || [];
+  const selectedEntities = selectedByMode[mode] || EMPTY_ARRAY;
   // Helper setter: update selection untuk mode aktif saja, mode lain tetap.
   const updateSelectedEntities = (next) => {
     setSelectedByMode((prev) => ({ ...prev, [mode]: typeof next === "function" ? next(prev[mode] || []) : next }));

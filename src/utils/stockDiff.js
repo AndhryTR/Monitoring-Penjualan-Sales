@@ -1,7 +1,7 @@
 import { computeCurrentStock } from "./stockEngine.js";
 
 /* ============================================================================
-   STOCK DIFF — Sprint 19 / Sprint 2: Reconciliation
+   STOCK DIFF: Reconciliation
    Diff engine: compare stok sistem (current) vs stok dari upload baru (new snapshot).
 
    Konsep:

@@ -1,6 +1,7 @@
 import sumBy from "lodash/sumBy";
 import { effectiveKartonQty } from "./excelParse.js";
 import { computeAggregates } from "./aggregation.js";
+import { MONTHS_ID_FULL } from "./formatters.js";
 
 /* ============================================================================
    PERBANDINGAN (COMPARISON MATRIX) — tab "Perbandingan"
@@ -17,8 +18,6 @@ import { computeAggregates } from "./aggregation.js";
    Qty KARTON dihitung dari effectiveKartonQty() yang sudah ada — agg.bySales
    tidak membawa qty, jadi dihitung ulang di sini dari baris mentah.
 ============================================================================ */
-
-const MONTHS_ID_FULL = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
 // Apakah sebuah rentang tanggal = 1 bulan kalender penuh ("YYYY-MM-01" sampai
 // akhir bulan itu). Dipakai untuk menentukan apakah ACH berlaku untuk periode itu.

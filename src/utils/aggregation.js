@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import sumBy from "lodash/sumBy";
 import { normalizeHeader, dateStrToLocalDate, effectiveKartonQty } from "./excelParse.js";
 import { ALERT_MIN_DAYS } from "../constants/thresholds.js";
+import { MONTHS_ID_FULL } from "./formatters.js";
 
 /* ============================================================================
    AGGREGATION
@@ -25,8 +26,6 @@ export function computePaceStatus(achPct, timeGonePct) {
   return { isAhead: achPct >= timeGonePct };
 }
 
-const MONTHS_ID_FULL = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-
 // Deteksi bulan-bulan kalender berbeda yang ada di `rows` (dipakai untuk
 // auto-perbandingan per-bulan di Tren Periode saat data upload mencakup
 // >1 bulan). Return terurut kronologis (lama -> baru), tiap entri berisi
@@ -34,8 +33,18 @@ const MONTHS_ID_FULL = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", 
 // dateFrom = tanggal 1 bulan itu, supaya konsisten dengan cara periode
 // "sebulan penuh" biasanya didefinisikan di app ini).
 export function detectMonths(rows) {
+  if (!rows || !rows.length) return [];
   const keys = new Set();
-  rows.forEach((r) => { if (r.date) keys.add(monthKey(r.date)); });
+  let lastKey = null;
+  for (let i = 0; i < rows.length; i++) {
+    const d = rows[i].date;
+    if (!d) continue;
+    const key = d.length >= 7 ? d.slice(0, 7) : monthKey(d);
+    if (key !== lastKey) {
+      lastKey = key;
+      keys.add(key);
+    }
+  }
   return Array.from(keys).sort().map((key) => {
     const [y, m] = key.split("-");
     const dateFrom = `${key}-01`;
@@ -233,6 +242,8 @@ export function computeOutletAnalysis(rows, meta, thresholds) {
     // Isi alamat bila belum ada (baris berikutnya mungkin punya alamat yang
     // baris pertama tidak punya — di file yang kolom alamat-nya sebagian kosong).
     if (!o.outletAddress && r.outletAddress) o.outletAddress = r.outletAddress;
+    if (r.lat !== undefined && o.lat === undefined) o.lat = r.lat;
+    if (r.lng !== undefined && o.lng === undefined) o.lng = r.lng;
     if (!o.lastDate || r.date > o.lastDate) o.lastDate = r.date;
   });
 
@@ -253,6 +264,8 @@ export function computeOutletAnalysis(rows, meta, thresholds) {
       outletName: o.outletName,
       // ⚠️ Sprint 17i: teruskan alamat ke hasil list untuk dipakai di export.
       outletAddress: o.outletAddress || "",
+      lat: o.lat,
+      lng: o.lng,
       value: o.value,
       qty: o.qty,
       invoiceCount: o.invoices.size,
@@ -362,32 +375,20 @@ export function computeAggregates(rows, targets, filters, workDays) {
       if (filters.dateTo && dateStr > filters.dateTo) return false;
       return true;
     };
-    const filtered = rows.filter((r) => {
-      if (!inRange(r.date)) return false;
-      if (filters.salesCodes.length && !filters.salesCodes.includes(r.salesCode)) return false;
-      if (filters.groups.length && !filters.groups.includes(r.group)) return false;
-      return true;
-    });
 
-    const relevantTargets = filters.salesCodes.length
-      ? targets.filter((t) => filters.salesCodes.includes(t.code))
+    const hasSalesFilter = filters.salesCodes && filters.salesCodes.length > 0;
+    const salesFilterSet = hasSalesFilter ? new Set(filters.salesCodes) : null;
+    const hasGroupFilter = filters.groups && filters.groups.length > 0;
+    const groupFilterSet = hasGroupFilter ? new Set(filters.groups) : null;
+
+    const relevantTargets = hasSalesFilter
+      ? targets.filter((t) => salesFilterSet.has(t.code))
       : targets;
 
-    // ---- SINGLE-PASS INDEX BUILD ----
-    // ⚠️ Performance fix (Sprint 3 / P1): sebelumnya setiap consumer (bySales,
-    // byGroup, focusRows, focusGroupRows, byOutlet, daily, monthly) melakukan
-    // forEach sendiri atas `filtered`. Total loop = 6 × N. Sekarang satu loop
-    // bangun semua Map index sekaligus, consumer cukup lookup O(1).
-    //
-    // Index yang dibangun:
-    //   rowsBySales       — Map<salesCode, Array<row>>
-    //   rowsByGroup       — Map<groupName, Array<row>>
-    //   rowsBySalesGroup  — Map<salesCode|groupName, Array<row>> (composite key)
-    //   outletMap         — Map<outletKey, agg> (realisasi + ao + qtyKarton)
-    //   dailyMap          — Object<dateKey, {date, value, outlets:Set}>
-    //   monthlyMap        — Object<monthKey, value>
-    //   aoUniqueOutlets   — Set<salesCode|outletCode> (untuk totalRealisasiAo)
-    //   uniqueDateStrs    — Set<dateStr> (untuk meta.firstDate/lastDate)
+    // ---- SINGLE-PASS UNIFIED BUILD ----
+    // Seluruh filter, pengelompokan Map, dan pre-agregasi kuantiti karton
+    // disatukan ke dalam SATU lintasan O(N) tanpa alokasi array berulang.
+    const filtered = [];
     const EMPTY_ARRAY = [];
     const rowsBySales = new Map();
     const rowsByGroup = new Map();
@@ -397,18 +398,31 @@ export function computeAggregates(rows, targets, filters, workDays) {
     const monthlyMap = {};
     const aoUniqueOutlets = new Set();
     const uniqueDateStrsSet = new Set();
+    const qtyKartonBySales = new Map();
+    const qtyKartonByGroup = new Map();
+
     const pushTo = (map, key, row) => {
       let arr = map.get(key);
       if (!arr) { arr = []; map.set(key, arr); }
       arr.push(row);
     };
-    filtered.forEach((r) => {
+
+    const rowsCount = rows ? rows.length : 0;
+    for (let i = 0; i < rowsCount; i++) {
+      const r = rows[i];
+      if (!inRange(r.date)) continue;
+      if (hasSalesFilter && !salesFilterSet.has(r.salesCode)) continue;
+      if (hasGroupFilter && !groupFilterSet.has(r.group)) continue;
+
+      filtered.push(r);
+
       // bySales
       if (r.salesCode) pushTo(rowsBySales, r.salesCode, r);
       // byGroup
       if (r.group) pushTo(rowsByGroup, r.group, r);
       // composite sales|group
       if (r.salesCode && r.group) pushTo(rowsBySalesGroup, r.salesCode + "|" + r.group, r);
+
       // byOutlet
       const ok = r.outletCode || r.outletName || "UNKNOWN";
       let o = outletMap.get(ok);
@@ -422,22 +436,31 @@ export function computeAggregates(rows, targets, filters, workDays) {
         };
         outletMap.set(ok, o);
       }
-      o.value += r.value || 0;
-      o.qtyKarton += effectiveKartonQty(r);
+      o.value += (r.value || 0);
+      const q = effectiveKartonQty(r);
+      o.qtyKarton += q;
       if (r.invoiceNo) o.invoiceSet.add(r.invoiceNo);
+
       // daily
       const dk = dateKey(r.date);
       if (!dailyMap[dk]) dailyMap[dk] = { date: dk, value: 0, outlets: new Set() };
-      dailyMap[dk].value += r.value;
+      dailyMap[dk].value += (r.value || 0);
       if (r.outletCode) dailyMap[dk].outlets.add(r.outletCode);
+
       // monthly
       const mk = monthKey(r.date);
-      monthlyMap[mk] = (monthlyMap[mk] || 0) + r.value;
+      monthlyMap[mk] = (monthlyMap[mk] || 0) + (r.value || 0);
+
       // aoUniqueOutlets (untuk totalRealisasiAo)
       if (r.salesCode && r.outletCode) aoUniqueOutlets.add(r.salesCode + "|" + r.outletCode);
+
       // uniqueDateStrs (untuk meta)
       if (r.date) uniqueDateStrsSet.add(r.date);
-    });
+
+      // Pre-aggregated qty KARTON per sales & group
+      if (r.salesCode) qtyKartonBySales.set(r.salesCode, (qtyKartonBySales.get(r.salesCode) || 0) + q);
+      if (r.group) qtyKartonByGroup.set(r.group, (qtyKartonByGroup.get(r.group) || 0) + q);
+    }
 
     // per sales
     //
@@ -528,7 +551,9 @@ export function computeAggregates(rows, targets, filters, workDays) {
     // by group (respecting the group filter list of allowed groups, else all groups present in targets ∪ data)
     const groupNamesSet = new Set();
     relevantTargets.forEach((t) => t.groups.forEach((g) => groupNamesSet.add(g.name)));
-    filtered.forEach((r) => r.group && groupNamesSet.add(r.group));
+    for (const g of rowsByGroup.keys()) {
+      groupNamesSet.add(g);
+    }
     let groupNames = Array.from(groupNamesSet);
     if (filters.groups.length) groupNames = groupNames.filter((g) => filters.groups.includes(g));
 
@@ -655,31 +680,10 @@ export function computeAggregates(rows, targets, filters, workDays) {
       });
     }
 
-    // ---- Pre-aggregated qty KARTON per sales & per group ----
-    // ⚠️ Performance fix (Sprint 3 / P2): sebelumnya buildSalesMatrix &
-    // buildGroupMatrix di comparison.js me-re-scan filteredRows untuk setiap
-    // (sales × periode) dan (group × periode) — O(N_sales × N_period × N_rows)
-    // + O(N_group × N_period × N_rows). Untuk 30 sales × 4 periode × 15k rows
-    // = 1.8M iterasi per matrix rebuild, freeze UI saat tab Perbandingan dibuka.
-    //
-    // Sekarang: qtyKarton di-pre-aggregate sekali jalan di sini, ekspos sebagai
-    // Map di output `agg`. Matrix builder cukup lookup O(1) per (sales, period).
-    // Catatan: qtyKartonBySales berisi total qty KARTON untuk sales itu di
-    // SELURUH filteredRows (bukan per period). Untuk comparison matrix yang
-    // per periode, matrix builder akan iterate periodAggs dan akses
-    // periodAggs[i].qtyKartonBySales.get(code) — sama O(1) per cell.
-    const qtyKartonBySales = new Map();
-    const qtyKartonByGroup = new Map();
-    filtered.forEach((r) => {
-      const q = effectiveKartonQty(r);
-      if (r.salesCode) qtyKartonBySales.set(r.salesCode, (qtyKartonBySales.get(r.salesCode) || 0) + q);
-      if (r.group) qtyKartonByGroup.set(r.group, (qtyKartonByGroup.get(r.group) || 0) + q);
-    });
-
     return {
       filteredRows: filtered, bySales, byGroup, byOutlet, daily, monthly, focusRows, focusGroupRows, meta, projection, alerts,
-      // Pre-aggregated qty KARTON per entity — dipakai oleh buildSalesMatrix &
-      // buildGroupMatrix di comparison.js untuk hindari re-scan filteredRows.
+      // Pre-aggregated qty KARTON per entity — dihitung di single-pass loop, dipakai oleh
+      // buildSalesMatrix & buildGroupMatrix di comparison.js untuk hindari re-scan filteredRows.
       qtyKartonBySales, qtyKartonByGroup,
       totals: { targetValue: totalTargetValue, targetAo: totalTargetAo, realisasiValue: totalRealisasiValue,
         realisasiAo: totalRealisasiAo, ach: overallAch,

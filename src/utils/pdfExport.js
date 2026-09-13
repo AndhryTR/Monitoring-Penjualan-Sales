@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import sumBy from "lodash/sumBy";
-import { fmtRp, fmtNum, fmtPct } from "./formatters.js";
+import { fmtRp, fmtNum, fmtPct, MONTHS_ID, formatDateID } from "./formatters.js";
 import { ACH_TIERS } from "../constants/thresholds.js";
 
 /* ============================================================================
@@ -26,14 +26,6 @@ const COLORS = {
   headerFill: [17, 24, 39],
 };
 
-const MONTHS_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-
-function formatDateID(dateStr) {
-  if (!dateStr) return "-";
-  const [y, m, d] = dateStr.split("-").map(Number);
-  if (!y || !m || !d) return dateStr;
-  return `${d} ${MONTHS_ID[m - 1]} ${y}`;
-}
 
 function formatGeneratedAt() {
   const now = new Date();

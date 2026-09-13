@@ -53,9 +53,17 @@ function rate(metric, value) {
 
 export function useWebVitals({ onMetric, enabled = true } = {}) {
   const vitalsRef = useRef({ fcp: null, lcp: null, inp: null, cls: null, ttfb: null });
+  const onMetricRef = useRef(onMetric);
+  onMetricRef.current = onMetric;
 
   useEffect(() => {
     if (!enabled || typeof PerformanceObserver === "undefined") return;
+
+    let fcpObserver = null;
+    let lcpObserver = null;
+    let clsObserver = null;
+    let inpObserver = null;
+    let onHide = null;
 
     // Helper: simpan metric, panggil onMetric callback, log ke console.
     const record = (name, value) => {
@@ -67,7 +75,7 @@ export function useWebVitals({ onMetric, enabled = true } = {}) {
       if (import.meta.env.DEV) {
         console.log(`[WebVitals] ${name.toUpperCase()}: ${value.toFixed(name === "cls" ? 3 : 0)}${unit} (${rating})`);
       }
-      onMetric?.({ name, value, rating });
+      onMetricRef.current?.({ name, value, rating });
     };
 
     // ---- TTFB (Time to First Byte) ----
@@ -84,12 +92,13 @@ export function useWebVitals({ onMetric, enabled = true } = {}) {
 
     // ---- FCP (First Contentful Paint) ----
     try {
-      const fcpObserver = new PerformanceObserver((list) => {
+      fcpObserver = new PerformanceObserver((list) => {
         const entries = list.getEntries();
         const fcpEntry = entries.find((e) => e.name === "first-contentful-paint");
         if (fcpEntry) {
           record("fcp", fcpEntry.startTime);
           fcpObserver.disconnect();
+          fcpObserver = null;
         }
       });
       fcpObserver.observe({ type: "paint", buffered: true });
@@ -101,16 +110,17 @@ export function useWebVitals({ onMetric, enabled = true } = {}) {
     // LCP bisa update beberapa kali (final LCP = entry terakhir sebelum
     // user interaksi atau page hidden). Kita simpan yang terbaru.
     try {
-      const lcpObserver = new PerformanceObserver((list) => {
+      lcpObserver = new PerformanceObserver((list) => {
         const entries = list.getEntries();
         const last = entries[entries.length - 1];
         if (last) record("lcp", last.startTime);
       });
       lcpObserver.observe({ type: "largest-contentful-paint", buffered: true });
       // Disconnect saat page hidden untuk "freeze" final LCP.
-      const onHide = () => {
+      onHide = () => {
         if (document.visibilityState === "hidden") {
-          lcpObserver.disconnect();
+          lcpObserver?.disconnect();
+          lcpObserver = null;
           document.removeEventListener("visibilitychange", onHide);
         }
       };
@@ -123,7 +133,7 @@ export function useWebVitals({ onMetric, enabled = true } = {}) {
     // CLS akumulasi semua layout shift entries. Kita hitung total score.
     let clsValue = 0;
     try {
-      const clsObserver = new PerformanceObserver((list) => {
+      clsObserver = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
           if (!entry.hadRecentInput) {
             clsValue += entry.value;
@@ -140,7 +150,7 @@ export function useWebVitals({ onMetric, enabled = true } = {}) {
     // INP = worst interaction delay dalam session (atau 98th percentile bila
     // banyak interaksi). Untuk simplicity, kita track worst seen.
     try {
-      const inpObserver = new PerformanceObserver((list) => {
+      inpObserver = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
           // entry.duration = total interaction delay (processing + input + presentation).
           if (entry.interactionId) {
@@ -153,7 +163,17 @@ export function useWebVitals({ onMetric, enabled = true } = {}) {
     } catch {
       // Browser tidak support INP — skip (Safari, Firefox lama).
     }
-  }, [enabled, onMetric]);
+
+    return () => {
+      fcpObserver?.disconnect();
+      lcpObserver?.disconnect();
+      clsObserver?.disconnect();
+      inpObserver?.disconnect();
+      if (onHide) {
+        document.removeEventListener("visibilitychange", onHide);
+      }
+    };
+  }, [enabled]);
 
   return vitalsRef;
 }

@@ -15,12 +15,9 @@ export function useScrollDirection(threshold = 8) {
   useEffect(() => {
     // Deteksi mobile (breakpoint < 768px = md). Desktop: header selalu tampil.
     const mq = window.matchMedia("(max-width: 767px)");
-    if (!mq.matches) {
-      setHidden(false);
-      return;
-    }
 
     const onScroll = () => {
+      if (!mq.matches) return;
       if (tickingRef.current) return;
       tickingRef.current = true;
       requestAnimationFrame(() => {

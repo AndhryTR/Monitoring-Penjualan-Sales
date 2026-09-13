@@ -72,6 +72,8 @@ export function useCloudSync({
   // Guard anti-tumpukan: sync settings tidak boleh jalan ganda bersamaan
   // (login + perubahan + focus bisa dekat sekali waktunya).
   const settingsSyncInFlightRef = useRef(false);
+  const masterSyncInFlightRef = useRef(false);
+  const masterSaveInFlightRef = useRef(false);
 
   // LWW settings+targets: pull kalau cloud lebih baru, push kalau lokal lebih baru.
   const syncSettingsNow = useCallback(async () => {
@@ -160,6 +162,8 @@ export function useCloudSync({
   // ---- Master data: PULL (tombol manual) ----
   const syncMasterNow = useCallback(async () => {
     if (!supabase || !isAuthedRef.current) return;
+    if (masterSyncInFlightRef.current) return;
+    masterSyncInFlightRef.current = true;
     setMasterSyncState("syncing"); setMasterSyncMsg("");
     try {
       // Device yang sudah pernah sync menarik ulang tanggal maksimum lokal
@@ -195,6 +199,8 @@ export function useCloudSync({
     } catch (e) {
       setMasterSyncState("error");
       setMasterSyncMsg(String(e?.message || e || "Terjadi kesalahan saat sinkronisasi data penjualan"));
+    } finally {
+      masterSyncInFlightRef.current = false;
     }
   }, [rawRows, setRawRows, setFileName, setParseMeta, isAuthedRef]);
 
@@ -203,32 +209,38 @@ export function useCloudSync({
   // biasa tetap incremental.
   const handleSaveMaster = useCallback(async () => {
     if (!isEditor || !rawRows.length) return;
+    if (masterSaveInFlightRef.current) return;
+    masterSaveInFlightRef.current = true;
     setMasterBusy(true); setMasterResult("");
-    const replacementDates = parseMeta?.replaceDates || [];
-    const isReplacement = replacementDates.length > 0;
-    const rowsToReplace = isReplacement
-      ? rawRows.filter((r) => replacementDates.includes(r.date))
-      : rawRows;
-    const maxDate = isReplacement ? null : await fetchMasterMaxDate();
-    const res = isReplacement
-      ? await replaceMasterRowsForDates(rowsToReplace)
-      : await pushMasterRows(rowsToReplace, maxDate);
-    setMasterBusy(false);
-    if (res.ok) {
-      if (isReplacement) {
-        setMasterResult(`${res.deleted} baris master diganti dengan ${res.inserted} baris koreksi.`);
-        return;
+    try {
+      const replacementDates = parseMeta?.replaceDates || [];
+      const isReplacement = replacementDates.length > 0;
+      const rowsToReplace = isReplacement
+        ? rawRows.filter((r) => replacementDates.includes(r.date))
+        : rawRows;
+      const maxDate = isReplacement ? null : await fetchMasterMaxDate();
+      const res = isReplacement
+        ? await replaceMasterRowsForDates(rowsToReplace)
+        : await pushMasterRows(rowsToReplace, maxDate);
+      if (res.ok) {
+        if (isReplacement) {
+          setMasterResult(`${res.deleted} baris master diganti dengan ${res.inserted} baris koreksi.`);
+          return;
+        }
+        // `inserted` dari count:"exact" (baris yang BENAR² masuk DB). `dupInternal`
+        // = duplikat dalam file upload (key UNIQUE sama), `dupSkipped` = sudah ada
+        // di master dari upload/sync sebelumnya, `skipped` = di luar rentang incremental.
+        const parts = [`${res.inserted} baris ditambahkan`];
+        if (res.dupInternal > 0) parts.push(`${res.dupInternal} duplikat dalam file`);
+        if (res.dupSkipped > 0) parts.push(`${res.dupSkipped} sudah ada di master`);
+        if (res.skipped > 0) parts.push(`${res.skipped} di luar rentang`);
+        setMasterResult(parts.join(", "));
       }
-      // `inserted` dari count:"exact" (baris yang BENAR² masuk DB). `dupInternal`
-      // = duplikat dalam file upload (key UNIQUE sama), `dupSkipped` = sudah ada
-      // di master dari upload/sync sebelumnya, `skipped` = di luar rentang incremental.
-      const parts = [`${res.inserted} baris ditambahkan`];
-      if (res.dupInternal > 0) parts.push(`${res.dupInternal} duplikat dalam file`);
-      if (res.dupSkipped > 0) parts.push(`${res.dupSkipped} sudah ada di master`);
-      if (res.skipped > 0) parts.push(`${res.skipped} di luar rentang`);
-      setMasterResult(parts.join(", "));
+      else setMasterResult("Gagal simpan ke master: " + (res.reason || ""));
+    } finally {
+      setMasterBusy(false);
+      masterSaveInFlightRef.current = false;
     }
-    else setMasterResult("Gagal simpan ke master: " + (res.reason || ""));
   }, [isEditor, rawRows, parseMeta]);
 
   // Hapus rentang tanggal di master (admin/supervisor) + opsional data lokal.

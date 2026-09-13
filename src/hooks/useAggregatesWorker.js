@@ -89,13 +89,27 @@ export function useAggregatesWorker(rows, targets, filters, workDays) {
   }));
 
   useEffect(() => {
+    let worker = workerRef.current;
+    if (!worker) {
+      try {
+        worker = new Worker(new URL("../workers/aggregation.worker.js", import.meta.url), { type: "module" });
+        workerRef.current = worker;
+      } catch (err) {
+        console.warn("Gagal inisialisasi Worker, fallback ke synchronous aggregation:", err);
+        setState({
+          loading: false,
+          error: null,
+          value: computeAggregates(rows, targets, filters, workDays),
+        });
+        return;
+      }
+    }
+
     const requestId = ++requestIdRef.current;
-    const worker = new Worker(new URL("../workers/aggregation.worker.js", import.meta.url), { type: "module" });
-    workerRef.current = worker;
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
     worker.onmessage = ({ data }) => {
-      if (data.requestId !== requestId || requestId !== requestIdRef.current) return;
+      if (!data || data.requestId !== requestIdRef.current) return;
       if (data.error) {
         setState((prev) => ({ ...prev, loading: false, error: data.error }));
         return;
@@ -103,21 +117,30 @@ export function useAggregatesWorker(rows, targets, filters, workDays) {
       const hydrated = hydratePredicates(addPredicateMetadata(data.result));
       setState({ loading: false, error: null, value: hydrated });
     };
+
     worker.onerror = (event) => {
       if (requestId !== requestIdRef.current) return;
       console.error("Aggregation Worker gagal:", event.error || event.message);
       // Fallback menjaga app tetap bisa dipakai bila browser memblokir Worker.
       setState({ loading: false, error: event.message || "Worker gagal", value: computeAggregates(rows, targets, filters, workDays) });
+      if (workerRef.current === worker) {
+        try { worker.terminate(); } catch { /* ignore */ }
+        workerRef.current = null;
+      }
     };
-    worker.postMessage({ requestId, rows, targets, filters, workDays });
 
-    return () => {
-      worker.onmessage = null;
-      worker.onerror = null;
-      worker.terminate();
-      if (workerRef.current === worker) workerRef.current = null;
-    };
+    worker.postMessage({ requestId, rows, targets, filters, workDays });
   }, [rows, targets, filters, workDays]);
+
+  // Terminate worker hanya ketika hook unmount
+  useEffect(() => {
+    return () => {
+      if (workerRef.current) {
+        try { workerRef.current.terminate(); } catch { /* ignore */ }
+        workerRef.current = null;
+      }
+    };
+  }, []);
 
   return { ...state.value, aggregationLoading: state.loading, aggregationError: state.error };
 }

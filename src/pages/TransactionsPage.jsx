@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { Receipt, Filter, X, Store, Receipt as ReceiptIcon } from "lucide-react";
 import { fmtRp, fmtNum } from "../utils/formatters.js";
 import { filterTransactions, summarizeTransactions, getOutletOptions, getUnitOptions } from "../utils/transactions.js";
-import { SectionTitle } from "../components/ui/index.jsx";
+import { SectionTitle, CustomSelect } from "../components/ui/index.jsx";
 import { TransactionTable } from "../components/transactions/TransactionTable.jsx";
 import { EmptyState } from "../components/ui/EmptyState.jsx";
 import { MultiSelect } from "../components/ui/MultiSelect.jsx";
@@ -55,14 +55,15 @@ export function TransactionsPage({
     : "Tidak ada tanggal";
 
   // Filter state untuk MultiSelect outlet (pakai name, convert ke code)
-  const outletNames = outletOptions.map((o) => o.name);
+  const outletNames = useMemo(() => outletOptions.map((o) => o.name), [outletOptions]);
+  const codeToName = useMemo(() => Object.fromEntries(outletOptions.map((o) => [o.code, o.name])), [outletOptions]);
+  const nameToCode = useMemo(() => Object.fromEntries(outletOptions.map((o) => [o.name, o.code])), [outletOptions]);
+
   const selectedOutletNames = useMemo(() => {
-    const codeToName = Object.fromEntries(outletOptions.map((o) => [o.code, o.name]));
     return localFilters.outletCodes.map((code) => codeToName[code]).filter(Boolean);
-  }, [localFilters.outletCodes, outletOptions]);
+  }, [localFilters.outletCodes, codeToName]);
 
   const handleOutletChange = (names) => {
-    const nameToCode = Object.fromEntries(outletOptions.map((o) => [o.name, o.code]));
     setLocalFilters((f) => ({ ...f, outletCodes: names.map((n) => nameToCode[n]).filter(Boolean) }));
   };
 
@@ -218,15 +219,19 @@ export function TransactionsPage({
           {/* Satuan */}
           <div>
             <label className="block text-xs mb-1.5" style={{ color: colors.textMuted }}>Satuan</label>
-            <select
+            <CustomSelect
               value={localFilters.unit || ""}
-              onChange={(e) => setLocalFilters((f) => ({ ...f, unit: e.target.value }))}
-              className="w-full px-2.5 py-2 rounded-lg text-sm outline-none"
-              style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text, colorScheme: colors.colorScheme }}
-            >
-              <option value="">Semua satuan</option>
-              {unitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
-            </select>
+              onChange={(val) => setLocalFilters((f) => ({ ...f, unit: val }))}
+              placeholder="Semua satuan"
+              fullWidth={true}
+              size="md"
+              searchable={false}
+              colors={colors}
+              options={[
+                { value: "", label: "Semua satuan" },
+                ...unitOptions.map((u) => ({ value: u, label: u })),
+              ]}
+            />
           </div>
         </div>
       </div>

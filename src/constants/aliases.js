@@ -23,6 +23,9 @@ export const ALIASES = {
   baseUnit: ["UNITK"],
   value: ["NTOT", "VALUE", "NILAI", "TOTAL"],
   group: ["GRUP", "GROUP", "KATEGORI", "GOLONGAN"],
+  latitude: ["LAT", "LATITUDE", "LOKASI_LAT", "LAT_OUTLET", "Y"],
+  longitude: ["LONG", "LONGITUDE", "LON", "LNG", "LOKASI_LONG", "LONG_OUTLET", "X"],
+  coordinates: ["KOORDINAT", "COORDINATE", "GEO", "GPS", "LOKASI"],
 };
 
 export const FIELD_LABELS = {
@@ -31,4 +34,5 @@ export const FIELD_LABELS = {
   productCode: "Kode Produk", productName: "Nama Produk",
   qty: "Kuantitas", unit: "Satuan", konv: "Faktor Konversi (KONV)", baseUnit: "Satuan Dasar (UNITK)",
   value: "Nilai (Rp)", group: "Grup Produk",
+  latitude: "Latitude", longitude: "Longitude", coordinates: "Koordinat",
 };

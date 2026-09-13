@@ -2,8 +2,8 @@ import * as XLSX_MODULE from "xlsx-js-style";
 const XLSX = XLSX_MODULE.default || XLSX_MODULE;
 import { todayLocalDateStr } from "./excelParse.js";
 // ⚠️ Sprint 4 / Q1: import langsung dari xlsxStyle.js (sebelumnya dari
-// excelExport.js + duplikat makeSheetBuilder inline). Sekarang shared.
 import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT1, achGradientColor, makeSheetBuilder } from "./xlsxStyle.js";
+import { getStoredSchedule, DAY_LABELS, DAY_COLORS } from "./visitScheduleStorage.js";
 
 /* ============================================================================
    EXPORT EXCEL — Sales Report, Product Report, Product Focus, Analisis Outlet
@@ -132,12 +132,10 @@ export function exportOutletAnalysisExcel(list, summary, opts = {}) {
   const { depotName = "", dateRangeLabel = "" } = opts;
   const wb = XLSX.utils.book_new();
   const b = makeSheetBuilder();
-  // ⚠️ Sprint 17i: colCount 8 → 10 (tambah Kode Outlet + Alamat).
-  writeTitleBlock(b, "Analisis Outlet", `${depotName} · ${dateRangeLabel} · Dibuat ${todayLocalDateStr()}`, 10);
+  // 11 kolom: Kode Outlet | Nama Outlet | Alamat | Sales | Hari Kunjungan | Total Value | Frekuensi | Grup Produk | Terakhir Transaksi | Jeda (hari) | Status
+  writeTitleBlock(b, "Analisis Outlet", `${depotName} · ${dateRangeLabel} · Dibuat ${todayLocalDateStr()}`, 11);
 
   // Ringkasan kecil (Total/Aktif/Berisiko/Dormant)
-  // ⚠️ Sprint 17i: ringkasan ditaruh di kolom 1-8 agar rapi (tidak geser ke
-  // 9-10). Baris ke-3, 4 pasang label+value.
   b.setCell(3, 1, "Total Outlet", { bold: true, size: 9, color: "6B7280" });
   b.setCell(3, 2, summary.total, { numFmt: XL_NUMFMT_INT });
   b.setCell(3, 3, "Aktif", { bold: true, size: 9, color: "6B7280" });
@@ -147,33 +145,54 @@ export function exportOutletAnalysisExcel(list, summary, opts = {}) {
   b.setCell(3, 7, "Dormant", { bold: true, size: 9, color: "6B7280" });
   b.setCell(3, 8, summary.dormant, { numFmt: XL_NUMFMT_INT });
 
-  // Header row: 10 kolom
+  // Header row: 11 kolom
   writeHeaderRow(b, 5, [
-    "Kode Outlet", "Nama Outlet", "Alamat", "Sales",
+    "Kode Outlet", "Nama Outlet", "Alamat", "Sales", "Hari Kunjungan",
     "Total Value", "Frekuensi", "Grup Produk",
     "Terakhir Transaksi", "Jeda (hari)", "Status",
   ]);
   const STATUS_LABEL = { active: "Aktif", at_risk: "Berisiko", dormant: "Dormant" };
+  const schedule = opts.schedule || getStoredSchedule(depotName);
+
   list.forEach((o, i) => {
     const row = 6 + i;
-    // ⚠️ Sprint 17i: kolom 1 = Kode Outlet, 2 = Nama Outlet, 3 = Alamat,
-    // sisanya geser +2 dari posisi lama.
     b.setCell(row, 1, o.outletCode || "-");
     b.setCell(row, 2, o.outletName);
     b.setCell(row, 3, o.outletAddress || "-");
     b.setCell(row, 4, o.salesLabel);
-    b.setCell(row, 5, o.value, { numFmt: XL_NUMFMT_MONEY });
-    b.setCell(row, 6, o.invoiceCount, { numFmt: XL_NUMFMT_INT });
-    b.setCell(row, 7, o.groupCount, { numFmt: XL_NUMFMT_INT });
-    b.setCell(row, 8, o.lastDate || "-");
-    b.setCell(row, 9, o.daysSinceLastPurchase ?? "-", { numFmt: XL_NUMFMT_INT });
-    b.setCell(row, 10, STATUS_LABEL[o.status] || o.status, {
+
+    // Hari Kunjungan dengan warna selaras badge aplikasi
+    const sched = schedule[o.outletCode];
+    const dayKey = String(sched?.day || "").trim().toLowerCase();
+    const colorConf = DAY_COLORS[dayKey];
+    if (colorConf) {
+      b.setCell(row, 5, DAY_LABELS[dayKey] || sched.day, {
+        bold: true,
+        align: "center",
+        fill: colorConf.lightBg.replace("#", ""),
+        color: colorConf.lightText.replace("#", ""),
+      });
+    } else {
+      b.setCell(row, 5, "Belum", {
+        bold: true,
+        align: "center",
+        fill: "FFE4E6",
+        color: "E11D48",
+      });
+    }
+
+    b.setCell(row, 6, o.value, { numFmt: XL_NUMFMT_MONEY });
+    b.setCell(row, 7, o.invoiceCount, { numFmt: XL_NUMFMT_INT });
+    b.setCell(row, 8, o.groupCount, { numFmt: XL_NUMFMT_INT });
+    b.setCell(row, 9, o.lastDate || "-");
+    b.setCell(row, 10, o.daysSinceLastPurchase ?? "-", { numFmt: XL_NUMFMT_INT });
+    b.setCell(row, 11, STATUS_LABEL[o.status] || o.status, {
       fill: o.status === "active" ? XL_COLORS.mint : o.status === "at_risk" ? XL_COLORS.yellowTier : undefined,
     });
   });
-  // ⚠️ Sprint 17i: lebar kolom array 10 elemen (Kode, Nama, Alamat, Sales,
-  // Total Value, Frekuensi, Grup, Tanggal, Jeda, Status).
-  XLSX.utils.book_append_sheet(wb, b.finalize([14, 26, 32, 22, 18, 12, 12, 16, 12, 12]), "Analisis Outlet");
+
+  // Lebar kolom array 11 elemen
+  XLSX.utils.book_append_sheet(wb, b.finalize([14, 26, 32, 22, 16, 18, 12, 12, 16, 12, 12]), "Analisis Outlet");
   XLSX.writeFile(wb, `Analisis_Outlet_${(depotName || "depo").replace(/[^a-z0-9]+/gi, "_")}_${todayLocalDateStr()}.xlsx`);
 }
 

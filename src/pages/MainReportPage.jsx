@@ -7,8 +7,8 @@ import {
   Target, TrendingUp, TrendingDown, Sparkles, Users,
   CalendarDays, LayoutDashboard,
 } from "lucide-react";
-import { fmtRp, fmtNum } from "../utils/formatters.js";
-import { dateKey, computeAggregates } from "../utils/aggregation.js";
+import { fmtRp, fmtNum, fmtCompactNum } from "../utils/formatters.js";
+import { dateKey } from "../utils/aggregation.js";
 import { ACH_TIERS } from "../constants/thresholds.js";
 import { KpiBigCard } from "../components/KpiBigCard.jsx";
 import { PaceStrip } from "../components/PaceStrip.jsx";
@@ -16,7 +16,6 @@ import { AchBadge } from "../components/AchBadge.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, DrilldownButton, createChartTooltipStyle } from "../components/ui/index.jsx";
 import { ProjectionCard, PeriodComparisonCard } from "../components/cards/index.jsx";
-import { InsightBanner } from "../components/executive/InsightBanner.jsx";
 
 /* ============================================================================
    TAB: MAIN REPORT — REDESIGN (Sprint 11)
@@ -27,18 +26,32 @@ import { InsightBanner } from "../components/executive/InsightBanner.jsx";
    - Contextual hints ("Pace: X hari", "Perlu Rp X/hari")
    - Card 6 diganti: Target AO → Proyeksi Akhir Bulan (lebih actionable)
 ============================================================================ */
-export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison, projectionMethod, onProjectionMethodChange, dataQualityNotes, onNavigate, rawRows, targets, filters, slideshowMode = false, hideAlerts = false }) {
-  const uniqueDaysInData = useMemo(() => new Set(agg.filteredRows.map(r => dateKey(r.date))).size, [agg.filteredRows]);
-  const t = agg.totals;
+export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison, projectionMethod, onProjectionMethodChange, _dataQualityNotes, _onNavigate, rawRows, _targets, filters, slideshowMode = false, _hideAlerts = false, loading = false }) {
+  const isAggLoading = loading || Boolean(agg?.aggregationLoading && !agg?.totals?.targetValue && !agg?.totals?.realisasiValue);
+  const uniqueDaysInData = useMemo(() => new Set((agg?.filteredRows || []).map(r => dateKey(r.date))).size, [agg?.filteredRows]);
+  const t = agg?.totals || {};
   const timeGone = workDays ? Math.min(1, uniqueDaysInData / workDays) : 0;
 
-  // Kumulatif bulanan untuk sparkline Target Value card
+  // Kumulatif bulanan untuk sparkline Target Value card — agregasi ringan tanpa computeAggregates
   const monthlyCumulative = useMemo(() => {
     if (!rawRows || !rawRows.length) return [];
-    const aggAll = computeAggregates(rawRows, targets, { ...filters, dateFrom: "", dateTo: "" }, null);
-    const months = (aggAll.monthly || []).sort((a, b) => a.month.localeCompare(b.month));
-    return months.slice(-12);
-  }, [rawRows, targets, filters]);
+    const allowedSales = filters?.sales?.length ? new Set(filters.sales) : null;
+    const allowedGroups = filters?.groups?.length ? new Set(filters.groups) : null;
+    const monthMap = {};
+    for (let i = 0; i < rawRows.length; i++) {
+      const r = rawRows[i];
+      if (allowedSales && (!r.salesCode || !allowedSales.has(r.salesCode))) continue;
+      if (allowedGroups && (!r.group || !allowedGroups.has(r.group))) continue;
+      if (!r.date) continue;
+      const m = r.date.slice(0, 7);
+      if (!m) continue;
+      monthMap[m] = (monthMap[m] || 0) + (Number(r.value) || 0);
+    }
+    return Object.entries(monthMap)
+      .map(([month, value]) => ({ month, value }))
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .slice(-12);
+  }, [rawRows, filters?.sales, filters?.groups]);
 
   // Daily values untuk sparkline Realisasi card
   const dailyValues = useMemo(() => agg.daily.map(d => d.value), [agg.daily]);
@@ -80,12 +93,9 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
         realisasiValue={t.realisasiValue}
         workDays={workDays}
         uniqueDays={uniqueDaysInData}
+        dailySeries={agg.daily}
+        dateMeta={agg.meta}
       />
-      {!hideAlerts && (agg.alerts.length > 0 || dataQualityNotes) && (
-        <div className="mb-6">
-          <InsightBanner alerts={agg.alerts} dataQualityNotes={dataQualityNotes} colors={colors} onNavigate={onNavigate} onDrilldown={onDrilldown} />
-        </div>
-      )}
       <PeriodComparisonCard comparison={comparison} colors={colors} onClear={onClearComparison} />
 
       {/* ===== KPI GRID: 3-kolom × 2-baris ===== */}
@@ -106,6 +116,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
           footerDelta={monthlyCumulative.length >= 2 && monthlyCumulative[monthlyCumulative.length-2].value > 0 ? `${((monthlyCumulative[monthlyCumulative.length-1].value / monthlyCumulative[monthlyCumulative.length-2].value - 1) * 100).toFixed(1)}%` : null}
           footerDeltaType={monthlyCumulative.length >= 2 ? (monthlyCumulative[monthlyCumulative.length-1].value >= monthlyCumulative[monthlyCumulative.length-2].value ? "pos" : "neg") : "neutral"}
           delay={0}
+          loading={isAggLoading}
         />
 
         {/* Card 2: Realisasi Value */}
@@ -122,6 +133,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
           footerDelta={realisasiDelta !== null ? (realisasiDelta >= 0 ? `+${fmtRp(realisasiDelta)}` : fmtRp(realisasiDelta)) : null}
           footerDeltaType={realisasiDelta !== null ? (realisasiDelta >= 0 ? "pos" : "neg") : "neutral"}
           delay={40}
+          loading={isAggLoading}
         />
 
         {/* Card 3: Achievement */}
@@ -139,6 +151,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
           footerDelta={isAhead === null ? null : (isAhead ? "Di atas pace" : "Di bawah pace")}
           footerDeltaType={isAhead === null ? "neutral" : (isAhead ? "pos" : "neg")}
           delay={80}
+          loading={isAggLoading}
         />
 
         {/* Row 2: KPI Sekunder */}
@@ -155,6 +168,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
           footerDelta={sisaHari > 0 && sisaTarget > 0 ? `Perlu ${fmtRp(perluPerHari)}/hari` : "Target tercapai"}
           footerDeltaType={sisaTarget > 0 ? "neg" : "pos"}
           delay={120}
+          loading={isAggLoading}
         />
 
         {/* Card 5: Active Outlet (AO) */}
@@ -171,6 +185,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
           footerDelta={aoDelta !== null ? (aoDelta >= 0 ? `+${aoDelta} outlet` : `${aoDelta} outlet`) : null}
           footerDeltaType={aoDelta !== null ? (aoDelta >= 0 ? "pos" : "neg") : "neutral"}
           delay={160}
+          loading={isAggLoading}
         />
 
         {/* Card 6: Proyeksi Akhir Bulan (mengganti Target AO) */}
@@ -187,6 +202,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
           footerDelta={agg.projection.projectedAch !== null ? `ACH: ${(agg.projection.projectedAch * 100).toFixed(0)}%` : null}
           footerDeltaType={agg.projection.projectedAch !== null ? (agg.projection.projectedAch >= ACH_TIERS.onPace ? "pos" : "neg") : "neutral"}
           delay={200}
+          loading={isAggLoading}
         />
       </div>
 
@@ -207,7 +223,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} vertical={false} />
               <XAxis dataKey="date" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
-              <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
+              <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={fmtCompactNum} />
               <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} />
               <Area type="monotone" dataKey="value" stroke={colors.gold} fill="url(#gGold)" strokeWidth={2} />
             </AreaChart>
@@ -225,7 +241,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} vertical={false} />
               <XAxis dataKey="month" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
-              <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
+              <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={fmtCompactNum} />
               <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => fmtRp(v)} cursor={{ fill: colors.glassSubtle }} />
               <Bar dataKey="value" fill="url(#gMint)" radius={[6, 6, 0, 0]} />
             </BarChart>

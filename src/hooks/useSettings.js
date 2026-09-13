@@ -310,6 +310,7 @@ export function useSettings() {
     if (typeof doc.sidebar_collapsed === "boolean") setSidebarCollapsed(doc.sidebar_collapsed);
 
     // Apply targets/workDays/depotName dari cloud ke depo aktif.
+    const nowIso = new Date().toISOString();
     setDepots((prev) => prev.map((d) => {
       if (d.id !== activeDepotId) return d;
       return {
@@ -317,7 +318,7 @@ export function useSettings() {
         targets: doc.targets ?? d.targets,
         workDays: doc.work_days ?? d.workDays,
         name: doc.depot_name ?? d.name,
-        updatedAt: new Date().toISOString(),
+        updatedAt: nowIso,
       };
     }));
 
@@ -329,19 +330,21 @@ export function useSettings() {
     const snapshot = {
       theme: doc.theme ?? theme, powerSaveMode,
       filters,
+      projectionMethod: doc.projection_method ?? projectionMethod,
+      comparisonBase,
+      sidebarCollapsed: typeof doc.sidebar_collapsed === "boolean" ? doc.sidebar_collapsed : sidebarCollapsed,
+      slideshowConfig,
+      // Multi-depo state (Sprint 18)
       depots: depots.map((d) => d.id === activeDepotId
-        ? { ...d, targets: flatTargets, workDays: flatWorkDays, name: flatDepotName, updatedAt: new Date().toISOString() }
+        ? { ...d, targets: flatTargets, workDays: flatWorkDays, name: flatDepotName, updatedAt: nowIso }
         : d),
       activeDepotId,
       // Backward-compat flat fields
       targets: flatTargets, workDays: flatWorkDays, depotName: flatDepotName,
-      projectionMethod: doc.projection_method ?? projectionMethod,
-      comparisonBase,
-      sidebarCollapsed: typeof doc.sidebar_collapsed === "boolean" ? doc.sidebar_collapsed : sidebarCollapsed,
     };
     saveSettings({ ...snapshot, updated_at: ts });
     lastSavedSettingsRef.current = JSON.stringify(snapshot);
-  }, [activeDepotId, activeDepot, depots, filters, powerSaveMode, projectionMethod, comparisonBase, sidebarCollapsed, theme]);
+  }, [activeDepotId, activeDepot, depots, filters, powerSaveMode, projectionMethod, comparisonBase, sidebarCollapsed, slideshowConfig, theme]);
 
   // ---- resetAllSettings (dipakai "Clear All" di SettingsModal) ----
   // ⚠️ Sprint 18: reset depots ke single depo DEFAULT (DEFAULT_TARGETS).

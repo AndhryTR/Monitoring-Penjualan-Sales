@@ -153,6 +153,7 @@ export function StockPage({ stockData, colors, onUploadStock, filters }) {
       {/* Stock Table */}
       <DataTable
         colors={colors}
+        rowKey="productCode"
         initialSortKey="currentQty"
         searchable
         searchKeys={["productCode", "productName", "group"]}

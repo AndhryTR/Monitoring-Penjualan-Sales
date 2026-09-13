@@ -162,7 +162,7 @@ export async function parseMasterExcel(file) {
   }
 
   // Bangun map sales sementara — key = kode sales (uppercase), value = Target obj
-  const salesMap = {};
+  const salesMap = new Map();
   const salesOrder = []; // jaga urutan input
   for (let i = 1; i < salesAoA.length; i++) {
     const r = salesAoA[i];
@@ -177,7 +177,7 @@ export async function parseMasterExcel(file) {
       continue;
     }
 
-    if (salesMap[code]) {
+    if (salesMap.has(code)) {
       errors.push({
         sheet: sheets.sales, row: i + 1,
         message: `Kode sales "${code}" duplikat — baris kedua di-skip`,
@@ -186,7 +186,7 @@ export async function parseMasterExcel(file) {
       continue;
     }
 
-    salesMap[code] = {
+    salesMap.set(code, {
       code,
       name,
       tier: normalizeTier(r[salesFmap.tier]),
@@ -196,7 +196,7 @@ export async function parseMasterExcel(file) {
       },
       groups: [],
       focus: [],
-    };
+    });
     salesOrder.push(code);
     stats.salesCount++;
   }
@@ -229,7 +229,8 @@ export async function parseMasterExcel(file) {
           const groupName = cellStr(r[grupFmap.groupName]);
 
           if (!code || !groupName) { stats.skippedRows++; continue; }
-          if (!salesMap[code]) {
+          const target = salesMap.get(code);
+          if (!target) {
             errors.push({
               sheet: sheets.grup, row: i + 1,
               message: `Kode sales "${code}" tidak ada di Sheet Sales — grup di-skip`,
@@ -239,7 +240,7 @@ export async function parseMasterExcel(file) {
           }
 
           // Cek duplikat grup dalam sales yang sama
-          const existing = salesMap[code].groups.find((g) => g.name === groupName);
+          const existing = target.groups.find((g) => g.name === groupName);
           if (existing) {
             errors.push({
               sheet: sheets.grup, row: i + 1,
@@ -249,7 +250,7 @@ export async function parseMasterExcel(file) {
             continue;
           }
 
-          salesMap[code].groups.push({
+          target.groups.push({
             name: groupName,
             value: cellNum(r[grupFmap.groupTargetValue]),
             ao: cellNum(r[grupFmap.groupTargetAo]),
@@ -281,7 +282,8 @@ export async function parseMasterExcel(file) {
           const productName = cellStr(r[fokusFmap.focusProductName]);
 
           if (!code || !productName) { stats.skippedRows++; continue; }
-          if (!salesMap[code]) {
+          const target = salesMap.get(code);
+          if (!target) {
             errors.push({
               sheet: sheets.fokus, row: i + 1,
               message: `Kode sales "${code}" tidak ada di Sheet Sales — fokus di-skip`,
@@ -290,7 +292,7 @@ export async function parseMasterExcel(file) {
             continue;
           }
 
-          salesMap[code].focus.push({
+          target.focus.push({
             name: productName,
             target: cellNum(r[fokusFmap.focusTarget]),
             keyword: cellStr(r[fokusFmap.focusKeyword]) || productName,
@@ -304,7 +306,7 @@ export async function parseMasterExcel(file) {
   }
 
   // ===== Final: urutkan sesuai input, return array =====
-  const targets = salesOrder.map((code) => salesMap[code]);
+  const targets = salesOrder.map((code) => salesMap.get(code));
 
   return { targets, stats, errors };
 }

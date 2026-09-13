@@ -1,7 +1,7 @@
-import html2canvas from "html2canvas";
-import { fmtRp, fmtNum, fmtPct } from "./formatters.js";
+import html2canvas from "html2canvas-pro";
+import { fmtRp, fmtNum, fmtPct, formatDateID, esc, MONTHS_ID } from "./formatters.js";
 import { dateStrToLocalDate } from "./excelParse.js";
-import { ACH_TIERS } from "../constants/thresholds.js";
+import { getAchColor } from "../constants/thresholds.js";
 // ⚠️ Sprint 4 / Q1: achGradientColor (versi HTML hex dengan "#") dipusatkan ke
 // utils/xlsxStyle.js sebagai `achGradientColorHex`. Sebelumnya diduplikasi di
 // sini persis sama body-nya — single source of truth sekarang.
@@ -37,10 +37,7 @@ const PDF_COLORS = {
 // gradien background (itu cuma fitur Excel), cuma warna TEKS 3-tingkat.
 // Jangan pakai achGradientColor (di bawah) untuk mirror PDF — beda template.
 function pdfAchTextColor(ach) {
-  if (ach === null || ach === undefined) return PDF_COLORS.textMuted;
-  if (ach >= ACH_TIERS.onPace) return PDF_COLORS.mint;
-  if (ach >= ACH_TIERS.warning) return PDF_COLORS.gold;
-  return PDF_COLORS.coral;
+  return getAchColor(ach, PDF_COLORS);
 }
 
 // ---- Warna khusus mirror "Export ke Excel" ----
@@ -54,14 +51,6 @@ const XL_COLORS_HTML = {
   border: "#D9D9D9",
 };
 const XL_TIER_FILL_HTML = { mint: XL_COLORS_HTML.mint, amber: XL_COLORS_HTML.yellowTier, violet: XL_COLORS_HTML.gold };
-
-// achGradientColor (versi HTML hex dengan "#") sekarang di-import dari
-// utils/xlsxStyle.js sebagai `achGradientColorHex`, alias-kan ke nama lama.
-// Sebelumnya: ACH_GRADIENT_STOPS + achGradientColor diduplikasi persis di sini.
-
-function esc(s) {
-  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
 
 /* ----------------------------------------------------------------------------
    Fungsi generik: render HTML string di elemen tersembunyi, screenshot pakai
@@ -77,48 +66,97 @@ function esc(s) {
    di-cleanup di `finally` block.
 ---------------------------------------------------------------------------- */
 export async function exportHtmlAsImage(html, filenameBase, format = "png") {
+  if (typeof document !== "undefined" && document.fonts && document.fonts.ready) {
+    try {
+      await document.fonts.ready;
+    } catch {
+      // ignore font loading error
+    }
+  }
+
   const container = document.createElement("div");
-  container.style.position = "absolute";
-  container.style.left = "-99999px";
+  // ⚠️ PENTING: Jangan ubah opacity < 1! html2canvas mengalikan canvas globalAlpha
+  // dengan computed opacity elemen dan seluruh leluhurnya.
+  // Jangan gunakan left: -99999px karena html2canvas akan menghitung offset bounding box
+  // x = -99999 sehingga hasil render canvas menjadi kosong/terpotong.
+  // Gunakan top: 0, left: 0 dengan zIndex: -99999 agar elemen berada di posisi normal (0,0)
+  // namun berada jauh di belakang seluruh antarmuka aplikasi.
+  container.style.position = "fixed";
   container.style.top = "0";
-  container.style.background = "#ffffff";
-  container.style.width = "fit-content";
+  container.style.left = "0";
+  container.style.zIndex = "-99999";
+  container.style.opacity = "1";
+  container.style.pointerEvents = "none";
+  container.style.width = "max-content";
   container.innerHTML = html;
   document.body.appendChild(container);
+
   try {
-    const canvas = await html2canvas(container, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+    const targetEl = container.firstElementChild || container;
+
+    // Beri browser microtask & frame untuk mengkalkulasi layout dimensi elemen sebelum snapshot
+    await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 60)));
+
+    const targetWidth = Math.max(targetEl.scrollWidth || 0, targetEl.offsetWidth || 0, 900);
+    const targetHeight = Math.max(targetEl.scrollHeight || 0, targetEl.offsetHeight || 0, 400);
+
+    const canvas = await html2canvas(targetEl, {
+      scale: 2,
+      backgroundColor: "#ffffff",
+      useCORS: true,
+      logging: false,
+      scrollX: 0,
+      scrollY: 0,
+      x: 0,
+      y: 0,
+      width: targetWidth,
+      height: targetHeight,
+      windowWidth: targetWidth + 50,
+      windowHeight: targetHeight + 50,
+    });
+
     const mime = format === "jpeg" ? "image/jpeg" : "image/png";
-    let dataUrl;
-    try {
-      dataUrl = canvas.toDataURL(mime, format === "jpeg" ? 0.92 : undefined);
-    } catch (e) {
-      if (e && /security/i.test(e.name || e.message || "")) {
-        throw new Error("Export gambar gagal: canvas tainted oleh gambar cross-origin. Pastikan semua gambar di template berasal dari domain yang sama atau pakai data URL.");
+    const quality = format === "jpeg" ? 0.92 : undefined;
+
+    // ⚠️ Ubah ke Blob lalu buat URL objek untuk mengunduh.
+    // toDataURL() menghasilkan base64 raksasa (>5MB) yang sering ditolak secara diam-diam
+    // oleh batas URL browser Chromium/WebView2 saat memicu link download.
+    const blob = await new Promise((resolve, reject) => {
+      try {
+        canvas.toBlob((b) => {
+          if (b) resolve(b);
+          else reject(new Error("Canvas menghasilkan data kosong"));
+        }, mime, quality);
+      } catch (e) {
+        if (e && /security/i.test(e.name || e.message || "")) {
+          reject(new Error("Export gambar gagal: canvas tainted oleh gambar cross-origin. Pastikan semua gambar di template berasal dari domain yang sama atau pakai data URL."));
+        } else {
+          reject(new Error("Export gambar gagal: " + (e?.message || String(e))));
+        }
       }
-      throw new Error("Export gambar gagal: " + (e?.message || String(e)));
-    }
+    });
+
+    const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = dataUrl;
+    a.href = blobUrl;
     a.download = `${filenameBase}.${format === "jpeg" ? "jpg" : "png"}`;
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
+
+    setTimeout(() => {
+      if (a.parentNode) a.parentNode.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    }, 1000);
   } finally {
-    document.body.removeChild(container);
+    if (container.parentNode) {
+      container.parentNode.removeChild(container);
+    }
   }
 }
 
 /* ----------------------------------------------------------------------------
    1) MIRROR "Laporan Perbandingan Sales" (PDF) sebagai HTML
 ---------------------------------------------------------------------------- */
-function formatDateIDHtml(dateStr) {
-  if (!dateStr) return "-";
-  const MONTHS_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-  const [y, m, d] = dateStr.split("-").map(Number);
-  if (!y) return "-";
-  return `${d} ${MONTHS_ID[m - 1]} ${y}`;
-}
-
 function pdfTd(content, { bg, color, bold, align = "left", fontSize = 11 } = {}) {
   const style = [
     "padding:5px 8px", `text-align:${align}`, `font-size:${fontSize}px`,
@@ -148,7 +186,7 @@ function buildGroupRowHtml(cols, achIndex) {
 
 export function buildSalesGroupComparisonHTML(agg, opts) {
   const { depotName } = opts || {};
-  const periodLabel = `${formatDateIDHtml(agg.meta.firstDate)} — ${formatDateIDHtml(agg.meta.lastDate)}`;
+  const periodLabel = `${formatDateID(agg.meta.firstDate)} — ${formatDateID(agg.meta.lastDate)}`;
   const groupLabel = agg.byGroup.length ? agg.byGroup.map((g) => g.name).join(", ") : "Semua Grup";
   const sortedGroups = [...agg.byGroup].sort((a, b) => b.realisasiValue - a.realisasiValue);
   const sortedSales = [...agg.bySales].sort((a, b) => (b.ach ?? -1) - (a.ach ?? -1));
@@ -191,7 +229,7 @@ export function buildSalesGroupComparisonHTML(agg, opts) {
   html += `</tbody></table>`;
 
   // Section 3
-  html += `<div style="font-size:11px;font-weight:bold;color:${PDF_COLORS.text};margin:10px 0 4px;">Pencapaian Hari Terakhir — ${esc(formatDateIDHtml(agg.meta.lastDate))}</div>`;
+  html += `<div style="font-size:11px;font-weight:bold;color:${PDF_COLORS.text};margin:10px 0 4px;">Pencapaian Hari Terakhir — ${esc(formatDateID(agg.meta.lastDate))}</div>`;
   if (lastDateRows.length === 0) {
     html += `<div style="font-size:10px;color:${PDF_COLORS.textMuted};">Tidak ada transaksi pada tanggal ini untuk grup yang difilter.</div>`;
   } else {
@@ -247,7 +285,6 @@ export function buildExcelReportHTML(agg, targets, opts) {
   const sdHariIni = agg.meta.uniqueDays;
   const sisaHk = Math.max(0, (workDays || 0) - sdHariIni);
   const timeGone = workDays ? sdHariIni / workDays : 0;
-  const MONTHS_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
   const fmtMonYY = (d) => `${MONTHS_ID[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`;
   const fmtDMonYY = (d) => `${d.getDate()}-${MONTHS_ID[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`;
 

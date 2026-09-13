@@ -3,7 +3,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
 import { UserRound, Boxes, CalendarClock } from "lucide-react";
-import { fmtRp, fmtNum } from "../utils/formatters.js";
+import { fmtRp, fmtNum, formatDateIDShort, fmtCompactNum } from "../utils/formatters.js";
 // ⚠️ Sprint 5 / S3: pdfExport.js & reportExcelExport.js tidak di-import saat
 // initial bundle. Mereka berat (jspdf ~600KB, xlsx-js-style ~620KB). Sekarang
 // di-load lazy via dynamic import() saat user benar-benar klik Export button.
@@ -14,19 +14,12 @@ import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, DrilldownButton, AchBarChartTooltip } from "../components/ui/index.jsx";
 import { Leaderboard } from "../components/cards/index.jsx";
 import { AchBadge } from "../components/AchBadge.jsx";
-import { ACH_TIERS } from "../constants/thresholds.js";
+import { getAchColor } from "../constants/thresholds.js";
 
 /* ============================================================================
    TAB: SALES REPORT
    Leaderboard + bar chart vertical per sales + tabel detail per Sales × Grup.
 ============================================================================ */
-const MONTHS_ID_SHORT = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-function formatDateIDShort(dateStr) {
-  if (!dateStr) return "-";
-  const [y, m, d] = dateStr.split("-").map(Number);
-  if (!y || !m || !d) return dateStr;
-  return `${d} ${MONTHS_ID_SHORT[m - 1]} ${y}`;
-}
 
 export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName, slideshowMode = false }) {
   const rows = agg.bySales;
@@ -87,11 +80,11 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName,
       <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
         <BarChart data={rows} layout="vertical" margin={{ left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} horizontal={false} />
-          <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v / 1e6) + "jt"} />
+          <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={fmtCompactNum} />
           <YAxis type="category" dataKey="name" width={160} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
           <Tooltip content={<AchBarChartTooltip colors={colors} />} cursor={{ fill: colors.glassSubtle }} />
           <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
-            {rows.map((r, i) => <Cell key={i} fill={r.ach == null ? colors.textMuted : r.ach >= ACH_TIERS.onPace ? colors.mint : r.ach >= ACH_TIERS.warning ? colors.gold : colors.coral} />)}
+            {rows.map((r, i) => <Cell key={i} fill={getAchColor(r.ach, colors)} />)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -102,6 +95,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName,
         <SectionTitle title="Detail per Sales × Grup Produk" icon={Boxes} colors={colors} />
         <DataTable
           colors={colors}
+          rowKey={(r) => `${r.salesName}|${r.groupName}`}
           initialSortKey="value"
           searchable
           searchKeys={["salesName", "groupName"]}
@@ -145,6 +139,7 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName,
         />
         <DataTable
           colors={colors}
+          rowKey="code"
           initialSortKey="totalValue"
           searchable
           searchKeys={["salesName"]}

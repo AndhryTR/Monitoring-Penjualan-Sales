@@ -3,7 +3,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { todayLocalDateStr } from "./excelParse.js";
 import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT1, achGradientColor, makeSheetBuilder } from "./xlsxStyle.js";
-import { fmtRp, fmtNum, fmtPct } from "./formatters.js";
+import { fmtRp, fmtNum, MONTHS_ID } from "./formatters.js";
 import { getProductBreakdownForGroup } from "./aggregation.js";
 
 /* ============================================================================
@@ -19,8 +19,6 @@ import { getProductBreakdownForGroup } from "./aggregation.js";
    - exportFocusGroupPDF(groupRows, filteredRows, opts)
 ============================================================================ */
 
-const MONTHS_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-
 function formatGeneratedAt() {
   const now = new Date();
   const d = String(now.getDate()).padStart(2, "0");
@@ -29,13 +27,6 @@ function formatGeneratedAt() {
   const h = String(now.getHours()).padStart(2, "0");
   const mi = String(now.getMinutes()).padStart(2, "0");
   return `${d} ${mo} ${y}, ${h}:${mi}`;
-}
-
-function formatDateID(dateStr) {
-  if (!dateStr) return "-";
-  const [y, m, d] = dateStr.split("-").map(Number);
-  if (!y || !m || !d) return dateStr;
-  return `${d} ${MONTHS_ID[m - 1]} ${y}`;
 }
 
 // ---- Excel helpers (reuse pattern from reportExcelExport.js) ----

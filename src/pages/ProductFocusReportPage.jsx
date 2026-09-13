@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Crosshair, Package, AlertTriangle, ChevronRight } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct } from "../utils/formatters.js";
 import { AchBadge } from "../components/AchBadge.jsx";
+import { getAchColor } from "../constants/thresholds.js";
 import { MultiSelect } from "../components/ui/MultiSelect.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
@@ -62,7 +63,7 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown, onGroupDrilld
           <div className="grid md:grid-cols-2 gap-4 mb-8">
             {groupRows.map((g, i) => {
               const pct = Math.min(150, (g.ach || 0) * 100);
-              const color = pct >= 100 ? colors.mint : pct >= 50 ? colors.gold : colors.coral;
+              const color = getAchColor(g.ach, colors);
               return (
                 <div key={i} className="sm-card p-4 sm-fadeup cursor-pointer hover:scale-[1.01] transition-transform"
                   style={{ animationDelay: `${i * 25}ms` }}
@@ -135,7 +136,7 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown, onGroupDrilld
           <div className="grid md:grid-cols-2 gap-4 mb-8">
             {productRows.map((f, i) => {
               const pct = Math.min(150, (f.pct || 0) * 100);
-              const color = pct >= 100 ? colors.mint : pct >= 50 ? colors.gold : colors.coral;
+              const color = getAchColor(f.pct, colors);
               return (
                 <div key={i} className="sm-card p-4 sm-fadeup" style={{ animationDelay: `${i * 25}ms` }}>
                   <div className="flex justify-between items-baseline mb-2">

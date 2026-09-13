@@ -87,3 +87,90 @@ export function fmtMixedUnits(qtyBase, conversions = [], baseUnit = "PCS") {
   return parts.join(" ");
 }
 
+/* ============================================================================
+   FORMAT TANGGAL & BULAN INDONESIA
+============================================================================ */
+export const MONTHS_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+export const MONTHS_ID_FULL = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+/**
+ * Format string tanggal YYYY-MM-DD ke format Indonesia (mis. "12 Jul 2026").
+ * @param {string} dateStr - string format "YYYY-MM-DD"
+ * @param {object} [opts]
+ * @param {boolean} [opts.short=true] - gunakan singkatan bulan jika true
+ * @returns {string}
+ */
+export function formatDateID(dateStr, { short = true } = {}) {
+  if (!dateStr) return "-";
+  const [y, m, d] = String(dateStr).split("-").map(Number);
+  if (!y || !m || !d) return String(dateStr);
+  const monthName = (short ? MONTHS_ID : MONTHS_ID_FULL)[m - 1] || String(m);
+  return `${d} ${monthName} ${y}`;
+}
+
+export function formatDateIDShort(dateStr) {
+  return formatDateID(dateStr, { short: true });
+}
+
+/* ============================================================================
+   FORMAT ANGKA & RUPIAH RINGKAS (UNTUK AXIS / BADGE / SEARCH)
+============================================================================ */
+
+/**
+ * Format angka besar ke bentuk ringkas (mis. 1.2jt, 850rb, 2.5M).
+ * @param {number} n
+ * @param {object} [opts]
+ * @param {number} [opts.decimals=1]
+ * @param {string} [opts.space=""]
+ * @returns {string}
+ */
+export function fmtCompactNum(n, { decimals = 1, space = "" } = {}) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "-";
+  const abs = Math.abs(n);
+  const sign = n < 0 ? "-" : "";
+  if (abs >= 1e9) {
+    const val = (abs / 1e9).toFixed(decimals).replace(/\.0$/, "");
+    return `${sign}${val}${space}M`;
+  }
+  if (abs >= 1e6) {
+    const val = (abs / 1e6).toFixed(decimals).replace(/\.0$/, "");
+    return `${sign}${val}${space}jt`;
+  }
+  if (abs >= 1e3) {
+    const val = (abs / 1e3).toFixed(0);
+    return `${sign}${val}${space}rb`;
+  }
+  return String(Math.round(n));
+}
+
+/**
+ * Format Rupiah ringkas (mis. "Rp 1.2 jt", "Rp 850 rb").
+ * @param {number} n
+ * @param {object} [opts]
+ * @returns {string}
+ */
+export function fmtCompactRp(n, { decimals = 1 } = {}) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "-";
+  if (n === 0) return "Rp 0";
+  return "Rp " + fmtCompactNum(n, { decimals, space: " " });
+}
+
+/* ============================================================================
+   SANITASI STRING HTML
+============================================================================ */
+
+/**
+ * Escape karakter HTML khusus untuk mencegah injeksi di template export.
+ * @param {string} str
+ * @returns {string}
+ */
+export function esc(str) {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+

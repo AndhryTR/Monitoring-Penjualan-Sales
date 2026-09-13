@@ -1,8 +1,8 @@
 import * as XLSX from "xlsx-js-style";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import html2canvas from "html2canvas";
-import { fmtRp, fmtNum, fmtPct } from "./formatters.js";
+import html2canvas from "html2canvas-pro";
+import { fmtRp, fmtNum, fmtPct, MONTHS_ID } from "./formatters.js";
 import { todayLocalDateStr } from "./excelParse.js";
 import { ACH_TIERS } from "../constants/thresholds.js";
 // ⚠️ Sprint 4 / Q1: XL_* constants + achGradientColor dipusatkan ke
@@ -29,8 +29,6 @@ function growthFor(s, metric, baseMode) {
    imageExport.js, supaya perubahan di sini tidak berisiko mengubah perilaku
    fitur export lain yang sudah berjalan.
 ============================================================================ */
-
-const MONTHS_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
 function formatGeneratedAt() {
   const now = new Date();
