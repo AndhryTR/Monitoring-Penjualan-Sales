@@ -1,0 +1,227 @@
+import { useMemo, useState } from "react";
+import {
+  Trophy, Rocket, History, X, ArrowUpRight,
+  ArrowDownRight, FileText,
+} from "lucide-react";
+import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
+import { AchBadge } from "../AchBadge.jsx";
+import { SectionTitle, DrilldownButton } from "../ui/index.jsx";
+import { ACH_TIERS } from "../../constants/thresholds.js";
+import { GrowthBadge } from "../ui/GrowthBadge.jsx";
+
+export function Leaderboard({ rows, colors, onDrilldown, onExportScorecard }) {
+  const [metric, setMetric] = useState("value"); // "value" | "ao"
+  const ranked = useMemo(() => {
+    const key = metric === "ao" ? "achAo" : "ach";
+    return [...rows].sort((a, b) => (b[key] ?? -1) - (a[key] ?? -1));
+  }, [rows, metric]);
+  const medal = (i) => ["🥇", "🥈", "🥉"][i] || `${i + 1}`;
+  return (
+    <div className="sm-card p-5 sm-fadeup mb-8">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-0">
+        <SectionTitle title="Leaderboard Sales" sub={`Diurutkan berdasarkan pencapaian${metric === "ao" ? " AO" : ""} (ACH%)`} icon={Trophy} colors={colors} />
+        <div className="flex p-1 rounded-xl" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
+          <button onClick={() => setMetric("value")}
+            className="sm-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold"
+            style={{ background: metric === "value" ? colors.glassFillStrong : "transparent", color: metric === "value" ? colors.mint : colors.textMuted }}>
+            Value
+          </button>
+          <button onClick={() => setMetric("ao")}
+            className="sm-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold"
+            style={{ background: metric === "ao" ? colors.glassFillStrong : "transparent", color: metric === "ao" ? colors.mint : colors.textMuted }}>
+            AO
+          </button>
+        </div>
+      </div>
+      <div className="space-y-2 mt-4">
+        {ranked.map((sm, i) => (
+          <div key={sm.code} className="sm-row flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: i < 3 ? colors.gold + "0D" : "transparent" }}>
+            <div className="w-8 text-center text-base">{medal(i)}</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium truncate">{sm.name}</div>
+              <div className="text-xs mono" style={{ color: colors.textMuted }}>
+                {metric === "ao" ? `${fmtNum(sm.realisasiAo)} / ${fmtNum(sm.targetAo)} outlet` : `${fmtRp(sm.realisasiValue)} / ${fmtRp(sm.targetValue)}`}
+              </div>
+            </div>
+            {metric === "value" && sm.projectedAch !== null && sm.projectedAch !== undefined && (
+              <div className="hidden sm:block text-xs mono text-right" style={{ color: colors.textMuted }}>
+                Proyeksi <span style={{ color: sm.projectedAch >= ACH_TIERS.onPace ? colors.mint : colors.coral }}>{fmtPct(sm.projectedAch)}</span>
+              </div>
+            )}
+            <AchBadge ach={metric === "ao" ? sm.achAo : sm.ach} colors={colors} />
+            {onExportScorecard && (
+              <button onClick={() => onExportScorecard(sm)} title="Cetak scorecard PDF"
+                className="hidden md:inline-flex sm-btn p-2 rounded-lg" style={{ background: colors.glassFill, color: colors.textMuted }}>
+                <FileText size={14} />
+              </button>
+            )}
+            {onDrilldown && (
+              <div className="hidden md:inline-flex">
+                <DrilldownButton colors={colors} onClick={() => onDrilldown(sm.name, "Semua outlet", sm.predicate)} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const PROJECTION_METHODS = [
+  { key: "linear", label: "Linear" },
+  { key: "trend7", label: "Tren 7 Hari" },
+  { key: "weekday", label: "Weekday/Weekend" },
+];
+
+// Resolusi metode terpilih jadi bentuk seragam { dailyRateNode, projectedValue,
+// projectedAch, note } supaya JSX di bawah tidak perlu tahu detail tiap metode.
+// Fallback ke Linear kalau data metode yang dipilih belum cukup (mis. <3 hari data).
+function resolveProjection(method, projection) {
+  if (method === "trend7") {
+    const t = projection.methods?.trend7;
+    if (t) {
+      return {
+        dailyRateNode: fmtRp(t.dailyRate),
+        projectedValue: t.projectedValue, projectedAch: t.projectedAch,
+        note: `Rata-rata terbobot ${t.windowDays} hari transaksi terakhir (hari lebih baru berbobot lebih besar).`,
+      };
+    }
+    return { ...resolveProjection("linear", projection), note: "Data belum cukup (min. 3 hari) untuk Tren 7 Hari — memakai Linear." };
+  }
+  if (method === "weekday") {
+    const w = projection.methods?.weekday;
+    if (w && w.projectedValue !== null) {
+      return {
+        dailyRateNode: (
+          <span>
+            <span style={{ fontSize: "0.75em" }}>Weekday </span>{fmtRp(w.weekdayRate)}
+            <span className="mx-1" style={{ color: "inherit", opacity: 0.4 }}>/</span>
+            <span style={{ fontSize: "0.75em" }}>Weekend </span>{fmtRp(w.weekendRate)}
+          </span>
+        ),
+        projectedValue: w.projectedValue, projectedAch: w.projectedAch,
+        note: `Sisa ${w.remainingWeekdays} hari kerja + ${w.remainingWeekends} weekend sampai akhir periode.${w.weekendIsEstimated ? " Belum ada data weekend — dipakai rata-rata keseluruhan sebagai estimasi." : ""}`,
+      };
+    }
+    return { ...resolveProjection("linear", projection), note: "Data/tanggal belum cukup untuk Weekday/Weekend — memakai Linear." };
+  }
+  // linear (default)
+  return { dailyRateNode: fmtRp(projection.dailyRate), projectedValue: projection.projectedValue, projectedAch: projection.projectedAch, note: null };
+}
+
+// Kartu proyeksi akhir bulan. 3 metode: Linear (ekstrapolasi rata-rata harian
+// datar), Tren 7 Hari (weighted, lebih responsif ke percepatan/perlambatan),
+// dan Weekday/Weekend (proyeksi berbasis tanggal kalender sungguhan, dipisah
+// rata-rata hari kerja vs weekend). Pilihan method dikontrol dari parent
+// (persist ke localStorage) supaya diingat lintas sesi.
+export function ProjectionCard({ projection, colors, method = "linear", onMethodChange }) {
+  const active = resolveProjection(method, projection);
+  const onTrack = active.projectedAch !== null ? active.projectedAch >= ACH_TIERS.onPace : null;
+  const availability = {
+    linear: true,
+    trend7: Boolean(projection.methods?.trend7),
+    weekday: Boolean(projection.methods?.weekday && projection.methods.weekday.projectedValue !== null),
+  };
+
+  return (
+    <div className="sm-card p-5 sm-fadeup mb-6">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-1">
+        <SectionTitle title="Proyeksi Akhir Bulan" sub={active.note || "Ekstrapolasi linear dari rata-rata realisasi harian saat ini"} icon={Rocket} colors={colors} accent={colors.violet} />
+        <div className="flex p-1 rounded-xl shrink-0" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
+          {PROJECTION_METHODS.map((m) => {
+            const disabled = !availability[m.key];
+            const isActive = method === m.key;
+            return (
+              <button key={m.key}
+                onClick={() => !disabled && onMethodChange && onMethodChange(m.key)}
+                disabled={disabled}
+                title={disabled ? "Data belum cukup untuk metode ini" : undefined}
+                className="sm-tab-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ background: isActive ? colors.glassFillStrong : "transparent", color: isActive ? colors.mint : colors.textMuted }}>
+                {m.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Rata-rata / Hari</div>
+          <div className="mono text-lg font-bold">{active.dailyRateNode}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Proyeksi Akhir Bulan</div>
+          <div className="mono text-lg font-bold">{fmtRp(active.projectedValue)}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Proyeksi ACH%</div>
+          <div className="mono text-lg font-bold" style={{ color: onTrack === null ? colors.text : onTrack ? colors.mint : colors.coral }}>
+            {fmtPct(active.projectedAch)}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Status</div>
+          <div className="text-sm font-semibold flex items-center gap-1.5" style={{ color: onTrack === null ? colors.textMuted : onTrack ? colors.mint : colors.coral }}>
+            {onTrack === null ? "Belum cukup data" : onTrack ? <><ArrowUpRight size={15} /> Sesuai/Lampaui Target</> : <><ArrowDownRight size={15} /> Berpotensi Meleset</>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Panel peringatan otomatis (sales/produk fokus yang masih 0%) sudah dipindah
+// ke InsightBanner (src/components/executive/InsightBanner.jsx) — dipakai
+// bersama oleh Main Report & Executive Summary supaya alert & data quality
+// issues konsisten di kedua tab (1 komponen, 1 perilaku klik).
+
+// Kartu perbandingan periode — muncul di Main Report saat ada snapshot riwayat terpilih.
+export function PeriodComparisonCard({ comparison, colors, onClear }) {
+  if (!comparison) return null;
+  return (
+    <div className="sm-card p-5 sm-fadeup mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <SectionTitle title="Bandingkan Periode" sub={`vs ${comparison.label}`} icon={History} colors={colors} accent={colors.blue} />
+        <button onClick={onClear} className="sm-btn p-2 rounded-full" style={{ background: colors.glassFill }}><X size={14} /></button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Realisasi Sekarang</div>
+          <div className="mono text-lg font-bold">{fmtRp(comparison.nowValue)}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Periode Pembanding</div>
+          <div className="mono text-lg font-bold">{fmtRp(comparison.thenValue)}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1" style={{ color: colors.textMuted }}>Pertumbuhan</div>
+          <div className="mono text-lg font-bold flex items-center gap-1">
+            <GrowthBadge growth={comparison.growth} colors={colors} size="lg" variant="inline" />
+          </div>
+        </div>
+      </div>
+      <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>Pertumbuhan per Sales</div>
+      <div className="space-y-1.5 max-h-64 overflow-y-auto">
+        {comparison.bySales.map((s) => (
+          <div key={s.code} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg" style={{ background: colors.glassFill, opacity: s.isGone ? 0.6 : 1 }}>
+            <span className="truncate flex-1 flex items-center gap-2">
+              {s.name}
+              {s.isGone && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ background: colors.textMuted + "22", color: colors.textMuted }}>
+                  Tidak ada di periode ini
+                </span>
+              )}
+              {s.isNew && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ background: colors.gold + "22", color: colors.gold }}>
+                  Baru
+                </span>
+              )}
+            </span>
+            <span className="mono text-xs mr-3" style={{ color: colors.textMuted }}>{fmtRp(s.nowValue)}</span>
+            <GrowthBadge growth={s.growth} colors={colors} variant="inline" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

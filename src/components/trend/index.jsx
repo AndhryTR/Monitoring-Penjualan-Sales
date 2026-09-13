@@ -1,0 +1,322 @@
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import {
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+} from "recharts";
+import { TrendingUp, History, Users, Wallet, Sparkles, Download, ChevronDown, FileSpreadsheet, FileText } from "lucide-react";
+import { fmtRp, fmtNum, fmtPct, fmtCompactNum } from "../../utils/formatters.js";
+import { notifyExportSuccess } from "../../utils/notifyExport.js";
+import { SectionTitle, createChartTooltipStyle, GrowthBadge, TableScrollWrapper } from "../ui/index.jsx";
+import { MultiSelect } from "../ui/MultiSelect.jsx";
+import { ACH_TIERS, MAX_DEFAULT_TREND_LINES } from "../../constants/thresholds.js";
+// ⚠️ Sprint 5 / S3: trendExport.js (exportTrendExcel, exportTrendPDF) tidak
+// di-import static — berat (~1.2MB gabung jspdf+xlsx-js-style+html2canvas).
+// captureChartImage tetap static karena dipakai untuk screenshot chart saat
+// export (perlu tersedia sebelum user klik). Export functions lazy-load.
+import { captureChartImage } from "../../utils/trendExport.js";
+import { computeBaseGrowth } from "../../utils/comparisonBase.js";
+import { BaseSelector } from "../ui/BaseSelector.jsx";
+
+const LINE_COLOR_KEYS = ["gold", "mint", "violet", "blue", "coral"];
+// MAX_DEFAULT_LINES sebelumnya didefinisikan lokal — sekarang import dari
+// constants/thresholds.js sebagai MAX_DEFAULT_TREND_LINES (Sprint 5 / S1).
+
+// Warna tambahan di luar 5 warna tema utama (gold/mint/violet/blue/coral),
+// dipakai saat sales yang dipilih lebih dari 5 supaya tiap garis tetap punya
+// warna unik dan tidak ada yang dobel.
+const EXTRA_LINE_COLORS = [
+  "#F472B6", // pink
+  "#38BDF8", // sky
+  "#A3E635", // lime
+  "#FB923C", // orange
+  "#818CF8", // indigo
+  "#2DD4BF", // teal
+  "#E879F9", // fuchsia
+  "#FACC15", // yellow
+  "#4ADE80", // green
+  "#FB7185", // rose
+];
+
+// Mengembalikan warna garis chart berdasarkan index sales terpilih.
+// Urutan: 5 warna tema utama -> 10 warna tambahan -> generate warna HSL
+// otomatis (golden-angle) agar tetap unik walau sales yang dipilih sangat banyak.
+function getLineColor(index, colors) {
+  if (index < LINE_COLOR_KEYS.length) {
+    return colors[LINE_COLOR_KEYS[index]];
+  }
+  const extraIndex = index - LINE_COLOR_KEYS.length;
+  if (extraIndex < EXTRA_LINE_COLORS.length) {
+    return EXTRA_LINE_COLORS[extraIndex];
+  }
+  const total = LINE_COLOR_KEYS.length + EXTRA_LINE_COLORS.length;
+  const hue = ((extraIndex - EXTRA_LINE_COLORS.length) * 137.508) % 360;
+  return `hsl(${hue}, 70%, 55%)`;
+}
+
+
+/* ============================================================================
+   TREN PERIODE
+   Tab baru: bandingkan Value & AO per sales lintas 3+ periode sekaligus
+   (periode aktif + snapshot riwayat terpilih). Beda dengan PeriodComparisonCard
+   (Main Report) yang cuma 1 vs 1 — ini untuk melihat tren beberapa bulan.
+============================================================================ */
+export function TrendPeriodePage({
+  comparisonData, isAutoTrend, colors, onOpenPeriodPicker, selectedCount,
+  depotName, comparisonBase = "prev", onBaseChange,
+  registerTabExport, unregisterTabExport,
+}) {
+  const [metric, setMetric] = useState("value"); // "value" | "ao"
+  const chartRef = useRef(null);
+  const [exportBusy, setExportBusy] = useState(null); // null | "excel" | "pdf"
+
+  const allSalesNames = useMemo(
+    () => (comparisonData ? comparisonData.bySales.map((s) => s.name) : []),
+    [comparisonData]
+  );
+  const [selectedNames, setSelectedNames] = useState([]);
+
+  // Default pilihan garis chart: top N sales berdasarkan nilai terbaru — supaya
+  // chart tidak langsung penuh sesak kalau jumlah sales banyak. User tetap bisa
+  // ubah lewat MultiSelect.
+  const effectiveSelectedNames = useMemo(() => {
+    if (selectedNames.length > 0 || !comparisonData) return selectedNames;
+    return comparisonData.bySales.slice(0, MAX_DEFAULT_TREND_LINES).map((s) => s.name);
+  }, [selectedNames, comparisonData]);
+
+  const chartData = useMemo(() => {
+    if (!comparisonData) return [];
+    return comparisonData.periods.map((p, i) => {
+      const point = { label: p.label };
+      comparisonData.bySales.forEach((s) => {
+        if (!effectiveSelectedNames.includes(s.name)) return;
+        const pt = s.series[i];
+        point[s.name] = pt && !pt.missing ? (metric === "value" ? pt.value : pt.ao) : null;
+      });
+      return point;
+    });
+  }, [comparisonData, effectiveSelectedNames, metric]);
+
+  // Foto chart apa adanya (warna tema aktif) untuk disertakan di Excel (PNG
+  // terpisah) & PDF (embed langsung). backgroundColor pakai colors.surface
+  // supaya area transparan di sekitar SVG ikut warna kartu, bukan hitam/putih
+  // polos yang tidak sesuai tema aktif.
+  const handleExportExcel = useCallback(async () => {
+    if (!comparisonData || exportBusy) return;
+    setExportBusy("excel");
+    try {
+      const chartImage = chartRef.current ? await captureChartImage(chartRef.current, colors.surface) : null;
+      // ⚠️ Sprint 5 / S3: lazy-load trendExport.js (~1.2MB).
+      const { exportTrendExcel } = await import("../../utils/trendExport.js");
+      exportTrendExcel(comparisonData, effectiveSelectedNames, { depotName, chartImage, comparisonBase });
+      await notifyExportSuccess("Export berhasil", "Tren Periode (Excel)");
+    } catch (e) {
+      // ⚠️ Bug fix (H12): captureChartImage / exportTrendExcel bisa throw
+      // (mis. SecurityError dari canvas tainted). Tanpa catch, error propagate
+      // sebagai unhandled rejection dan user tidak dapat feedback.
+      console.warn("Export Excel gagal:", e);
+      alert("Export Excel gagal: " + (e?.message || String(e)));
+    } finally {
+      setExportBusy(null);
+    }
+  }, [comparisonData, exportBusy, effectiveSelectedNames, depotName, comparisonBase, colors.surface]);
+
+  const handleExportPdf = useCallback(async () => {
+    if (!comparisonData || exportBusy) return;
+    setExportBusy("pdf");
+    try {
+      const chartImage = chartRef.current ? await captureChartImage(chartRef.current, colors.surface) : null;
+      // ⚠️ Sprint 5 / S3: lazy-load trendExport.js (~1.2MB).
+      const { exportTrendPDF } = await import("../../utils/trendExport.js");
+      exportTrendPDF(comparisonData, effectiveSelectedNames, { depotName, chartImage, comparisonBase });
+      await notifyExportSuccess("Export berhasil", "Tren Periode (PDF)");
+    } catch (e) {
+      // ⚠️ Bug fix (H12): sama dengan handleExportExcel di atas.
+      console.warn("Export PDF gagal:", e);
+      alert("Export PDF gagal: " + (e?.message || String(e)));
+    } finally {
+      setExportBusy(null);
+    }
+  }, [comparisonData, exportBusy, effectiveSelectedNames, depotName, comparisonBase, colors.surface]);
+
+  // Growth per sales dihitung ulang sesuai opsi pembanding (comparisonBase).
+  // `series` = nilai kronologis per periode (skip missing) utk value & ao.
+  //
+  // ⚠️ Aturan Hooks: useMemo ini HARUS dipanggil SEBELUM early return di bawah.
+  // Jika diletakkan setelah conditional return, jumlah hook antar render tidak
+  // konsisten saat `comparisonData` transisi dari null → valid → React crash
+  // dengan error "Rendered more hooks than during the previous render".
+  // Guard di dalam body memastikan nilai selalu konsisten (empty Map saat data
+  // belum tersedia), dan tidak ada hook yang skip.
+  const growthBySales = useMemo(() => {
+    const map = new Map();
+    if (!comparisonData || comparisonData.periods.length < 2) return map;
+    comparisonData.bySales.forEach((s) => {
+      const valSeries = s.series.filter((pt) => !pt.missing).map((pt) => pt.value);
+      const aoSeries = s.series.filter((pt) => !pt.missing).map((pt) => pt.ao);
+      map.set(s.code, {
+        growthValue: computeBaseGrowth(valSeries, comparisonBase).growth,
+        growthAo: computeBaseGrowth(aoSeries, comparisonBase).growth,
+      });
+    });
+    return map;
+  }, [comparisonData, comparisonBase]);
+
+  useEffect(() => {
+    registerTabExport?.("trend", {
+      onExportExcel: handleExportExcel,
+      onExportPdf: handleExportPdf,
+      busy: exportBusy,
+      disabled: !comparisonData || comparisonData.periods?.length < 2 || effectiveSelectedNames.length === 0,
+    });
+    return () => unregisterTabExport?.("trend");
+  }, [registerTabExport, unregisterTabExport, handleExportExcel, handleExportPdf, exportBusy, comparisonData, effectiveSelectedNames.length]);
+
+  if (!comparisonData || comparisonData.periods.length < 2) {
+    return (
+      <div className="sm-page-enter">
+        <div className="sm-card p-12 text-center">
+          <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: colors.glassFill }}>
+            <TrendingUp size={24} style={{ color: colors.textMuted }} />
+          </div>
+          <div className="disp text-base font-semibold mb-1">Belum ada periode untuk dibandingkan</div>
+          <p className="text-sm mb-5" style={{ color: colors.textMuted }}>
+            Pilih minimal 2 periode riwayat (di luar periode aktif) untuk melihat tren Value & AO per sales.
+          </p>
+          <button onClick={onOpenPeriodPicker}
+            className="sm-btn inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+            style={{ background: colors.gold, color: "#0A1120" }}>
+            <History size={15} /> Pilih Snapshot Periode
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const { periods, bySales, totalsSeries } = comparisonData;
+
+  return (
+    <div className="sm-page-enter">
+      {isAutoTrend && (
+        <div className="sm-card p-3 mb-4 flex items-center gap-2.5" style={{ background: colors.gold + "0D", border: `1px solid ${colors.gold}33` }}>
+          <Sparkles size={15} style={{ color: colors.gold, flexShrink: 0 }} />
+          <p className="text-xs" style={{ color: colors.text }}>
+            Menampilkan <b>{periods.length} bulan terdeteksi otomatis</b> dari data yang di-upload — tidak perlu simpan snapshot manual. Mau pilih periode sendiri? Klik "Pilih Manual" di kanan.
+          </p>
+        </div>
+      )}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <SectionTitle title="Tren Periode" sub={`Membandingkan ${periods.length} periode · Value & AO per sales`} icon={TrendingUp} colors={colors} accent={colors.mint} />
+        <div className="flex items-center flex-wrap gap-2">
+          <BaseSelector value={comparisonBase} onChange={onBaseChange || (() => {})} colors={colors} />
+          <div className="flex p-1 rounded-xl" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
+            <button onClick={() => setMetric("value")}
+              className="sm-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5"
+              style={{ background: metric === "value" ? colors.glassFillStrong : "transparent", color: metric === "value" ? colors.mint : colors.textMuted }}>
+              <Wallet size={13} /> Value
+            </button>
+            <button onClick={() => setMetric("ao")}
+              className="sm-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5"
+              style={{ background: metric === "ao" ? colors.glassFillStrong : "transparent", color: metric === "ao" ? colors.mint : colors.textMuted }}>
+              <Users size={13} /> AO
+            </button>
+          </div>
+          <button onClick={onOpenPeriodPicker} className="sm-btn inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
+            style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }}>
+            <History size={13} /> {isAutoTrend ? "Pilih Manual" : `Ubah Periode (${selectedCount})`}
+          </button>
+        </div>
+      </div>
+
+      {/* Ringkasan total per periode — horizontal scroll di semua ukuran layar */}
+      <div className="sm-card p-5 sm-fadeup mb-6">
+        <div className="overflow-x-auto -mx-2 px-2 sm-scrollhide">
+          <div className="flex gap-4" style={{ minWidth: `${Math.max(periods.length * 140, 100)}%` }}>
+            {periods.map((p, i) => {
+              const t = totalsSeries[i];
+              const val = metric === "value" ? t.value : t.ao;
+              const ach = metric === "value" ? t.ach : t.achAo;
+              return (
+                <div key={p.id} className="min-w-[120px] flex-none">
+                  <div className="text-[11px] uppercase tracking-wider mb-1 truncate flex items-center gap-1" style={{ color: p.isCurrent ? colors.gold : colors.textMuted }}>
+                    {p.label} {p.isCurrent && <span className="text-[9px] px-1 py-0.5 rounded-full font-bold" style={{ background: colors.gold + "22" }}>AKTIF</span>}
+                  </div>
+                  <div className="mono text-sm font-bold truncate">{val === null ? "-" : metric === "value" ? fmtRp(val) : fmtNum(val)}</div>
+                  <div className="text-xs mono" style={{ color: ach === null ? colors.textMuted : ach >= ACH_TIERS.onPace ? colors.mint : colors.coral }}>
+                    {ach === null ? "-" : fmtPct(ach)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Chart tren per sales */}
+      <div className="sm-card p-5 sm-fadeup mb-6">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <SectionTitle title={`Tren ${metric === "value" ? "Value" : "AO"} per Sales`} sub="Pilih sales yang ingin ditampilkan" icon={TrendingUp} colors={colors} />
+          <MultiSelect label="Sales" icon={Users} options={allSalesNames} selected={effectiveSelectedNames} onChange={setSelectedNames} placeholder="Cari sales..." colors={colors} />
+        </div>
+        <div ref={chartRef}>
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={{ stroke: colors.border }} tickLine={false} />
+              <YAxis tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false}
+                tickFormatter={(v) => metric === "value" ? fmtCompactNum(v, { space: " " }) : fmtNum(v)} width={56} />
+              <Tooltip contentStyle={createChartTooltipStyle(colors)} formatter={(v) => metric === "value" ? fmtRp(v) : fmtNum(v)} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              {effectiveSelectedNames.map((name, i) => (
+                <Line key={name} type="monotone" dataKey={name} stroke={getLineColor(i, colors)}
+                  strokeWidth={2} dot={{ r: 3 }} connectNulls />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Tabel detail per sales */}
+      <div className="sm-card p-5 sm-fadeup mb-8">
+        <SectionTitle title={`Detail ${metric === "value" ? "Value" : "AO"} per Sales`} sub="Kolom terakhir = periode aktif · pertumbuhan dihitung antar 2 titik data terakhir yang tersedia" icon={Users} colors={colors} />
+        <TableScrollWrapper colors={colors} className="-mx-1">
+          <table key={periods.map((p) => p.id).join("|")} className="w-full text-sm border-separate" style={{ borderSpacing: 0 }}>
+            <thead>
+              <tr>
+                <th className="text-left px-3 py-2 sticky left-0 z-10" style={{ background: colors.modalBg, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", color: colors.tableHeader, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Sales</th>
+                {periods.map((p) => (
+                  <th key={p.id} className="text-right px-3 py-2 whitespace-nowrap" style={{ color: p.isCurrent ? colors.gold : colors.tableHeader, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>
+                    {p.label}
+                  </th>
+                ))}
+                <th className="text-right px-3 py-2 whitespace-nowrap" style={{ color: colors.tableHeader, fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Growth</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bySales.map((s) => (
+                <tr key={s.code} className="sm-row">
+                  <td className="px-3 py-2 sticky left-0 z-10 truncate max-w-[160px]" style={{ background: colors.modalBg, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>{s.name}</td>
+                  {s.series.map((pt) => (
+                    <td key={pt.periodId} className="text-right px-3 py-2 whitespace-nowrap">
+                      {pt.missing ? (
+                        <span className="text-xs" style={{ color: colors.textMuted }}>-</span>
+                      ) : (
+                        <div>
+                          <div className="mono">{metric === "value" ? fmtRp(pt.value) : fmtNum(pt.ao)}</div>
+                          <div className="text-[10px] mono" style={{ color: (() => { const a = metric === "value" ? pt.ach : pt.achAo; return a === null ? colors.textMuted : a >= 1 ? colors.mint : colors.coral; })() }}>
+                            {fmtPct(metric === "value" ? pt.ach : pt.achAo)}
+                          </div>
+                        </div>
+                      )}
+                    </td>
+                  ))}
+                  <td className="text-right px-3 py-2 whitespace-nowrap">
+                    <GrowthBadge growth={metric === "value" ? (growthBySales.get(s.code)?.growthValue ?? null) : (growthBySales.get(s.code)?.growthAo ?? null)} colors={colors} variant="inline" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScrollWrapper>
+      </div>
+    </div>
+  );
+}

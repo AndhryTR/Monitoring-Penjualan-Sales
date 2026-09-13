@@ -1,0 +1,48 @@
+# ===== Dependencies =====
+node_modules/
+.zcode/
+
+# ===== Build output =====
+dist/
+dev-dist/
+*.local
+.eslintcache
+
+# ===== Native app build artifacts =====
+# src-tauri: hanya source (src/, Cargo.toml, tauri.conf.json, icons/) yang di-commit;
+# target/ = hasil compile Rust (bisa 1.4GB+)
+/src-tauri/target/
+# android/ di-commit kecuali build output & file lokal gradle
+android/
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/app/src/main/assets/public/
+
+#tauri-bundler#
+src-tauri/
+
+# ===== Env & secrets — JANGAN di-commit (berisi URL & anon key Supabase) =====
+.env
+.env.*
+!.env.example
+
+# ===== Editor / OS =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+
+# ===== Misc debug/scratch (kadang dipakai sesi dev) =====
+_test_*.mjs
+_probe*.mjs
+!vite.config.js
+
+#graph#
+graphify-out/
+
+#docs#
+docs/

@@ -1,0 +1,99 @@
+import { useState, useEffect } from "react";
+import { Store, Search } from "lucide-react";
+import { fmtRp, fmtNum } from "../../utils/formatters.js";
+import { OutletStatusBadge } from "../ui/OutletStatusBadge.jsx";
+import { Modal } from "../ui/Modal.jsx";
+
+/* ============================================================================
+   OUTLET DETAIL MODAL
+   Modal detail 1 outlet spesifik — dipicu dari tab Analisis Outlet saat user
+   klik nama outlet. Menampilkan KPI outlet (value, frekuensi, terakhir, status)
+   + breakdown produk yang dibeli outlet tersebut.
+============================================================================ */
+export function OutletDetailModal({ isOpen, onClose, outlet, products, colors }) {
+  const [query, setQuery] = useState("");
+  useEffect(() => { if (isOpen) setQuery(""); }, [isOpen, outlet]);
+
+  if (!isOpen || !outlet) return null;
+
+  const filtered = query.trim()
+    ? products.filter((p) => p.productName.toLowerCase().includes(query.trim().toLowerCase()))
+    : products;
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={outlet.outletName}
+      subtitle={`Sales: ${outlet.salesLabel}`}
+      icon={Store}
+      iconColor={colors.blue}
+      iconBg={colors.blue + "1A"}
+      colors={colors}
+      maxWidth="max-w-2xl"
+      maxHeight="max-h-[85vh]"
+      contentClassName="p-0"
+    >
+
+        <div className="p-5 pb-0 grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="sm-card p-3">
+            <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Total Value</div>
+            <div className="mono text-sm font-bold">{fmtRp(outlet.value)}</div>
+          </div>
+          <div className="sm-card p-3">
+            <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Frekuensi</div>
+            <div className="mono text-sm font-bold">{fmtNum(outlet.invoiceCount)}×</div>
+          </div>
+          <div className="sm-card p-3">
+            <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Terakhir Transaksi</div>
+            <div className="mono text-sm font-bold">{outlet.lastDate || "-"}</div>
+          </div>
+          <div className="sm-card p-3">
+            <div className="text-xs mb-1" style={{ color: colors.textMuted }}>Status</div>
+            <OutletStatusBadge status={outlet.status} colors={colors} />
+          </div>
+        </div>
+
+        <div className="p-5">
+          {products.length > 0 && (
+            <div className="relative mb-3">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari produk..."
+                className="w-full pl-9 pr-3 py-2 rounded-xl text-sm outline-none"
+                style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }} />
+            </div>
+          )}
+          <div className="text-xs uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>
+            {filtered.length} Produk Dibeli
+          </div>
+        </div>
+        <div className="px-5 pb-5 overflow-y-auto">
+          {products.length === 0 ? (
+            <div className="text-center py-10" style={{ color: colors.textMuted }}>Tidak ada data produk untuk outlet ini.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: colors.glassFill }}>
+                  <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.tableHeader }}>PRODUK</th>
+                  <th className="px-3 py-2 text-left" style={{ fontSize: 11, color: colors.tableHeader }}>GRUP</th>
+                  <th className="px-3 py-2 text-right" style={{ fontSize: 11, color: colors.tableHeader }}>VALUE</th>
+                  <th className="px-3 py-2 text-center" style={{ fontSize: 11, color: colors.tableHeader }}>TRANSAKSI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p, i) => (
+                  // ⚠️ Sprint 4 / K3: stable key dari productName (bukan index).
+                  <tr key={p.productName || p.productCode || `p-${i}`} className="sm-row" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
+                    <td className="px-3 py-2">{p.productName}</td>
+                    <td className="px-3 py-2 text-xs" style={{ color: colors.textMuted }}>{p.group}</td>
+                    <td className="px-3 py-2 mono text-right">{fmtRp(p.value)}</td>
+                    <td className="px-3 py-2 mono text-center">{p.invoiceCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+    </Modal>
+  );
+}
