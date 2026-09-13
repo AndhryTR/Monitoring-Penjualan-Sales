@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Search, Monitor, History as HistoryIcon, Settings as SettingsIcon, Sun, Moon, UserCircle, LogIn, Smartphone, Download, Menu, X } from "lucide-react";
+import { Search, Monitor, History as HistoryIcon, Settings as SettingsIcon, Sun, Moon, UserCircle, LogIn, Smartphone, Download, Menu, X, Sparkles } from "lucide-react";
 import { useEscapeKey, useFocusTrap, useScrollLock } from "../../hooks/useModalA11y.js";
 
 /* ============================================================================
@@ -31,6 +31,7 @@ export function MobileHeaderMenu({
   onOpenHistory, historyDisabled,
   onToggleTheme,
   onInstallPwa, canInstallPwa,
+  onOpenAiChat, showAiChat = true,
 }) {
   const [open, setOpen] = useState(false);
   const sheetRef = useRef(null);
@@ -135,6 +136,9 @@ export function MobileHeaderMenu({
 
             {/* Menu items */}
             <div style={{ padding: 8, display: "flex", flexDirection: "column", gap: 2 }}>
+              {showAiChat && (
+                <Item icon={Sparkles} label="Asisten AI Automasi" colors={colors} primary={true} onClick={() => run(onOpenAiChat)} />
+              )}
               <Item icon={Search} label="Pencarian Global" colors={colors} disabled={searchDisabled} onClick={() => run(onOpenSearch)} />
               <Item icon={Monitor} label="Mode Pajangan" colors={colors} disabled={slideshowDisabled} onClick={() => run(onStartSlideshow)} />
               <Item icon={HistoryIcon} label="Snapshot Periode" colors={colors} disabled={historyDisabled} onClick={() => run(onOpenHistory)} />

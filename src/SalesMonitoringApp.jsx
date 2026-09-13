@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import sumBy from "lodash/sumBy";
 import {
   X, RefreshCw, Sun, Moon, CloudUpload,
-  Smartphone, Share, Search,
+  Smartphone, Share, Search, Bot,
   FileSpreadsheet, AlertTriangle, CheckCircle2, ShieldCheck,
 } from "lucide-react";
 import { saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState, saveMasterMax, saveLastMasterSyncAt } from "./utils/storage.js";
@@ -96,6 +96,7 @@ import { AboutModal } from "./components/modals/AboutModal.jsx";
 import { RangeDeleteModal } from "./components/modals/RangeDeleteModal.jsx";
 import { DailyReportModal } from "./components/modals/DailyReportModal.jsx";
 import { ToastHost } from "./components/ui/ToastHost.jsx";
+import { AiChatDrawer } from "./components/ai/AiChatDrawer.jsx";
 
 /* ============================================================================
    DESIGN TOKENS
@@ -215,6 +216,7 @@ export default function SalesMonitoringApp() {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isDailyReportOpen, setIsDailyReportOpen] = useState(false);
+  const [isAiChatOpen, setIsAiChatOpen] = useState(false);
   const [drilldown, setDrilldown] = useState(null);
   const [pendingPreview, setPendingPreview] = useState(null);
   const [parseMeta, setParseMeta] = useState(null);
@@ -476,6 +478,26 @@ export default function SalesMonitoringApp() {
   // ---- Global Search (Cmd+K / Ctrl+K) ----
   // ⚠️ Sprint 9 / GS1+GS3+GS4: command palette untuk search across semua data.
   const globalSearch = useGlobalSearch({ targets, rawRows, agg: aggFinal });
+
+  // ---- AI Context (ringkasan untuk asisten automasi) ----
+  const aiContext = useMemo(() => ({
+    agg: aggFinal,
+    targets,
+    filters,
+    depots,
+    depotName,
+    sales: (aggFinal?.bySales || []).map((s) => ({
+      kode: s.code,
+      nama: s.name,
+      ach: s.ach,
+      total: s.realisasiValue,
+    })),
+    stok: stockData?.stockSummary,
+    extra: {
+      activeRows: rawRows,
+      transaksi: rawRows,
+    },
+  }), [aggFinal, targets, filters, depots, depotName, stockData?.stockSummary, rawRows]);
 
   // ---- Slideshow Mode (Sprint 17 / SS1) ----
   // Auto-rotate antar tab untuk display monitor di ruang sales.
@@ -1049,6 +1071,28 @@ export default function SalesMonitoringApp() {
       {/* ⚠️ Toast Host — umpan balik export (selalu tampil). */}
       <ToastHost colors={colors} />
 
+      {/* ⚠️ Panel Asisten AI Automasi (Task 5) */}
+      {(!canAccess || canAccess("feat:ai_chat")) && (
+        <AiChatDrawer
+          isOpen={isAiChatOpen}
+          onClose={() => setIsAiChatOpen(false)}
+          colors={colors}
+          canAccess={canAccess}
+          aiContext={aiContext}
+          deps={{
+            setTargets,
+            saveStoredSchedule: async (depot, schedule) => {
+              const mod = await import("./utils/visitScheduleStorage.js");
+              mod.saveStoredSchedule(depot, schedule);
+            },
+            deleteActiveRows: async () => {
+              handleReset();
+            },
+          }}
+          notifyError={notifyError}
+        />
+      )}
+
       {/* ⚠️ Sprint 18d / Header Redesign: layout root kembali ke pola lama
           (Sidebar di kiri sejajar Header+Content di kanan) — user prefer ini.
           Header tetap pakai glass card dengan 3 grup + search prominent. */}
@@ -1147,8 +1191,21 @@ export default function SalesMonitoringApp() {
               {/* Divider — desktop only */}
               <div className="sm-header-divider hidden md:block" />
 
-              {/* 3. Grup Utilitas & Notifikasi: Smart Alert + Ganti Tema */}
+              {/* 3. Grup Utilitas & Notifikasi: AI Chat + Smart Alert + Ganti Tema */}
               <div className="flex items-center gap-1.5">
+                {(!canAccess || canAccess("feat:ai_chat")) && (
+                  <button onClick={() => setIsAiChatOpen(true)}
+                    className="sm-btn w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors"
+                    style={{
+                      background: isAiChatOpen ? `${colors.mint || '#10B981'}22` : colors.glassFill,
+                      color: isAiChatOpen ? colors.mint : colors.text,
+                      border: `1px solid ${isAiChatOpen ? (colors.mint || '#10B981') + '55' : colors.glassBorder}`,
+                    }}
+                    title="Asisten AI Automasi"
+                    aria-label="Asisten AI Automasi">
+                    <Sparkles size={15} style={{ color: colors.mint }} />
+                  </button>
+                )}
                 {(!canAccess || canAccess("feat:smart_alerts")) && (
                   <NotificationBell
                     alerts={smartAlerts}
@@ -1209,6 +1266,8 @@ export default function SalesMonitoringApp() {
                   onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
                   onInstallPwa={handleInstallClick}
                   canInstallPwa={canShowInstallButton}
+                  onOpenAiChat={() => setIsAiChatOpen(true)}
+                  showAiChat={!canAccess || canAccess("feat:ai_chat")}
                 />
               </div>
             </div>
