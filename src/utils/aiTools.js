@@ -26,15 +26,6 @@ function asArray(v) {
   return Array.isArray(v) ? v : [];
 }
 
-function pickColumns(rows, kolom) {
-  if (!Array.isArray(kolom) || kolom.length === 0) return rows;
-  return rows.map((r) => {
-    const o = {};
-    for (const k of kolom) o[k] = r?.[k];
-    return o;
-  });
-}
-
 // ---------- READ (pure) ----------
 
 export function queryData(ctx = {}, params = {}) {
@@ -60,48 +51,38 @@ export function queryData(ctx = {}, params = {}) {
 
 export function bacaTarget(ctx = {}, params = {}) {
   const t = ctx.targets;
-  const list = Array.isArray(t)
-    ? t
-    : t && typeof t === "object"
-      ? Object.entries(t).map(([kode, nilai]) => ({ kode, nilai }))
-      : [];
+  const list = Array.isArray(t) ? t : [];
   const kode = str(params.kode ?? "", 40).toLowerCase();
-  const out = kode ? list.filter((x) => String(x.kode ?? "").toLowerCase().includes(kode)) : list;
-  return { ok: true, data: out.slice(0, 100) };
+  const out = kode
+    ? list.filter((x) => String(x.kode ?? "").toLowerCase().includes(kode) || String(x.nama ?? "").toLowerCase().includes(kode))
+    : list;
+  return { ok: true, data: out.slice(0, 30) };
 }
 
 export function bacaJadwal(ctx = {}, params = {}) {
-  const jadwal = ctx.jadwal ?? ctx.extra?.jadwal ?? {};
+  const r = ctx.jadwalRingkasan && typeof ctx.jadwalRingkasan === "object" ? ctx.jadwalRingkasan : null;
+  if (!r) return { ok: false, reason: "Ringkasan jadwal tak tersedia — buka tab Jadwal Kunjungan." };
   const hari = str(params.hari ?? "", 20).toLowerCase();
-  const depot = str(params.depot ?? "", 40);
-  const entries = Object.entries(jadwal || {}).map(([outlet, v]) => ({
-    outlet,
-    day: v?.day ?? v?.hari ?? "",
-    areaCode: v?.areaCode ?? "",
-  }));
-  const out = hari ? entries.filter((e) => String(e.day).toLowerCase() === hari) : entries;
-  return { ok: true, depot, data: out.slice(0, 200) };
+  if (hari && r.perHari && typeof r.perHari === "object") {
+    const n = r.perHari[hari] ?? r.perHari[hari.toUpperCase()] ?? 0;
+    return { ok: true, data: { hari, terjadwal: n } };
+  }
+  return { ok: true, data: r };
 }
 
 export function bacaStok(ctx = {}, params = {}) {
-  const stok = asArray(ctx.stok ?? ctx.extra?.stok);
+  const s = ctx.stok;
+  if (!s || typeof s !== "object") return { ok: false, reason: "Ringkasan stok tak tersedia — buka tab Stok." };
   const q = str(params.q ?? params.kode ?? "", 40).toLowerCase();
-  const out = q
-    ? stok.filter((r) =>
-        [r.kode, r.nama, r.name, r.sku].some((f) => String(f ?? "").toLowerCase().includes(q)),
-      )
-    : stok;
-  return { ok: true, data: out.slice(0, 100) };
+  // ctx.stok hanya ringkasan agregat; pencarian SKU butuh tab Stok.
+  if (q) return { ok: false, reason: "Pencarian SKU butuh tab Stok — ringkasan saja yang tersedia di sini." };
+  return { ok: true, data: s };
 }
 
-export function bacaTransaksi(ctx = {}, params = {}) {
-  const rows = asArray(ctx.transaksi ?? ctx.extra?.transaksi ?? ctx.extra?.rows ?? ctx.rows);
-  const q = str(params.q ?? "", 80).toLowerCase();
-  const limit = Math.min(Math.max(num(params.limit ?? 20, 0), 1), 100);
-  const out = q
-    ? rows.filter((r) => JSON.stringify(r).toLowerCase().includes(q))
-    : rows;
-  return { ok: true, n: rows.length, data: out.slice(0, limit) };
+export function bacaTransaksi(ctx = {}, _params = {}) {
+  // Transaksi mentah SENGAJA tak dikirim ke LLM (payload raksasa).
+  // AI tetap tahu volume via ctx.nBaris.
+  return { ok: false, reason: `Transaksi mentah tak tersedia di AI (${num(ctx.nBaris ?? 0, 0)} baris di dashboard). Minta analisis/queryData, atau filter di tab Transaksi.` };
 }
 
 export function analisis(ctx = {}, _params = {}) {
@@ -174,12 +155,31 @@ function currentTargetValue(targets, kode) {
   return null;
 }
 
+function targetAsli(deps) {
+  if (typeof deps.getTargets === "function") {
+    try {
+      const t = deps.getTargets();
+      if (Array.isArray(t)) return t;
+    } catch { /* abaikan */ }
+  }
+  return null;
+}
+
 function buildSetTarget(params = {}, ctx = {}, deps = {}) {
   const updates = normalizeTargetUpdates(params);
   if (updates.length === 0) return { ok: false, reason: "setTarget: params.targets kosong." };
+  // Data asli via deps.getTargets (lokal, tak dikirim ke LLM).
+  // ctx.targets hanya ringkas {kode,nama,value,ao} untuk preview.
+  const asli = targetAsli(deps);
+  const ringkas = Array.isArray(ctx.targets) ? ctx.targets : [];
   const baris = updates.map((u) => {
-    const lama = currentTargetValue(ctx.targets, u.kode);
-    const lamaTxt = lama != null ? `${lama.value}${lama.ao != null ? ` (AO ${lama.ao})` : ""}` : "-";
+    const a = asli
+      ? currentTargetValue(asli, u.kode)
+      : (() => {
+        const r = ringkas.find((x) => x.kode === u.kode);
+        return r ? { value: r.value ?? null, ao: r.ao ?? null } : null;
+      })();
+    const lamaTxt = a != null ? `${a.value}${a.ao != null ? ` (AO ${a.ao})` : ""}` : "-";
     const aoTxt = u.ao != null ? ` (AO ${u.ao})` : "";
     return `${u.kode}: ${lamaTxt} -> ${u.nilai}${aoTxt}`;
   });
@@ -188,28 +188,19 @@ function buildSetTarget(params = {}, ctx = {}, deps = {}) {
   const run = async () => {
     ran = true;
     const setTargets = deps.setTargets;
-    if (typeof setTargets === "function") {
-      // Skema target asli: { code, name, total:{value,ao}, groups[], focus[] }.
-      // Tulis total.value (+ total.ao bila diberikan), bukan field hantu.
-      const next = Array.isArray(ctx.targets)
-        ? ctx.targets.map((t) => {
-            const k = String(t.code ?? t.id ?? "");
-            const u = updates.find((x) => x.kode === k);
-            if (!u) return t;
-            return { ...t, total: { ...(t.total || {}), value: u.nilai, ...(u.ao != null ? { ao: u.ao } : {}) } };
-          })
-        : Object.fromEntries(
-            Object.entries(ctx.targets || {}).map(([k, t]) => {
-              const u = updates.find((x) => x.kode === k);
-              if (!u) return [k, t];
-              if (t && typeof t === "object") return [k, { ...t, total: { ...(t.total || {}), value: u.nilai, ...(u.ao != null ? { ao: u.ao } : {}) } }];
-              return [k, u.nilai];
-            }),
-          );
-      await setTargets(next);
-      return { ok: true, changed: updates.length };
+    const src = targetAsli(deps);
+    if (typeof setTargets !== "function" || !src) {
+      return { ok: false, reason: "setTargets/getTargets tak tersedia — teruskan via props AiChatDrawer." };
     }
-    return { ok: false, reason: "setTargets tak tersedia — teruskan via props AiChatDrawer." };
+    // Skema target asli: { code, name, total:{value,ao}, groups[], focus[] }.
+    const next = src.map((t) => {
+      const k = String(t.code ?? t.id ?? "");
+      const u = updates.find((x) => x.kode === k);
+      if (!u) return t;
+      return { ...t, total: { ...(t.total || {}), value: u.nilai, ...(u.ao != null ? { ao: u.ao } : {}) } };
+    });
+    await setTargets(next);
+    return { ok: true, changed: updates.length };
   };
   return { ok: true, preview, run, __ran: () => ran };
 }
@@ -243,17 +234,17 @@ function buildSetJadwal(params = {}, ctx = {}, deps = {}) {
   return { ok: true, preview, run };
 }
 
-function resolveActiveRows(ctx = {}, deps = {}, params = {}) {
+function resolveActiveRows(_ctx = {}, deps = {}, params = {}) {
   if (typeof deps.getActiveRows === "function") {
     try {
       const r = deps.getActiveRows();
       if (Array.isArray(r)) return r;
-    } catch { /* abaikan, pakai ctx */ }
+    } catch { /* abaikan */ }
   }
+  // params.rows eksplisit dari AI (kecil) masih diterima.
   if (Array.isArray(params.rows)) return params.rows;
-  const fromCtx =
-    ctx.extra?.activeRows ?? ctx.activeRows ?? ctx.extra?.rows ?? ctx.rows ?? [];
-  return Array.isArray(fromCtx) ? fromCtx : [];
+  // ctx mentah SUDAH dibuang di buildContext (jadi *Count) — tak ada fallback.
+  return [];
 }
 
 function buildHapusDataAktif(params = {}, ctx = {}, deps = {}) {
@@ -280,43 +271,27 @@ function buildHapusDataAktif(params = {}, ctx = {}, deps = {}) {
   return { ok: true, preview, run };
 }
 
-const EXPORT_JENIS = {
-  excel: { module: "./excelExport.js", fn: "exportToExcel" },
-  report: { module: "./reportExcelExport.js", fn: "exportSalesReportExcel" },
-  transaksi: { module: "./reportExcelExport.js", fn: "exportTransactionsExcel" },
-  produk: { module: "./reportExcelExport.js", fn: "exportProductReportExcel" },
-  fokus: { module: "./focusGroupExport.js", fn: "exportFocusGroupExcel" },
-  pdf: { module: "./pdfExport.js", fn: "exportSummaryPDF" },
-  gambar: { module: "./imageExport.js", fn: "exportHtmlAsImage" },
-};
+const EXPORT_JENIS = ["excel", "report", "transaksi", "produk", "fokus", "pdf", "gambar"];
 
 function buildExportCustom(params = {}, ctx = {}, deps = {}) {
   const jenis = str(params.jenis ?? "excel", 20).toLowerCase();
-  const spec = EXPORT_JENIS[jenis];
-  if (!spec) {
-    return { ok: false, reason: `exportCustom: jenis tak dikenal (${jenis}). Pilih: ${Object.keys(EXPORT_JENIS).join(", ")}.` };
+  if (!EXPORT_JENIS.includes(jenis)) {
+    return { ok: false, reason: `exportCustom: jenis tak dikenal (${jenis}). Pilih: ${EXPORT_JENIS.join(", ")}.` };
   }
-  const kolom = Array.isArray(params.kolom) ? params.kolom.map(String) : [];
-  const rows = asArray(ctx.extra?.transaksi ?? ctx.extra?.rows ?? ctx.rows ?? ctx.sales);
-  const filtered = pickColumns(rows, kolom);
+  const kolom = Array.isArray(params.kolom) ? params.kolom.map(String).slice(0, 20) : [];
+  const nBaris = num(ctx.nBaris ?? 0, 0);
   const preview = {
-    judul: `Export ${jenis} (${filtered.length} baris${kolom.length ? `, ${kolom.length} kolom` : ""})`,
+    judul: `Export ${jenis} (${nBaris} baris${kolom.length ? `, ${kolom.length} kolom` : ""})`,
     baris: (kolom.length ? kolom : ["(semua kolom)"]).slice(0, 20),
   };
   const run = async () => {
-    const injected = deps.exporters?.[jenis] ?? deps.exporters?.[spec.fn];
+    // Eksekusi via handler injeksi (signature benar milik pemilik menu/tab).
+    const injected = deps.exporters?.[jenis];
     if (typeof injected === "function") {
-      await injected(filtered, { kolom, ctx });
-      return { ok: true, jenis, baris: filtered.length, kolom };
+      await injected({ kolom, ctx });
+      return { ok: true, jenis, baris: nBaris, kolom };
     }
-    // Modul export existing (dinamis — panggil sesuai jenis).
-    const mod = await import(spec.module);
-    const fn = mod[spec.fn];
-    if (typeof fn !== "function") return { ok: false, reason: `Fungsi ${spec.fn} tak ada di ${spec.module}.` };
-    if (jenis === "excel") await fn(ctx.agg ?? ctx, ctx.targets ?? {}, { kolom });
-    else if (jenis === "pdf") await fn(ctx.agg ?? ctx, ctx.targets ?? {}, { kolom });
-    else await fn(filtered, { kolom });
-    return { ok: true, jenis, baris: filtered.length, kolom };
+    return { ok: false, reason: `Export ${jenis} belum tersambung di panel ini — pakai menu Export di header.` };
   };
   return { ok: true, preview, run };
 }

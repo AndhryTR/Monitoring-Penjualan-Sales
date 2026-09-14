@@ -27,26 +27,74 @@ function str(v, max = 80) {
   return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
-// Ringkasan konteks — TIDAK pernah menyertakan rawRows mentah.
+// Ringkasan konteks — HANYA field ringkas yang diteruskan ke LLM.
+// Batasan keras: extra mentah (rawRows/transaksi/depots penuh) DIBUANG di sini
+// sebagai pengaman lapis kedua bila pemanggil kirim objek mentah (pernah
+// sebabkan "Input is too long" — payload puluhan MB walau perintah "hai").
+const MAX_LIST = 30;
+const MAX_STR = 40;
+
+function slimSales(list) {
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, MAX_LIST).map((s) => ({
+    kode: str(s.kode ?? s.code ?? s.id ?? "", 24),
+    nama: str(s.nama ?? s.name ?? "", MAX_STR),
+    ach: num(s.ach ?? s.achievement ?? 0, 1),
+    total: num(s.total ?? s.realisasi ?? s.value ?? 0, 0),
+  }));
+}
+
+function slimTargets(t) {
+  const list = Array.isArray(t)
+    ? t
+    : t && typeof t === "object"
+      ? Object.entries(t).slice(0, MAX_LIST).map(([kode, v]) => (
+        v && typeof v === "object"
+          ? { kode, ...(v) }
+          : { kode, value: v }
+      ))
+      : [];
+  return list.slice(0, MAX_LIST).map((x) => ({
+    kode: str(x.kode ?? x.code ?? "", 24),
+    nama: str(x.nama ?? x.name ?? "", MAX_STR),
+    value: num(x.value ?? x.total?.value ?? x.nilai ?? 0, 0),
+    ao: num(x.ao ?? x.total?.ao ?? 0, 0),
+  }));
+}
+
 export function buildContext(input = {}) {
-  const { agg = {}, targets = {}, filters = {}, sales = [], extra = {} } = input;
-  const salesList = Array.isArray(sales)
-    ? sales.slice(0, 100).map((s) => ({
-        kode: str(s.kode ?? s.id ?? "", 24),
-        nama: str(s.nama ?? s.name ?? "", 40),
-        ach: num(s.ach ?? s.achievement ?? 0, 1),
-        total: num(s.total ?? s.value ?? 0, 0),
-      }))
-    : [];
+  const { agg = {}, filters = {} } = input;
+  // agg boleh bentuk ringkas (total/achGlobal) atau mentah (totals.*) — normalisasi.
+  const totals = agg?.totals && typeof agg.totals === "object" ? agg.totals : agg;
+  // extra HANYA ambil hitungan yang sudah diringkas pemanggil; array mentah dibuang.
+  const extra = input.extra && typeof input.extra === "object" ? input.extra : {};
+  const extraSafe = {};
+  for (const [k, v] of Object.entries(extra)) {
+    if (Array.isArray(v)) {
+      extraSafe[k + "Count"] = v.length;
+    } else if (v && typeof v === "object") {
+      const keys = Object.keys(v);
+      extraSafe[k] = keys.length > MAX_LIST ? { keys: keys.length } : v;
+    } else if (typeof v === "number" || typeof v === "string" || typeof v === "boolean" || v == null) {
+      extraSafe[k] = typeof v === "string" ? str(v, 120) : v;
+    }
+  }
   return {
-    total: num(agg.total ?? agg.totalValue ?? 0, 0),
-    ao: num(agg.ao ?? agg.activeOutlet ?? 0, 0),
-    achGlobal: num(agg.ach ?? agg.achGlobal ?? 0, 1),
-    nBaris: num(agg.nBaris ?? agg.rows ?? salesList.length, 0),
-    filterAktif: filters && typeof filters === "object" ? filters : {},
-    sales: salesList,
-    targets: targets && typeof targets === "object" ? targets : {},
-    extra: extra && typeof extra === "object" ? extra : {},
+    total: num(input.total ?? totals.realisasiValue ?? totals.total ?? 0, 0),
+    targetValue: num(input.targetValue ?? totals.targetValue ?? 0, 0),
+    achGlobal: num(input.achGlobal ?? totals.ach ?? 0, 1),
+    ao: num(input.ao ?? totals.realisasiAo ?? totals.ao ?? 0, 0),
+    nBaris: num(input.nBaris ?? 0, 0),
+    periode: input.periode && typeof input.periode === "object" ? input.periode : {},
+    depotName: str(input.depotName ?? "", MAX_STR),
+    nDepo: num(input.nDepo ?? 0, 0),
+    filterAktif: filters && typeof filters === "object"
+      ? { sales: Array.isArray(filters.salesCodes) ? filters.salesCodes.length : (filters.sales ?? 0), groups: Array.isArray(filters.groups) ? filters.groups.slice(0, MAX_LIST) : filters.groups ?? [] }
+      : {},
+    sales: slimSales(input.sales),
+    targets: slimTargets(input.targets),
+    stok: input.stok && typeof input.stok === "object" ? input.stok : null,
+    extra: extraSafe,
   };
 }
 

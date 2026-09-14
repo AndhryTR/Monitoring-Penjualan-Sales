@@ -479,25 +479,43 @@ export default function SalesMonitoringApp() {
   // ⚠️ Sprint 9 / GS1+GS3+GS4: command palette untuk search across semua data.
   const globalSearch = useGlobalSearch({ targets, rawRows, agg: aggFinal });
 
-  // ---- AI Context (ringkasan untuk asisten automasi) ----
-  const aiContext = useMemo(() => ({
-    agg: aggFinal,
-    targets,
-    filters,
-    depots,
-    depotName,
-    sales: (aggFinal?.bySales || []).map((s) => ({
-      kode: s.code,
-      nama: s.name,
-      ach: s.ach,
-      total: s.realisasiValue,
-    })),
-    stok: stockData?.stockSummary,
-    extra: {
-      activeRows: rawRows,
-      transaksi: rawRows,
-    },
-  }), [aggFinal, targets, filters, depots, depotName, stockData?.stockSummary, rawRows]);
+  // ---- AI Context (RINGKAS untuk asisten automasi) ----
+  // Jangan kirim objek mentah (aggFinal/targets/depots/rawRows) — payload puluhan MB,
+  // provider tolak "Input is too long". Hanya angka + daftar pendek.
+  const aiContext = useMemo(() => {
+    const totals = aggFinal?.totals || {};
+    const meta = aggFinal?.meta || {};
+    return {
+      total: totals.realisasiValue ?? 0,
+      targetValue: totals.targetValue ?? 0,
+      achGlobal: totals.ach ?? null,
+      ao: totals.realisasiAo ?? 0,
+      targetAo: totals.targetAo ?? 0,
+      nBaris: (aggFinal?.filteredRows || []).length,
+      periode: { dari: meta.firstDate || null, sampai: meta.lastDate || null, hari: meta.uniqueDays || 0 },
+      depotName,
+      nDepo: (depots || []).length,
+      sales: (aggFinal?.bySales || []).slice(0, 30).map((s) => ({
+        kode: s.code, nama: s.name,
+        ach: s.ach != null ? Math.round(s.ach * 1000) / 10 : null,
+        realisasi: s.realisasiValue ?? 0, target: s.targetValue ?? 0,
+      })),
+      targets: (targets || []).slice(0, 30).map((t) => ({
+        kode: t.code, nama: t.name,
+        value: t.total?.value ?? 0, ao: t.total?.ao ?? 0,
+      })),
+      filters: {
+        sales: (filters?.salesCodes || []).length,
+        groups: filters?.groups || [],
+        dari: filters?.dateFrom || "", sampai: filters?.dateTo || "",
+      },
+      stok: stockData?.stockSummary ? {
+        total: stockData.stockSummary.total ?? null,
+        habis: stockData.stockSummary.habis ?? stockData.stockSummary.stockout ?? null,
+        menipis: stockData.stockSummary.menipis ?? stockData.stockSummary.low ?? null,
+      } : null,
+    };
+  }, [aggFinal, targets, filters, depots, depotName, stockData?.stockSummary]);
 
   // ---- Slideshow Mode (Sprint 17 / SS1) ----
   // Auto-rotate antar tab untuk display monitor di ruang sales.
@@ -1081,6 +1099,8 @@ export default function SalesMonitoringApp() {
           aiContext={aiContext}
           deps={{
             setTargets,
+            getTargets: () => targets,
+            getActiveRows: () => rawRows,
             saveStoredSchedule: async (depot, schedule) => {
               const mod = await import("./utils/visitScheduleStorage.js");
               mod.saveStoredSchedule(depot, schedule);
