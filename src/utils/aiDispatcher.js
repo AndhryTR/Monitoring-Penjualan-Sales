@@ -3,6 +3,7 @@
 // dan modul ini cukup re-export agar impor tunggal dari aiTools.
 
 export const ALLOWLIST = [
+  "chat",
   "queryData",
   "bacaTarget",
   "bacaJadwal",
@@ -15,6 +16,8 @@ export const ALLOWLIST = [
   "exportCustom",
 ];
 
+// chat = obrolan umum (sapaan, terima kasih, tanya kemampuan) — tanpa data,
+// tanpa eksekusi, tanpa konfirmasi. BUKAN tool tulis.
 const WRITE_TOOLS = new Set(["setTarget", "setJadwal", "hapusDataAktif", "exportCustom"]);
 
 function num(n, d = 0) {
@@ -104,6 +107,12 @@ export const SYSTEM_PROMPT = [
   "Tanpa markdown, tanpa kode fence, tanpa teks di luar JSON.",
   "tool wajib salah satu dari: " + ALLOWLIST.join(", ") + ".",
   "Selain daftar itu DILARANG — jangan buat nama tool lain.",
+  "OBROLAN UMUM: sapaan (hai/halo/pagi), terima kasih, tanya kabar/kemampuan",
+  "  -> tool `chat`, params {\"jawaban\": \"teks balasan Bahasa Indonesia ramah + tawarkan bantuan\"}.",
+  "  Contoh: \"hai\" -> {\"tool\":\"chat\",\"params\":{\"jawaban\":\"Halo! Saya asisten monitoring penjualan. Mau analisis ACH, ubah target, atur jadwal, atau export laporan?\"},\"ringkasan\":\"Sapaan\"}.",
+  "DATA: perintah soal angka/target/jadwal/stok/export -> tool data yang sesuai.",
+  "  queryData dukung params {\"sortBy\":\"ach|total|nama\", \"order\":\"asc|desc\", \"limit\":N, \"minAch\":N}.",
+  "  Contoh: \"3 sales terendah\" -> {\"tool\":\"queryData\",\"params\":{\"sortBy\":\"ach\",\"order\":\"asc\",\"limit\":3},\"ringkasan\":\"Ambil 3 sales ACH terendah\"}.",
   "params wajib object (boleh {}). ringkasan wajib string Bahasa Indonesia singkat.",
   "Bila perintah tak jelas, pilih tool baca paling dekat dan jelaskan di ringkasan.",
 ].join("\n");
@@ -296,6 +305,15 @@ export function parseToolCall(text) {
     return { ok: false, reason: "ringkasan harus string.", raw };
   }
   const out = { ok: true, tool, params: params ?? {}, ringkasan };
+  // chat: jawaban wajib string tak kosong (itu seluruh isi balasan).
+  if (tool === "chat") {
+    const j = out.params?.jawaban;
+    if (typeof j !== "string" || !j.trim()) {
+      return { ok: false, reason: "chat wajib params.jawaban string tak kosong.", raw };
+    }
+    out.params = { jawaban: j.trim().slice(0, 2000) };
+    return out;
+  }
   if (WRITE_TOOLS.has(tool) && (!out.params || typeof out.params !== "object")) {
     return { ok: false, reason: "Tool tulis wajib params object.", raw };
   }

@@ -37,6 +37,85 @@ const QUICK_PROMPTS = [
   "Export data transaksi ke format Excel",
 ];
 
+// Timeline thinking: langkah terlihat (✓ selesai, ◌ aktif, ✕ gagal).
+function ThinkingSteps({ steps = [], colors = {} }) {
+  if (!steps.length) return null;
+  return (
+    <div className="mt-2 pt-2 space-y-1 border-t" style={{ borderColor: colors.glassBorder }}>
+      {steps.map((s, i) => (
+        <div key={i} className="flex items-center gap-1.5 text-[10px] font-mono" style={{
+          color: s.state === "error" ? colors.coral : s.state === "active" ? colors.gold : colors.textMuted,
+        }}>
+          <span className="shrink-0">{s.state === "error" ? "✕" : s.state === "active" ? "◌" : "✓"}</span>
+          <span className="truncate">{s.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function fmtRpShort(n) {
+  const v = Number(n) || 0;
+  if (Math.abs(v) >= 1e9) return (v / 1e9).toFixed(1) + " M";
+  if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(1) + " jt";
+  if (Math.abs(v) >= 1e3) return (v / 1e3).toFixed(1) + " rb";
+  return String(Math.round(v));
+}
+
+// Render hasil baca jadi tabel/kalimat — bukan gelembung JSON mentah.
+function ResultBlock({ tool, data, colors = {} }) {
+  if (!data) return null;
+  if (tool === "queryData" && Array.isArray(data.rows)) {
+    const sortTxt = data.sortBy ? ` (urut ${data.sortBy} ${data.order}, max ${data.limit})` : "";
+    return (
+      <div className="mt-2 rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
+        <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: colors.glassFill, color: colors.textMuted }}>
+          {data.rows.length} sales{sortTxt} · ACH global {data.achGlobal ?? "-"}%
+        </div>
+        {data.rows.map((r, i) => (
+          <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px]" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
+            <span className="truncate font-semibold" style={{ color: colors.text }}>{i + 1}. {r.nama || r.kode}</span>
+            <span className="shrink-0 font-mono font-bold" style={{ color: (r.ach ?? 0) >= 100 ? colors.mint : (r.ach ?? 0) >= 70 ? colors.gold : colors.coral }}>
+              {r.ach ?? "-"}%
+            </span>
+            <span className="shrink-0 font-mono" style={{ color: colors.textMuted }}>{fmtRpShort(r.total)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (tool === "analisis" && data.ringkasan) {
+    return (
+      <div className="mt-2 space-y-1">
+        <p className="text-[11px] leading-relaxed">{data.ringkasan}</p>
+        {Array.isArray(data.terbawah5) && data.terbawah5.length > 0 && (
+          <div className="rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
+            {data.terbawah5.map((s, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px]" style={{ borderTop: i ? `1px solid ${colors.glassBorder}` : "none" }}>
+                <span className="truncate">{s.nama || s.kode}</span>
+                <span className="shrink-0 font-mono font-bold" style={{ color: colors.coral }}>{s.ach ?? s.achievement ?? "-"}%</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (tool === "bacaTarget" && Array.isArray(data)) {
+    return (
+      <div className="mt-2 rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
+        {data.slice(0, 10).map((t, i) => (
+          <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px]" style={{ borderTop: i ? `1px solid ${colors.glassBorder}` : "none" }}>
+            <span className="truncate font-semibold" style={{ color: colors.text }}>{t.nama || t.kode}</span>
+            <span className="shrink-0 font-mono" style={{ color: colors.textMuted }}>{fmtRpShort(t.value)} · AO {t.ao ?? "-"}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+}
+
 export function AiChatDrawer({
   isOpen,
   onClose,
@@ -49,6 +128,7 @@ export function AiChatDrawer({
   const [messages, setMessages] = useState(() => loadChatLog());
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [busyStage, setBusyStage] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aiSettings, setAiSettings] = useState(() => loadAiSettings());
   const [showKey, setShowKey] = useState(false);
@@ -146,6 +226,7 @@ export function AiChatDrawer({
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setBusy(true);
+    setBusyStage("Memahami perintah…");
     // Batalkan request sebelumnya bila masih jalan, mulai controller baru.
     inFlightRef.current?.abort(new Error("Dibatalkan: ada perintah baru."));
     const flight = new AbortController();
@@ -153,6 +234,7 @@ export function AiChatDrawer({
 
     try {
       const res = await dispatch(text, aiContext, aiSettings, { signal: flight.signal });
+      setBusyStage(`Menjalankan ${res.parsed?.tool || "tool"}…`);
 
       if (!res.parsed || !res.parsed.ok) {
         // Output tidak valid JSON atau tool asing
@@ -168,6 +250,25 @@ export function AiChatDrawer({
       }
 
       const { tool, params, ringkasan } = res.parsed;
+      // Timeline thinking: tiap pesan bawa steps agar alur terlihat.
+      const steps = [
+        { label: `Perintah dipahami → ${tool}`, state: "done" },
+      ];
+
+      if (tool === "chat") {
+        // Obrolan umum: jawaban langsung, tanpa eksekusi data.
+        const c = executeAiTool(tool, params, aiContext, deps);
+        const aiMsg = {
+          id: (Date.now() + 1).toString(36),
+          role: "assistant",
+          text: c.ok ? c.data.jawaban : ringkasan,
+          tool,
+          steps: [...steps, { label: "Jawaban langsung (tanpa data)", state: "done" }],
+          createdAt: Date.now(),
+        };
+        setMessages((prev) => [...prev, aiMsg]);
+        return;
+      }
 
       if (isWriteTool(tool)) {
         // Tool tulis: susun preview, tahan eksekusi hingga user konfirmasi
@@ -177,6 +278,8 @@ export function AiChatDrawer({
             id: (Date.now() + 1).toString(36),
             role: "assistant",
             text: `Perintah ditolak: ${writeExec.reason}`,
+            tool,
+            steps: [...steps, { label: `Validasi gagal: ${writeExec.reason}`, state: "error" }],
             createdAt: Date.now(),
           };
           setMessages((prev) => [...prev, errMsg]);
@@ -192,6 +295,7 @@ export function AiChatDrawer({
           params,
           preview: writeExec.preview,
           status: "pending",
+          steps: [...steps, { label: "Menunggu persetujuan Anda", state: "active" }],
           createdAt: Date.now(),
         };
         setMessages((prev) => [...prev, pendingMsg]);
@@ -204,6 +308,9 @@ export function AiChatDrawer({
           role: "assistant",
           text: ringkasan,
           tool,
+          steps: readExec.ok
+            ? [...steps, { label: `Eksekusi ${tool} berhasil`, state: "done" }]
+            : [...steps, { label: `Eksekusi gagal: ${readExec.reason}`, state: "error" }],
           data: readExec.ok ? readExec.data : null,
           error: readExec.ok ? null : readExec.reason,
           createdAt: Date.now(),
@@ -587,6 +694,12 @@ export function AiChatDrawer({
 
                     <div className="whitespace-pre-wrap">{m.text}</div>
 
+                    {/* Timeline thinking */}
+                    <ThinkingSteps steps={m.steps} colors={colors} />
+
+                    {/* Hasil baca: tabel/kalimat, bukan JSON mentah */}
+                    <ResultBlock tool={m.tool} data={m.data} colors={colors} />
+
                     {/* Preview box untuk aksi tulis */}
                     {m.preview && (
                       <div
@@ -649,7 +762,7 @@ export function AiChatDrawer({
           {busy && (
             <div className="flex items-center gap-2 text-xs py-2 px-3 rounded-xl w-fit sm-fadein" style={{ background: colors.glassFill }}>
               <RefreshCw size={13} className="animate-spin" style={{ color: colors.mint }} />
-              <span style={{ color: colors.textMuted }}>Memproses instruksi AI…</span>
+              <span style={{ color: colors.textMuted }}>{busyStage || "Memproses instruksi AI…"}</span>
             </div>
           )}
           <div ref={messagesEndRef} />

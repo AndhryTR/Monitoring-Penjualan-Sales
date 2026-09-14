@@ -28,22 +28,43 @@ function asArray(v) {
 
 // ---------- READ (pure) ----------
 
+// Obrolan umum — tanpa data, tanpa efek. Jawaban langsung dari params.
+export function chat(_ctx = {}, params = {}) {
+  const j = typeof params.jawaban === "string" ? params.jawaban.trim().slice(0, 2000) : "";
+  if (!j) return { ok: false, reason: "chat butuh params.jawaban." };
+  return { ok: true, data: { jawaban: j } };
+}
+
 export function queryData(ctx = {}, params = {}) {
-  const sales = asArray(ctx.sales).slice(0, 10).map((s) => ({
+  let sales = asArray(ctx.sales).map((s) => ({
     kode: s.kode ?? s.id ?? "",
     nama: s.nama ?? s.name ?? "",
     ach: num(s.ach ?? s.achievement ?? 0, 1),
     total: num(s.total ?? s.value ?? 0, 0),
   }));
+  // Filter + urut + batasi sesuai params (contoh: 3 ACH terendah).
+  if (params.minAch != null && Number.isFinite(Number(params.minAch))) {
+    sales = sales.filter((s) => s.ach < Number(params.minAch));
+  }
+  const sortBy = String(params.sortBy ?? "").toLowerCase();
+  const order = String(params.order ?? "desc").toLowerCase() === "asc" ? 1 : -1;
+  if (sortBy === "ach" || sortBy === "total" || sortBy === "nama") {
+    const key = sortBy === "nama" ? "nama" : sortBy;
+    sales = [...sales].sort((a, b) =>
+      key === "nama" ? order * String(a.nama).localeCompare(String(b.nama)) : order * (a[key] - b[key]));
+  }
+  const limit = Math.min(Math.max(num(params.limit ?? 10, 0), 1), 30);
+  const rows = sales.slice(0, limit);
   return {
     ok: true,
     data: {
       total: num(ctx.total ?? 0, 0),
       ao: num(ctx.ao ?? 0, 0),
       achGlobal: num(ctx.achGlobal ?? 0, 1),
-      nBaris: num(ctx.nBaris ?? sales.length, 0),
+      nBaris: num(ctx.nBaris ?? 0, 0),
       filterAktif: ctx.filterAktif ?? {},
-      topSales: sales,
+      rows,
+      sortBy: sortBy || null, order: order === 1 ? "asc" : "desc", limit,
       q: str(params.q ?? "", 80),
     },
   };
@@ -109,6 +130,7 @@ export function analisis(ctx = {}, _params = {}) {
 
 export function runReadTool(tool, params = {}, ctx = {}) {
   switch (tool) {
+    case "chat": return chat(ctx, params);
     case "queryData": return queryData(ctx, params);
     case "bacaTarget": return bacaTarget(ctx, params);
     case "bacaJadwal": return bacaJadwal(ctx, params);
