@@ -81,9 +81,11 @@ export function mapDispatchError(err, res, opts) {
 }
 
 // Parse respons OpenAI-compatible, mendukung JSON standar maupun fallback stream SSE (data: {...}).
+// Respons kosong = ERROR (bukan sukses diam) — pernah tampilkan "Terhubung!" palsu
+// padahal request tak sampai ke provider (tanpa riwayat di dashboard).
 export function parseOpenAiResponseText(rawText) {
   const text = String(rawText || "").trim();
-  if (!text) return "";
+  if (!text) throw new Error("Respons kosong dari server AI — request tak sampai ke provider (cek tunnel/Base URL).");
 
   // 1. Coba parse sebagai JSON biasa
   try {

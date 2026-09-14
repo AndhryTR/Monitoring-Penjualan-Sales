@@ -5,7 +5,7 @@ import {
   AlertTriangle, RefreshCw, Eye, EyeOff, ArrowRight,
 } from "lucide-react";
 import { loadAiSettings, saveAiSettings } from "../../utils/aiSettings.js";
-import { callDirect, callProxy, dispatch, parseOpenAiResponseText } from "../../utils/aiDispatcher.js";
+import { callDirect, callProxy, dispatch } from "../../utils/aiDispatcher.js";
 import { executeAiTool, isWriteTool } from "../../utils/aiTools.js";
 import { useScrollLock, useEscapeKey, useFocusTrap } from "../../hooks/useModalA11y.js";
 
@@ -117,44 +117,11 @@ export function AiChatDrawer({
         throw new Error("Base URL wajib diisi untuk mode Direct.");
       }
       const call = aiSettings.mode === "proxy" ? callProxy : callDirect;
+      // Tanpa fallback "Terhubung!" — balasan kosong = gagal (sukses palsu dilarang).
       const reply = await call(aiSettings, [
         { role: "user", content: "Halo, jawab 'OK' jika terhubung." },
-      ], { timeoutMs: 30000 }) || "Terhubung!";
-      setTestResult({ ok: true, msg: `Koneksi sukses! Balasan: "${reply.trim()}"` });
-    } catch (e) {
-      setTestResult({ ok: false, msg: `Koneksi gagal: ${e.message}` });
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const _handleTestConnection = async () => {
-    setTesting(true);
-    setTestResult(null);
-    try {
-      const baseURL = String(aiSettings.baseURL || "").replace(/\/+$/, "");
-      if (!baseURL) throw new Error("Base URL wajib diisi.");
-      if (!aiSettings.model) throw new Error("Model AI wajib diisi.");
-
-      const res = await fetch(`${baseURL}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(aiSettings.key ? { Authorization: `Bearer ${aiSettings.key}` } : {}),
-        },
-        body: JSON.stringify({
-          model: aiSettings.model,
-          messages: [{ role: "user", content: "Halo, jawab 'OK' jika terhubung." }],
-          max_tokens: 10,
-          stream: false,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-      const rawText = await res.text();
-      const reply = parseOpenAiResponseText(rawText) || "Terhubung!";
+      ], { timeoutMs: 30000 });
+      if (!String(reply || "").trim()) throw new Error("Respons kosong dari server AI.");
       setTestResult({ ok: true, msg: `Koneksi sukses! Balasan: "${reply.trim()}"` });
     } catch (e) {
       setTestResult({ ok: false, msg: `Koneksi gagal: ${e.message}` });
