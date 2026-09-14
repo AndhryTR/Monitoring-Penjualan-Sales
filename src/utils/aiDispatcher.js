@@ -60,14 +60,23 @@ export const SYSTEM_PROMPT = [
   "Bila perintah tak jelas, pilih tool baca paling dekat dan jelaskan di ringkasan.",
 ].join("\n");
 
-export function mapDispatchError(err, res) {
+export function mapDispatchError(err, res, opts) {
   const status = res?.status ?? err?.status;
   if (status === 401) return new Error("API key salah / habis (401). Periksa key di setelan AI.");
   if (status === 429) return new Error("Limit tercapai (429). Tunggu sebentar lalu coba lagi.");
   if (err instanceof TypeError || err?.name === "TypeError") {
     return new Error("Base URL tak reachable / CORS diblokir — periksa baseURL atau coba mode Proxy.");
   }
-  if (err?.name === "AbortError") return new Error("Timeout 60 detik — server AI tak merespons.");
+  if (err?.name === "AbortError") {
+    // Sumber reason: signal pemanggil (drawer) > reason error > default timeout.
+    // Chrome: DOMException AbortError tak bawa .reason ("aborted without reason"),
+    // tapi opts.signal.reason selalu ada bila batal manual.
+    const fromSignal = opts?.signal?.reason;
+    const fromErr = err?.reason ?? err?.cause;
+    const pick = fromSignal ?? fromErr;
+    const msg = pick instanceof Error ? pick.message : (typeof pick === "string" && pick ? pick : "");
+    return new Error(msg || "Request dibatalkan (timeout 90 detik — server AI tak merespons).");
+  }
   return err instanceof Error ? err : new Error(String(err ?? "Gagal memanggil AI."));
 }
 
@@ -139,7 +148,8 @@ export async function callProxy(settings, messages, opts = {}) {
   }
 }
 
-// POST {baseURL}/chat/completions, timeout 60s, retry 1x khusus network error.
+// POST {baseURL}/chat/completions, timeout 90s (tunnel lambat), TANPA retry
+// otomatis (request pertama bisa masih jalan saat kedua mulai = beban ganda).
 export async function callDirect(settings, messages, opts = {}) {
   const baseURL = String(settings?.baseURL ?? "").replace(/\/+$/, "");
   if (!baseURL) throw new Error("baseURL kosong — isi di setelan AI.");
@@ -149,97 +159,35 @@ export async function callDirect(settings, messages, opts = {}) {
     model: settings.model,
     messages,
     stream: false,
+    ...(settings?.apiType !== "custom" ? { response_format: { type: "json_object" } } : {}),
   };
   const fetchFn = opts.fetchFn ?? fetch;
-  const timeoutMs = opts.timeoutMs ?? 60000;
+  const timeoutMs = opts.timeoutMs ?? 90000;
 
-  async function once() {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), timeoutMs);
-    try {
-      const res = await fetchFn(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(settings?.key ? { Authorization: "Bearer " + settings.key } : {}),
-        },
-        body: JSON.stringify(body),
-        signal: ctrl.signal,
-      });
-      if (!res.ok) throw Object.assign(mapDispatchError(null, res), { status: res.status });
-      const rawText = await res.text();
-      return parseOpenAiResponseText(rawText);
-    } finally {
-      clearTimeout(t);
-    }
+  const ctrl = new AbortController();
+  // Abort manual dari UI (ganti pesan / tutup drawer) ikut batalkan request ini.
+  if (opts.signal) {
+    if (opts.signal.aborted) ctrl.abort(opts.signal.reason);
+    else opts.signal.addEventListener("abort", () => ctrl.abort(opts.signal.reason), { once: true });
   }
-
-  async function _callProxyInternal(settings, messages, opts = {}) {
-    const proxyURL = String(settings?.backendURL || "/api/ai").trim().replace(/\/+$/, "") || "/api/ai";
-    if (!settings?.model) throw new Error("model kosong — isi di setelan AI.");
-    const fetchFn = opts.fetchFn ?? fetch;
-    const timeoutMs = opts.timeoutMs ?? 60000;
-    const body = {
-      model: settings.model,
-      messages,
-      stream: false,
-    };
-
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    try {
-      const res = await fetchFn(proxyURL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(settings?.proxyKey ? { Authorization: `Bearer ${settings.proxyKey}` } : {}),
-        },
-        body: JSON.stringify(body),
-        signal: ctrl.signal,
-      });
-      if (!res.ok) throw Object.assign(mapDispatchError(null, res), { status: res.status });
-      return parseOpenAiResponseText(await res.text());
-    } catch (e) {
-      if (e instanceof TypeError) throw mapDispatchError(e);
-      throw e;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
+  const t = setTimeout(() => ctrl.abort(new Error("Timeout 90 detik — server AI tak merespons.")), timeoutMs);
   try {
-    return await once();
+    const res = await fetchFn(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(settings?.key ? { Authorization: "Bearer " + settings.key } : {}),
+      },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw Object.assign(mapDispatchError(null, res), { status: res.status });
+    const rawText = await res.text();
+    return parseOpenAiResponseText(rawText);
   } catch (e) {
-    if (e?.status === 400 || e?.status === 404 || e?.status === 422) {
-      const fallbackCtrl = new AbortController();
-      const fallbackTimer = setTimeout(() => fallbackCtrl.abort(), timeoutMs);
-      try {
-        const fallbackRes = await fetchFn(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(settings?.key ? { Authorization: "Bearer " + settings.key } : {}),
-          },
-          body: JSON.stringify(body),
-          signal: fallbackCtrl.signal,
-        });
-        if (!fallbackRes.ok) {
-          throw Object.assign(mapDispatchError(null, fallbackRes), { status: fallbackRes.status });
-        }
-        return parseOpenAiResponseText(await fallbackRes.text());
-      } finally {
-        clearTimeout(fallbackTimer);
-      }
-    }
-    // Retry 1x hanya untuk network error (TypeError fetch / gagal koneksi), bukan HTTP status.
-    if (e instanceof TypeError || (e?.name === "TypeError" && e?.status == null)) {
-      try {
-        return await once();
-      } catch (e2) {
-        throw mapDispatchError(e2);
-      }
-    }
-    throw e;
+    throw mapDispatchError(e, null, opts);
+  } finally {
+    clearTimeout(t);
   }
 }
 

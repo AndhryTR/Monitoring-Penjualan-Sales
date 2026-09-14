@@ -61,6 +61,8 @@ export function AiChatDrawer({
   const drawerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  // Batalkan request AI yang masih jalan saat kirim ulang / tutup drawer.
+  const inFlightRef = useRef(null);
 
   useScrollLock(isOpen);
   useEscapeKey(isOpen, () => {
@@ -68,6 +70,11 @@ export function AiChatDrawer({
     else onClose?.();
   });
   useFocusTrap(isOpen, drawerRef);
+
+  // Tutup drawer = batalkan request yang masih jalan.
+  useEffect(() => {
+    if (!isOpen) inFlightRef.current?.abort(new Error("Dibatalkan: panel ditutup."));
+  }, [isOpen]);
 
   // Auto-scroll ke bawah saat pesan bertambah
   useEffect(() => {
@@ -170,9 +177,13 @@ export function AiChatDrawer({
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setBusy(true);
+    // Batalkan request sebelumnya bila masih jalan, mulai controller baru.
+    inFlightRef.current?.abort(new Error("Dibatalkan: ada perintah baru."));
+    const flight = new AbortController();
+    inFlightRef.current = flight;
 
     try {
-      const res = await dispatch(text, aiContext, aiSettings);
+      const res = await dispatch(text, aiContext, aiSettings, { signal: flight.signal });
 
       if (!res.parsed || !res.parsed.ok) {
         // Output tidak valid JSON atau tool asing
@@ -231,6 +242,12 @@ export function AiChatDrawer({
         setMessages((prev) => [...prev, aiMsg]);
       }
     } catch (err) {
+      if (inFlightRef.current === flight) inFlightRef.current = null;
+      // Batal manual (perintah baru / tutup) jangan tampilkan sebagai error.
+      if (err?.name === "AbortError" && /Dibatalkan/.test(err?.reason?.message || err?.message || "")) {
+        setBusy(false);
+        return;
+      }
       console.error("AI dispatch error:", err);
       notifyError("AI Error", err.message);
       const errMsg = {
