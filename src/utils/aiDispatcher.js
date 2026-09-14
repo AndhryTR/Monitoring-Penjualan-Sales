@@ -283,12 +283,51 @@ export async function callDirect(settings, messages, opts = {}) {
 
 // Validasi tool call. Sukses: {ok:true, tool, params, ringkasan}.
 // Gagal: {ok:false, reason, raw}.
+// Model sering bungkus JSON dalam fence markdown (```json ... ```) atau
+// selipkan teks di sekitarnya — ekstrak objek {...} dulu sebelum parse.
+function extractJsonObject(text) {
+  let s = String(text ?? "").trim();
+  // Buang fence markdown bila ada.
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) s = fence[1].trim();
+  try {
+    return { obj: JSON.parse(s), raw: s };
+  } catch { /* lanjut */ }
+  // Ambil objek {...} pertama yang parse valid (tahan brace dalam string).
+  let start = -1;
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        const candidate = s.slice(start, i + 1);
+        try {
+          return { obj: JSON.parse(candidate), raw: candidate };
+        } catch { /* coba objek berikutnya */ }
+        start = -1;
+      }
+    }
+  }
+  return { obj: null, raw: s };
+}
+
 export function parseToolCall(text) {
   const raw = String(text ?? "");
-  let obj;
-  try {
-    obj = JSON.parse(raw);
-  } catch {
+  const { obj } = extractJsonObject(raw);
+  if (!obj) {
     return { ok: false, reason: "JSON rusak — tampilkan mentah.", raw };
   }
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
