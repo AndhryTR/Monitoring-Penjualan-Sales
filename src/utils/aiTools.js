@@ -36,11 +36,16 @@ export function chat(_ctx = {}, params = {}) {
 }
 
 export function queryData(ctx = {}, params = {}) {
-  let sales = asArray(ctx.sales).map((s) => ({
+  // Cakupan: "semua" (default — seluruh data tanpa filter tanggal) atau
+  // "filter" (hanya bila user eksplisit sebut "di filter ini / yang tampil").
+  const cakupan = String(params.rentang ?? params.cakupan ?? "semua").toLowerCase() === "filter" ? "filter" : "semua";
+  const src = cakupan === "semua" && ctx.semua && typeof ctx.semua === "object" ? ctx.semua : ctx;
+  const salesSrc = Array.isArray(src.sales) && src.sales.length ? src.sales : asArray(ctx.sales);
+  let sales = salesSrc.map((s) => ({
     kode: s.kode ?? s.id ?? "",
     nama: s.nama ?? s.name ?? "",
     ach: num(s.ach ?? s.achievement ?? 0, 1),
-    total: num(s.total ?? s.value ?? 0, 0),
+    total: num(s.total ?? s.realisasi ?? s.value ?? 0, 0),
   }));
   // Filter + urut + batasi sesuai params (contoh: 3 ACH terendah).
   if (params.minAch != null && Number.isFinite(Number(params.minAch))) {
@@ -58,11 +63,12 @@ export function queryData(ctx = {}, params = {}) {
   return {
     ok: true,
     data: {
-      total: num(ctx.total ?? 0, 0),
-      ao: num(ctx.ao ?? 0, 0),
-      achGlobal: num(ctx.achGlobal ?? 0, 1),
-      nBaris: num(ctx.nBaris ?? 0, 0),
-      filterAktif: ctx.filterAktif ?? {},
+      cakupan,
+      total: num(src.total ?? ctx.total ?? 0, 0),
+      ao: num(src.ao ?? ctx.ao ?? 0, 0),
+      achGlobal: src.ach != null ? num(src.ach, 1) : num(ctx.achGlobal ?? 0, 1),
+      nBaris: num(src.nBaris ?? ctx.nBaris ?? 0, 0),
+      periode: src.dari || src.sampai ? { dari: src.dari, sampai: src.sampai, hari: src.hari } : (ctx.periode ?? {}),
       rows,
       sortBy: sortBy || null, order: order === 1 ? "asc" : "desc", limit,
       q: str(params.q ?? "", 80),
@@ -106,32 +112,63 @@ export function bacaTransaksi(ctx = {}, _params = {}) {
   return { ok: false, reason: `Transaksi mentah tak tersedia di AI (${num(ctx.nBaris ?? 0, 0)} baris di dashboard). Minta analisis/queryData, atau filter di tab Transaksi.` };
 }
 
-export function analisis(ctx = {}, _params = {}) {
-  const sales = asArray(ctx.sales);
+export function analisis(ctx = {}, params = {}) {
+  // Default cakupan semua (tanpa filter tanggal); "filter" hanya bila eksplisit.
+  const cakupan = String(params.rentang ?? params.cakupan ?? "semua").toLowerCase() === "filter" ? "filter" : "semua";
+  const src = cakupan === "semua" && ctx.semua && typeof ctx.semua === "object" ? ctx.semua : ctx;
+  const salesSrc = Array.isArray(src.sales) && src.sales.length ? src.sales : asArray(ctx.sales);
+  const sales = salesSrc;
+  const achG = src.ach != null ? num(src.ach, 1) : num(ctx.achGlobal ?? 0, 1);
+  const nB = num(src.nBaris ?? ctx.nBaris ?? sales.length, 0);
   const ranked = [...sales].sort(
     (a, b) => num(a.ach ?? a.achievement ?? 0) - num(b.ach ?? b.achievement ?? 0),
   );
   const rendah = ranked.filter((s) => num(s.ach ?? s.achievement ?? 0) < 100).slice(0, 5);
   const ringkasan =
-    `ACH global ${num(ctx.achGlobal ?? 0, 1)}% dari ${num(ctx.nBaris ?? sales.length, 0)} baris. ` +
+    `ACH global ${achG}% dari ${nB} baris (cakupan: ${cakupan === "semua" ? "seluruh data" : "filter layar"}). ` +
     (rendah.length
       ? `Perlu perhatian: ${rendah.map((s) => str(s.nama ?? s.kode ?? "?", 30)).join(", ")}.`
       : "Semua sales mencapai target.");
   return {
     ok: true,
     data: {
-      achGlobal: num(ctx.achGlobal ?? 0, 1),
-      nBaris: num(ctx.nBaris ?? sales.length, 0),
+      cakupan,
+      achGlobal: achG,
+      nBaris: nB,
       terbawah5: rendah,
       ringkasan,
     },
   };
 }
 
+// Deret penjualan per bulan (tanpa filter tanggal) — jawab "3 bulan terakhir",
+// "tren penjualan", perbandingan antar bulan, per sales per bulan.
+export function bacaBulanan(ctx = {}, params = {}) {
+  const list = Array.isArray(ctx.bulanan) ? ctx.bulanan : [];
+  if (!list.length) return { ok: false, reason: "Deret bulanan tak tersedia — upload data transaksi dulu." };
+  const n = Math.min(Math.max(num(params.bulanTerakhir ?? params.n ?? list.length, 0), 1), list.length);
+  const potong = list.slice(-n);
+  const kode = str(params.kode ?? "", 40).toLowerCase();
+  const tren = potong.map((m) => ({
+    bulan: m.bulan, label: m.label, total: m.total, target: m.target, ach: m.ach, ao: m.ao, nBaris: m.nBaris,
+  }));
+  const out = { nBulan: n, dari: potong[0]?.bulan ?? null, sampai: potong[potong.length - 1]?.bulan ?? null, tren };
+  if (kode) {
+    const perSales = potong.map((m) => {
+      const s = (m.sales || []).find((x) =>
+        String(x.kode ?? "").toLowerCase().includes(kode) || String(x.nama ?? "").toLowerCase().includes(kode));
+      return { bulan: m.bulan, label: m.label, ach: s?.ach ?? null, realisasi: s?.realisasi ?? 0, target: s?.target ?? 0 };
+    });
+    out.sales = perSales;
+  }
+  return { ok: true, data: out };
+}
+
 export function runReadTool(tool, params = {}, ctx = {}) {
   switch (tool) {
     case "chat": return chat(ctx, params);
     case "queryData": return queryData(ctx, params);
+    case "bacaBulanan": return bacaBulanan(ctx, params);
     case "bacaTarget": return bacaTarget(ctx, params);
     case "bacaJadwal": return bacaJadwal(ctx, params);
     case "bacaStok": return bacaStok(ctx, params);

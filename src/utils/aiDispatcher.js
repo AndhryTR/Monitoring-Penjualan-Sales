@@ -5,6 +5,7 @@
 export const ALLOWLIST = [
   "chat",
   "queryData",
+  "bacaBulanan",
   "bacaTarget",
   "bacaJadwal",
   "bacaStok",
@@ -47,6 +48,32 @@ function slimSales(list) {
   }));
 }
 
+function slimSemua(s) {
+  if (!s || typeof s !== "object") return null;
+  return {
+    total: num(s.total ?? 0, 0),
+    target: num(s.target ?? 0, 0),
+    ach: s.ach != null ? num(s.ach, 1) : null,
+    ao: num(s.ao ?? 0, 0),
+    nBaris: num(s.nBaris ?? 0, 0),
+    dari: s.dari ?? null, sampai: s.sampai ?? null, hari: num(s.hari ?? 0, 0),
+    sales: slimSales(s.sales),
+  };
+}
+
+function slimBulanan(list) {
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, 24).map((m) => ({
+    bulan: str(m.bulan ?? "", 10),
+    label: str(m.label ?? "", 24),
+    total: num(m.total ?? 0, 0),
+    target: num(m.target ?? 0, 0),
+    ach: m.ach != null ? num(m.ach, 1) : null,
+    ao: num(m.ao ?? 0, 0),
+    nBaris: num(m.nBaris ?? 0, 0),
+    sales: slimSales(m.sales),
+  }));
+}
 function slimTargets(t) {
   const list = Array.isArray(t)
     ? t
@@ -96,6 +123,8 @@ export function buildContext(input = {}) {
       : {},
     sales: slimSales(input.sales),
     targets: slimTargets(input.targets),
+    semua: slimSemua(input.semua),
+    bulanan: slimBulanan(input.bulanan),
     stok: input.stok && typeof input.stok === "object" ? input.stok : null,
     extra: extraSafe,
   };
@@ -113,6 +142,10 @@ export const SYSTEM_PROMPT = [
   "DATA: perintah soal angka/target/jadwal/stok/export -> tool data yang sesuai.",
   "  queryData dukung params {\"sortBy\":\"ach|total|nama\", \"order\":\"asc|desc\", \"limit\":N, \"minAch\":N}.",
   "  Contoh: \"3 sales terendah\" -> {\"tool\":\"queryData\",\"params\":{\"sortBy\":\"ach\",\"order\":\"asc\",\"limit\":3},\"ringkasan\":\"Ambil 3 sales ACH terendah\"}.",
+  "  RENTANG WAKTU: \"3 bulan terakhir\", \"bulan lalu\", \"tren penjualan\" -> tool `bacaBulanan`.",
+  "  Contoh: \"analisa penjualan 3 bulan terakhir\" -> {\"tool\":\"bacaBulanan\",\"params\":{},\"ringkasan\":\"Ambil deret penjualan per bulan\"}.",
+  "  queryData/analisis tanpa rentang = cakupan SEMUA data (bukan filter layar).",
+  "  Hanya pakai filter layar bila user eksplisit sebut (\"di filter ini\", \"yang tampil\").",
   "params wajib object (boleh {}). ringkasan wajib string Bahasa Indonesia singkat.",
   "Bila perintah tak jelas, pilih tool baca paling dekat dan jelaskan di ringkasan.",
 ].join("\n");

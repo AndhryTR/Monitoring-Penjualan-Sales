@@ -482,10 +482,45 @@ export default function SalesMonitoringApp() {
   // ---- AI Context (RINGKAS untuk asisten automasi) ----
   // Jangan kirim objek mentah (aggFinal/targets/depots/rawRows) — payload puluhan MB,
   // provider tolak "Input is too long". Hanya angka + daftar pendek.
+  // Dua cakupan: filter (apa yang tampil di layar) + semua (seluruh rawRows tanpa
+  // filter tanggal — AI bisa jawab "3 bulan terakhir" walau filter aktif sempit).
+  const aggAll = useMemo(
+    () => (rawRows.length
+      ? computeAggregates(rawRows, targets, { salesCodes: filters.salesCodes, groups: filters.groups, dateFrom: "", dateTo: "" }, workDays)
+      : null),
+    [rawRows, targets, filters.salesCodes, filters.groups, workDays]
+  );
+  // Deret per bulan (full ringkas): total + ACH + per sales. ~30 sales x 12 bulan aman.
+  // detectMonths dipanggil lokal (definisi detectedMonths ada di bawah blok ini).
+  const aiBulanan = useMemo(() => {
+    const months = detectMonths(rawRows);
+    if (months.length < 1) return [];
+    return months.map((m) => {
+      try {
+        const a = computeAggregates(rawRows, targets, { salesCodes: filters.salesCodes, groups: [], dateFrom: m.dateFrom, dateTo: m.dateTo }, workDays);
+        return {
+          bulan: m.key, label: m.label,
+          total: a.totals?.realisasiValue ?? 0,
+          target: a.totals?.targetValue ?? 0,
+          ach: a.totals?.ach != null ? Math.round(a.totals.ach * 1000) / 10 : null,
+          ao: a.totals?.realisasiAo ?? 0,
+          nBaris: (a.filteredRows || []).length,
+          sales: (a.bySales || []).map((s) => ({
+            kode: s.code, nama: s.name,
+            ach: s.ach != null ? Math.round(s.ach * 1000) / 10 : null,
+            realisasi: s.realisasiValue ?? 0, target: s.targetValue ?? 0,
+          })),
+        };
+      } catch { return { bulan: m.key, label: m.label, total: 0, target: 0, ach: null, ao: 0, nBaris: 0, sales: [] }; }
+    });
+  }, [rawRows, targets, filters.salesCodes, workDays]);
   const aiContext = useMemo(() => {
     const totals = aggFinal?.totals || {};
     const meta = aggFinal?.meta || {};
+    const tAll = aggAll?.totals || {};
+    const mAll = aggAll?.meta || {};
     return {
+      // Cakupan filter (layar saat ini)
       total: totals.realisasiValue ?? 0,
       targetValue: totals.targetValue ?? 0,
       achGlobal: totals.ach ?? null,
@@ -493,6 +528,22 @@ export default function SalesMonitoringApp() {
       targetAo: totals.targetAo ?? 0,
       nBaris: (aggFinal?.filteredRows || []).length,
       periode: { dari: meta.firstDate || null, sampai: meta.lastDate || null, hari: meta.uniqueDays || 0 },
+      // Cakupan semua (tanpa filter tanggal) — default untuk analisis AI
+      semua: {
+        total: tAll.realisasiValue ?? 0,
+        target: tAll.targetValue ?? 0,
+        ach: tAll.ach ?? null,
+        ao: tAll.realisasiAo ?? 0,
+        nBaris: (aggAll?.filteredRows || []).length,
+        dari: mAll.firstDate || null, sampai: mAll.lastDate || null, hari: mAll.uniqueDays || 0,
+        sales: (aggAll?.bySales || []).slice(0, 30).map((s) => ({
+          kode: s.code, nama: s.name,
+          ach: s.ach != null ? Math.round(s.ach * 1000) / 10 : null,
+          realisasi: s.realisasiValue ?? 0, target: s.targetValue ?? 0,
+        })),
+      },
+      // Deret bulanan full ringkas (tanpa filter tanggal)
+      bulanan: aiBulanan,
       depotName,
       nDepo: (depots || []).length,
       sales: (aggFinal?.bySales || []).slice(0, 30).map((s) => ({
@@ -515,7 +566,7 @@ export default function SalesMonitoringApp() {
         menipis: stockData.stockSummary.menipis ?? stockData.stockSummary.low ?? null,
       } : null,
     };
-  }, [aggFinal, targets, filters, depots, depotName, stockData?.stockSummary]);
+  }, [aggFinal, aggAll, aiBulanan, targets, filters, depots, depotName, stockData?.stockSummary]);
 
   // ---- Slideshow Mode (Sprint 17 / SS1) ----
   // Auto-rotate antar tab untuk display monitor di ruang sales.

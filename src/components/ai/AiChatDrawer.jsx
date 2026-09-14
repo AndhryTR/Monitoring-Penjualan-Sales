@@ -113,6 +113,30 @@ function ResultBlock({ tool, data, colors = {} }) {
       </div>
     );
   }
+  if (tool === "bacaBulanan" && data.tren) {
+    const cap = data.nBulan > 1 ? `${data.nBulan} bulan (${data.dari} – ${data.sampai})` : data.dari;
+    return (
+      <div className="mt-2 rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
+        <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: colors.glassFill, color: colors.textMuted }}>
+          Tren bulanan · {cap}
+        </div>
+        {data.tren.map((m, i) => (
+          <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px]" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
+            <span className="truncate font-semibold" style={{ color: colors.text }}>{m.label}</span>
+            <span className="shrink-0 font-mono font-bold" style={{ color: (m.ach ?? 0) >= 100 ? colors.mint : (m.ach ?? 0) >= 70 ? colors.gold : colors.coral }}>
+              {m.ach ?? "-"}%
+            </span>
+            <span className="shrink-0 font-mono" style={{ color: colors.textMuted }}>{fmtRpShort(m.total)}</span>
+          </div>
+        ))}
+        {data.sales && (
+          <div className="px-2.5 py-1 text-[10px] italic" style={{ background: colors.glassFill, color: colors.textMuted, borderTop: `1px solid ${colors.glassBorder}` }}>
+            Per sales: {data.sales.filter(s => s.ach != null).length} bulan data
+          </div>
+        )}
+      </div>
+    );
+  }
   return null;
 }
 
