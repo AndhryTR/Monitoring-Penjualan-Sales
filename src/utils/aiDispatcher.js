@@ -126,6 +126,37 @@ export function parseOpenAiResponseText(rawText) {
   throw new Error(`Format respons AI tidak valid: ${text.slice(0, 120)}`);
 }
 
+// Deteksi runtime Tauri (desktop exe) — invoke IPC, bebas CORS/CSP WebView.
+export function isTauriRuntime() {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+// POST via command Rust `ai_chat` (reqwest) — khusus Tauri desktop.
+// Key tetap di device (disimpan via setelan), request keluar dari Rust.
+// Catatan: invoke yang sudah jalan tak bisa dibatalkan dari JS;
+// timeout 90s ditegakkan di sisi Rust (reqwest + tokio).
+export async function callTauri(settings, messages) {
+  const baseURL = String(settings?.baseURL ?? "").replace(/\/+$/, "");
+  if (!baseURL) throw new Error("baseURL kosong — isi di setelan AI.");
+  if (!settings?.model) throw new Error("model kosong — isi di setelan AI.");
+  const { invoke } = await import("@tauri-apps/api/core");
+  try {
+    const rawText = await invoke("ai_chat", {
+      req: {
+        base_url: baseURL,
+        api_key: settings?.key || "",
+        model: settings.model,
+        messages,
+        json_mode: settings?.apiType !== "custom",
+      },
+    });
+    return parseOpenAiResponseText(rawText);
+  } catch (e) {
+    const msg = typeof e === "string" ? e : (e?.message || String(e));
+    throw new Error(msg);
+  }
+}
+
 // POST ke backend proxy same-origin; API key provider tetap berada di server.
 export async function callProxy(settings, messages, opts = {}) {
   const proxyURL = String(settings?.backendURL || "/api/ai").trim().replace(/\/+$/, "") || "/api/ai";
@@ -224,15 +255,19 @@ export function parseToolCall(text) {
 }
 
 // Orkestrasi satu putaran: konteks -> pesan -> panggil -> parse.
+// Transport otomatis: Tauri desktop -> Rust (callTauri, bebas CORS/CSP);
+// browser -> proxy bila mode proxy, direct bila mode direct.
 export async function dispatch(userText, ctxInput, settings, opts = {}) {
   const ctx = buildContext(ctxInput);
   const messages = [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "user", content: JSON.stringify({ perintah: String(userText ?? ""), konteks: ctx }) },
   ];
-  const text = settings?.mode === "proxy"
-    ? await callProxy(settings, messages, opts)
-    : await callDirect(settings, messages, opts);
+  const text = isTauriRuntime()
+    ? await callTauri(settings, messages)
+    : settings?.mode === "proxy"
+      ? await callProxy(settings, messages, opts)
+      : await callDirect(settings, messages, opts);
   const parsed = parseToolCall(text);
   return { text, parsed, ctx };
 }

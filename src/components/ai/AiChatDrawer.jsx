@@ -5,7 +5,7 @@ import {
   AlertTriangle, RefreshCw, Eye, EyeOff, ArrowRight,
 } from "lucide-react";
 import { loadAiSettings, saveAiSettings } from "../../utils/aiSettings.js";
-import { callDirect, callProxy, dispatch } from "../../utils/aiDispatcher.js";
+import { callDirect, callProxy, callTauri, dispatch, isTauriRuntime } from "../../utils/aiDispatcher.js";
 import { executeAiTool, isWriteTool } from "../../utils/aiTools.js";
 import { useScrollLock, useEscapeKey, useFocusTrap } from "../../hooks/useModalA11y.js";
 
@@ -116,7 +116,9 @@ export function AiChatDrawer({
       if (aiSettings.mode !== "proxy" && !aiSettings.baseURL) {
         throw new Error("Base URL wajib diisi untuk mode Direct.");
       }
-      const call = aiSettings.mode === "proxy" ? callProxy : callDirect;
+      const call = isTauriRuntime()
+        ? ((s, msgs, o) => callTauri(s, msgs))
+        : aiSettings.mode === "proxy" ? callProxy : callDirect;
       // Tanpa fallback "Terhubung!" — balasan kosong = gagal (sukses palsu dilarang).
       const reply = await call(aiSettings, [
         { role: "user", content: "Halo, jawab 'OK' jika terhubung." },
@@ -306,16 +308,22 @@ export function AiChatDrawer({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-sm truncate">Asisten AI Automasi</span>
-                <span
-                  className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider"
-                  style={{
-                    background: aiSettings.mode === "direct" ? `${colors.gold}22` : `${colors.blue}22`,
-                    color: aiSettings.mode === "direct" ? colors.gold : colors.blue,
-                  }}
-                  title={aiSettings.mode === "direct" ? "Koneksi Langsung dari Browser" : "Koneksi via Backend Proxy"}
-                >
-                  {aiSettings.mode === "direct" ? "Direct" : "Proxy"}
-                </span>
+                {(() => {
+                  const tauri = isTauriRuntime();
+                  const label = tauri ? "Tauri" : (aiSettings.mode === "direct" ? "Direct" : "Proxy");
+                  const bg = tauri ? `${colors.mint}22` : (aiSettings.mode === "direct" ? `${colors.gold}22` : `${colors.blue}22`);
+                  const fg = tauri ? colors.mint : (aiSettings.mode === "direct" ? colors.gold : colors.blue);
+                  const tip = tauri ? "Koneksi via Rust native (bebas CORS/CSP)" : (aiSettings.mode === "direct" ? "Koneksi Langsung dari Browser" : "Koneksi via Backend Proxy");
+                  return (
+                    <span
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider"
+                      style={{ background: bg, color: fg }}
+                      title={tip}
+                    >
+                      {label}
+                    </span>
+                  );
+                })()}
               </div>
               <p className="text-[11px] truncate" style={{ color: colors.textMuted }}>
                 {aiSettings.model || "Belum dikonfigurasi"}

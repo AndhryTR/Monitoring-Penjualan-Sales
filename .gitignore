@@ -21,7 +21,10 @@ android/local.properties
 android/app/src/main/assets/public/
 
 #tauri-bundler#
-src-tauri/
+src-tauri/*.log
+src-tauri/*.nsis
+src-tauri/*.msi
+src-tauri/*.exe
 
 # ===== Env & secrets — JANGAN di-commit (berisi URL & anon key Supabase) =====
 .env
