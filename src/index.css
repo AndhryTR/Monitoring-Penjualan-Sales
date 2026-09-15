@@ -38,3 +38,29 @@ html, body, #root {
 .leaflet-container {
   font-family: inherit !important;
 }
+
+/* Leaflet Draggable Pin Tooltip & Crosshair */
+.custom-pin-tooltip {
+  background: rgba(15, 23, 42, 0.9) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 8px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 4px 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+.custom-pin-tooltip::before {
+  border-top-color: rgba(15, 23, 42, 0.9) !important;
+}
+
+.pointing-active-map,
+.pointing-active-map .leaflet-container,
+.pointing-active-map .leaflet-grab {
+  cursor: crosshair !important;
+}
+
+/* Leaflet Dark Tiles Filter (No API Key Required, Zero Watermark) */
+.leaflet-dark-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(82%) contrast(105%) saturate(80%);
+}

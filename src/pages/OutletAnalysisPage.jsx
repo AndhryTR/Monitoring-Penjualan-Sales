@@ -36,6 +36,7 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
   const [storedCoords, setStoredCoords] = useState(() => getStoredCoordinates(depotName));
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [storedSchedule, setStoredSchedule] = useState(() => getStoredSchedule(depotName));
+  const [pointingOutlet, setPointingOutlet] = useState(null);
 
   useEffect(() => {
     setStoredCoords(getStoredCoordinates(depotName));
@@ -168,6 +169,8 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
               onSelectOutlet={onSelectOutlet}
               onOpenCoordinateModal={() => setCoordModalOpen(true)}
               onOpenScheduleModal={() => setScheduleModalOpen(true)}
+              pointingOutlet={pointingOutlet}
+              onClearPointingOutlet={() => setPointingOutlet(null)}
             />
           )}
 
@@ -267,6 +270,11 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
         depotName={depotName}
         colors={colors}
         onCoordinatesSaved={() => setStoredCoords(getStoredCoordinates(depotName))}
+        onPickOnMap={(outlet) => {
+          setCoordModalOpen(false);
+          setViewMode("map");
+          setPointingOutlet(outlet);
+        }}
       />
 
       {(!canAccess || canAccess("feat:visit_schedule")) && (

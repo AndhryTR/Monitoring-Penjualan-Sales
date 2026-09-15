@@ -24,6 +24,7 @@ export function OutletCoordinateModal({
   depotName = "",
   colors,
   onCoordinatesSaved,
+  onPickOnMap,
 }) {
   const [search, setSearch] = useState("");
   const [filterCoord, setFilterCoord] = useState("all"); // "all" | "missing" | "ready"
@@ -520,7 +521,7 @@ export function OutletCoordinateModal({
                     <th className="p-2.5 font-semibold">Alamat</th>
                     <th className="p-2.5 font-semibold w-32">Latitude</th>
                     <th className="p-2.5 font-semibold w-32">Longitude</th>
-                    <th className="p-2.5 font-semibold text-center w-28">Aksi</th>
+                    <th className="p-2.5 font-semibold text-center w-40">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: colors.glassBorder }}>
@@ -585,34 +586,51 @@ export function OutletCoordinateModal({
                           />
                         </td>
                         <td className="p-2.5 text-center">
-                          {hasCoord ? (
-                            <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-500">
-                              <Check size={14} /> Terpetakan
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleGeocodeSingle(o)}
-                              disabled={isGeocodingThis || !o.outletAddress}
-                              className="sm-btn px-2.5 py-1 rounded-lg text-[11px] font-medium inline-flex items-center gap-1 disabled:opacity-40"
-                              style={{
-                                background: colors.violet + "1A",
-                                color: colors.violet,
-                                border: `1px solid ${colors.violet}33`,
-                              }}
-                              title={
-                                o.outletAddress
-                                  ? "Cari koordinat via OpenStreetMap"
-                                  : "Tidak ada alamat untuk dicari"
-                              }
-                            >
-                              {isGeocodingThis ? (
-                                <RefreshCw size={11} className="animate-spin" />
-                              ) : (
+                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                            {onPickOnMap && (
+                              <button
+                                onClick={() => onPickOnMap(o)}
+                                className="sm-btn px-2 py-1 rounded-lg text-[11px] font-medium inline-flex items-center gap-1 hover:opacity-90 transition-opacity"
+                                style={{
+                                  background: colors.blue + "1A",
+                                  color: colors.blue,
+                                  border: `1px solid ${colors.blue}33`,
+                                }}
+                                title="Tentukan / geser titik toko langsung di peta"
+                              >
                                 <MapPin size={11} />
-                              )}
-                              Auto-Cari
-                            </button>
-                          )}
+                                {hasCoord ? "Geser di Map" : "Pilih di Map"}
+                              </button>
+                            )}
+                            {hasCoord ? (
+                              <div className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-emerald-500">
+                                <Check size={13} /> Ada
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleGeocodeSingle(o)}
+                                disabled={isGeocodingThis || !o.outletAddress}
+                                className="sm-btn px-2 py-1 rounded-lg text-[11px] font-medium inline-flex items-center gap-1 disabled:opacity-40"
+                                style={{
+                                  background: colors.violet + "1A",
+                                  color: colors.violet,
+                                  border: `1px solid ${colors.violet}33`,
+                                }}
+                                title={
+                                  o.outletAddress
+                                    ? "Cari koordinat via OpenStreetMap"
+                                    : "Tidak ada alamat untuk dicari"
+                                }
+                              >
+                                {isGeocodingThis ? (
+                                  <RefreshCw size={11} className="animate-spin" />
+                                ) : (
+                                  <Sparkles size={11} />
+                                )}
+                                Auto
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
