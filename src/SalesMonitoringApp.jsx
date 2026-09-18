@@ -1,9 +1,8 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import sumBy from "lodash/sumBy";
 import {
-  X, RefreshCw, Sun, Moon, CloudUpload,
-  Smartphone, Share, Search, Bot, Sparkles,
-  FileSpreadsheet, AlertTriangle, CheckCircle2, ShieldCheck,
+  Sun, Moon,
+  Search, Sparkles,
+  FileSpreadsheet, AlertTriangle,
 } from "lucide-react";
 import { saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState, saveMasterMax, saveLastMasterSyncAt } from "./utils/storage.js";
 import { supabase, getSession, onAuthChange, signOutAccount } from "./utils/cloud.js";
@@ -12,7 +11,6 @@ import { supabase, getSession, onAuthChange, signOutAccount } from "./utils/clou
 // untuk refreshRole callback.
 import { fetchRole } from "./utils/syncEngine.js";
 import { notifyError } from "./utils/notifyExport.js";
-import { LoginModal } from "./components/LoginModal.jsx";
 import {
   dedupeRows,
 } from "./utils/excelParse.js";
@@ -38,11 +36,11 @@ import { useSettings } from "./hooks/useSettings.js";
 // dijalankan lewat Vite (dev atau build), bukan package npm biasa.
 // ⚠️ Sprint 6 / R5: useRegisterSW dipakai di hook usePwaInstall.js sekarang.
 import { usePwaInstall } from "./hooks/usePwaInstall.js";
+import { PwaBanners } from "./components/pwa/PwaBanners.jsx";
 // ⚠️ Sprint 6 / R6: cloud sync (settings LWW + master data) dipindah ke hook.
 import { useCloudSync } from "./hooks/useCloudSync.js";
 // ⚠️ Sprint 9 / GS1: global search / command palette hook.
 import { useGlobalSearch } from "./hooks/useGlobalSearch.js";
-import { GlobalSearch } from "./components/GlobalSearch.jsx";
 // ⚠️ Sprint 10 / OB1: Onboarding welcome screen untuk first-time users.
 import { OnboardingWelcome } from "./components/OnboardingWelcome.jsx";
 // ⚠️ Sprint 17 / SS1+SS2: Slideshow mode untuk display monitor.
@@ -50,9 +48,9 @@ import { useSlideshow } from "./hooks/useSlideshow.js";
 import { useScrollDirection } from "./hooks/useScrollDirection.js";
 // ⚠️ Sprint 19 / Stock Module
 import { useStock } from "./hooks/useStock.js";
+import { useAiContext } from "./hooks/useAiContext.js";
 // ⚠️ Superuser Admin Dashboard: permissions engine
 import { usePermissions } from "./hooks/usePermissions.js";
-import { SlideshowMode } from "./components/SlideshowMode.jsx";
 import { Monitor } from "lucide-react";
 import { FilterBar } from "./components/ui/FilterBar.jsx";
 import { DashboardSkeleton } from "./components/ui/DashboardSkeleton.jsx";
@@ -64,6 +62,7 @@ import { MobileHeaderMenu } from "./components/ui/MobileHeaderMenu.jsx";
 import { NotificationBell } from "./components/ui/NotificationBell.jsx";
 import { computeSmartAlerts } from "./utils/smartAlerts.js";
 import { UploadLoading } from "./components/ui/UploadLoading.jsx";
+import { AccessRestricted } from "./components/ui/index.jsx";
 import { TrendPeriodePage } from "./components/trend/index.jsx";
 import { DataQualityPage } from "./pages/DataQualityPage.jsx";
 import { lazy, Suspense } from "react";
@@ -82,21 +81,22 @@ const TransactionsPage = lazy(() => import("./pages/TransactionsPage.jsx").then(
 const StockPage = lazy(() => import("./pages/StockPage.jsx").then(m => ({ default: m.StockPage })));
 // ⚠️ Superuser Admin Dashboard: lazy-loaded, hanya dibuka saat isSuperuser
 const SuperuserAdminPage = lazy(() => import("./pages/SuperuserAdminPage.jsx").then(m => ({ default: m.SuperuserAdminPage })));
-// ⚠️ Sprint 19 / Stock Module
-// ⚠️ Sprint 19 / Sprint 2: Reconciliation preview modal
-import { StockImportPreview } from "./components/modals/StockImportPreview.jsx";
-// ⚠️ Sprint 19e / Focus Group Drilldown
-import { GroupFocusDrilldownModal } from "./components/modals/GroupFocusDrilldownModal.jsx";
-import { OutletDrilldownModal } from "./components/modals/OutletDrilldownModal.jsx";
-import { OutletDetailModal } from "./components/modals/OutletDetailModal.jsx";
-import { DataPreviewModal } from "./components/modals/DataPreviewModal.jsx";
-import { HistoryModal } from "./components/modals/HistoryModal.jsx";
-import { SettingsModal } from "./components/modals/SettingsModal.jsx";
-import { AboutModal } from "./components/modals/AboutModal.jsx";
-import { RangeDeleteModal } from "./components/modals/RangeDeleteModal.jsx";
-import { DailyReportModal } from "./components/modals/DailyReportModal.jsx";
+// Modals & Drawers lazy loaded (Fase 2 code splitting)
+const LoginModal = lazy(() => import("./components/LoginModal.jsx").then(m => ({ default: m.LoginModal })));
+const GlobalSearch = lazy(() => import("./components/GlobalSearch.jsx").then(m => ({ default: m.GlobalSearch })));
+const SlideshowMode = lazy(() => import("./components/SlideshowMode.jsx").then(m => ({ default: m.SlideshowMode })));
+const StockImportPreview = lazy(() => import("./components/modals/StockImportPreview.jsx").then(m => ({ default: m.StockImportPreview })));
+const GroupFocusDrilldownModal = lazy(() => import("./components/modals/GroupFocusDrilldownModal.jsx").then(m => ({ default: m.GroupFocusDrilldownModal })));
+const OutletDrilldownModal = lazy(() => import("./components/modals/OutletDrilldownModal.jsx").then(m => ({ default: m.OutletDrilldownModal })));
+const OutletDetailModal = lazy(() => import("./components/modals/OutletDetailModal.jsx").then(m => ({ default: m.OutletDetailModal })));
+const DataPreviewModal = lazy(() => import("./components/modals/DataPreviewModal.jsx").then(m => ({ default: m.DataPreviewModal })));
+const HistoryModal = lazy(() => import("./components/modals/HistoryModal.jsx").then(m => ({ default: m.HistoryModal })));
+const SettingsModal = lazy(() => import("./components/modals/SettingsModal.jsx").then(m => ({ default: m.SettingsModal })));
+const AboutModal = lazy(() => import("./components/modals/AboutModal.jsx").then(m => ({ default: m.AboutModal })));
+const RangeDeleteModal = lazy(() => import("./components/modals/RangeDeleteModal.jsx").then(m => ({ default: m.RangeDeleteModal })));
+const DailyReportModal = lazy(() => import("./components/modals/DailyReportModal.jsx").then(m => ({ default: m.DailyReportModal })));
+const AiChatDrawer = lazy(() => import("./components/ai/AiChatDrawer.jsx").then(m => ({ default: m.AiChatDrawer })));
 import { ToastHost } from "./components/ui/ToastHost.jsx";
-import { AiChatDrawer } from "./components/ai/AiChatDrawer.jsx";
 
 /* ============================================================================
    DESIGN TOKENS
@@ -131,7 +131,6 @@ export default function SalesMonitoringApp() {
   // ke localStorage dengan dirty-flag tracking (Sprint 1) + debounce 400ms
   // (Sprint 2 / H7) supaya edit target di SettingsModal tidak lag.
   const {
-    persistedSettings,
     theme, setTheme,
     powerSaveMode, setPowerSaveMode,
     sidebarCollapsed, setSidebarCollapsed,
@@ -142,20 +141,9 @@ export default function SalesMonitoringApp() {
     projectionMethod, setProjectionMethod,
     comparisonBase, setComparisonBase,
     slideshowConfig, setSlideshowConfig,
-    // ⚠️ Sprint 18 / Multi-Depo: API baru dari useSettings
+    // Multi-Depo: state + setters dari useSettings
     depots, activeDepotId,
     setActiveDepot, addDepot, deleteDepot,
-    // addSales, updateSales, deleteSales — akan dipakai di Sprint C (Excel import)
-    // tapi tetap di-destructure di sini supaya terlihat di signature.
-    // ⚠️ eslint-disable untuk unused — sudah by design.
-    // eslint-disable-next-line no-unused-vars
-    activeDepot,
-    // eslint-disable-next-line no-unused-vars
-    addSales,
-    // eslint-disable-next-line no-unused-vars
-    updateSales,
-    // eslint-disable-next-line no-unused-vars
-    deleteSales,
     resetAllSettings,
     applyCloudSettings,
     flushPendingSettings,
@@ -176,7 +164,6 @@ export default function SalesMonitoringApp() {
   // ⚠️ Sprint 5 / Worker: parse Excel production-safe di Web Worker; Vite
   // membundle worker + xlsx browser build sebagai asset terpisah.
   const { parseFiles, progress: uploadProgress } = useExcelParseWorker();
-  useEffect(() => () => {}, []);
 
   // Registry export per tab: tab dengan state lokal (Comparison, Trend, Transaksi)
   // mendaftarkan handler export ke header agar menu Export selalu context-aware.
@@ -240,9 +227,8 @@ export default function SalesMonitoringApp() {
 
   // ⚠️ Superuser Admin Dashboard: permissions engine
   const permissions = usePermissions({ userRole, sessionUser });
-  const { canAccess, isSuperuser, simulateRole } = permissions;
+  const { canAccess, isSuperuser } = permissions;
 
-  const cloudEnabled = !!supabase;
   const isEditor = userRole === "admin" || userRole === "supervisor" || userRole === "superuser";
 
   // Deteksi runtime Tauri (desktop exe) — dipakai class `is-tauri` di root
@@ -268,16 +254,16 @@ export default function SalesMonitoringApp() {
   // - settingsSyncNowRef (dipanggil saat login sukses), syncMasterNow (tombol)
   const {
     settingsSyncState, setSettingsSyncState,
-    settingsSyncMsg, setSettingsSyncMsg,
-    lastSettingsSyncAt, setLastSettingsSyncAt,
+    settingsSyncMsg,
+    lastSettingsSyncAt,
     settingsSyncNowRef,
-    masterSyncState, setMasterSyncState,
-    masterSyncMsg, setMasterSyncMsg,
+    masterSyncState,
+    masterSyncMsg,
     lastMasterSyncAt, setLastMasterSyncAt,
     syncMasterNow,
     masterAction, setMasterAction,
-    masterBusy, setMasterBusy,
-    masterResult, setMasterResult,
+    masterBusy,
+    masterResult,
     handleSaveMaster,
     handleDeleteRange,
   } = useCloudSync({
@@ -395,7 +381,7 @@ export default function SalesMonitoringApp() {
     });
 
     return () => { alive = false; unsub(); };
-  }, [refreshRole]);
+  }, [refreshRole, setSettingsSyncState, settingsSyncNowRef]);
 
   /* --------------------------- PWA: instal & update --------------------------- */
 
@@ -406,10 +392,7 @@ export default function SalesMonitoringApp() {
     needRefresh, setNeedRefresh,
     offlineReady, setOfflineReady,
     updateServiceWorker,
-    installPromptEvent,
     showIosInstallHint, setShowIosInstallHint,
-    isIOS,
-    isStandalone,
     handleInstallClick,
     canShowInstallButton,
   } = usePwaInstall();
@@ -419,7 +402,7 @@ export default function SalesMonitoringApp() {
   // Production bisa extend dengan post ke analytics endpoint lewat onMetric.
   // Lihat hooks/useWebVitals.js untuk detail.
   useWebVitals({
-    onMetric: (metric) => {
+    onMetric: (_metric) => {
       // Hook untuk analytics production — contoh:
       // if (navigator.sendBeacon && metric.rating === "poor") {
       //   navigator.sendBeacon("/api/vitals", JSON.stringify(metric));
@@ -479,94 +462,18 @@ export default function SalesMonitoringApp() {
   // ⚠️ Sprint 9 / GS1+GS3+GS4: command palette untuk search across semua data.
   const globalSearch = useGlobalSearch({ targets, rawRows, agg: aggFinal });
 
-  // ---- AI Context (RINGKAS untuk asisten automasi) ----
-  // Jangan kirim objek mentah (aggFinal/targets/depots/rawRows) — payload puluhan MB,
-  // provider tolak "Input is too long". Hanya angka + daftar pendek.
-  // Dua cakupan: filter (apa yang tampil di layar) + semua (seluruh rawRows tanpa
-  // filter tanggal — AI bisa jawab "3 bulan terakhir" walau filter aktif sempit).
-  const aggAll = useMemo(
-    () => (rawRows.length
-      ? computeAggregates(rawRows, targets, { salesCodes: filters.salesCodes, groups: filters.groups, dateFrom: "", dateTo: "" }, workDays)
-      : null),
-    [rawRows, targets, filters.salesCodes, filters.groups, workDays]
-  );
-  // Deret per bulan (full ringkas): total + ACH + per sales. ~30 sales x 12 bulan aman.
-  // detectMonths dipanggil lokal (definisi detectedMonths ada di bawah blok ini).
-  const aiBulanan = useMemo(() => {
-    const months = detectMonths(rawRows);
-    if (months.length < 1) return [];
-    return months.map((m) => {
-      try {
-        const a = computeAggregates(rawRows, targets, { salesCodes: filters.salesCodes, groups: [], dateFrom: m.dateFrom, dateTo: m.dateTo }, workDays);
-        return {
-          bulan: m.key, label: m.label,
-          total: a.totals?.realisasiValue ?? 0,
-          target: a.totals?.targetValue ?? 0,
-          ach: a.totals?.ach != null ? Math.round(a.totals.ach * 1000) / 10 : null,
-          ao: a.totals?.realisasiAo ?? 0,
-          nBaris: (a.filteredRows || []).length,
-          sales: (a.bySales || []).map((s) => ({
-            kode: s.code, nama: s.name,
-            ach: s.ach != null ? Math.round(s.ach * 1000) / 10 : null,
-            realisasi: s.realisasiValue ?? 0, target: s.targetValue ?? 0,
-          })),
-        };
-      } catch { return { bulan: m.key, label: m.label, total: 0, target: 0, ach: null, ao: 0, nBaris: 0, sales: [] }; }
-    });
-  }, [rawRows, targets, filters.salesCodes, workDays]);
-  const aiContext = useMemo(() => {
-    const totals = aggFinal?.totals || {};
-    const meta = aggFinal?.meta || {};
-    const tAll = aggAll?.totals || {};
-    const mAll = aggAll?.meta || {};
-    return {
-      // Cakupan filter (layar saat ini)
-      total: totals.realisasiValue ?? 0,
-      targetValue: totals.targetValue ?? 0,
-      achGlobal: totals.ach ?? null,
-      ao: totals.realisasiAo ?? 0,
-      targetAo: totals.targetAo ?? 0,
-      nBaris: (aggFinal?.filteredRows || []).length,
-      periode: { dari: meta.firstDate || null, sampai: meta.lastDate || null, hari: meta.uniqueDays || 0 },
-      // Cakupan semua (tanpa filter tanggal) — default untuk analisis AI
-      semua: {
-        total: tAll.realisasiValue ?? 0,
-        target: tAll.targetValue ?? 0,
-        ach: tAll.ach ?? null,
-        ao: tAll.realisasiAo ?? 0,
-        nBaris: (aggAll?.filteredRows || []).length,
-        dari: mAll.firstDate || null, sampai: mAll.lastDate || null, hari: mAll.uniqueDays || 0,
-        sales: (aggAll?.bySales || []).slice(0, 30).map((s) => ({
-          kode: s.code, nama: s.name,
-          ach: s.ach != null ? Math.round(s.ach * 1000) / 10 : null,
-          realisasi: s.realisasiValue ?? 0, target: s.targetValue ?? 0,
-        })),
-      },
-      // Deret bulanan full ringkas (tanpa filter tanggal)
-      bulanan: aiBulanan,
-      depotName,
-      nDepo: (depots || []).length,
-      sales: (aggFinal?.bySales || []).slice(0, 30).map((s) => ({
-        kode: s.code, nama: s.name,
-        ach: s.ach != null ? Math.round(s.ach * 1000) / 10 : null,
-        realisasi: s.realisasiValue ?? 0, target: s.targetValue ?? 0,
-      })),
-      targets: (targets || []).slice(0, 30).map((t) => ({
-        kode: t.code, nama: t.name,
-        value: t.total?.value ?? 0, ao: t.total?.ao ?? 0,
-      })),
-      filters: {
-        sales: (filters?.salesCodes || []).length,
-        groups: filters?.groups || [],
-        dari: filters?.dateFrom || "", sampai: filters?.dateTo || "",
-      },
-      stok: stockData?.stockSummary ? {
-        total: stockData.stockSummary.total ?? null,
-        habis: stockData.stockSummary.habis ?? stockData.stockSummary.stockout ?? null,
-        menipis: stockData.stockSummary.menipis ?? stockData.stockSummary.low ?? null,
-      } : null,
-    };
-  }, [aggFinal, aggAll, aiBulanan, targets, filters, depots, depotName, stockData?.stockSummary]);
+  // ---- AI Context (RINGKAS untuk asisten automasi via hook useAiContext) ----
+  const aiContext = useAiContext({
+    isAiChatOpen,
+    rawRows,
+    targets,
+    filters,
+    workDays,
+    aggFinal,
+    depotName,
+    depots,
+    stockData,
+  });
 
   // ---- Slideshow Mode (Sprint 17 / SS1) ----
   // Auto-rotate antar tab untuk display monitor di ruang sales.
@@ -657,7 +564,7 @@ export default function SalesMonitoringApp() {
         outlets: getOutletBreakdown(aggFinal.filteredRows, action.drilldown.predicate),
       });
     }
-  }, [aggFinal, setFilters]);
+  }, [aggFinal, setFilters, goToTab]);
 
   // ⚠️ Sprint 19h / Code review fix: wrap openDrilldown in useCallback supaya
   // identity stabil → child pages yang memoized tidak re-render sia-sia.
@@ -696,7 +603,7 @@ export default function SalesMonitoringApp() {
 
   const [outletThresholds, setOutletThresholds] = useState({ activeMaxDays: 14, dormantMinDays: 30 });
   const [outletDetail, setOutletDetail] = useState(null);
-  const openOutletDetail = (outlet) => setOutletDetail(outlet);
+  const openOutletDetail = useCallback((outlet) => setOutletDetail(outlet), []);
   const outletDetailProducts = useMemo(
     () => outletDetail ? getProductBreakdownForOutlet(aggFinal.filteredRows, outletDetail.outletCode) : [],
     [outletDetail, aggFinal.filteredRows]
@@ -709,8 +616,10 @@ export default function SalesMonitoringApp() {
     [history, trendSnapshotIds]
   );
   const trendComparisonData = useMemo(
-    () => trendSnapshots.length > 0 ? computeMultiPeriodComparison(aggFinal, trendSnapshots, filters, fileName) : null,
-    [aggFinal, trendSnapshots, filters, fileName]
+    () => (activeTab === "trend" && trendSnapshots.length > 0)
+      ? computeMultiPeriodComparison(aggFinal, trendSnapshots, filters, fileName)
+      : null,
+    [activeTab, aggFinal, trendSnapshots, filters, fileName]
   );
 
   // ---- Auto-perbandingan per-bulan (Tren Periode) ----
@@ -735,7 +644,8 @@ export default function SalesMonitoringApp() {
   }, [filters.dateFrom, filters.dateTo]);
 
   const autoTrendComparisonData = useMemo(() => {
-    if (detectedMonths.length < 2) return null;
+    // ⚠️ Perf: hitung HANYA saat tab Tren Periode aktif
+    if (activeTab !== "trend" || detectedMonths.length < 2) return null;
     // Filter Sales tetap dihormati (siapa yang ditampilkan tidak berubah
     // antar bulan), TAPI filter Grup Barang (filters.groups) SENGAJA
     // diabaikan di sini — itu mencerminkan pilihan "grup mana yang relevan
@@ -758,7 +668,7 @@ export default function SalesMonitoringApp() {
       buildHistorySnapshot(monthlyAggs[i], { dateFrom: m.dateFrom, dateTo: m.dateTo }, fileName, m.label)
     );
     return computeMultiPeriodComparison(latestAgg, earlierSnapshots, { dateFrom: latest.dateFrom, dateTo: latest.dateTo }, fileName);
-  }, [detectedMonths, rawRows, targets, filters.salesCodes, workDays, fileName]);
+  }, [activeTab, detectedMonths, rawRows, targets, filters.salesCodes, workDays, fileName]);
 
   // Manual (lewat modal Riwayat) selalu menang kalau pernah dipilih; kalau
   // belum, fallback ke auto-deteksi bulan (bisa null kalau cuma 1 bulan).
@@ -779,7 +689,7 @@ export default function SalesMonitoringApp() {
       goToTab("trend");
     }
     setIsHistoryOpen(false);
-  }, [history]);
+  }, [history, goToTab]);
 
   const saveHistorySnapshot = useCallback((label) => {
     const snap = buildHistorySnapshot(aggFinal, filters, fileName, label);
@@ -843,10 +753,17 @@ export default function SalesMonitoringApp() {
       // Kolom dianggap benar-benar "tidak terdeteksi" hanya kalau tidak ada di SEMUA file
       // yang digabung — kalau cuma sebagian file yang tidak punya kolom itu, tetap dianggap ada.
       const missingInAll = Object.keys(ALIASES).filter((f) => results.every((r) => r.parseMeta.missingFields.includes(f)));
+      const metaCounts = results.reduce(
+        (acc, r) => {
+          acc.totalDataRows += r.parseMeta?.totalDataRows || 0;
+          acc.skippedBlankRows += r.parseMeta?.skippedBlankRows || 0;
+          acc.rowsWithMissingDate += r.parseMeta?.rowsWithMissingDate || 0;
+          return acc;
+        },
+        { totalDataRows: 0, skippedBlankRows: 0, rowsWithMissingDate: 0 }
+      );
       const combinedMeta = {
-        totalDataRows: sumBy(results, (r) => r.parseMeta.totalDataRows),
-        skippedBlankRows: sumBy(results, (r) => r.parseMeta.skippedBlankRows),
-        rowsWithMissingDate: sumBy(results, (r) => r.parseMeta.rowsWithMissingDate),
+        ...metaCounts,
         detectedFields: Array.from(detectedSet),
         missingFields: missingInAll,
         duplicateRowsRemoved: duplicateCount,
@@ -887,7 +804,7 @@ export default function SalesMonitoringApp() {
       // ⚠️ Sprint 5 / S4: optional catch binding (e tidak dipakai di body).
       setError("Gagal membaca salah satu file. Pastikan semua format .xlsx/.xls valid.");
     } finally { setLoading(false); }
-  }, [rawRows]);
+  }, [rawRows, parseFiles]);
 
   const confirmPreview = useCallback((mode) => {
     if (!pendingPreview) return;
@@ -926,7 +843,7 @@ export default function SalesMonitoringApp() {
       setFilters(f => ({ ...f, dateFrom: latest.dateFrom, dateTo: latest.dateTo, datePreset: "thisMonth" }));
     }
     setPendingPreview(null);
-  }, [pendingPreview, rawRows]);
+  }, [pendingPreview, rawRows, setFilters]);
 
   const cancelPreview = useCallback(() => setPendingPreview(null), []);
 
@@ -942,7 +859,7 @@ export default function SalesMonitoringApp() {
       setFilters({ salesCodes: [], groups: [], dateFrom: "2026-07-01", dateTo: "2026-07-03", datePreset: "custom" });
       setSampleLoading(false);
     }, 300);
-  }, []);
+  }, [setFilters]);
 
   const handleReset = useCallback(() => {
     setRawRows([]); setFileName(""); setParseMeta(null);
@@ -1024,6 +941,78 @@ export default function SalesMonitoringApp() {
     };
   }, []);
 
+  // ---- Unified Tab Renderer (Fase 3 DRY) ----
+  // Menyatukan logika render halaman agar tidak ada duplikasi antara Main View dan SlideshowMode.
+  const renderTabPage = useCallback((tab, { pageColors = colors, isSlideshow = false } = {}) => {
+    const hideTables = isSlideshow ? (slideshowConfig?.hideTables ?? true) : false;
+    switch (tab) {
+      case "executive":
+        return <ExecutiveSummaryPage agg={aggFinal} colors={pageColors} workDays={workDays} onGroupDrilldown={openGroupFocusDrilldown} onNavigate={goToTab} stockSummary={stockData.stockSummary} />;
+      case "main":
+        return <MainReportPage agg={aggFinal} workDays={workDays} colors={pageColors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} rawRows={rawRows} filters={filters} slideshowMode={hideTables} />;
+      case "sales":
+        return <SalesReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} slideshowMode={hideTables} />;
+      case "product":
+        return <ProductReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} onGroupDrilldown={openProductGroupDrilldown} slideshowMode={hideTables} />;
+      case "focus":
+        return <ProductFocusReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} />;
+      case "outlet":
+        return <OutletAnalysisPage agg={aggFinal} colors={pageColors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} rawRows={rawRows} targets={targets} depotName={depotName} canAccess={canAccess} />;
+      case "compare":
+        return <ComparisonPage rawRows={rawRows} targets={targets} colors={pageColors} workDays={workDays} depotName={depotName} comparisonBase={comparisonBase} onBaseChange={setComparisonBase} registerTabExport={registerTabExport} unregisterTabExport={unregisterTabExport} />;
+      case "transactions":
+        return <TransactionsPage agg={aggFinal} colors={pageColors} onOutletDrilldown={openOutletDetail} depotName={depotName} registerTabExport={registerTabExport} unregisterTabExport={unregisterTabExport} />;
+      case "quality":
+        return <DataQualityPage notes={dataQualityNotes} colors={pageColors} onDrilldown={openDrilldown} />;
+      case "stock":
+        return (
+          <StockPage
+            stockData={stockData}
+            colors={pageColors}
+            filters={filters}
+            depotName={depotName}
+            registerTabExport={registerTabExport}
+            unregisterTabExport={unregisterTabExport}
+            onUploadStock={() => document.getElementById("stock-file-input")?.click()}
+          />
+        );
+      case "admin-access":
+        return isSuperuser ? (
+          <SuperuserAdminPage
+            colors={pageColors}
+            userRole={userRole}
+            sessionUser={sessionUser}
+            canAccess={canAccess}
+            permissions={permissions}
+          />
+        ) : (
+          <AccessRestricted colors={pageColors} message="Halaman ini khusus untuk Superuser." />
+        );
+      case "trend":
+        return (
+          <TrendPeriodePage
+            comparisonData={finalTrendComparisonData}
+            isAutoTrend={isAutoTrend}
+            colors={pageColors}
+            onOpenPeriodPicker={() => setIsHistoryOpen(true)}
+            selectedCount={trendSnapshotIds.length}
+            depotName={depotName}
+            comparisonBase={comparisonBase}
+            onBaseChange={setComparisonBase}
+            registerTabExport={registerTabExport}
+            unregisterTabExport={unregisterTabExport}
+          />
+        );
+      default:
+        return null;
+    }
+  }, [
+    colors, slideshowConfig?.hideTables, aggFinal, workDays, openGroupFocusDrilldown, goToTab, stockData,
+    openDrilldown, comparison, projectionMethod, rawRows, filters, depotName, openProductGroupDrilldown,
+    outletThresholds, openOutletDetail, targets, canAccess, comparisonBase, setComparisonBase, setProjectionMethod, registerTabExport, unregisterTabExport,
+    dataQualityNotes, isSuperuser, userRole, sessionUser, permissions, finalTrendComparisonData, isAutoTrend, trendSnapshotIds.length
+  ]);
+
   return (
     <div className={`smapp min-h-screen transition-colors duration-300 ${powerSaveMode ? "sm-powersave" : ""} ${isTauri ? "is-tauri" : ""}`}>
       <style>{globalStyle}</style>
@@ -1040,96 +1029,113 @@ export default function SalesMonitoringApp() {
         </div>
       )}
       <div className="relative" style={{ zIndex: 1 }}>
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors}
-        theme={theme} setTheme={setTheme} powerSaveMode={powerSaveMode} setPowerSaveMode={setPowerSaveMode} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge}
-        slideshowConfig={slideshowConfig} setSlideshowConfig={setSlideshowConfig} onStartSlideshow={() => slideshow.start(activeTab)} />
-      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} colors={colors} onLoginSuccess={() => {}} sessionUser={sessionUser} userRole={userRole} onLogout={handleLogout} settingsSyncState={settingsSyncState} settingsSyncMsg={settingsSyncMsg} lastSettingsSyncAt={lastSettingsSyncAt} onRetrySettings={() => { settingsSyncNowRef.current?.(); }} masterSyncState={masterSyncState} masterSyncMsg={masterSyncMsg} lastMasterSyncAt={lastMasterSyncAt} onMasterSync={syncMasterNow} />
-      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} colors={colors} />
-      <DailyReportModal
-        isOpen={isDailyReportOpen}
-        onClose={() => setIsDailyReportOpen(false)}
-        agg={aggFinal}
-        targets={targets}
-        workDays={workDays}
-        depotName={depotName}
-        smartAlerts={smartAlerts}
-        colors={colors}
-      />
+      {isSettingsOpen && (
+        <Suspense fallback={null}>
+          <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} targets={targets} setTargets={setTargets} workDays={workDays} setWorkDays={setWorkDays} depotName={depotName} setDepotName={setDepotName} onClearAll={handleClearAll} colors={colors}
+            theme={theme} setTheme={setTheme} powerSaveMode={powerSaveMode} setPowerSaveMode={setPowerSaveMode} filters={filters} setFilters={setFilters} projectionMethod={projectionMethod} setProjectionMethod={setProjectionMethod} history={history} onImportHistory={importHistoryMerge}
+            slideshowConfig={slideshowConfig} setSlideshowConfig={setSlideshowConfig} onStartSlideshow={() => slideshow.start(activeTab)} />
+        </Suspense>
+      )}
+      {isLoginOpen && (
+        <Suspense fallback={null}>
+          <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} colors={colors} onLoginSuccess={() => {}} sessionUser={sessionUser} userRole={userRole} onLogout={handleLogout} settingsSyncState={settingsSyncState} settingsSyncMsg={settingsSyncMsg} lastSettingsSyncAt={lastSettingsSyncAt} onRetrySettings={() => { settingsSyncNowRef.current?.(); }} masterSyncState={masterSyncState} masterSyncMsg={masterSyncMsg} lastMasterSyncAt={lastMasterSyncAt} onMasterSync={syncMasterNow} />
+        </Suspense>
+      )}
+      {isAboutOpen && (
+        <Suspense fallback={null}>
+          <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} colors={colors} />
+        </Suspense>
+      )}
+      {isDailyReportOpen && (
+        <Suspense fallback={null}>
+          <DailyReportModal
+            isOpen={isDailyReportOpen}
+            onClose={() => setIsDailyReportOpen(false)}
+            agg={aggFinal}
+            targets={targets}
+            workDays={workDays}
+            depotName={depotName}
+            smartAlerts={smartAlerts}
+            colors={colors}
+          />
+        </Suspense>
+      )}
       {/* ⚠️ Sprint 9 / GS2: Global Search / Command Palette (Cmd+K / Ctrl+K) */}
-      <GlobalSearch
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        onNavigate={handleSearchNavigate}
-        colors={colors}
-        {...globalSearch}
-      />
+      {isSearchOpen && (
+        <Suspense fallback={null}>
+          <GlobalSearch
+            isOpen={isSearchOpen}
+            onClose={() => setIsSearchOpen(false)}
+            onNavigate={handleSearchNavigate}
+            colors={colors}
+            {...globalSearch}
+          />
+        </Suspense>
+      )}
       {/* ⚠️ Sprint 17 / SS2: Slideshow Mode overlay */}
-      <SlideshowMode
-        {...slideshow}
-        colors={effectiveSlideshowColors}
-        depotName={depotName}
-        aggMeta={aggFinal.meta}
-        // ⚠️ Sprint 17h / bugfix: teruskan flag tampilan dari slideshowConfig
-        // supaya checkbox "Font diperbesar", "Dark mode paksa" benar-benar
-        // berfungsi (sebelumnya diabaikan — font selalu 1.15em, colors selalu
-        // dari theme aktif).
-        largeFont={slideshowConfig?.largeFont ?? true}
-        forceDark={slideshowConfig?.forceDark ?? false}
-        renderPage={(tab) => {
-          // Render page yang sama dengan yang di main content, tapi dengan
-          // prop slideshowMode={hideTables} supaya DataTable di-hide hanya
-          // kalau user menandai "Sembunyikan tabel" di Settings.
-          // ⚠️ Sprint 17h / bugfix: sebelumnya `slideshowMode` hard-coded true
-          // → uncheck "Sembunyikan tabel" tidak ada efek, tabel tetap hilang.
-          // Sekarang flag diambil dari slideshowConfig.hideTables.
-          // ⚠️ Sprint 17h / bugfix: hideAlerts dipisah dari slideshowMode
-          // (sebelumnya nge-conflate "hide tables" + "hide alerts" dalam satu
-          // prop). Sekarang MainReportPage terima `hideAlerts` terpisah.
-          // ⚠️ Sprint 17h / bugfix: pakai effectiveSlideshowColors (bukan
-          // colors) supaya forceDark berlaku juga ke konten page.
-          const pageColors = effectiveSlideshowColors;
-          const hideTables = slideshowConfig?.hideTables ?? true;
-          const hideAlerts = slideshowConfig?.hideAlerts ?? true;
-          return (
-            <Suspense fallback={<DashboardSkeleton colors={pageColors} />}>
-              {(() => {
-                switch (tab) {
-                  case "executive": return <ExecutiveSummaryPage agg={aggFinal} colors={pageColors} workDays={workDays} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} comparison={comparison} onNavigate={goToTab} rawRows={rawRows} targets={targets} filters={filters} stockSummary={stockData.stockSummary} slideshowMode={hideTables} />;
-                  case "main": return <MainReportPage agg={aggFinal} workDays={workDays} colors={pageColors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={goToTab} rawRows={rawRows} targets={targets} filters={filters} slideshowMode={hideTables} hideAlerts={hideAlerts} />;
-                  case "sales": return <SalesReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} slideshowMode={hideTables} />;
-                  case "product": return <ProductReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} onGroupDrilldown={openProductGroupDrilldown} depotName={depotName} currentStock={stockData.currentStock} stockSummary={stockData.stockSummary} slideshowMode={hideTables} />;
-                  case "focus": return <ProductFocusReportPage agg={aggFinal} colors={pageColors} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} depotName={depotName} filteredRows={aggFinal.filteredRows} slideshowMode={hideTables} />;
-                  default: return null;
-                }
-              })()}
-            </Suspense>
-          );
-        }}
-      />
+      {slideshow.isActive && (
+        <Suspense fallback={null}>
+          <SlideshowMode
+            {...slideshow}
+            colors={effectiveSlideshowColors}
+            depotName={depotName}
+            aggMeta={aggFinal.meta}
+            largeFont={slideshowConfig?.largeFont ?? true}
+            forceDark={slideshowConfig?.forceDark ?? false}
+            renderPage={(tab) => (
+              <Suspense fallback={<DashboardSkeleton colors={effectiveSlideshowColors} />}>
+                {renderTabPage(tab, { pageColors: effectiveSlideshowColors, isSlideshow: true })}
+              </Suspense>
+            )}
+          />
+        </Suspense>
+      )}
       {/* Modal hapus rentang master data (admin) */}
       {masterAction === "range" && (
-        <RangeDeleteModal
-          colors={colors}
-          onClose={() => setMasterAction(null)}
-          onConfirm={handleDeleteRange}
-        />
+        <Suspense fallback={null}>
+          <RangeDeleteModal
+            colors={colors}
+            onClose={() => setMasterAction(null)}
+            onConfirm={handleDeleteRange}
+          />
+        </Suspense>
       )}
-      <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
+      {Boolean(drilldown) && (
+        <Suspense fallback={null}>
+          <OutletDrilldownModal isOpen={!!drilldown} onClose={() => setDrilldown(null)} title={drilldown?.title} subtitle={drilldown?.subtitle} outlets={drilldown?.outlets || []} colors={colors} />
+        </Suspense>
+      )}
       {/* ⚠️ Sprint 19e / Focus Group Drilldown: modal per-SKU untuk grup fokus */}
-      <GroupFocusDrilldownModal
-        isOpen={!!groupFocusDrilldown}
-        onClose={() => setGroupFocusDrilldown(null)}
-        title={groupFocusDrilldown?.title}
-        subtitle={groupFocusDrilldown?.subtitle}
-        products={groupFocusDrilldown?.products || []}
-        groupSummary={groupFocusDrilldown?.groupSummary}
-        colors={colors}
-      />
-      <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
-      <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={(mode) => confirmPreview(mode)} preview={pendingPreview} colors={colors} canReplaceDates={true} />
-      <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSave={saveHistorySnapshot} onApply={applyHistorySelection}
-        onDelete={deleteHistorySnapshot}
-        defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
+      {Boolean(groupFocusDrilldown) && (
+        <Suspense fallback={null}>
+          <GroupFocusDrilldownModal
+            isOpen={!!groupFocusDrilldown}
+            onClose={() => setGroupFocusDrilldown(null)}
+            title={groupFocusDrilldown?.title}
+            subtitle={groupFocusDrilldown?.subtitle}
+            products={groupFocusDrilldown?.products || []}
+            groupSummary={groupFocusDrilldown?.groupSummary}
+            colors={colors}
+          />
+        </Suspense>
+      )}
+      {Boolean(outletDetail) && (
+        <Suspense fallback={null}>
+          <OutletDetailModal isOpen={!!outletDetail} onClose={() => setOutletDetail(null)} outlet={outletDetail} products={outletDetailProducts} colors={colors} />
+        </Suspense>
+      )}
+      {Boolean(pendingPreview) && (
+        <Suspense fallback={null}>
+          <DataPreviewModal isOpen={!!pendingPreview} onCancel={cancelPreview} onConfirm={(mode) => confirmPreview(mode)} preview={pendingPreview} colors={colors} canReplaceDates={true} />
+        </Suspense>
+      )}
+      {isHistoryOpen && (
+        <Suspense fallback={null}>
+          <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} history={history} onSave={saveHistorySnapshot} onApply={applyHistorySelection}
+            onDelete={deleteHistorySnapshot}
+            defaultLabel={filters.dateFrom && filters.dateTo ? `${filters.dateFrom} — ${filters.dateTo}` : ""} colors={colors} />
+        </Suspense>
+      )}
       <MobileFab onFile={handleFile} colors={colors} loading={loading} />
       {/* ⚠️ Overlay loading saat parsing file Excel (upload) */}
       {loading && <UploadLoading colors={colors} fileName={fileName} progress={uploadProgress} />}
@@ -1141,27 +1147,38 @@ export default function SalesMonitoringApp() {
       <ToastHost colors={colors} />
 
       {/* ⚠️ Panel Asisten AI Automasi (Task 5) */}
-      {(!canAccess || canAccess("feat:ai_chat")) && (
-        <AiChatDrawer
-          isOpen={isAiChatOpen}
-          onClose={() => setIsAiChatOpen(false)}
-          colors={colors}
-          canAccess={canAccess}
-          aiContext={aiContext}
-          deps={{
-            setTargets,
-            getTargets: () => targets,
-            getActiveRows: () => rawRows,
-            saveStoredSchedule: async (depot, schedule) => {
-              const mod = await import("./utils/visitScheduleStorage.js");
-              mod.saveStoredSchedule(depot, schedule);
-            },
-            deleteActiveRows: async () => {
-              handleReset();
-            },
-          }}
-          notifyError={notifyError}
-        />
+      {isAiChatOpen && (!canAccess || canAccess("feat:ai_chat")) && (
+        <Suspense fallback={null}>
+          <AiChatDrawer
+            isOpen={isAiChatOpen}
+            onClose={() => setIsAiChatOpen(false)}
+            colors={colors}
+            canAccess={canAccess}
+            aiContext={aiContext}
+            deps={{
+              setTargets,
+              getTargets: () => targets,
+              getActiveRows: () => rawRows,
+              getRawRows: () => rawRows,
+              goToTab,
+              setFilters,
+              getFilters: () => filters,
+              getStockData: () => ({
+                stockMetrics: stockData.stockMetrics,
+                stockSummary: stockData.stockSummary,
+                currentStock: stockData.currentStock,
+              }),
+              saveStoredSchedule: async (depot, schedule) => {
+                const mod = await import("./utils/visitScheduleStorage.js");
+                mod.saveStoredSchedule(depot, schedule);
+              },
+              deleteActiveRows: async () => {
+                handleReset();
+              },
+            }}
+            notifyError={notifyError}
+          />
+        </Suspense>
       )}
 
       {/* ⚠️ Sprint 18d / Header Redesign: layout root kembali ke pola lama
@@ -1346,67 +1363,16 @@ export default function SalesMonitoringApp() {
         </div>
 
         {/* ===== Remaining content: PWA notifications, page content, etc. ===== */}
-        {offlineReady && !needRefresh && (
-          <div className="mb-6 sm-fadeup flex items-center justify-between gap-3 px-4 py-3 rounded-xl" style={{ background: colors.mint + "14", border: `1px solid ${colors.mint}44` }}>
-            <div className="flex items-center gap-2.5 text-sm">
-              <CheckCircle2 size={15} style={{ color: colors.mint }} />
-              <span>Aplikasi siap dipakai walau tanpa internet.</span>
-            </div>
-            <button onClick={() => setOfflineReady(false)}
-              className="sm-btn p-1.5 rounded-lg" style={{ color: colors.textMuted }}>
-              <X size={14} />
-            </button>
-          </div>
-        )}
-
-        {/* PWA: notifikasi update tersedia */}
-        {needRefresh && (
-          <div className="mb-6 sm-fadeup flex items-center justify-between gap-3 px-4 py-3 rounded-xl" style={{ background: colors.gold + "14", border: `1px solid ${colors.gold}44` }}>
-            <div className="flex items-center gap-2.5 text-sm">
-              <RefreshCw size={15} style={{ color: colors.gold }} />
-              <span>Versi baru aplikasi tersedia.</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => updateServiceWorker(true)}
-                className="sm-btn px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: colors.gold, color: "#0A1120" }}>
-                Perbarui Sekarang
-              </button>
-              <button onClick={() => setNeedRefresh(false)}
-                className="sm-btn px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${colors.glassBorder}` }}>
-                Nanti
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* PWA: instruksi manual instal untuk iOS Safari (tidak ada beforeinstallprompt) */}
-        {showIosInstallHint && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md sm-fadein" onClick={() => setShowIosInstallHint(false)}>
-            <div className="sm-card sm-modal-glass sm-scale-in w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl" style={{ background: colors.gold + "1A" }}><Smartphone size={16} style={{ color: colors.gold }} /></div>
-                  <div className="disp text-base font-semibold">Instal di iPhone/iPad</div>
-                </div>
-                <button onClick={() => setShowIosInstallHint(false)} className="sm-btn p-2 rounded-full" style={{ background: colors.glassFill }}><X size={16} /></button>
-              </div>
-              <ol className="text-sm space-y-2.5" style={{ color: colors.text }}>
-                <li className="flex items-start gap-2.5">
-                  <span className="mono font-semibold shrink-0" style={{ color: colors.gold }}>1.</span>
-                  <span className="flex items-center gap-1.5 flex-wrap">Tap ikon <Share size={14} style={{ color: colors.gold }} /> <b>Share</b> di bar bawah Safari</span>
-                </li>
-                <li className="flex items-start gap-2.5">
-                  <span className="mono font-semibold shrink-0" style={{ color: colors.gold }}>2.</span>
-                  <span>Pilih <b>"Add to Home Screen"</b></span>
-                </li>
-                <li className="flex items-start gap-2.5">
-                  <span className="mono font-semibold shrink-0" style={{ color: colors.gold }}>3.</span>
-                  <span>Tap <b>"Add"</b> di pojok kanan atas</span>
-                </li>
-              </ol>
-            </div>
-          </div>
-        )}
+        <PwaBanners
+          offlineReady={offlineReady}
+          setOfflineReady={setOfflineReady}
+          needRefresh={needRefresh}
+          setNeedRefresh={setNeedRefresh}
+          updateServiceWorker={updateServiceWorker}
+          showIosInstallHint={showIosInstallHint}
+          setShowIosInstallHint={setShowIosInstallHint}
+          colors={colors}
+        />
 
         {/* upload */}
         <div className="mb-6 sm-fadeup" style={{ animationDelay: "40ms" }}>
@@ -1470,65 +1436,11 @@ export default function SalesMonitoringApp() {
               </div>
             ) : (
             <Suspense fallback={<div className="mt-4"><DashboardSkeleton colors={colors} /></div>}>
-            {/* ── Halaman umum (dibungkus canAccess guard) ── */}
-            {activeTab === "main" && canAccess("page:main") && <MainReportPage agg={aggFinal} workDays={workDays} colors={colors} onDrilldown={openDrilldown} comparison={comparison} onClearComparison={() => setComparisonSnapshot(null)} projectionMethod={projectionMethod} onProjectionMethodChange={setProjectionMethod} dataQualityNotes={dataQualityNotes} onNavigate={goToTab} rawRows={rawRows} targets={targets} filters={filters} />}
-            {activeTab === "main" && !canAccess("page:main") && (
-              <div className="sm-card p-8 text-center sm-fadeup"><div className="flex flex-col items-center gap-3"><ShieldCheck size={32} style={{ color: colors.textMuted }} /><p className="text-sm font-medium" style={{ color: colors.text }}>Akses Dibatasi</p><p className="text-xs" style={{ color: colors.textMuted }}>Halaman ini memerlukan izin akses dari administrator.</p></div></div>
-            )}
-            {activeTab === "executive" && canAccess("page:executive") && <ExecutiveSummaryPage agg={aggFinal} colors={colors} workDays={workDays} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} comparison={comparison} dataQualityNotes={dataQualityNotes} onNavigate={goToTab} rawRows={rawRows} targets={targets} filters={filters} stockSummary={stockData.stockSummary} />}
-            {activeTab === "executive" && !canAccess("page:executive") && (
-              <div className="sm-card p-8 text-center sm-fadeup"><div className="flex flex-col items-center gap-3"><ShieldCheck size={32} style={{ color: colors.textMuted }} /><p className="text-sm font-medium" style={{ color: colors.text }}>Akses Dibatasi</p><p className="text-xs" style={{ color: colors.textMuted }}>Halaman ini memerlukan izin akses dari administrator.</p></div></div>
-            )}
-            {activeTab === "sales" && canAccess("page:sales") && <SalesReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} workDays={workDays} depotName={depotName} />}
-            {activeTab === "sales" && !canAccess("page:sales") && (
-              <div className="sm-card p-8 text-center sm-fadeup"><div className="flex flex-col items-center gap-3"><ShieldCheck size={32} style={{ color: colors.textMuted }} /><p className="text-sm font-medium" style={{ color: colors.text }}>Akses Dibatasi</p><p className="text-xs" style={{ color: colors.textMuted }}>Halaman ini memerlukan izin akses dari administrator.</p></div></div>
-            )}
-            {activeTab === "product" && canAccess("page:product") && <ProductReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} onGroupDrilldown={openProductGroupDrilldown} depotName={depotName} currentStock={stockData.currentStock} stockSummary={stockData.stockSummary} />}
-            {activeTab === "product" && !canAccess("page:product") && (
-              <div className="sm-card p-8 text-center sm-fadeup"><div className="flex flex-col items-center gap-3"><ShieldCheck size={32} style={{ color: colors.textMuted }} /><p className="text-sm font-medium" style={{ color: colors.text }}>Akses Dibatasi</p><p className="text-xs" style={{ color: colors.textMuted }}>Halaman ini memerlukan izin akses dari administrator.</p></div></div>
-            )}
-            {activeTab === "focus" && canAccess("page:focus") && <ProductFocusReportPage agg={aggFinal} colors={colors} onDrilldown={openDrilldown} onGroupDrilldown={openGroupFocusDrilldown} depotName={depotName} filteredRows={aggFinal.filteredRows} />}
-            {activeTab === "focus" && !canAccess("page:focus") && (
-              <div className="sm-card p-8 text-center sm-fadeup"><div className="flex flex-col items-center gap-3"><ShieldCheck size={32} style={{ color: colors.textMuted }} /><p className="text-sm font-medium" style={{ color: colors.text }}>Akses Dibatasi</p><p className="text-xs" style={{ color: colors.textMuted }}>Halaman ini memerlukan izin akses dari administrator.</p></div></div>
-            )}
-            {activeTab === "outlet" && canAccess("page:outlet") && <OutletAnalysisPage agg={aggFinal} colors={colors} thresholds={outletThresholds} setThresholds={setOutletThresholds} onSelectOutlet={openOutletDetail} rawRows={rawRows} targets={targets} depotName={depotName} canAccess={canAccess} />}
-            {activeTab === "outlet" && !canAccess("page:outlet") && (
-              <div className="sm-card p-8 text-center sm-fadeup"><div className="flex flex-col items-center gap-3"><ShieldCheck size={32} style={{ color: colors.textMuted }} /><p className="text-sm font-medium" style={{ color: colors.text }}>Akses Dibatasi</p><p className="text-xs" style={{ color: colors.textMuted }}>Halaman ini memerlukan izin akses dari administrator.</p></div></div>
-            )}
-            {activeTab === "compare" && canAccess("page:compare") && <ComparisonPage rawRows={rawRows} targets={targets} colors={colors} workDays={workDays} depotName={depotName} comparisonBase={comparisonBase} onBaseChange={setComparisonBase} registerTabExport={registerTabExport} unregisterTabExport={unregisterTabExport} />}
-            {activeTab === "compare" && !canAccess("page:compare") && (
-              <div className="sm-card p-8 text-center sm-fadeup"><div className="flex flex-col items-center gap-3"><ShieldCheck size={32} style={{ color: colors.textMuted }} /><p className="text-sm font-medium" style={{ color: colors.text }}>Akses Dibatasi</p><p className="text-xs" style={{ color: colors.textMuted }}>Halaman ini memerlukan izin akses dari administrator.</p></div></div>
-            )}
-            {activeTab === "transactions" && canAccess("page:transactions") && <TransactionsPage agg={aggFinal} colors={colors} onOutletDrilldown={openOutletDetail} depotName={depotName} registerTabExport={registerTabExport} unregisterTabExport={unregisterTabExport} />}
-            {activeTab === "transactions" && !canAccess("page:transactions") && (
-              <div className="sm-card p-8 text-center sm-fadeup"><div className="flex flex-col items-center gap-3"><ShieldCheck size={32} style={{ color: colors.textMuted }} /><p className="text-sm font-medium" style={{ color: colors.text }}>Akses Dibatasi</p><p className="text-xs" style={{ color: colors.textMuted }}>Halaman ini memerlukan izin akses dari administrator.</p></div></div>
-            )}
-            {activeTab === "quality" && canAccess("page:quality") && <DataQualityPage notes={dataQualityNotes} colors={colors} onDrilldown={openDrilldown} />}
-            {activeTab === "quality" && !canAccess("page:quality") && (
-              <div className="sm-card p-8 text-center sm-fadeup"><div className="flex flex-col items-center gap-3"><ShieldCheck size={32} style={{ color: colors.textMuted }} /><p className="text-sm font-medium" style={{ color: colors.text }}>Akses Dibatasi</p><p className="text-xs" style={{ color: colors.textMuted }}>Halaman ini memerlukan izin akses dari administrator.</p></div></div>
-            )}
-            {/* ⚠️ Sprint 19 / Stock Module */}
-            {activeTab === "stock" && canAccess("page:stock") && (
-              <StockPage
-                stockData={stockData}
-                colors={colors}
-                filters={filters}
-                onUploadStock={() => document.getElementById("stock-file-input")?.click()}
-              />
-            )}
-            {activeTab === "stock" && !canAccess("page:stock") && (
-              <div className="sm-card p-8 text-center sm-fadeup"><div className="flex flex-col items-center gap-3"><ShieldCheck size={32} style={{ color: colors.textMuted }} /><p className="text-sm font-medium" style={{ color: colors.text }}>Akses Dibatasi</p><p className="text-xs" style={{ color: colors.textMuted }}>Halaman ini memerlukan izin akses dari administrator.</p></div></div>
-            )}
-            {/* ⚠️ Superuser Admin Dashboard */}
-            {activeTab === "admin-access" && isSuperuser && (
-              <SuperuserAdminPage
-                colors={colors}
-                userRole={userRole}
-                sessionUser={sessionUser}
-                canAccess={canAccess}
-                permissions={permissions}
-              />
-            )}
+              {!canAccess("page:" + activeTab) && activeTab !== "admin-access" ? (
+                <AccessRestricted colors={colors} />
+              ) : (
+                renderTabPage(activeTab)
+              )}
             </Suspense>
             )}
             {/* Hidden file input for stock upload */}
@@ -1543,16 +1455,19 @@ export default function SalesMonitoringApp() {
               className="hidden"
             />
             {/* ⚠️ Sprint 19 / Sprint 2: Stock Import Preview modal (reconciliation) */}
-            <StockImportPreview
-              isOpen={stockPreviewOpen}
-              onClose={() => { setStockPreviewOpen(false); setStockPreviewData(null); }}
-              onConfirm={handleStockConfirm}
-              diffResult={stockPreviewData?.diff}
-              parsedData={stockPreviewData?.parsedData}
-              isFirstUpload={stockPreviewData?.isFirstUpload}
-              colors={colors}
-            />
-            {activeTab === "trend" && <TrendPeriodePage comparisonData={finalTrendComparisonData} isAutoTrend={isAutoTrend} colors={colors} onOpenPeriodPicker={() => setIsHistoryOpen(true)} selectedCount={trendSnapshotIds.length} depotName={depotName} comparisonBase={comparisonBase} onBaseChange={setComparisonBase} registerTabExport={registerTabExport} unregisterTabExport={unregisterTabExport} />}
+            {stockPreviewOpen && (
+              <Suspense fallback={null}>
+                <StockImportPreview
+                  isOpen={stockPreviewOpen}
+                  onClose={() => { setStockPreviewOpen(false); setStockPreviewData(null); }}
+                  onConfirm={handleStockConfirm}
+                  diffResult={stockPreviewData?.diff}
+                  parsedData={stockPreviewData?.parsedData}
+                  isFirstUpload={stockPreviewData?.isFirstUpload}
+                  colors={colors}
+                />
+              </Suspense>
+            )}
           </>
         )}
 

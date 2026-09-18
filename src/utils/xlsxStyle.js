@@ -157,3 +157,28 @@ export function makeSheetBuilder() {
 export function sanitizeFilename(s) {
   return String(s || "").trim().replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || "export";
 }
+
+/**
+ * Menulis blok judul dan sub-judul pada baris 1 & 2 di sheet Excel, di-merge sepanjang colCount.
+ * @param {object} b - sheet builder dari makeSheetBuilder()
+ * @param {string} title
+ * @param {string} subtitle
+ * @param {number} colCount
+ */
+export function writeTitleBlock(b, title, subtitle, colCount) {
+  b.setCell(1, 1, title, { bold: true, size: 13, color: XL_COLORS.navy });
+  b.merge(1, 1, 1, colCount);
+  b.setCell(2, 1, subtitle, { size: 9, color: "6B7280" });
+  b.merge(2, 1, 2, colCount);
+}
+
+/**
+ * Menulis satu baris header kolom dengan background fillColor dan teks tebal rata tengah.
+ * @param {object} b - sheet builder dari makeSheetBuilder()
+ * @param {number} row - nomor baris (1-based)
+ * @param {string[]} labels - daftar label kolom
+ * @param {string} [fillColor=XL_COLORS.headerCyan]
+ */
+export function writeHeaderRow(b, row, labels, fillColor = XL_COLORS.headerCyan) {
+  labels.forEach((label, i) => b.setCell(row, i + 1, label, { bold: true, fill: fillColor, align: "center" }));
+}

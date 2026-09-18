@@ -113,7 +113,7 @@ export async function signUpAccount({ username, email, password }) {
 
 export async function signOutAccount() {
   if (!supabase) return;
-  try { await supabase.auth.signOut(); } catch (_e) { /* abaikan */ }
+  try { await supabase.auth.signOut(); } catch { /* abaikan */ }
 }
 
 export async function resetPassword(email) {

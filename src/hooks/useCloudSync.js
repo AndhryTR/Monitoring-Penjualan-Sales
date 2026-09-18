@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { supabase } from "../utils/cloud.js";
 import {
   fetchMasterMaxDate, fetchAllMasterRows, fetchMasterRowsSince, pushMasterRows, replaceMasterRowsForDates,
@@ -309,11 +309,14 @@ export function useCloudSync({
   // Fix: snapshot dihitung ONCE sebagai string (`settingsSnapshot`) dan jadi
   // SATU-SATUNYA dependensi. Effect hanya jalan kalau serialized BENAR² berubah
   // (nilai beda, bukan cuma referensi baru).
-  const settingsSnapshot = JSON.stringify({
+  const settingsSnapshot = useMemo(() => JSON.stringify({
     targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed,
     // P2-1: perubahan field penuh ikut picu sync
     powerSaveMode, filters, comparisonBase, slideshowConfig, depots, activeDepotId,
-  });
+  }), [
+    targets, workDays, depotName, theme, projectionMethod, sidebarCollapsed,
+    powerSaveMode, filters, comparisonBase, slideshowConfig, depots, activeDepotId,
+  ]);
   // Recency guard: simpan timestamp sync terakhir + snapshot terakhir yang
   // sudah di-sync. Kalau sync selesai dan nilai TIDAK berubah, jangan sync
   // ulang — LWW berhenti begitu konvergen (anti loop, H18).

@@ -3,10 +3,18 @@ import { createPortal } from "react-dom";
 import {
   Bot, Sparkles, X, Send, Settings, Trash2, CheckCircle2,
   AlertTriangle, RefreshCw, Eye, EyeOff, ArrowRight,
+  Share2, Copy, FileText, Image as ImageIcon, Check,
 } from "lucide-react";
 import { loadAiSettings, saveAiSettings } from "../../utils/aiSettings.js";
 import { callDirect, callProxy, callTauri, dispatch, isTauriRuntime } from "../../utils/aiDispatcher.js";
 import { executeAiTool, isWriteTool } from "../../utils/aiTools.js";
+import {
+  copyToClipboard,
+  formatMessageAsMarkdown,
+  formatChatAsMarkdown,
+  exportChatToPdf,
+  exportElementToPng,
+} from "../../utils/aiExport.js";
 import { useScrollLock, useEscapeKey, useFocusTrap } from "../../hooks/useModalA11y.js";
 
 const CHAT_LOG_KEY = "smapp:ai_chat_log:v1";
@@ -32,10 +40,13 @@ function saveChatLog(log) {
 
 const QUICK_PROMPTS = [
   "Analisis performa & ACH tim sales saat ini",
-  "Siapa 3 sales dengan pencapaian terendah?",
-  "Ringkas status pencapaian target per grup",
-  "Export data transaksi ke format Excel",
+  "Cek barang yang stoknya habis atau kritis",
+  "Cari outlet yang tidak aktif minggu ini",
+  "Buka halaman Analisis Outlet",
+  "Reset semua filter dashboard",
 ];
+
+
 
 // Timeline thinking: langkah terlihat (✓ selesai, ◌ aktif, ✕ gagal).
 function ThinkingSteps({ steps = [], colors = {} }) {
@@ -63,16 +74,149 @@ function fmtRpShort(n) {
 }
 
 // Render hasil baca jadi tabel/kalimat — bukan gelembung JSON mentah.
-function ResultBlock({ tool, data, colors = {} }) {
-  if (!data) return null;
-  if (tool === "queryData" && Array.isArray(data.rows)) {
-    const sortTxt = data.sortBy ? ` (urut ${data.sortBy} ${data.order}, max ${data.limit})` : "";
+function ResultBlock({ tool, data, colors = {}, reactData, reactTool }) {
+  // Untuk sintesis ReAct, tampilkan data intermediate (tabel ringkas) di bawah narasi.
+  const effectiveTool = reactTool || tool;
+  const effectiveData = reactData || data;
+  if (!effectiveData) return null;
+
+  // --- cariOutlet ---
+  if (effectiveTool === "cariOutlet" && Array.isArray(effectiveData.rows)) {
     return (
       <div className="mt-2 rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
         <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: colors.glassFill, color: colors.textMuted }}>
-          {data.rows.length} sales{sortTxt} · ACH global {data.achGlobal ?? "-"}%
+          {effectiveData.ditampilkan} dari {effectiveData.total} outlet
+          {effectiveData.status ? ` · Status: ${effectiveData.status}` : ""}
+          {effectiveData.q ? ` · Kata kunci: "${effectiveData.q}"` : ""}
         </div>
-        {data.rows.map((r, i) => (
+        {effectiveData.rows.map((o, i) => {
+          const lastDateStr = o.lastDate ? o.lastDate.slice(0, 10) : "-";
+          return (
+            <div key={i} className="px-2.5 py-1.5 text-[11px] border-t" style={{ borderColor: colors.glassBorder }}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-semibold" style={{ color: colors.text }}>{i + 1}. {o.name}</span>
+                <span className="shrink-0 font-mono font-bold" style={{ color: colors.mint }}>{fmtRpShort(o.value)}</span>
+              </div>
+              <div className="flex items-center gap-2 mt-0.5" style={{ color: colors.textMuted }}>
+                <span className="text-[10px]">📋 {o.invoiceCount} inv</span>
+                <span className="text-[10px]">👤 {o.salesList.slice(0, 30)}</span>
+                <span className="text-[10px]">📅 {lastDateStr}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // --- cariProduk ---
+  if (effectiveTool === "cariProduk" && Array.isArray(effectiveData.rows)) {
+    return (
+      <div className="mt-2 rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
+        <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: colors.glassFill, color: colors.textMuted }}>
+          {effectiveData.ditampilkan} dari {effectiveData.total} produk
+          {effectiveData.q ? ` · Kata kunci: "${effectiveData.q}"` : ""}
+          {effectiveData.grup ? ` · Grup: ${effectiveData.grup}` : ""}
+        </div>
+        {effectiveData.rows.map((p, i) => (
+          <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] border-t" style={{ borderColor: colors.glassBorder }}>
+            <div className="min-w-0">
+              <div className="truncate font-semibold" style={{ color: colors.text }}>{i + 1}. {p.name}</div>
+              <div className="text-[10px]" style={{ color: colors.textMuted }}>Grup: {p.group} · {p.outletCount} outlet</div>
+            </div>
+            <div className="shrink-0 text-right">
+              <div className="font-mono font-bold text-[11px]" style={{ color: colors.mint }}>{fmtRpShort(p.value)}</div>
+              <div className="text-[10px] font-mono" style={{ color: colors.textMuted }}>{p.qty > 0 ? p.qty + " qty" : ""}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // --- detailSales ---
+  if (effectiveTool === "detailSales" && effectiveData.nama) {
+    const achColor = (effectiveData.ach ?? 0) >= 100 ? colors.mint : (effectiveData.ach ?? 0) >= 70 ? colors.gold : colors.coral;
+    return (
+      <div className="mt-2 space-y-2">
+        {/* Header KPI */}
+        <div className="rounded-xl border p-2.5 space-y-1.5" style={{ borderColor: colors.glassBorder }}>
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-[11px]" style={{ color: colors.text }}>{effectiveData.nama}</span>
+            <span className="font-mono font-bold text-sm" style={{ color: achColor }}>{effectiveData.ach ?? "-"}%</span>
+          </div>
+          <div className="flex gap-3 text-[10px]" style={{ color: colors.textMuted }}>
+            <span>Realisasi: <b style={{ color: colors.text }}>{fmtRpShort(effectiveData.total)}</b></span>
+            <span>Target: <b>{fmtRpShort(effectiveData.target)}</b></span>
+            <span>AO: <b>{effectiveData.ao}</b></span>
+          </div>
+        </div>
+        {/* Top Outlet */}
+        {Array.isArray(effectiveData.topOutlet) && effectiveData.topOutlet.length > 0 && (
+          <div className="rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
+            <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: colors.glassFill, color: colors.textMuted }}>
+              Top Outlet
+            </div>
+            {effectiveData.topOutlet.map((o, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] border-t" style={{ borderColor: colors.glassBorder }}>
+                <span className="truncate" style={{ color: colors.text }}>{o.name}</span>
+                <span className="shrink-0 font-mono" style={{ color: colors.mint }}>{fmtRpShort(o.value)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {/* Tren Bulanan */}
+        {Array.isArray(effectiveData.tren) && effectiveData.tren.length > 1 && (
+          <div className="rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
+            <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: colors.glassFill, color: colors.textMuted }}>
+              Tren {effectiveData.tren.length} Bulan
+            </div>
+            {effectiveData.tren.map((m, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] border-t" style={{ borderColor: colors.glassBorder }}>
+                <span className="font-mono" style={{ color: colors.textMuted }}>{m.bulan}</span>
+                <span className="font-mono font-bold" style={{ color: colors.text }}>{fmtRpShort(m.value)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // --- analisisDrop ---
+  if (effectiveTool === "analisisDrop" && effectiveData.ringkasan) {
+    return (
+      <div className="mt-2 space-y-2">
+        <p className="text-[11px] leading-relaxed" style={{ color: colors.text }}>{effectiveData.ringkasan}</p>
+        {Array.isArray(effectiveData.merah5) && effectiveData.merah5.length > 0 && (
+          <div className="rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
+            <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: colors.glassFill, color: colors.textMuted }}>
+              Sales Merah ({effectiveData.salesMerah} orang · Gap {fmtRpShort(effectiveData.gapTotal)})
+            </div>
+            {effectiveData.merah5.map((s, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] border-t" style={{ borderColor: colors.glassBorder }}>
+                <span className="truncate" style={{ color: colors.text }}>{s.nama}</span>
+                <div className="shrink-0 text-right">
+                  <span className="font-mono font-bold" style={{ color: colors.coral }}>{s.ach}%</span>
+                  <span className="font-mono text-[10px] ml-1.5" style={{ color: colors.textMuted }}>{fmtRpShort(s.realisasi)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // --- queryData ---
+  if (effectiveTool === "queryData" && Array.isArray(effectiveData.rows)) {
+    const sortTxt = effectiveData.sortBy ? ` (urut ${effectiveData.sortBy} ${effectiveData.order}, max ${effectiveData.limit})` : "";
+    return (
+      <div className="mt-2 rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
+        <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: colors.glassFill, color: colors.textMuted }}>
+          {effectiveData.rows.length} sales{sortTxt} · ACH global {effectiveData.achGlobal ?? "-"}%
+        </div>
+        {effectiveData.rows.map((r, i) => (
           <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px]" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
             <span className="truncate font-semibold" style={{ color: colors.text }}>{i + 1}. {r.nama || r.kode}</span>
             <span className="shrink-0 font-mono font-bold" style={{ color: (r.ach ?? 0) >= 100 ? colors.mint : (r.ach ?? 0) >= 70 ? colors.gold : colors.coral }}>
@@ -84,13 +228,13 @@ function ResultBlock({ tool, data, colors = {} }) {
       </div>
     );
   }
-  if (tool === "analisis" && data.ringkasan) {
+  if (effectiveTool === "analisis" && effectiveData.ringkasan) {
     return (
       <div className="mt-2 space-y-1">
-        <p className="text-[11px] leading-relaxed">{data.ringkasan}</p>
-        {Array.isArray(data.terbawah5) && data.terbawah5.length > 0 && (
+        <p className="text-[11px] leading-relaxed">{effectiveData.ringkasan}</p>
+        {Array.isArray(effectiveData.terbawah5) && effectiveData.terbawah5.length > 0 && (
           <div className="rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
-            {data.terbawah5.map((s, i) => (
+            {effectiveData.terbawah5.map((s, i) => (
               <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px]" style={{ borderTop: i ? `1px solid ${colors.glassBorder}` : "none" }}>
                 <span className="truncate">{s.nama || s.kode}</span>
                 <span className="shrink-0 font-mono font-bold" style={{ color: colors.coral }}>{s.ach ?? s.achievement ?? "-"}%</span>
@@ -101,10 +245,10 @@ function ResultBlock({ tool, data, colors = {} }) {
       </div>
     );
   }
-  if (tool === "bacaTarget" && Array.isArray(data)) {
+  if (effectiveTool === "bacaTarget" && Array.isArray(effectiveData)) {
     return (
       <div className="mt-2 rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
-        {data.slice(0, 10).map((t, i) => (
+        {effectiveData.slice(0, 10).map((t, i) => (
           <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px]" style={{ borderTop: i ? `1px solid ${colors.glassBorder}` : "none" }}>
             <span className="truncate font-semibold" style={{ color: colors.text }}>{t.nama || t.kode}</span>
             <span className="shrink-0 font-mono" style={{ color: colors.textMuted }}>{fmtRpShort(t.value)} · AO {t.ao ?? "-"}</span>
@@ -113,14 +257,14 @@ function ResultBlock({ tool, data, colors = {} }) {
       </div>
     );
   }
-  if (tool === "bacaBulanan" && data.tren) {
-    const cap = data.nBulan > 1 ? `${data.nBulan} bulan (${data.dari} – ${data.sampai})` : data.dari;
+  if (effectiveTool === "bacaBulanan" && effectiveData.tren) {
+    const cap = effectiveData.nBulan > 1 ? `${effectiveData.nBulan} bulan (${effectiveData.dari} – ${effectiveData.sampai})` : effectiveData.dari;
     return (
       <div className="mt-2 rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
         <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: colors.glassFill, color: colors.textMuted }}>
           Tren bulanan · {cap}
         </div>
-        {data.tren.map((m, i) => (
+        {effectiveData.tren.map((m, i) => (
           <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px]" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
             <span className="truncate font-semibold" style={{ color: colors.text }}>{m.label}</span>
             <span className="shrink-0 font-mono font-bold" style={{ color: (m.ach ?? 0) >= 100 ? colors.mint : (m.ach ?? 0) >= 70 ? colors.gold : colors.coral }}>
@@ -129,22 +273,118 @@ function ResultBlock({ tool, data, colors = {} }) {
             <span className="shrink-0 font-mono" style={{ color: colors.textMuted }}>{fmtRpShort(m.total)}</span>
           </div>
         ))}
-        {data.sales && (
+        {effectiveData.sales && (
           <div className="px-2.5 py-1 text-[10px] italic" style={{ background: colors.glassFill, color: colors.textMuted, borderTop: `1px solid ${colors.glassBorder}` }}>
-            Per sales: {data.sales.filter(s => s.ach != null).length} bulan data
+            Per sales: {effectiveData.sales.filter(s => s.ach != null).length} bulan data
           </div>
         )}
       </div>
     );
   }
+
+  // --- cariStok & bacaStok ---
+  if ((effectiveTool === "cariStok" || effectiveTool === "bacaStok") && effectiveData) {
+    if (Array.isArray(effectiveData.rows)) {
+      return (
+        <div className="mt-2 rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
+          <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider flex items-center justify-between" style={{ background: colors.glassFill, color: colors.textMuted }}>
+            <span>{effectiveData.ditampilkan} dari {effectiveData.totalDitemukan} SKU{effectiveData.q ? ` · "${effectiveData.q}"` : ""}</span>
+            <span className="font-mono text-[10px] text-rose-400 font-bold">{effectiveData.habisTotal} habis · {effectiveData.kritisTotal} kritis</span>
+          </div>
+          {effectiveData.rows.map((p, i) => {
+            const isOut = p.isStockout || p.currentQty <= 0;
+            const isCrit = p.isLowStock || (p.coverageDays !== null && p.coverageDays < 7);
+            const statusBadge = isOut ? "HABIS" : isCrit ? "KRITIS" : p.isOverstock ? "OVER" : "AMAN";
+            const badgeColor = isOut ? colors.coral : isCrit ? colors.gold : colors.mint;
+            return (
+              <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] border-t" style={{ borderColor: colors.glassBorder }}>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-semibold flex items-center gap-1.5" style={{ color: colors.text }}>
+                    <span className="text-[9px] px-1 py-0.5 rounded font-bold" style={{ background: `${badgeColor}22`, color: badgeColor }}>
+                      {statusBadge}
+                    </span>
+                    <span className="truncate">{p.nama || p.kode}</span>
+                  </div>
+                  <div className="text-[10px] flex items-center gap-2 mt-0.5" style={{ color: colors.textMuted }}>
+                    <span>{p.grup}</span>
+                    {p.coverageDays !== null && <span>· Estimasi: <b>{p.coverageDays} hari</b></span>}
+                  </div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <span className="font-mono font-bold" style={{ color: isOut ? colors.coral : colors.text }}>
+                    {p.currentQty.toLocaleString("id-ID")} {p.unit}
+                  </span>
+                  {p.currentQtyKarton > 0 && (
+                    <div className="text-[10px] font-mono" style={{ color: colors.textMuted }}>
+                      {p.currentQtyKarton} ktn
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    if (effectiveData.ringkasan) {
+      return (
+        <div className="mt-2 p-2.5 rounded-xl border space-y-2 text-xs" style={{ borderColor: colors.glassBorder, background: colors.glassFill }}>
+          <div className="font-semibold" style={{ color: colors.text }}>{effectiveData.ringkasan}</div>
+          <div className="grid grid-cols-3 gap-2 text-center pt-1 border-t" style={{ borderColor: colors.glassBorder }}>
+            <div>
+              <div className="text-[10px]" style={{ color: colors.textMuted }}>Total SKU</div>
+              <div className="font-bold font-mono">{effectiveData.totalSku}</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-rose-400">Habis</div>
+              <div className="font-bold font-mono text-rose-400">{effectiveData.habis}</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-amber-400">Kritis (&lt;7hr)</div>
+              <div className="font-bold font-mono text-amber-400">{effectiveData.kritis}</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // --- bacaTransaksi ---
+  if (effectiveTool === "bacaTransaksi" && effectiveData) {
+    if (Array.isArray(effectiveData.rows)) {
+      return (
+        <div className="mt-2 rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
+          <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider flex items-center justify-between" style={{ background: colors.glassFill, color: colors.textMuted }}>
+            <span>{effectiveData.ditampilkan} dari {effectiveData.totalBaris} baris ({effectiveData.uniqueInvoices} faktur)</span>
+            <span className="font-mono text-[10px]" style={{ color: colors.mint }}>{fmtRpShort(effectiveData.totalNilai)}</span>
+          </div>
+          {effectiveData.rows.map((r, i) => (
+            <div key={i} className="px-2.5 py-1.5 text-[11px] border-t" style={{ borderColor: colors.glassBorder }}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-semibold" style={{ color: colors.text }}>{r.productName}</span>
+                <span className="shrink-0 font-mono font-bold" style={{ color: colors.mint }}>{fmtRpShort(r.value)}</span>
+              </div>
+              <div className="flex items-center justify-between text-[10px] mt-0.5" style={{ color: colors.textMuted }}>
+                <span className="truncate">🧾 {r.invoiceNo} · 🏪 {r.outletName}</span>
+                <span className="shrink-0 font-mono">{r.qty} {r.unit} · 📅 {r.date}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+  }
+
   return null;
 }
+
+
 
 export function AiChatDrawer({
   isOpen,
   onClose,
   colors = {},
-  canAccess,
+  _canAccess,
   aiContext = {},
   deps = {},
   notifyError = () => {},
@@ -161,6 +401,14 @@ export function AiChatDrawer({
 
   // State konfirmasi tool tulis
   const [pendingAction, setPendingAction] = useState(null); // { tool, params, preview, run, ringkasan }
+
+  // State fitur ekspor
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [toast, setToast] = useState(null); // { msg: string, type: "success" | "error" | "info" }
+  const [copiedId, setCopiedId] = useState(null); // ID pesan yang baru disalin
+  const chatBodyRef = useRef(null);
+  const exportMenuRef = useRef(null);
 
   const drawerRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -200,9 +448,110 @@ export function AiChatDrawer({
     saveChatLog(messages);
   }, [messages]);
 
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => {
+      setToast((prev) => (prev?.msg === msg ? null : prev));
+    }, 2800);
+  };
+
+  const handleCopyAllChat = async () => {
+    if (!messages.length) return;
+    const md = formatChatAsMarkdown(messages, { model: aiSettings.model });
+    const ok = await copyToClipboard(md);
+    setExportMenuOpen(false);
+    if (ok) {
+      showToast("Seluruh riwayat chat berhasil disalin!");
+    } else {
+      showToast("Gagal menyalin ke clipboard", "error");
+    }
+  };
+
+  const handleCopyMessage = async (m) => {
+    const md = formatMessageAsMarkdown(m);
+    const ok = await copyToClipboard(md);
+    if (ok) {
+      setCopiedId(m.id);
+      setTimeout(() => setCopiedId((id) => (id === m.id ? null : id)), 2000);
+      showToast("Pesan tersalin ke clipboard!");
+    } else {
+      showToast("Gagal menyalin pesan", "error");
+    }
+  };
+
+  const handleExportPdf = () => {
+    if (!messages.length) return;
+    setExportMenuOpen(false);
+    setExporting(true);
+    try {
+      const ok = exportChatToPdf(messages, { model: aiSettings.model });
+      if (ok) {
+        showToast("Laporan PDF berhasil diunduh!");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Gagal membuat PDF: " + err.message, "error");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportChatImage = async () => {
+    if (!chatBodyRef.current || !messages.length) return;
+    setExportMenuOpen(false);
+    setExporting(true);
+    showToast("Sedang memproses gambar chat...", "info");
+    try {
+      const ok = await exportElementToPng(chatBodyRef.current, `AI_Chat_Lengkap.png`, {
+        backgroundColor: colors.bgPrimary || "#0F172A",
+      });
+      if (ok) {
+        showToast("Gambar percakapan berhasil diunduh!");
+      } else {
+        showToast("Gagal mengekspor gambar", "error");
+      }
+    } catch (err) {
+      showToast("Gagal: " + err.message, "error");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportMessageImage = async (msgId) => {
+    const el = document.getElementById(`msg-card-${msgId}`);
+    if (!el) return;
+    setExporting(true);
+    showToast("Sedang memproses gambar...", "info");
+    try {
+      const ok = await exportElementToPng(el, `AI_Rekomendasi_${msgId}.png`, {
+        backgroundColor: colors.bgPrimary || "#0F172A",
+      });
+      if (ok) {
+        showToast("Gambar rekomendasi berhasil diunduh!");
+      } else {
+        showToast("Gagal mengekspor gambar", "error");
+      }
+    } catch (err) {
+      showToast("Gagal: " + err.message, "error");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Tutup dropdown ekspor saat klik di luar
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (exportMenuOpen && exportMenuRef.current && !exportMenuRef.current.contains(e.target)) {
+        setExportMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [exportMenuOpen]);
+
   const handleClearHistory = () => {
     setMessages([]);
-    try { window.localStorage.removeItem(CHAT_LOG_KEY); } catch (_e) { /* ignore */ }
+    try { window.localStorage.removeItem(CHAT_LOG_KEY); } catch { /* ignore */ }
   };
 
   const handleSaveSettings = (newSettings) => {
@@ -221,7 +570,7 @@ export function AiChatDrawer({
         throw new Error("Base URL wajib diisi untuk mode Direct.");
       }
       const call = isTauriRuntime()
-        ? ((s, msgs, o) => callTauri(s, msgs))
+        ? ((s, msgs, _o) => callTauri(s, msgs))
         : aiSettings.mode === "proxy" ? callProxy : callDirect;
       // Tanpa fallback "Terhubung!" — balasan kosong = gagal (sukses palsu dilarang).
       const reply = await call(aiSettings, [
@@ -257,8 +606,62 @@ export function AiChatDrawer({
     inFlightRef.current = flight;
 
     try {
-      const res = await dispatch(text, aiContext, aiSettings, { signal: flight.signal });
-      setBusyStage(`Menjalankan ${res.parsed?.tool || "tool"}…`);
+      // Ambil 6 pesan terakhir (tidak termasuk pesan user baru yang baru ditambah)
+      // untuk dikirim sebagai chat history ke LLM.
+      const chatHistory = messages.slice(-6);
+
+      // executeTool: injeksi ke dispatcher agar ReAct loop bisa menjalankan
+      // tool baca langsung di browser, hasilnya dikirim ke LLM untuk sintesis.
+      const executeToolForReact = (tool, params, ctx) => {
+        return executeAiTool(tool, params, ctx, deps);
+      };
+
+      // Siapkan placeholder streaming ID jika model mengirim delta teks
+      const streamMsgId = (Date.now() + 1).toString(36);
+      let streamedDeltaText = "";
+
+
+      const onDelta = (chunk) => {
+        streamedDeltaText += chunk;
+        setMessages((prev) => {
+          const idx = prev.findIndex((m) => m.id === streamMsgId);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = { ...next[idx], text: streamedDeltaText };
+            return next;
+          }
+          // Tambah pesan streaming baru
+          return [
+            ...prev,
+            {
+              id: streamMsgId,
+              role: "assistant",
+              text: streamedDeltaText,
+              tool: "chat",
+              isStreaming: true,
+              createdAt: Date.now(),
+            },
+          ];
+        });
+      };
+
+      const res = await dispatch(text, aiContext, aiSettings, {
+        signal: flight.signal,
+        chatHistory,
+        executeTool: executeToolForReact,
+        onDelta,
+      });
+
+      // Hapus flag isStreaming dari pesan placeholder jika ada
+      setMessages((prev) => prev.filter((m) => m.id !== streamMsgId));
+
+      // Jika ReAct loop berhasil (ada intermediate step), tampilkan info tool yang dipakai
+      const hasReact = res.reactSteps && res.reactSteps.length > 0;
+      const intermediateTool = res.intermediate?.parsed?.tool;
+      setBusyStage(hasReact
+        ? `Sintesis dari ${intermediateTool || "tool"}…`
+        : `Menjalankan ${res.parsed?.tool || "tool"}…`
+      );
 
       if (!res.parsed || !res.parsed.ok) {
         // Output tidak valid JSON atau tool asing
@@ -275,19 +678,29 @@ export function AiChatDrawer({
 
       const { tool, params, ringkasan } = res.parsed;
       // Timeline thinking: tiap pesan bawa steps agar alur terlihat.
-      const steps = [
-        { label: `Perintah dipahami → ${tool}`, state: "done" },
-      ];
+      const steps = hasReact
+        ? [
+          { label: `Perintah dipahami → ${intermediateTool}`, state: "done" },
+          { label: `Data diambil → Sintesis AI`, state: "done" },
+        ]
+        : [{ label: `Perintah dipahami → ${tool}`, state: "done" }];
 
       if (tool === "chat") {
-        // Obrolan umum: jawaban langsung, tanpa eksekusi data.
-        const c = executeAiTool(tool, params, aiContext, deps);
+
+        // Obrolan umum atau sintesis ReAct: jawaban langsung, tanpa eksekusi data.
+        const c = hasReact
+          ? { ok: true, data: { jawaban: res.parsed.params?.jawaban ?? ringkasan } }
+          : executeAiTool(tool, params, aiContext, deps);
         const aiMsg = {
           id: (Date.now() + 1).toString(36),
           role: "assistant",
           text: c.ok ? c.data.jawaban : ringkasan,
-          tool,
+          tool: hasReact ? intermediateTool : tool,
+          isReactSynthesis: hasReact,
           steps: [...steps, { label: "Jawaban langsung (tanpa data)", state: "done" }],
+          // Teruskan data tool intermediate agar ResultBlock bisa render tabel
+          reactData: hasReact ? res.intermediate?.toolResult?.data : null,
+          reactTool: hasReact ? intermediateTool : null,
           createdAt: Date.now(),
         };
         setMessages((prev) => [...prev, aiMsg]);
@@ -325,7 +738,7 @@ export function AiChatDrawer({
         setMessages((prev) => [...prev, pendingMsg]);
         setPendingAction({ tool, params, preview: writeExec.preview, run: writeExec.run, ringkasan, msgId: pendingMsg.id });
       } else {
-        // Tool baca: eksekusi langsung
+        // Tool baca (tanpa ReAct): eksekusi langsung
         const readExec = executeAiTool(tool, params, aiContext, deps);
         const aiMsg = {
           id: (Date.now() + 1).toString(36),
@@ -362,6 +775,7 @@ export function AiChatDrawer({
       setBusy(false);
     }
   };
+
 
   const handleConfirmAction = async () => {
     if (!pendingAction?.run) return;
@@ -463,6 +877,66 @@ export function AiChatDrawer({
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
+            {/* Tombol Ekspor Dropdown */}
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                type="button"
+                onClick={() => setExportMenuOpen((v) => !v)}
+                disabled={messages.length === 0 || exporting}
+                className="sm-btn p-2 rounded-xl transition-colors disabled:opacity-30 relative"
+                style={{
+                  background: exportMenuOpen ? `${colors.mint}22` : colors.glassFill,
+                  color: exportMenuOpen ? colors.mint : colors.textMuted,
+                }}
+                title="Ekspor Chat & Rekomendasi"
+                aria-label="Ekspor Chat & Rekomendasi"
+              >
+                {exporting ? <RefreshCw size={15} className="animate-spin" /> : <Share2 size={15} />}
+              </button>
+
+              {/* Dropdown Menu Ekspor */}
+              {exportMenuOpen && (
+                <div
+                  className="absolute right-0 top-full mt-2 w-56 rounded-2xl shadow-2xl border p-1.5 z-50 sm-fadein space-y-1"
+                  style={{
+                    background: colors.dropdownBg || "#0F172A",
+                    borderColor: colors.glassBorder,
+                  }}
+                >
+                  <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: colors.textMuted }}>
+                    Ekspor Seluruh Chat
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyAllChat}
+                    className="w-full text-left px-2.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 hover:opacity-100 transition-all opacity-80"
+                    style={{ background: colors.glassFill, color: colors.text }}
+                  >
+                    <Copy size={13} style={{ color: colors.blue }} />
+                    <span>Salin ke Clipboard (MD)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportPdf}
+                    className="w-full text-left px-2.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 hover:opacity-100 transition-all opacity-80"
+                    style={{ background: colors.glassFill, color: colors.text }}
+                  >
+                    <FileText size={13} style={{ color: colors.coral }} />
+                    <span>Unduh Dokumen PDF (.pdf)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportChatImage}
+                    className="w-full text-left px-2.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 hover:opacity-100 transition-all opacity-80"
+                    style={{ background: colors.glassFill, color: colors.text }}
+                  >
+                    <ImageIcon size={13} style={{ color: colors.gold }} />
+                    <span>Unduh Gambar Chat (.png)</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
             <button
               type="button"
               onClick={() => setSettingsOpen((v) => !v)}
@@ -499,6 +973,21 @@ export function AiChatDrawer({
             </button>
           </div>
         </div>
+
+        {/* Toast Notifikasi Ekspor */}
+        {toast && (
+          <div
+            className="absolute top-16 left-1/2 -translate-x-1/2 z-50 px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-lg border flex items-center gap-2 sm-fadein"
+            style={{
+              background: toast.type === "error" ? "#7F1D1D" : toast.type === "info" ? "#1E3A8A" : "#064E3B",
+              borderColor: toast.type === "error" ? "#EF4444" : toast.type === "info" ? "#3B82F6" : "#10B981",
+              color: "#FFFFFF",
+            }}
+          >
+            {toast.type === "error" ? <AlertTriangle size={13} /> : toast.type === "info" ? <RefreshCw size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+            <span>{toast.msg}</span>
+          </div>
+        )}
 
         {/* ===== SETTINGS PANEL (OVERLAY) ===== */}
         {settingsOpen && (
@@ -552,11 +1041,39 @@ export function AiChatDrawer({
               </div>
             </div>
 
+            {/* Provider Preset (Cepat) */}
+            {aiSettings.mode === "direct" && (
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: colors.textMuted }}>
+                  Preset Penyedia AI (1-Klik)
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    { name: "Groq (Cepat/Gratis)", url: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile" },
+                    { name: "OpenRouter", url: "https://openrouter.ai/api/v1", model: "google/gemini-2.5-flash" },
+                    { name: "DeepSeek", url: "https://api.deepseek.com/v1", model: "deepseek-chat" },
+                    { name: "OpenAI", url: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+                  ].map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => setAiSettings((s) => ({ ...s, baseURL: preset.url, model: preset.model }))}
+                      className="px-2 py-1.5 rounded-lg text-[11px] font-semibold border text-left truncate transition-all hover:opacity-100 opacity-80"
+                      style={{ background: colors.glassFill, borderColor: colors.glassBorder, color: colors.text }}
+                    >
+                      ⚡ {preset.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Base URL */}
             <div>
               <label className="block text-xs font-semibold mb-1" style={{ color: colors.textMuted }}>
                 {aiSettings.mode === "proxy" ? "URL Backend Proxy" : "Base URL (OpenAI-compatible)"}
               </label>
+
               <input
                 type="text"
                 value={aiSettings.mode === "proxy" ? aiSettings.backendURL : aiSettings.baseURL}
@@ -651,7 +1168,7 @@ export function AiChatDrawer({
         )}
 
         {/* ===== CHAT BODY (MESSAGES) ===== */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
+        <div ref={chatBodyRef} className="flex-1 overflow-y-auto p-4 space-y-3.5">
           {messages.length === 0 ? (
             <div className="text-center py-12 space-y-3">
               <div
@@ -695,6 +1212,7 @@ export function AiChatDrawer({
                   className={`flex flex-col ${isUser ? "items-end" : "items-start"} sm-fadein`}
                 >
                   <div
+                    id={`msg-card-${m.id}`}
                     className={`max-w-[88%] p-3 rounded-2xl text-xs leading-relaxed ${
                       isUser
                         ? "rounded-tr-sm text-white font-medium"
@@ -707,12 +1225,18 @@ export function AiChatDrawer({
                     }}
                   >
                     {/* Header nama tool jika ada */}
-                    {m.tool && (
+                    {(m.tool || m.reactTool) && (
                       <div
                         className="text-[10px] font-mono font-bold uppercase tracking-wider mb-1.5 pb-1 border-b flex items-center gap-1.5"
                         style={{ borderColor: colors.glassBorder, color: colors.gold }}
                       >
-                        <Sparkles size={11} /> Tool: {m.tool}
+                        <Sparkles size={11} /> Tool: {m.reactTool || m.tool}
+                        {m.isReactSynthesis && (
+                          <span className="ml-1 text-[9px] px-1 rounded font-normal normal-case tracking-normal"
+                            style={{ background: `${colors.blue}22`, color: colors.blue }}>
+                            + Sintesis AI
+                          </span>
+                        )}
                       </div>
                     )}
 
@@ -721,8 +1245,15 @@ export function AiChatDrawer({
                     {/* Timeline thinking */}
                     <ThinkingSteps steps={m.steps} colors={colors} />
 
-                    {/* Hasil baca: tabel/kalimat, bukan JSON mentah */}
-                    <ResultBlock tool={m.tool} data={m.data} colors={colors} />
+                    {/* Hasil baca: tabel/kalimat, bukan JSON mentah.
+                        reactData + reactTool untuk sintesis ReAct (data dari tool intermediate). */}
+                    <ResultBlock
+                      tool={m.tool}
+                      data={m.data}
+                      colors={colors}
+                      reactData={m.reactData}
+                      reactTool={m.reactTool}
+                    />
 
                     {/* Preview box untuk aksi tulis */}
                     {m.preview && (
@@ -775,6 +1306,36 @@ export function AiChatDrawer({
                             {m.resultText || (m.status === "completed" ? "Selesai." : "Dibatalkan.")}
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {/* Micro-actions untuk pesan asisten */}
+                    {!isUser && !m.isStreaming && (
+                      <div
+                        className="mt-2.5 pt-1.5 flex items-center justify-end gap-3 border-t"
+                        style={{ borderColor: colors.glassBorder }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleCopyMessage(m)}
+                          className="text-[10px] flex items-center gap-1 font-semibold transition-opacity opacity-75 hover:opacity-100"
+                          style={{ color: copiedId === m.id ? colors.mint : colors.textMuted }}
+                          title="Salin rekomendasi ini ke clipboard"
+                        >
+                          {copiedId === m.id ? <Check size={11} /> : <Copy size={11} />}
+                          <span>{copiedId === m.id ? "Tersalin" : "Salin"}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleExportMessageImage(m.id)}
+                          disabled={exporting}
+                          className="text-[10px] flex items-center gap-1 font-semibold transition-opacity opacity-75 hover:opacity-100 disabled:opacity-30"
+                          style={{ color: colors.textMuted }}
+                          title="Simpan kartu ini sebagai gambar PNG"
+                        >
+                          <ImageIcon size={11} />
+                          <span>Simpan Gambar</span>
+                        </button>
                       </div>
                     )}
                   </div>

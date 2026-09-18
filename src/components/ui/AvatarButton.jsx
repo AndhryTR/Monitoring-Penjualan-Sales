@@ -37,7 +37,7 @@ import { useFloatingDropdown } from "../../hooks/useFloatingDropdown.js";
 ============================================================================ */
 export function AvatarButton({
   sessionUser, syncState = "idle",
-  onOpenSettings, onOpenLogin, onLogout, onInstallPwa, canInstallPwa, onOpenBackup,
+  onOpenSettings, onOpenLogin, _onLogout, onInstallPwa, canInstallPwa, onOpenBackup,
   colors,
 }) {
   const [isOpen, setIsOpen] = useState(false);

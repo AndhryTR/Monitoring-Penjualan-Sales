@@ -1,5 +1,5 @@
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from "recharts";
-import { createChartTooltipStyle } from "../ui/index.jsx";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
+import { createChartTooltipStyle } from "../../styles/globalStyle.js";
 import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
 
 /* ============================================================================
@@ -7,7 +7,7 @@ import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
    Data: [{ name, [periodLabel]: value }]. Legend pakai warna periode.
    Tooltip mengikuti metrik aktif (money / pct / angka).
 ============================================================================ */
-export function GroupedBarChart({ data, periods, periodColor, metricKey, isMoney, isPct, colors }) {
+export function GroupedBarChart({ data, periods, periodColor, _metricKey, isMoney, isPct, colors }) {
   return (
     <ResponsiveContainer width="100%" height={280}>
       <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -30,16 +30,4 @@ export function GroupedBarChart({ data, periods, periodColor, metricKey, isMoney
       </BarChart>
     </ResponsiveContainer>
   );
-}
-
-// Warna bar per periode: palet 5 tema -> 10 ekstra -> HSL golden-angle.
-export function periodColorPicker(colors) {
-  const BASE = ["gold", "mint", "violet", "blue", "coral"];
-  const EXTRA = ["#F472B6", "#38BDF8", "#A3E635", "#FB923C", "#818CF8", "#2DD4BF", "#E879F9", "#FACC15", "#4ADE80", "#FB7185"];
-  return (p, i) => {
-    if (i < BASE.length) return colors[BASE[i]];
-    const x = i - BASE.length;
-    if (x < EXTRA.length) return EXTRA[x];
-    return `hsl(${((x - EXTRA.length) * 137.508) % 360}, 70%, 55%)`;
-  };
 }

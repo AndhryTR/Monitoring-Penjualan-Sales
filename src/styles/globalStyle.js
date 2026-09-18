@@ -201,3 +201,34 @@ ${powerSaveMode ? `
 ` : ""}
 `;
 }
+
+/**
+ * Style object untuk tooltip Recharts yang dipakai di chart dashboard.
+ * @param {Object} colors - token warna aktif
+ * @returns {Object} style object untuk prop contentStyle di Recharts <Tooltip>
+ */
+export const createChartTooltipStyle = (colors) => ({
+  background: colors.modalBg,
+  backdropFilter: "blur(28px)",
+  WebkitBackdropFilter: "blur(28px)",
+  border: `1px solid ${colors.modalBorder}`,
+  borderRadius: 10,
+  color: colors.text,
+  fontSize: 12,
+  boxShadow: colors.glassShadow,
+});
+
+/**
+ * Warna bar per periode: palet 5 tema -> 10 ekstra -> HSL golden-angle.
+ */
+export function periodColorPicker(colors) {
+  const BASE = ["gold", "mint", "violet", "blue", "coral"];
+  const EXTRA = ["#F472B6", "#38BDF8", "#A3E635", "#FB923C", "#818CF8", "#2DD4BF", "#E879F9", "#FACC15", "#4ADE80", "#FB7185"];
+  return (p, i) => {
+    if (i < BASE.length) return colors[BASE[i]];
+    const x = i - BASE.length;
+    if (x < EXTRA.length) return EXTRA[x];
+    return `hsl(${((x - EXTRA.length) * 137.508) % 360}, 70%, 55%)`;
+  };
+}
+

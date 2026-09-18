@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Trophy, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
+import { Trophy, AlertTriangle } from "lucide-react";
 import { fmtRp, fmtPct } from "../../utils/formatters.js";
 import { ACH_TIERS } from "../../constants/thresholds.js";
 

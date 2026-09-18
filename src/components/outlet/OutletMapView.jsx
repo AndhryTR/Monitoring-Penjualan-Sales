@@ -3,8 +3,8 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
   MapPin, Filter, Search, RotateCcw, AlertTriangle, Calendar,
-  Navigation, Layers, Check, X, Move, Compass, CheckCircle2,
-  Crosshair, Sparkles, AlertCircle,
+  Navigation, Check, X, CheckCircle2,
+  Crosshair, AlertCircle,
 } from "lucide-react";
 import { fmtRp, fmtNum } from "../../utils/formatters.js";
 import { OUTLET_STATUS_META } from "../../constants/thresholds.js";
@@ -556,6 +556,17 @@ export function OutletMapView({
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
     }
   }, [visibleOutlets, colors, isDark, schedule, activePointingOutlet]);
+
+  // Pusatkan peta dan buka popup outlet dari hasil pencarian
+  const handleSelectSearchResult = useCallback((outlet) => {
+    const map = mapInstanceRef.current;
+    if (!map || !outlet || outlet.lat === undefined || outlet.lng === undefined) return;
+    map.setView([outlet.lat, outlet.lng], 16, { animate: true });
+    const marker = markersByCodeRef.current[outlet.outletCode];
+    if (marker) {
+      marker.openPopup();
+    }
+  }, []);
 
   // Reset Zoom / Fit All Outlets
   const handleResetZoom = () => {

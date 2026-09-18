@@ -35,21 +35,6 @@ export function DrilldownButton({ colors, onClick, label = "Outlet" }) {
   );
 }
 
-/* ============================================================================
-   CHART TOOLTIP STYLE
-   Style object untuk tooltip Recharts yang dipakai di beberapa chart. Pusatkan
-   di sini supaya konsisten dan tidak duplikasi.
-============================================================================ */
-export const createChartTooltipStyle = (colors) => ({
-  background: colors.modalBg,
-  backdropFilter: "blur(28px)",
-  WebkitBackdropFilter: "blur(28px)",
-  border: `1px solid ${colors.modalBorder}`,
-  borderRadius: 10,
-  color: colors.text,
-  fontSize: 12,
-  boxShadow: colors.glassShadow,
-});
 
 /* ============================================================================
    ACH BAR CHART TOOLTIP
@@ -87,3 +72,4 @@ export { OutletStatusBadge } from "./OutletStatusBadge.jsx";
 export { TableScrollWrapper } from "./TableScrollWrapper.jsx";
 export { Skeleton, KpiCardSkeleton } from "./Skeleton.jsx";
 export { Modal } from "./Modal.jsx";
+export { AccessRestricted } from "./AccessRestricted.jsx";

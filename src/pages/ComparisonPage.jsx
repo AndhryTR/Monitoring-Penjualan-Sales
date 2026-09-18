@@ -7,19 +7,14 @@ import { BaseSelector } from "../components/ui/BaseSelector.jsx";
 import { PeriodPicker } from "../components/comparison/PeriodPicker.jsx";
 import { MetricToggle } from "../components/comparison/MetricToggle.jsx";
 import { MatrixKpiTotal } from "../components/comparison/MatrixKpiTotal.jsx";
-import { GroupedBarChart, periodColorPicker } from "../components/comparison/GroupedBarChart.jsx";
+import { GroupedBarChart } from "../components/comparison/GroupedBarChart.jsx";
+import { periodColorPicker } from "../styles/globalStyle.js";
 import { MatrixTable } from "../components/comparison/MatrixTable.jsx";
 import {
   computePeriodAggs, buildSalesMatrix, buildGroupMatrix,
   buildOutletMatrix, collectOutletOptions, COMPARISON_METRICS, rowTotal,
 } from "../utils/comparison.js";
 import { saveCompareState, loadCompareState } from "../utils/storage.js";
-import { fmtRp, fmtPct } from "../utils/formatters.js";
-// ⚠️ Sprint 5 / S3: comparisonExport.js lazy-loaded di handler Export (~620KB).
-// captureChartImage dari trendExport.js hanya dipakai untuk chart screenshot —
-// masih static karena trendExport.js juga punya exportTrendExcel/PDF yang
-// dipakai di tempat lain (tidak bisa di-code-split perlu jalan).
-import { captureChartImage } from "../utils/trendExport.js";
 import { computeBaseGrowth } from "../utils/comparisonBase.js";
 
 const EMPTY_ARRAY = [];
@@ -198,7 +193,6 @@ export function ComparisonPage({
 
   // ---- Chart data ----
   const chartData = useMemo(() => {
-    const metricMeta = COMPARISON_METRICS.find((m) => m.key === metric);
     return kpiRows.map((r) => {
       const point = { name: r.name };
       r.cells.forEach((c, i) => {
@@ -245,7 +239,10 @@ export function ComparisonPage({
     try {
       let chartImage = null;
       try {
-        chartImage = chartRef.current ? await captureChartImage(chartRef.current, colors.surface) : null;
+        if (chartRef.current) {
+          const { captureChartImage } = await import("../utils/trendExport.js");
+          chartImage = await captureChartImage(chartRef.current, colors.surface);
+        }
       } catch (e) {
         console.error("Gagal menangkap grafik:", e);
       }

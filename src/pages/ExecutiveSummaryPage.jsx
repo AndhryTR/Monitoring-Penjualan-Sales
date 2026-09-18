@@ -30,7 +30,7 @@ import { OUTLET_DEFAULT_THRESHOLDS } from "../constants/thresholds.js";
      OutletHealthMini, Growth MoM
 ============================================================================ */
 
-export function ExecutiveSummaryPage({ agg, colors, workDays, onDrilldown, onGroupDrilldown, comparison, onNavigate, rawRows, targets, filters, stockSummary }) {
+export function ExecutiveSummaryPage({ agg, colors, workDays, onGroupDrilldown, onNavigate, stockSummary }) {
   // ⚠️ Sprint 16: dataQualityNotes tidak lagi dipakai di sini — InsightBanner
   // hanya ada di Main Report sekarang. Tetap di props untuk backward-compat.
 

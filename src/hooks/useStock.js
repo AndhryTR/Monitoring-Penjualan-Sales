@@ -46,7 +46,9 @@ export function useStock({ depotId, transactions = [], daysCount = 30 }) {
   // ketika async work sedang jalan, kita abort agar stok depot A tidak bocor
   // ke depot B. useRef agar selalu baca nilai terbaru tanpa re-create callback.
   const depotIdRef = useRef(depotId);
-  depotIdRef.current = depotId;
+  useEffect(() => {
+    depotIdRef.current = depotId;
+  }, [depotId]);
 
   // Load active snapshot + history + adjustments on mount / depot change
   useEffect(() => {

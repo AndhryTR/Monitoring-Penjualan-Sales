@@ -18,6 +18,25 @@ export function fmtPct(n) {
   return (n * 100).toFixed(1) + "%";
 }
 
+/**
+ * Menghitung total properti atau nilai dari array objek secara native (pengganti lodash/sumBy).
+ * Menggunakan loop for murni untuk performa maksimal pada dataset ribuan baris.
+ * @param {Array} arr - Array objek
+ * @param {string|Function} iteratee - Nama field atau accessor function
+ * @returns {number}
+ */
+export function sumBy(arr, iteratee) {
+  if (!arr || !arr.length) return 0;
+  const isFn = typeof iteratee === "function";
+  let sum = 0;
+  for (let i = 0; i < arr.length; i++) {
+    const item = arr[i];
+    const val = isFn ? Number(iteratee(item)) : Number(item?.[iteratee]);
+    if (!Number.isNaN(val)) sum += val;
+  }
+  return sum;
+}
+
 function shortenUnit(unit) {
   const u = String(unit || "").trim().toUpperCase();
   if (u === "KARTON") return "KRT";
@@ -172,5 +191,19 @@ export function esc(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/**
+ * Format tanggal & waktu pembuatan laporan (e.g. "17 Sep 2026, 08:30").
+ * @param {Date} [date=new Date()]
+ * @returns {string}
+ */
+export function formatGeneratedAt(date = new Date()) {
+  const d = String(date.getDate()).padStart(2, "0");
+  const mo = MONTHS_ID[date.getMonth()];
+  const y = date.getFullYear();
+  const h = String(date.getHours()).padStart(2, "0");
+  const mi = String(date.getMinutes()).padStart(2, "0");
+  return `${d} ${mo} ${y}, ${h}:${mi}`;
 }
 

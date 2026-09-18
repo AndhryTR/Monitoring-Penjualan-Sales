@@ -41,10 +41,12 @@ export function useFloatingDropdown({
   const [position, setPosition] = useState({ top: 0, left: 0, width: minWidth });
 
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
   const additionalRefsRef = useRef(additionalRefs);
-  additionalRefsRef.current = additionalRefs;
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    additionalRefsRef.current = additionalRefs;
+  });
 
   const updatePosition = useCallback(() => {
     const rawEl = triggerRef.current;

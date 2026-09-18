@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
@@ -27,11 +27,11 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName,
   // reportExcelExport (~1.2MB total) hanya di-load saat user klik Export.
   // Sebelumnya: static import → keduanya ada di initial bundle walau user
   // mungkin tidak pernah klik Export.
-  const handleExportScorecard = async (salesRow) => {
+  const handleExportScorecard = useCallback(async (salesRow) => {
     const { exportSalesScorecardPDF } = await import("../utils/pdfExport.js");
     exportSalesScorecardPDF(salesRow, agg, { workDays, depotName });
     await notifyExportSuccess("Export berhasil", `Scorecard ${salesRow.name}`);
-  };
+  }, [agg, workDays, depotName]);
   const groupRows = useMemo(() => rows.flatMap((sm) => sm.groups.map((g) => ({
     salesName: sm.name, groupName: g.name,
     value: g.realisasiValue, ao: g.realisasiAo,

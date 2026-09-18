@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { createPortal } from "react-dom";
-import { X, Search, Package, TrendingUp, Store } from "lucide-react";
+import { X, Package } from "lucide-react";
 import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
 import { fmtRp, fmtNum } from "../../utils/formatters.js";
 import { DataTable } from "../ui/DataTable.jsx";

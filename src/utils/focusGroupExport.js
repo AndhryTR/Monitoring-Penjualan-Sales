@@ -2,8 +2,8 @@ import * as XLSX from "xlsx-js-style";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { todayLocalDateStr } from "./excelParse.js";
-import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT1, achGradientColor, makeSheetBuilder } from "./xlsxStyle.js";
-import { fmtRp, fmtNum, MONTHS_ID } from "./formatters.js";
+import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT1, achGradientColor, makeSheetBuilder, writeTitleBlock, writeHeaderRow } from "./xlsxStyle.js";
+import { fmtRp, fmtNum, formatGeneratedAt } from "./formatters.js";
 import { getProductBreakdownForGroup } from "./aggregation.js";
 
 /* ============================================================================
@@ -18,28 +18,6 @@ import { getProductBreakdownForGroup } from "./aggregation.js";
    - exportFocusGroupExcel(groupRows, filteredRows, opts)
    - exportFocusGroupPDF(groupRows, filteredRows, opts)
 ============================================================================ */
-
-function formatGeneratedAt() {
-  const now = new Date();
-  const d = String(now.getDate()).padStart(2, "0");
-  const mo = MONTHS_ID[now.getMonth()];
-  const y = now.getFullYear();
-  const h = String(now.getHours()).padStart(2, "0");
-  const mi = String(now.getMinutes()).padStart(2, "0");
-  return `${d} ${mo} ${y}, ${h}:${mi}`;
-}
-
-// ---- Excel helpers (reuse pattern from reportExcelExport.js) ----
-function writeTitleBlock(b, title, subtitle, colCount) {
-  b.setCell(1, 1, title, { bold: true, size: 13, color: XL_COLORS.navy });
-  b.merge(1, 1, 1, colCount);
-  b.setCell(2, 1, subtitle, { size: 9, color: "6B7280" });
-  b.merge(2, 1, 2, colCount);
-}
-
-function writeHeaderRow(b, row, labels, fillColor = XL_COLORS.headerCyan) {
-  labels.forEach((label, i) => b.setCell(row, i + 1, label, { bold: true, fill: fillColor, align: "center" }));
-}
 
 // ============================================================================
 //  EXCEL EXPORT — 2 sheet terpisah

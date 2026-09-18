@@ -90,7 +90,6 @@ export class ErrorBoundary extends React.Component {
     // Tidak log ke service eksternal — biarkan caller menambahkan Sentry dll
     // kalau perlu, lewat override componentDidCatch di subclass.
     this.setState({ info });
-    // eslint-disable-next-line no-console
     console.error("[ErrorBoundary] runtime error:", error, info);
   }
 

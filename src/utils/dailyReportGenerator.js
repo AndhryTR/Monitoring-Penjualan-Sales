@@ -1,6 +1,8 @@
 import { fmtRp, fmtNum, fmtPct, fmtCompactRp, formatDateID, esc } from "./formatters.js";
 import { getLastDaySalesMap } from "./aggregation.js";
-import { ACH_TIERS } from "../constants/thresholds.js";
+import { getAchColor } from "../constants/thresholds.js";
+
+export { getAchColor };
 
 /* ============================================================================
    DAILY REPORT GENERATOR (Fitur B3)
@@ -229,19 +231,6 @@ export function buildDailyReportText({
   return lines.join("\n");
 }
 
-/**
- * Mengambil warna font persentase ACH sesuai standar global ACH_TIERS:
- * - ACH >= 1.0 (100%+): mint (hijau)
- * - ACH >= 0.7 (70%-99.9%): gold (kuning)
- * - ACH < 0.7 (<70%): coral (merah)
- * - null/undefined: textMuted
- */
-export function getAchColor(ach, c) {
-  if (ach === null || ach === undefined) return c.textMuted;
-  if (ach >= ACH_TIERS.onPace) return c.mint;
-  if (ach >= ACH_TIERS.warning) return c.gold;
-  return c.coral;
-}
 
 /**
  * Membangun template HTML kartu grafis mini beresolusi tinggi untuk di-render oleh html2canvas.

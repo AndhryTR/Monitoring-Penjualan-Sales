@@ -54,7 +54,9 @@ function rate(metric, value) {
 export function useWebVitals({ onMetric, enabled = true } = {}) {
   const vitalsRef = useRef({ fcp: null, lcp: null, inp: null, cls: null, ttfb: null });
   const onMetricRef = useRef(onMetric);
-  onMetricRef.current = onMetric;
+  useEffect(() => {
+    onMetricRef.current = onMetric;
+  });
 
   useEffect(() => {
     if (!enabled || typeof PerformanceObserver === "undefined") return;

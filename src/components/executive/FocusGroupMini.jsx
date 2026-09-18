@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Crosshair, CheckCircle2, AlertTriangle, XCircle, ChevronRight } from "lucide-react";
+import { Crosshair, ChevronRight } from "lucide-react";
 import { fmtRp, fmtPct } from "../../utils/formatters.js";
 import { ACH_TIERS } from "../../constants/thresholds.js";
 
@@ -109,7 +109,7 @@ export function FocusGroupMini({ focusGroupRows, colors, onGroupDrilldown }) {
 
       {/* Daftar per sales×grup — urut sudah dari aggregation (ACH desc, lalu realisasi) */}
       <div className="max-h-64 overflow-y-auto pr-1">
-        {focusGroupRows.slice(0, 12).map((g, i) => (
+        {focusGroupRows.slice(0, 12).map((g) => (
           <FocusGroupRow
             key={`${g.salesCode}|${g.name}`}
             name={g.name}

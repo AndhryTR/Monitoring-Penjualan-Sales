@@ -3,7 +3,7 @@ import { dateStrToLocalDate, todayLocalDateStr } from "./excelParse.js";
 // ⚠️ Sprint 4 / Q1: XL_* constants + achGradientColor dipusatkan ke
 // utils/xlsxStyle.js supaya tidak duplikat di 4 file export. SetCell tetap
 // inline di sini karena pattern-nya spesifik (ada `blank` helper).
-import { XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT, XL_COLORS, XL_TIER_FILL, achGradientColor, sanitizeFilename } from "./xlsxStyle.js";
+import { XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT, XL_COLORS, XL_TIER_FILL, achGradientColor, sanitizeFilename, makeSheetBuilder } from "./xlsxStyle.js";
 
 /* ============================================================================
    EXCEL EXPORT
@@ -25,30 +25,8 @@ export const XL_NUMFMT_PCT1 = XL_NUMFMT_PCT;
 
 export function exportToExcel(agg, targets, opts) {
   const { workDays, depotName } = opts || {};
-  const ws = {};
-  const merges = [];
-  let lastRow = 0;
-
-  const setCell = (r, c, value, style = {}) => {
-    const ref = XLSX.utils.encode_cell({ r: r - 1, c: c - 1 });
-    const isNum = typeof value === "number";
-    const cellObj = { v: value === null || value === undefined ? "" : value, t: isNum ? "n" : (value instanceof Date ? "d" : "s") };
-    if (value instanceof Date) cellObj.t = "d";
-    const s = {
-      font: { bold: !!style.bold, sz: style.size || 10, name: "Calibri", color: { rgb: style.color || "000000" } },
-      alignment: { horizontal: style.align || (isNum ? "right" : "left"), vertical: "center", wrapText: true },
-    };
-    if (style.border !== false) {
-      s.border = { top: { style: "thin", color: { rgb: "D9D9D9" } }, bottom: { style: "thin", color: { rgb: "D9D9D9" } },
-        left: { style: "thin", color: { rgb: "D9D9D9" } }, right: { style: "thin", color: { rgb: "D9D9D9" } } };
-    }
-    if (style.fill) s.fill = { patternType: "solid", fgColor: { rgb: style.fill } };
-    if (style.numFmt) s.numFmt = style.numFmt;
-    cellObj.s = s;
-    ws[ref] = cellObj;
-    if (r > lastRow) lastRow = r;
-  };
-  const merge = (r1, c1, r2, c2) => merges.push({ s: { r: r1 - 1, c: c1 - 1 }, e: { r: r2 - 1, c: c2 - 1 } });
+  const b = makeSheetBuilder();
+  const { setCell, merge, finalize } = b;
   const blank = (r, cols) => cols.forEach((c) => setCell(r, c, ""));
 
   // ---- blok info header ----
@@ -171,9 +149,7 @@ export function exportToExcel(agg, targets, opts) {
     merge(noteRow, 2, noteRow, 14);
   }
 
-  ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastRow - 1, c: 13 } });
-  ws["!merges"] = merges;
-  ws["!cols"] = [4, 22, 15, 8, 15, 8, 10, 8, 15, 8, 22, 10, 11, 9].map((w) => ({ wch: w }));
+  const ws = finalize([4, 22, 15, 8, 15, 8, 10, 8, 15, 8, 22, 10, 11, 9]);
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Laporan");

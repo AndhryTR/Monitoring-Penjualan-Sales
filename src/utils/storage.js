@@ -116,7 +116,7 @@ export function clearSettings() {
   try {
     window.localStorage.removeItem(SETTINGS_KEY);
     return true;
-  } catch (e) {
+  } catch {
     return false;
   }
 }
@@ -158,7 +158,7 @@ export function clearCompareState() {
   try {
     window.localStorage.removeItem(COMPARE_KEY);
     return true;
-  } catch (e) {
+  } catch {
     return false;
   }
 }
@@ -198,7 +198,7 @@ export function clearHistory() {
   try {
     window.localStorage.removeItem(HISTORY_KEY);
     return true;
-  } catch (e) {
+  } catch {
     return false;
   }
 }
@@ -264,7 +264,7 @@ export async function clearSession() {
     });
     db.close();
     return true;
-  } catch (e) {
+  } catch {
     return false;
   }
 }

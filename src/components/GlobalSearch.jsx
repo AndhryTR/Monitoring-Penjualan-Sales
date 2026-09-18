@@ -2,10 +2,10 @@ import { useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   Search, X, UserRound, Store, Package, Boxes,
-  CornerDownLeft, ArrowUp, ArrowDown,
+  CornerDownLeft,
 } from "lucide-react";
 import { useScrollLock, useEscapeKey, useFocusTrap } from "../hooks/useModalA11y.js";
-import { fmtRp, fmtNum } from "../utils/formatters.js";
+import { fmtNum } from "../utils/formatters.js";
 
 /* ============================================================================
    GLOBAL SEARCH — Command Palette (Cmd+K / Ctrl+K)

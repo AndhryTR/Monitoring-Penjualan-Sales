@@ -1,7 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import sumBy from "lodash/sumBy";
-import { fmtRp, fmtNum, fmtPct, MONTHS_ID, formatDateID } from "./formatters.js";
+import { fmtRp, fmtNum, fmtPct, MONTHS_ID, formatDateID, sumBy } from "./formatters.js";
 import { ACH_TIERS } from "../constants/thresholds.js";
 
 /* ============================================================================

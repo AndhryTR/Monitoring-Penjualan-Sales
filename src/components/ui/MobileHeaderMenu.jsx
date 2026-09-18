@@ -25,7 +25,7 @@ import { useEscapeKey, useFocusTrap, useScrollLock } from "../../hooks/useModalA
 export function MobileHeaderMenu({
   colors, theme,
   sessionUser, syncState = "idle",
-  onOpenSettings, onOpenLogin, onLogout, onOpenBackup,
+  onOpenSettings, onOpenLogin, _onLogout, onOpenBackup,
   onOpenSearch, searchDisabled,
   onStartSlideshow, slideshowDisabled,
   onOpenHistory, historyDisabled,

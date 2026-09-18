@@ -1,8 +1,7 @@
 import { useMemo } from "react";
-import sumBy from "lodash/sumBy";
 import { normalizeHeader, dateStrToLocalDate, effectiveKartonQty } from "./excelParse.js";
 import { ALERT_MIN_DAYS } from "../constants/thresholds.js";
-import { MONTHS_ID_FULL } from "./formatters.js";
+import { MONTHS_ID_FULL, sumBy } from "./formatters.js";
 
 /* ============================================================================
    AGGREGATION

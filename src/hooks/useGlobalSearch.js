@@ -26,8 +26,43 @@ import { fmtCompactRp, fmtCompactNum } from "../utils/formatters.js";
 const MAX_PER_CATEGORY = 5;
 const MAX_TOTAL = 20;
 
+/**
+ * Helper pencocokan berbobot (exact > starts-with > contains).
+ * Digunakan baik oleh UI Global Search maupun AI Tools (cariOutlet, cariProduk, detailSales).
+ *
+ * @param {Array} items - Daftar item yang memiliki properti `searchTarget` (string huruf kecil)
+ * @param {string} query - Kata kunci pencarian
+ * @param {number} limit - Maksimal hasil yang dikembalikan
+ * @returns {Array} Item yang cocok terurut berdasarkan relevansi
+ */
+export function matchRanked(items, query, limit = MAX_PER_CATEGORY) {
+  const q = String(query ?? "").trim().toLowerCase();
+  if (!q) return [];
+
+  const exact = [];
+  const starts = [];
+  const contains = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const target = item.searchTarget || (item.name ? (item.name + " " + (item.code || "")).toLowerCase() : "");
+    if (!target) continue;
+
+    if (target === q || (item.code && String(item.code).toLowerCase() === q)) {
+      exact.push(item);
+    } else if (target.startsWith(q) || (item.code && String(item.code).toLowerCase().startsWith(q))) {
+      starts.push(item);
+    } else if (target.includes(q)) {
+      contains.push(item);
+    }
+  }
+
+  return [...exact, ...starts, ...contains].slice(0, limit);
+}
+
 export function useGlobalSearch({ targets, rawRows, agg }) {
   const [query, setQuery] = useState("");
+
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   // 1. Sales index: hanya dibangun ulang jika konfigurasi target sales berubah
@@ -148,20 +183,8 @@ export function useGlobalSearch({ targets, rawRows, agg }) {
 
     const matched = [];
     const addMatches = (items) => {
-      // Priority: exact > starts-with > contains
-      const exact = [];
-      const starts = [];
-      const contains = [];
-
-      items.forEach((item) => {
-        if (item.searchTarget === q) exact.push(item);
-        else if (item.searchTarget.startsWith(q)) starts.push(item);
-        else if (item.searchTarget.includes(q)) contains.push(item);
-      });
-
-      [...exact, ...starts, ...contains].slice(0, MAX_PER_CATEGORY).forEach((item) => {
-        matched.push(item);
-      });
+      const found = matchRanked(items, q, MAX_PER_CATEGORY);
+      matched.push(...found);
     };
 
     addMatches(index.sales);
@@ -170,6 +193,7 @@ export function useGlobalSearch({ targets, rawRows, agg }) {
     addMatches(index.groups);
 
     return matched.slice(0, MAX_TOTAL);
+
   }, [query, index]);
 
   // ---- Keyboard navigation ----

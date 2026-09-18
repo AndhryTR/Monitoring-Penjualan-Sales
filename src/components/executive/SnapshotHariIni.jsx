@@ -17,6 +17,17 @@ import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
 
    Data source: agg.filteredRows + agg.daily + agg.meta.lastDate + targets
 ============================================================================ */
+function DeltaIndicator({ delta, isMoney, colors }) {
+  if (delta === 0) return <span className="flex items-center gap-0.5 text-xs" style={{ color: colors.textMuted }}><Minus size={11} /> sama</span>;
+  const isPos = delta > 0;
+  return (
+    <span className="flex items-center gap-0.5 text-xs font-semibold" style={{ color: isPos ? colors.mint : colors.coral }}>
+      {isPos ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
+      {isMoney ? (isPos ? "+" : "") + fmtRp(Math.abs(delta)) : (isPos ? "+" : "") + fmtNum(Math.abs(delta))}
+    </span>
+  );
+}
+
 export function SnapshotHariIni({ agg, workDays, colors }) {
   const { filteredRows, daily, meta } = agg;
   const lastDate = meta?.lastDate;
@@ -94,17 +105,6 @@ export function SnapshotHariIni({ agg, workDays, colors }) {
     );
   }
 
-  const DeltaIndicator = ({ delta, isMoney }) => {
-    if (delta === 0) return <span className="flex items-center gap-0.5 text-xs" style={{ color: colors.textMuted }}><Minus size={11} /> sama</span>;
-    const isPos = delta > 0;
-    return (
-      <span className="flex items-center gap-0.5 text-xs font-semibold" style={{ color: isPos ? colors.mint : colors.coral }}>
-        {isPos ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
-        {isMoney ? (isPos ? "+" : "") + fmtRp(Math.abs(delta)) : (isPos ? "+" : "") + fmtNum(Math.abs(delta))}
-      </span>
-    );
-  };
-
   return (
     <div>
       {/* Section label */}
@@ -130,7 +130,7 @@ export function SnapshotHariIni({ agg, workDays, colors }) {
           <div className="mono text-xl font-bold" style={{ color: colors.mint }}>{fmtRp(stats.lastDayValue)}</div>
           <div className="flex items-center justify-between mt-2">
             <span className="text-[11px]" style={{ color: colors.textMuted }}>vs kemarin</span>
-            <DeltaIndicator delta={stats.valueDelta} isMoney />
+            <DeltaIndicator delta={stats.valueDelta} isMoney colors={colors} />
           </div>
         </div>
 
@@ -145,7 +145,7 @@ export function SnapshotHariIni({ agg, workDays, colors }) {
           <div className="mono text-xl font-bold" style={{ color: colors.violet }}>{fmtNum(stats.lastDayOutlets)}</div>
           <div className="flex items-center justify-between mt-2">
             <span className="text-[11px]" style={{ color: colors.textMuted }}>vs kemarin</span>
-            <DeltaIndicator delta={stats.aoDelta} />
+            <DeltaIndicator delta={stats.aoDelta} colors={colors} />
           </div>
         </div>
 

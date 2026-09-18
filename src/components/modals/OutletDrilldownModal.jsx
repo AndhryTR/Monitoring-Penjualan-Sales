@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Store, X, Search } from "lucide-react";
-import sumBy from "lodash/sumBy";
 import { fmtRp, fmtNum } from "../../utils/formatters.js";
 import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
 
@@ -24,7 +23,7 @@ export function OutletDrilldownModal({ isOpen, onClose, title, subtitle, outlets
   const filteredOutlets = query.trim()
     ? outlets.filter((o) => String(o.outletName || "").toLowerCase().includes(query.trim().toLowerCase()))
     : outlets;
-  const totalValue = sumBy(filteredOutlets, "value");
+  const totalValue = filteredOutlets.reduce((acc, o) => acc + (o.value || 0), 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md sm-fadein">

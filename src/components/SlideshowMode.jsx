@@ -1,9 +1,8 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Play, Pause, X, ChevronLeft, ChevronRight,
-  RefreshCw, Clock, Wifi,
+  Clock,
 } from "lucide-react";
-import { fmtNum } from "../utils/formatters.js";
 import { THEMES } from "../constants/colors.js";
 import { useScrollLock } from "../hooks/useModalA11y.js";
 
@@ -36,7 +35,7 @@ const TAB_LABELS = {
 export function SlideshowMode({
   isActive, isPlaying, currentTab, currentTabIndex, timeLeft,
   activeTabs, tabDuration, progress,
-  start, stop, togglePlayPause, nextTab, prevTab,
+  _start, stop, togglePlayPause, nextTab, prevTab,
   scrollContainerRef,
   colors,
   // Page render props

@@ -1,5 +1,3 @@
-import sumBy from "lodash/sumBy";
-import { effectiveKartonQty } from "./excelParse.js";
 import { computeAggregates } from "./aggregation.js";
 import { MONTHS_ID_FULL } from "./formatters.js";
 
@@ -64,7 +62,7 @@ export function computePeriodAggs(rawRows, targets, salesCodes, periods, workDay
    muncul di sebagian periode tetap kelihatan). Kolom = periode. Metrik per sel
    = value / ao / qty / ach / deviasi.
 ---------------------------------------------------------------------------- */
-export function buildSalesMatrix(periodAggs, selectedSalesCodes, workDays) {
+export function buildSalesMatrix(periodAggs, selectedSalesCodes, _workDays) {
   const selection = (selectedSalesCodes || []).filter(Boolean);
   // Baris = sales terpilih. Kalau belum ada pilihan, tampilkan semua sales
   // yang muncul di periode terpilih (view awal). Begitu user memilih, baris

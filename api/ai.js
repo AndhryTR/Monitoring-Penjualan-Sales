@@ -25,10 +25,20 @@ export default async function handler(req, res) {
     return json(res, 413, { error: "Request AI terlalu besar." });
   }
 
-  const { model, messages } = req.body || {};
+  const { model, messages, tools, tool_choice } = req.body || {};
   if (typeof model !== "string" || !model.trim() || !Array.isArray(messages)) {
     return json(res, 400, { error: "model dan messages wajib diisi." });
   }
+
+  const isStream = Boolean(req.body?.stream);
+  const upstreamBody = {
+    model: model.trim(),
+    messages,
+    stream: isStream,
+    ...(Array.isArray(tools)
+      ? { tools, tool_choice: tool_choice || "auto" }
+      : !isStream ? { response_format: { type: "json_object" } } : {}),
+  };
 
   try {
     const upstream = await globalThis.fetch(`${baseURL}/chat/completions`, {
@@ -37,17 +47,29 @@ export default async function handler(req, res) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model: model.trim(),
-        messages,
-        stream: false,
-        response_format: { type: "json_object" },
-      }),
+      body: JSON.stringify(upstreamBody),
     });
+
+    if (isStream && upstream.body) {
+      res.writeHead(upstream.status, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      });
+      const reader = upstream.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+      return res.end();
+    }
+
     const text = await upstream.text();
     res.status(upstream.status).setHeader("Content-Type", upstream.headers.get("content-type") || "application/json");
     return res.send(text);
   } catch (error) {
     return json(res, 502, { error: `AI upstream tidak dapat dijangkau: ${error.message}` });
   }
+
 }

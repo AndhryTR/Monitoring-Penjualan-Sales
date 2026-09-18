@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { computeAggregates, matchFocus } from "../utils/aggregation.js";
 
 
@@ -142,5 +142,8 @@ export function useAggregatesWorker(rows, targets, filters, workDays) {
     };
   }, []);
 
-  return { ...state.value, aggregationLoading: state.loading, aggregationError: state.error };
+  return useMemo(
+    () => ({ ...state.value, aggregationLoading: state.loading, aggregationError: state.error }),
+    [state.value, state.loading, state.error]
+  );
 }

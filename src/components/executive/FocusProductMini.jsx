@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { Crosshair, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
-import { fmtNum, fmtPct } from "../../utils/formatters.js";
+import { Crosshair, CheckCircle2, XCircle } from "lucide-react";
+import { fmtPct } from "../../utils/formatters.js";
 
 /* ============================================================================
    FocusProductMini — Ringkasan status produk fokus:
@@ -27,7 +27,7 @@ function FocusStackedBar({ onTrack, atRisk, critical, total, colors }) {
 function FocusItem({ name, salesName, pct, isBest, colors }) {
   const color = pct >= 1 ? colors.mint : pct >= 0.5 ? colors.gold : colors.coral;
   return (
-    <div className="flex items-center gap-2 py-1">
+    <div className="flex items-center gap-2 py-1" title={salesName ? `${name} (${salesName})` : name}>
       {isBest ? (
         <CheckCircle2 size={12} className="shrink-0" style={{ color: colors.mint }} />
       ) : (

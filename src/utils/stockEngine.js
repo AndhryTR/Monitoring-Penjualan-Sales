@@ -196,7 +196,7 @@ export function computeStockMetrics(stockMap, salesByProduct = {}, _workDays = 2
  * @param {number} daysCount - days in period
  * @returns {StockSummary}
  */
-export function computeStockSummary(stockMap, salesByProduct = {}, daysCount = 30) {
+export function computeStockSummary(stockMap, salesByProduct = {}, _daysCount = 30) {
   if (!stockMap.size) return null;
 
   let totalQty = 0;
@@ -251,7 +251,7 @@ export function computeStockSummary(stockMap, salesByProduct = {}, daysCount = 3
  * @param {number} daysCount - number of days in period (for avg daily)
  * @returns {Object} { productCode -> { totalQty, avgDailyQty, daysWithData } }
  */
-export function computeSalesByProduct(transactions, daysCount = 30, snapshotDate = null) {
+export function computeSalesByProduct(transactions, _daysCount = 30, snapshotDate = null) {
   const map = {};
   if (!transactions || !transactions.length) return map;
 

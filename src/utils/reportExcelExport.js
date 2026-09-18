@@ -1,8 +1,7 @@
 import * as XLSX_MODULE from "xlsx-js-style";
 const XLSX = XLSX_MODULE.default || XLSX_MODULE;
 import { todayLocalDateStr } from "./excelParse.js";
-// ⚠️ Sprint 4 / Q1: import langsung dari xlsxStyle.js (sebelumnya dari
-import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT1, achGradientColor, makeSheetBuilder } from "./xlsxStyle.js";
+import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT1, achGradientColor, makeSheetBuilder, writeTitleBlock, writeHeaderRow } from "./xlsxStyle.js";
 import { getStoredSchedule, DAY_LABELS, DAY_COLORS } from "./visitScheduleStorage.js";
 
 /* ============================================================================
@@ -12,19 +11,6 @@ import { getStoredSchedule, DAY_LABELS, DAY_COLORS } from "./visitScheduleStorag
    baru. Style (header fill, border, gradient ACH) reuse dari xlsxStyle.js
    supaya semua file export terasa konsisten satu sama lain.
 ============================================================================ */
-
-// makeSheetBuilder di-import dari utils/xlsxStyle.js (Sprint 4 / Q1).
-
-function writeTitleBlock(b, title, subtitle, colCount) {
-  b.setCell(1, 1, title, { bold: true, size: 13, color: XL_COLORS.navy });
-  b.merge(1, 1, 1, colCount);
-  b.setCell(2, 1, subtitle, { size: 9, color: "6B7280" });
-  b.merge(2, 1, 2, colCount);
-}
-
-function writeHeaderRow(b, row, labels, fillColor = XL_COLORS.headerCyan) {
-  labels.forEach((label, i) => b.setCell(row, i + 1, label, { bold: true, fill: fillColor, align: "center" }));
-}
 
 /* ---------------------------------------------------------------------------
    1. SALES REPORT — 2 sheet: Per Grup, Total vs Hari Terakhir

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  AlertTriangle, CheckCircle2, Plus, Minus, X, FileSpreadsheet, PackageX,
+  AlertTriangle, CheckCircle2, Plus, X, FileSpreadsheet, PackageX,
 } from "lucide-react";
 import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
 import { fmtRp, fmtNum } from "../../utils/formatters.js";
@@ -37,7 +37,6 @@ export function StockImportPreview({
   const { items = [], summary = {}, warnings = [] } = diffResult || {};
   const hasDiff = !!diffResult && !isFirstUpload;
   const hasWarnings = warnings.length > 0;
-  const hasAnomalies = (summary.anomalousProducts || 0) > 0;
 
   const significantItems = items.filter((i) => i.isAnomalous);
   const newItems = items.filter((i) => i.type === "new");

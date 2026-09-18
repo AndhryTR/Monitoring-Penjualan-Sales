@@ -9,7 +9,8 @@ import { fmtRp, fmtNum } from "../utils/formatters.js";
 import { computeOutletAnalysis } from "../utils/aggregation.js";
 import { KpiCard } from "../components/KpiCard.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
-import { SectionTitle, createChartTooltipStyle } from "../components/ui/index.jsx";
+import { SectionTitle } from "../components/ui/index.jsx";
+import { createChartTooltipStyle } from "../styles/globalStyle.js";
 // ⚠️ Sprint 5 / S3: reportExcelExport.js lazy-loaded di handler Export.
 import { VisitPatternModal } from "../components/modals/VisitPatternModal.jsx";
 import { OutletMapView } from "../components/outlet/OutletMapView.jsx";
@@ -67,11 +68,11 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
     [agg.filteredRows, agg.meta, thresholds]
   );
 
-  const chartData = [
+  const chartData = useMemo(() => [
     { name: "Aktif", value: summary.active, fill: colors.mint },
     { name: "Berisiko", value: summary.atRisk, fill: colors.gold },
     { name: "Dormant", value: summary.dormant, fill: colors.coral },
-  ];
+  ], [summary.active, summary.atRisk, summary.dormant, colors.mint, colors.gold, colors.coral]);
 
   return (
     <div className="sm-page-enter">

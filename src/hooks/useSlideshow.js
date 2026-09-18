@@ -18,7 +18,6 @@ const DEFAULT_TABS = [
 ];
 
 const DEFAULT_TAB_DURATION = 30; // detik
-const SCROLL_DELAY_RATIO = 0.5; // scroll setelah 50% durasi tab
 
 export function useSlideshow({
   enabledTabs = DEFAULT_TABS,
@@ -99,19 +98,6 @@ export function useSlideshow({
     setCurrentTabIndex(prev => (prev - 1 + activeTabs.length) % activeTabs.length);
     setTimeLeft(tabDuration);
   }, [activeTabs.length, tabDuration]);
-
-  // ---- Auto-scroll ke bawah ----
-  const scrollToBottom = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-  }, []);
-
-  const scrollToTop = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    container.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
 
   // ---- Main effect: auto-rotate + tick + smooth rAF scroll ----
   // ⚠️ Sprint 17e: ganti setTimeout scrollToBottom dengan requestAnimationFrame

@@ -696,8 +696,10 @@ function UserOverridesTab({ matrix, updateUserOverride, removeUserOverride, colo
     return () => { cancelled = true; };
   }, []);
 
+  const selectedUserId = selectedUser?.user_id;
+
   useEffect(() => {
-    if (!selectedUser || !supabase) { setUserOverrides({}); return; }
+    if (!selectedUserId || !supabase) { setUserOverrides({}); return; }
     let cancelled = false;
     async function fetchUserOverrides() {
       setLoadingOverrides(true);
@@ -705,7 +707,7 @@ function UserOverridesTab({ matrix, updateUserOverride, removeUserOverride, colo
         const { data, error } = await supabase
           .from("user_permission_overrides")
           .select("*")
-          .eq("user_id", selectedUser.user_id);
+          .eq("user_id", selectedUserId);
         if (!cancelled) {
           if (!error && data) {
             const map = {};
@@ -725,7 +727,7 @@ function UserOverridesTab({ matrix, updateUserOverride, removeUserOverride, colo
     }
     fetchUserOverrides();
     return () => { cancelled = true; };
-  }, [selectedUser?.user_id]);
+  }, [selectedUserId]);
 
   const handleSetOverride = useCallback(
     async (permId, isGranted) => {
@@ -1284,13 +1286,13 @@ const SUB_TABS = [
  */
 export function SuperuserAdminPage({
   colors,
-  userRole,
+  userRole: _userRole,
   sessionUser,
-  canAccess,
+  canAccess: _canAccess,
   permissions: {
     matrix,
-    overrides,
-    isSuperuser,
+    overrides: _overrides,
+    isSuperuser: _isSuperuser,
     updateMatrixRow,
     updateUserOverride,
     removeUserOverride,

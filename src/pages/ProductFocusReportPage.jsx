@@ -17,7 +17,7 @@ import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
      kartu progress per sales×grup + tabel detail. ACH pakai target grup
      existing (value Rp), bukan target baru.
 ============================================================================ */
-export function ProductFocusReportPage({ agg, colors, onDrilldown, onGroupDrilldown, depotName, filteredRows }) {
+export function ProductFocusReportPage({ agg, colors, onDrilldown, onGroupDrilldown }) {
   const [viewMode, setViewMode] = useState("group"); // "product" | "group" — default group (halaman utama)
   const [focusFilter, setFocusFilter] = useState([]);
 

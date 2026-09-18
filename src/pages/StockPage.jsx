@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useEffect, useCallback } from "react";
 import {
   Package, Upload, AlertTriangle, TrendingDown, Clock, History,
 } from "lucide-react";
@@ -6,6 +6,8 @@ import { fmtRp, fmtNum, fmtMixedUnits } from "../utils/formatters.js";
 import { KpiCard } from "../components/KpiCard.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle } from "../components/ui/index.jsx";
+import { exportStockExcel } from "../utils/stockExport.js";
+import { notifyExportSuccess, notifyError } from "../utils/notifyExport.js";
 
 /* ============================================================================
    STOCK PAGE — Sprint 19 / Stock Module
@@ -18,10 +20,19 @@ import { SectionTitle } from "../components/ui/index.jsx";
    - Stale warning: snapshot > 7 hari
    - Empty state: belum ada data stok
    - Upload button: trigger file input di parent
+   - Export Excel: terintegrasi ke tombol export global
 ============================================================================ */
-export function StockPage({ stockData, colors, onUploadStock, filters }) {
+export function StockPage({
+  stockData,
+  colors,
+  onUploadStock,
+  filters,
+  depotName = "",
+  registerTabExport,
+  unregisterTabExport,
+}) {
   const {
-    loading, uploading, activeSnapshot, stockMetrics, stockSummary, snapshotHistory, adjustments,
+    loading, uploading, activeSnapshot, stockMetrics, snapshotHistory, adjustments,
   } = stockData;
 
   const filteredStock = useMemo(() => {
@@ -29,6 +40,29 @@ export function StockPage({ stockData, colors, onUploadStock, filters }) {
     if (!groups.length) return stockMetrics || [];
     return (stockMetrics || []).filter((product) => groups.includes(product.group));
   }, [stockMetrics, filters?.groups]);
+
+  // Handler ekspor excel untuk tombol Export Global
+  const handleExportExcel = useCallback(() => {
+    try {
+      exportStockExcel(filteredStock, {
+        depotName,
+        snapshotDate: activeSnapshot?.snapshotDate,
+      });
+      notifyExportSuccess("Export berhasil", "Stok Barang (Excel)");
+    } catch (err) {
+      console.error("Export stok gagal:", err);
+      notifyError("Export stok gagal", err?.message || String(err));
+    }
+  }, [filteredStock, depotName, activeSnapshot?.snapshotDate]);
+
+  // Daftarkan ke tombol Export Global di navbar/toolbar atas
+  useEffect(() => {
+    registerTabExport?.("stock", {
+      onExportExcel: handleExportExcel,
+      disabled: !filteredStock || filteredStock.length === 0,
+    });
+    return () => unregisterTabExport?.("stock");
+  }, [registerTabExport, unregisterTabExport, handleExportExcel, filteredStock]);
 
   // Compute days since last upload (for stale warning)
   const daysSinceUpload = useMemo(() => {

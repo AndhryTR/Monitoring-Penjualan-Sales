@@ -2,17 +2,13 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from "recharts";
-import { TrendingUp, History, Users, Wallet, Sparkles, Download, ChevronDown, FileSpreadsheet, FileText } from "lucide-react";
+import { TrendingUp, History, Users, Wallet, Sparkles } from "lucide-react";
 import { fmtRp, fmtNum, fmtPct, fmtCompactNum } from "../../utils/formatters.js";
 import { notifyExportSuccess, notifyError } from "../../utils/notifyExport.js";
-import { SectionTitle, createChartTooltipStyle, GrowthBadge, TableScrollWrapper } from "../ui/index.jsx";
+import { SectionTitle, GrowthBadge, TableScrollWrapper } from "../ui/index.jsx";
+import { createChartTooltipStyle } from "../../styles/globalStyle.js";
 import { MultiSelect } from "../ui/MultiSelect.jsx";
 import { ACH_TIERS, MAX_DEFAULT_TREND_LINES } from "../../constants/thresholds.js";
-// ⚠️ Sprint 5 / S3: trendExport.js (exportTrendExcel, exportTrendPDF) tidak
-// di-import static — berat (~1.2MB gabung jspdf+xlsx-js-style+html2canvas).
-// captureChartImage tetap static karena dipakai untuk screenshot chart saat
-// export (perlu tersedia sebelum user klik). Export functions lazy-load.
-import { captureChartImage } from "../../utils/trendExport.js";
 import { computeBaseGrowth } from "../../utils/comparisonBase.js";
 import { BaseSelector } from "../ui/BaseSelector.jsx";
 
@@ -47,7 +43,6 @@ function getLineColor(index, colors) {
   if (extraIndex < EXTRA_LINE_COLORS.length) {
     return EXTRA_LINE_COLORS[extraIndex];
   }
-  const total = LINE_COLOR_KEYS.length + EXTRA_LINE_COLORS.length;
   const hue = ((extraIndex - EXTRA_LINE_COLORS.length) * 137.508) % 360;
   return `hsl(${hue}, 70%, 55%)`;
 }
@@ -103,9 +98,9 @@ export function TrendPeriodePage({
     if (!comparisonData || exportBusy) return;
     setExportBusy("excel");
     try {
-      const chartImage = chartRef.current ? await captureChartImage(chartRef.current, colors.surface) : null;
       // ⚠️ Sprint 5 / S3: lazy-load trendExport.js (~1.2MB).
-      const { exportTrendExcel } = await import("../../utils/trendExport.js");
+      const { exportTrendExcel, captureChartImage } = await import("../../utils/trendExport.js");
+      const chartImage = chartRef.current ? await captureChartImage(chartRef.current, colors.surface) : null;
       exportTrendExcel(comparisonData, effectiveSelectedNames, { depotName, chartImage, comparisonBase });
       await notifyExportSuccess("Export berhasil", "Tren Periode (Excel)");
     } catch (e) {
@@ -123,9 +118,9 @@ export function TrendPeriodePage({
     if (!comparisonData || exportBusy) return;
     setExportBusy("pdf");
     try {
-      const chartImage = chartRef.current ? await captureChartImage(chartRef.current, colors.surface) : null;
       // ⚠️ Sprint 5 / S3: lazy-load trendExport.js (~1.2MB).
-      const { exportTrendPDF } = await import("../../utils/trendExport.js");
+      const { exportTrendPDF, captureChartImage } = await import("../../utils/trendExport.js");
+      const chartImage = chartRef.current ? await captureChartImage(chartRef.current, colors.surface) : null;
       exportTrendPDF(comparisonData, effectiveSelectedNames, { depotName, chartImage, comparisonBase });
       await notifyExportSuccess("Export berhasil", "Tren Periode (PDF)");
     } catch (e) {

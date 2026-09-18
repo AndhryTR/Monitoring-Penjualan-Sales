@@ -25,6 +25,7 @@ src-tauri/*.log
 src-tauri/*.nsis
 src-tauri/*.msi
 src-tauri/*.exe
+src-tauri/
 
 # ===== Env & secrets — JANGAN di-commit (berisi URL & anon key Supabase) =====
 .env

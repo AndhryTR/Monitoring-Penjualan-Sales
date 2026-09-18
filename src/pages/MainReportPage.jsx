@@ -14,7 +14,8 @@ import { KpiBigCard } from "../components/KpiBigCard.jsx";
 import { PaceStrip } from "../components/PaceStrip.jsx";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
-import { SectionTitle, DrilldownButton, createChartTooltipStyle } from "../components/ui/index.jsx";
+import { SectionTitle, DrilldownButton } from "../components/ui/index.jsx";
+import { createChartTooltipStyle } from "../styles/globalStyle.js";
 import { ProjectionCard, PeriodComparisonCard } from "../components/cards/index.jsx";
 
 /* ============================================================================
@@ -26,7 +27,7 @@ import { ProjectionCard, PeriodComparisonCard } from "../components/cards/index.
    - Contextual hints ("Pace: X hari", "Perlu Rp X/hari")
    - Card 6 diganti: Target AO → Proyeksi Akhir Bulan (lebih actionable)
 ============================================================================ */
-export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison, projectionMethod, onProjectionMethodChange, _dataQualityNotes, _onNavigate, rawRows, _targets, filters, slideshowMode = false, _hideAlerts = false, loading = false }) {
+export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison, projectionMethod, onProjectionMethodChange, rawRows, filters, slideshowMode = false, loading = false }) {
   const isAggLoading = loading || Boolean(agg?.aggregationLoading && !agg?.totals?.targetValue && !agg?.totals?.realisasiValue);
   const uniqueDaysInData = useMemo(() => new Set((agg?.filteredRows || []).map(r => dateKey(r.date))).size, [agg?.filteredRows]);
   const t = agg?.totals || {};
@@ -35,7 +36,8 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
   // Kumulatif bulanan untuk sparkline Target Value card — agregasi ringan tanpa computeAggregates
   const monthlyCumulative = useMemo(() => {
     if (!rawRows || !rawRows.length) return [];
-    const allowedSales = filters?.sales?.length ? new Set(filters.sales) : null;
+    const salesFilter = filters?.salesCodes || filters?.sales;
+    const allowedSales = salesFilter?.length ? new Set(salesFilter) : null;
     const allowedGroups = filters?.groups?.length ? new Set(filters.groups) : null;
     const monthMap = {};
     for (let i = 0; i < rawRows.length; i++) {
@@ -51,7 +53,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
       .map(([month, value]) => ({ month, value }))
       .sort((a, b) => a.month.localeCompare(b.month))
       .slice(-12);
-  }, [rawRows, filters?.sales, filters?.groups]);
+  }, [rawRows, filters?.salesCodes, filters?.sales, filters?.groups]);
 
   // Daily values untuk sparkline Realisasi card
   const dailyValues = useMemo(() => agg.daily.map(d => d.value), [agg.daily]);

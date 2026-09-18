@@ -86,6 +86,7 @@ export default defineConfig({
           'vendor-pdf': ['jspdf', 'jspdf-autotable', 'html2canvas-pro'],
           'vendor-excel': ['xlsx-js-style'],
           'vendor-icons': ['lucide-react'],
+          'vendor-supabase': ['@supabase/supabase-js'],
         },
       },
     },
