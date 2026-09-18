@@ -552,9 +552,18 @@ export function parseOpenAiResponseText(rawText) {
     }
 
     const content = msg?.content;
-    if (content !== undefined && content !== null) return content;
-    if (data?.text) return data.text;
-    if (data?.response) return data.response;
+    if (content !== undefined && content !== null) {
+      if (typeof content === "string") return content;
+      if (Array.isArray(content)) {
+        return content.map((c) => (typeof c === "string" ? c : c?.text || "")).join("");
+      }
+      return String(content);
+    }
+    if (data?.choices?.[0]?.text !== undefined && data?.choices?.[0]?.text !== null) {
+      return String(data.choices[0].text);
+    }
+    if (data?.text !== undefined && data?.text !== null) return String(data.text);
+    if (data?.response !== undefined && data?.response !== null) return String(data.response);
   } catch {
     // Bukan JSON standar, lanjut ke fallback SSE
   }

@@ -573,11 +573,32 @@ export function AiChatDrawer({
         ? ((s, msgs, _o) => callTauri(s, msgs))
         : aiSettings.mode === "proxy" ? callProxy : callDirect;
       // Tanpa fallback "Terhubung!" — balasan kosong = gagal (sukses palsu dilarang).
+      // Gunakan useTools: false agar AI tidak mencoba memilih tools saat tes ping koneksi.
       const reply = await call(aiSettings, [
         { role: "user", content: "Halo, jawab 'OK' jika terhubung." },
-      ], { timeoutMs: 30000 });
-      if (!String(reply || "").trim()) throw new Error("Respons kosong dari server AI.");
-      setTestResult({ ok: true, msg: `Koneksi sukses! Balasan: "${reply.trim()}"` });
+      ], { timeoutMs: 30000, useTools: false });
+
+      // Ekstrak teks balasan secara aman (menangani string, objek tool call, array, atau objek respons)
+      let replyText = "";
+      if (typeof reply === "string") {
+        replyText = reply;
+      } else if (reply && typeof reply === "object") {
+        if (reply.isNativeToolCall) {
+          replyText = reply.params?.jawaban || reply.ringkasan || `Tool: ${reply.tool}`;
+        } else if (typeof reply.content === "string") {
+          replyText = reply.content;
+        } else if (typeof reply.text === "string") {
+          replyText = reply.text;
+        } else if (typeof reply.response === "string") {
+          replyText = reply.response;
+        } else {
+          replyText = JSON.stringify(reply);
+        }
+      }
+
+      const trimmedReply = replyText.trim();
+      if (!trimmedReply) throw new Error("Respons kosong dari server AI.");
+      setTestResult({ ok: true, msg: `Koneksi sukses! Balasan: "${trimmedReply}"` });
     } catch (e) {
       setTestResult({ ok: false, msg: `Koneksi gagal: ${e.message}` });
     } finally {
