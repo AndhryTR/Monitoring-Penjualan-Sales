@@ -126,7 +126,10 @@ export function buildContext(input = {}) {
       extraSafe[k] = typeof v === "string" ? str(v, 120) : v;
     }
   }
+  const pDari = input.periode?.dari || totals.meta?.firstDate || "";
+  const pSampai = input.periode?.sampai || totals.meta?.lastDate || "";
   return {
+    catatanKonteks: `PENTING: Field total/achGlobal/sales di root adalah filter layar saat ini (${pDari || "awal"} s/d ${pSampai || "akhir"}). Jika user menanyakan data bulan lain (misal September saat layar aktif Agustus), WAJIB gunakan array 'bulanan' atau panggil tool bacaBulanan/queryData dengan parameter 'bulan'.`,
     total: num(input.total ?? totals.realisasiValue ?? totals.total ?? 0, 0),
     targetValue: num(input.targetValue ?? totals.targetValue ?? 0, 0),
     achGlobal: num(input.achGlobal ?? totals.ach ?? 0, 1),
@@ -303,10 +306,11 @@ export const TOOL_SCHEMAS = [
     type: "function",
     function: {
       name: "queryData",
-      description: "Ambil peringkat sales berdasarkan ACH, total omzet, atau nama.",
+      description: "Ambil peringkat sales berdasarkan ACH, total omzet, atau nama. Mendukung filter per bulan spesifik.",
       parameters: {
         type: "object",
         properties: {
+          bulan: { type: "string", description: "Nama atau format bulan tertentu (misal: 'september', 'agustus', '2024-09')" },
           sortBy: { type: "string", enum: ["ach", "total", "nama"], description: "Kriteria pengurutan" },
           order: { type: "string", enum: ["asc", "desc"], description: "Urutan menaik atau menurun" },
           limit: { type: "integer", description: "Jumlah baris (default 5)" },
@@ -319,10 +323,12 @@ export const TOOL_SCHEMAS = [
     type: "function",
     function: {
       name: "bacaBulanan",
-      description: "Ambil deret tren performa penjualan bulanan.",
+      description: "Ambil ringkasan performa bulan spesifik (misal 'september') ATAU deret tren penjualan bulanan.",
       parameters: {
         type: "object",
         properties: {
+          bulan: { type: "string", description: "Nama atau kode bulan yang ingin dicek (misal: 'september', 'agustus', '2024-09')" },
+          bulanTerakhir: { type: "integer", description: "Jumlah deret bulan terakhir (default: semua bulan)" },
           kode: { type: "string", description: "Filter sales tertentu (opsional)" },
         },
       },
@@ -358,10 +364,11 @@ export const TOOL_SCHEMAS = [
     type: "function",
     function: {
       name: "analisis",
-      description: "Ringkasan cepat performa global penjualan dan tim terendah.",
+      description: "Ringkasan cepat performa global penjualan dan tim terendah (bisa per bulan spesifik).",
       parameters: {
         type: "object",
         properties: {
+          bulan: { type: "string", description: "Nama atau kode bulan spesifik (misal: 'september', 'agustus')" },
           rentang: { type: "string", enum: ["semua", "filter"], description: "Cakupan semua data atau filter layar" },
         },
       },
@@ -443,15 +450,23 @@ export const SYSTEM_PROMPT = [
   "    Contoh: \"stok yang menipis atau kritis\" -> {\"tool\":\"cariStok\",\"params\":{\"status\":\"kritis\"},\"ringkasan\":\"Cek barang coverage < 7 hari\"}.",
   "    Contoh: \"sisa stok Beras 5kg\" -> {\"tool\":\"cariStok\",\"params\":{\"q\":\"beras 5kg\"},\"ringkasan\":\"Cek stok Beras 5kg\"}.",
   "  bacaStok: ringkasan global stok (total SKU, habis, kritis, nilai). params: {}.",
-  "",
-  "ANALISIS & TREN:",
-  "  queryData: dukung params {\"sortBy\":\"ach|total|nama\", \"order\":\"asc|desc\", \"limit\":N, \"minAch\":N}.",
+  "ANALISIS & TREN PERIODE:",
+  "  queryData: dukung params {\"sortBy\":\"ach|total|nama\", \"order\":\"asc|desc\", \"limit\":N, \"minAch\":N, \"bulan\":\"nama_atau_kode_bulan\"}.",
   "    Contoh: \"3 sales terendah\" -> {\"tool\":\"queryData\",\"params\":{\"sortBy\":\"ach\",\"order\":\"asc\",\"limit\":3},\"ringkasan\":\"Ambil 3 sales ACH terendah\"}.",
-  "  RENTANG WAKTU: \"3 bulan terakhir\", \"bulan lalu\", \"tren penjualan\" -> tool `bacaBulanan`.",
-  "  analisis: ringkasan global ACH, sales di bawah target. analisisDrop: lebih dalam, cari gap.",
-  "  queryData/analisis tanpa rentang = cakupan SEMUA data (bukan filter layar).",
+  "    Contoh: \"ranking sales bulan september\" -> {\"tool\":\"queryData\",\"params\":{\"bulan\":\"september\",\"sortBy\":\"ach\"},\"ringkasan\":\"Peringkat sales bulan September\"}.",
+  "  PENTING - ATURAN BULAN SPESIFIK (SEPTEMBER, AGUSTUS, DLL):",
+  "    - Bila user menyebutkan nama/kode bulan spesifik (misal: \"bulan september\", \"penjualan agustus\", \"sales terbaik september\"): ",
+  "      * WAJIB gunakan tool `bacaBulanan` dengan params: {\"bulan\": \"nama_bulan\"} ATAU `queryData` dengan params: {\"bulan\": \"nama_bulan\", ...}.",
+  "      * Contoh: \"berapa penjualan bulan september?\" -> {\"tool\":\"bacaBulanan\",\"params\":{\"bulan\":\"september\"},\"ringkasan\":\"Cek penjualan bulan September\"}.",
+  "      * Contoh: \"siapa sales terbaik di bulan september?\" -> {\"tool\":\"bacaBulanan\",\"params\":{\"bulan\":\"september\"},\"ringkasan\":\"Cek sales terbaik bulan September\"}.",
+  "      * JANGAN PERNAH mengambil angka dari root `total` atau `sales` jika periode filter layar berbeda dengan bulan yang ditanya!",
+  "      * Cek selalu array `bulanan` di dalam konteks untuk mencocokkan data bulan terkait.",
+  "  RENTANG TREN WAKTU: \"3 bulan terakhir\", \"tren penjualan\", \"perbandingan antar bulan\" -> tool `bacaBulanan` params: {\"bulanTerakhir\": 3}.",
+  "  analisis: ringkasan global ACH, sales di bawah target. Bisa menerima params: {\"bulan\": \"nama_bulan\"}.",
+  "  analisisDrop: identifikasi sales yang paling drop/merah dan gap target. params: {}.",
+  "  queryData/analisis tanpa rentang & tanpa bulan = cakupan SEMUA data (bukan filter layar).",
   "  Hanya pakai filter layar bila user eksplisit sebut (\"di filter ini\", \"yang tampil\").",
-  "",
+
   "NAVIGASI & FILTER DASHBOARD (memerlukan konfirmasi user sebelum dieksekusi):",
   "  navigasiTab: pindah ke halaman/tab dashboard.",
   "    Tab tersedia: executive (Ringkasan), main (Main Report), sales (Sales Report),",

@@ -97,6 +97,46 @@ function buildProductIndex(rawRows) {
   }));
 }
 
+// ---------- HELPERS PENCARIAN BULAN ----------
+const BULAN_NAMES_MAP = {
+  januari: "01", jan: "01", "1": "01", "01": "01",
+  februari: "02", feb: "02", "2": "02", "02": "02",
+  maret: "03", mar: "03", "3": "03", "03": "03",
+  april: "04", apr: "04", "4": "04", "04": "04",
+  mei: "05", may: "05", "5": "05", "05": "05",
+  juni: "06", jun: "06", "6": "06", "06": "06",
+  juli: "07", jul: "07", "7": "07", "07": "07",
+  agustus: "08", agu: "08", ags: "08", aug: "08", "8": "08", "08": "08",
+  september: "09", sep: "09", "9": "09", "09": "09",
+  oktober: "10", okt: "10", oct: "10", "10": "10",
+  november: "11", nov: "11", "11": "11",
+  desember: "12", des: "12", dec: "12", "12": "12",
+};
+
+export function findMatchingMonth(bulanQuery, bulananList = []) {
+  if (!bulanQuery || !Array.isArray(bulananList) || !bulananList.length) return null;
+  const q = String(bulanQuery).trim().toLowerCase();
+
+  // 1. Cek kecocokan langsung dengan format bulan ("2024-09") atau label ("September 2024")
+  for (const m of bulananList) {
+    const b = String(m.bulan || "").toLowerCase();
+    const l = String(m.label || "").toLowerCase();
+    if (b === q || b.includes(q) || l.includes(q)) {
+      return m;
+    }
+  }
+
+  // 2. Cek kecocokan nama bulan Bahasa Indonesia / Inggris
+  for (const [namaBulan, digit] of Object.entries(BULAN_NAMES_MAP)) {
+    if (q.includes(namaBulan)) {
+      const match = bulananList.find((m) => String(m.bulan || "").endsWith(`-${digit}`));
+      if (match) return match;
+    }
+  }
+
+  return null;
+}
+
 // ---------- READ (pure) ----------
 
 // Obrolan umum — tanpa data, tanpa efek. Jawaban langsung dari params.
@@ -107,6 +147,52 @@ export function chat(_ctx = {}, params = {}) {
 }
 
 export function queryData(ctx = {}, params = {}) {
+  const bulanQuery = params.bulan ?? params.month ?? "";
+  const matchedMonth = bulanQuery ? findMatchingMonth(bulanQuery, ctx.bulanan) : null;
+
+  // Jika spesifik bulan diminta dan ditemukan, gunakan data bulan tersebut
+  if (matchedMonth) {
+    const salesSrc = Array.isArray(matchedMonth.sales) ? matchedMonth.sales : [];
+    let sales = salesSrc.map((s) => ({
+      kode: s.kode ?? s.code ?? s.id ?? "",
+      nama: s.nama ?? s.name ?? "",
+      ach: num(s.ach ?? s.achievement ?? 0, 1),
+      total: num(s.total ?? s.realisasi ?? s.value ?? 0, 0),
+      target: num(s.target ?? 0, 0),
+    }));
+    if (params.minAch != null && Number.isFinite(Number(params.minAch))) {
+      sales = sales.filter((s) => s.ach < Number(params.minAch));
+    }
+    const sortBy = String(params.sortBy ?? "").toLowerCase();
+    const order = String(params.order ?? "desc").toLowerCase() === "asc" ? 1 : -1;
+    if (sortBy === "ach" || sortBy === "total" || sortBy === "nama") {
+      const key = sortBy === "nama" ? "nama" : sortBy;
+      sales = [...sales].sort((a, b) =>
+        key === "nama" ? order * String(a.nama).localeCompare(String(b.nama)) : order * (a[key] - b[key]));
+    }
+    const limit = Math.min(Math.max(num(params.limit ?? 10, 0), 1), 30);
+    const rows = sales.slice(0, limit);
+    return {
+      ok: true,
+      data: {
+        cakupan: `bulan:${matchedMonth.bulan}`,
+        bulan: matchedMonth.bulan,
+        labelBulan: matchedMonth.label,
+        total: num(matchedMonth.total, 0),
+        target: num(matchedMonth.target, 0),
+        achGlobal: matchedMonth.ach,
+        ao: num(matchedMonth.ao, 0),
+        nBaris: num(matchedMonth.nBaris, 0),
+        periode: { bulan: matchedMonth.bulan, label: matchedMonth.label },
+        rows,
+        sortBy: sortBy || null,
+        order: order === 1 ? "asc" : "desc",
+        limit,
+        ringkasan: `Performa bulan ${matchedMonth.label}: Omzet ${num(matchedMonth.total, 0)}, Target ${num(matchedMonth.target, 0)}, ACH ${matchedMonth.ach}%.`,
+      },
+    };
+  }
+
   // Cakupan: "semua" (default — seluruh data tanpa filter tanggal) atau
   // "filter" (hanya bila user eksplisit sebut "di filter ini / yang tampil").
   const cakupan = String(params.rentang ?? params.cakupan ?? "semua").toLowerCase() === "filter" ? "filter" : "semua";
@@ -341,6 +427,35 @@ export function bacaTransaksi(_ctx = {}, params = {}, deps = {}) {
 
 
 export function analisis(ctx = {}, params = {}) {
+  const bulanQuery = params.bulan ?? params.month ?? "";
+  const matchedMonth = bulanQuery ? findMatchingMonth(bulanQuery, ctx.bulanan) : null;
+
+  if (matchedMonth) {
+    const sales = Array.isArray(matchedMonth.sales) ? matchedMonth.sales : [];
+    const ranked = [...sales].sort((a, b) => num(a.ach ?? 0) - num(b.ach ?? 0));
+    const rendah = ranked.filter((s) => num(s.ach ?? 0) < 100).slice(0, 5);
+    const ringkasan =
+      `Bulan ${matchedMonth.label}: ACH ${matchedMonth.ach}%, Total Realisasi Rp ${num(matchedMonth.total, 0)} dari target Rp ${num(matchedMonth.target, 0)}. ` +
+      (rendah.length
+        ? `Sales di bawah target: ${rendah.map((s) => `${str(s.nama ?? s.kode ?? "?", 30)} (${s.ach}%)`).join(", ")}.`
+        : "Semua sales mencapai target.");
+    return {
+      ok: true,
+      data: {
+        cakupan: `bulan:${matchedMonth.bulan}`,
+        bulan: matchedMonth.bulan,
+        labelBulan: matchedMonth.label,
+        total: num(matchedMonth.total, 0),
+        target: num(matchedMonth.target, 0),
+        achGlobal: matchedMonth.ach,
+        ao: num(matchedMonth.ao, 0),
+        nBaris: num(matchedMonth.nBaris, 0),
+        terbawah5: rendah,
+        ringkasan,
+      },
+    };
+  }
+
   // Default cakupan semua (tanpa filter tanggal); "filter" hanya bila eksplisit.
   const cakupan = String(params.rentang ?? params.cakupan ?? "semua").toLowerCase() === "filter" ? "filter" : "semua";
   const src = cakupan === "semua" && ctx.semua && typeof ctx.semua === "object" ? ctx.semua : ctx;
@@ -369,16 +484,54 @@ export function analisis(ctx = {}, params = {}) {
   };
 }
 
-// Deret penjualan per bulan (tanpa filter tanggal) — jawab "3 bulan terakhir",
-// "tren penjualan", perbandingan antar bulan, per sales per bulan.
+// Deret penjualan per bulan (tanpa filter tanggal) — jawab "bulan september",
+// "3 bulan terakhir", "tren penjualan", perbandingan antar bulan, per sales per bulan.
 export function bacaBulanan(ctx = {}, params = {}) {
   const list = Array.isArray(ctx.bulanan) ? ctx.bulanan : [];
   if (!list.length) return { ok: false, reason: "Deret bulanan tak tersedia — upload data transaksi dulu." };
+
+  const bulanQuery = params.bulan ?? params.month ?? "";
+  const matchedMonth = bulanQuery ? findMatchingMonth(bulanQuery, list) : null;
+
+  // Jika spesifik bulan diminta (misal "september", "agustus", "2024-09")
+  if (matchedMonth) {
+    const kode = str(params.kode ?? "", 40).toLowerCase();
+    let salesList = Array.isArray(matchedMonth.sales) ? matchedMonth.sales : [];
+    if (kode) {
+      salesList = salesList.filter((x) =>
+        String(x.kode ?? "").toLowerCase().includes(kode) || String(x.nama ?? "").toLowerCase().includes(kode));
+    }
+    const sortedSales = [...salesList].sort((a, b) => num(b.realisasi ?? b.total ?? 0) - num(a.realisasi ?? a.total ?? 0));
+    return {
+      ok: true,
+      data: {
+        bulan: matchedMonth.bulan,
+        label: matchedMonth.label,
+        total: num(matchedMonth.total, 0),
+        target: num(matchedMonth.target, 0),
+        ach: matchedMonth.ach,
+        ao: num(matchedMonth.ao, 0),
+        nBaris: num(matchedMonth.nBaris, 0),
+        sales: sortedSales,
+        topSales: sortedSales.slice(0, 5),
+        bottomAch: sortedSales.filter((s) => s.ach !== null && s.ach < 100).slice(0, 5),
+        ringkasan: `Bulan ${matchedMonth.label}: Total Realisasi Rp ${num(matchedMonth.total, 0)}, Target Rp ${num(matchedMonth.target, 0)}, ACH ${matchedMonth.ach}%, Active Outlet (AO) ${matchedMonth.ao}.`,
+      },
+    };
+  }
+
+  // Jika meminta deret beberapa bulan terakhir
   const n = Math.min(Math.max(num(params.bulanTerakhir ?? params.n ?? list.length, 0), 1), list.length);
   const potong = list.slice(-n);
   const kode = str(params.kode ?? "", 40).toLowerCase();
   const tren = potong.map((m) => ({
-    bulan: m.bulan, label: m.label, total: m.total, target: m.target, ach: m.ach, ao: m.ao, nBaris: m.nBaris,
+    bulan: m.bulan,
+    label: m.label,
+    total: num(m.total, 0),
+    target: num(m.target, 0),
+    ach: m.ach,
+    ao: num(m.ao, 0),
+    nBaris: num(m.nBaris, 0),
   }));
   const out = { nBulan: n, dari: potong[0]?.bulan ?? null, sampai: potong[potong.length - 1]?.bulan ?? null, tren };
   if (kode) {
