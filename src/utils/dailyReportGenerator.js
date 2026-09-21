@@ -43,6 +43,7 @@ export function buildDailyReportText({
   const {
     topSalesCount = 3,
     includeAttention = true,
+    attentionCount = 4,
     includeCategories = true,
     includeAo = false,
     includeLastDaySales = false,
@@ -160,31 +161,37 @@ export function buildDailyReportText({
   // 5. Perlu Perhatian (Action Needed)
   if (includeAttention) {
     const attentionItems = [];
+    const attentionLimit = attentionCount === "all" ? 999 : Number(attentionCount || 4);
 
-    // Prioritas 1: Critical / Warning dari Smart Alerts
+    // Prioritas 1: Critical / Warning dari Smart Alerts (kecualikan isu teknis kualitas data)
     if (smartAlerts && smartAlerts.length > 0) {
       smartAlerts
-        .filter((a) => a.level === "critical" || a.level === "warning")
-        .slice(0, 3)
+        .filter((a) =>
+          (a.level === "critical" || a.level === "warning") &&
+          a.category !== "data_quality" &&
+          a.targetTab !== "quality" &&
+          !String(a.id || "").includes("data-quality")
+        )
+        .slice(0, attentionLimit)
         .forEach((a) => {
-          attentionItems.push(`• ${a.level === "critical" ? "🚨" : "⚠️"} *${a.title}*: ${a.desc}`);
+          attentionItems.push(`• ${a.level === "critical" ? "🚨" : "⚠️"} *${a.title}*: ${a.message || a.desc}`);
         });
     }
 
-    // Prioritas 2: Fallback jika belum ada dari smart alerts, cari sales yang lagging pace
-    if (attentionItems.length < 2 && salesList.length > 0) {
+    // Prioritas 2: Fallback jika belum mencapai kuota limit dan ada sales lagging pace
+    if (attentionItems.length < attentionLimit && salesList.length > 0) {
       const laggingSales = salesList
         .filter((s) => s.targetValue > 0 && (timePct - (s.ach || 0)) >= 0.15)
-        .sort((a, b) => (a.ach || 0) - (b.ach || 0))
-        .slice(0, 2);
+        .sort((a, b) => (a.ach || 0) - (b.ach || 0));
 
-      laggingSales.forEach((s) => {
-        const gap = ((timePct - (s.ach || 0)) * 100).toFixed(1);
+      for (const s of laggingSales) {
+        if (attentionItems.length >= attentionLimit) break;
         const exists = attentionItems.some((item) => item.includes(s.name));
         if (!exists) {
+          const gap = ((timePct - (s.ach || 0)) * 100).toFixed(1);
           attentionItems.push(`• ⚠️ *${s.name}*: Tertinggal -${gap}% dari pace (ACH ${fmtPct(s.ach)})`);
         }
-      });
+      }
     }
 
     if (attentionItems.length > 0) {
@@ -328,20 +335,35 @@ export function buildDailyReportCardHTML({
   // Attention alerts
   const attentionItems = [];
   if (options.includeAttention !== false) {
+    const attentionCount = options.attentionCount || 4;
+    const attentionLimit = attentionCount === "all" ? 999 : Number(attentionCount);
+
     if (smartAlerts && smartAlerts.length > 0) {
       smartAlerts
-        .filter((a) => a.level === "critical" || a.level === "warning")
-        .slice(0, 2)
-        .forEach((a) => attentionItems.push({ level: a.level, title: a.title, desc: a.desc }));
+        .filter((a) =>
+          (a.level === "critical" || a.level === "warning") &&
+          a.category !== "data_quality" &&
+          a.targetTab !== "quality" &&
+          !String(a.id || "").includes("data-quality")
+        )
+        .slice(0, attentionLimit)
+        .forEach((a) => attentionItems.push({ level: a.level, title: a.title, desc: a.message || a.desc }));
     }
-    if (attentionItems.length === 0 && salesList.length > 0) {
-      const lagging = salesList.find((s) => s.targetValue > 0 && (timePct - (s.ach || 0)) >= 0.15);
-      if (lagging) {
-        attentionItems.push({
-          level: "warning",
-          title: `Tertinggal Pace: ${lagging.name}`,
-          desc: `ACH ${fmtPct(lagging.ach)} (tertinggal dari waktu ${fmtPct(timePct)})`,
-        });
+    if (attentionItems.length < attentionLimit && salesList.length > 0) {
+      const laggingSales = salesList
+        .filter((s) => s.targetValue > 0 && (timePct - (s.ach || 0)) >= 0.15)
+        .sort((a, b) => (a.ach || 0) - (b.ach || 0));
+
+      for (const lagging of laggingSales) {
+        if (attentionItems.length >= attentionLimit) break;
+        const exists = attentionItems.some((item) => item.title?.includes(lagging.name) || item.desc?.includes(lagging.name));
+        if (!exists) {
+          attentionItems.push({
+            level: "warning",
+            title: `Tertinggal Pace: ${lagging.name}`,
+            desc: `ACH ${fmtPct(lagging.ach)} (tertinggal dari waktu ${fmtPct(timePct)})`,
+          });
+        }
       }
     }
   }

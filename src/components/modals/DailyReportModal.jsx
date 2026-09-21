@@ -34,6 +34,7 @@ export function DailyReportModal({
   const [activeTab, setActiveTab] = useState("text"); // 'text' | 'image'
   const [topSalesCount, setTopSalesCount] = useState(3);
   const [includeAttention, setIncludeAttention] = useState(true);
+  const [attentionCount, setAttentionCount] = useState(4); // 2 | 4 | 6 | 'all'
   const [includeCategories, setIncludeCategories] = useState(true);
   const [includeAo, setIncludeAo] = useState(false);
   const [includeLastDaySales, setIncludeLastDaySales] = useState(false);
@@ -50,11 +51,21 @@ export function DailyReportModal({
   const options = useMemo(() => ({
     topSalesCount,
     includeAttention,
+    attentionCount,
     includeCategories,
     includeAo,
     includeLastDaySales,
     customNote,
-  }), [topSalesCount, includeAttention, includeCategories, includeAo, includeLastDaySales, customNote]);
+  }), [topSalesCount, includeAttention, attentionCount, includeCategories, includeAo, includeLastDaySales, customNote]);
+
+  const availableAlertsCount = useMemo(() => {
+    return (smartAlerts || []).filter((a) =>
+      (a.level === "critical" || a.level === "warning") &&
+      a.category !== "data_quality" &&
+      a.targetTab !== "quality" &&
+      !String(a.id || "").includes("data-quality")
+    ).length;
+  }, [smartAlerts]);
 
   // Generate WhatsApp Message Text
   const reportText = useMemo(() => {
@@ -461,15 +472,61 @@ export function DailyReportModal({
 
                 {/* Opsi 2: Checkboxes / Toggles */}
                 <div className="space-y-2.5 pt-1">
-                  <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium select-none">
-                    <input
-                      type="checkbox"
-                      checked={includeAttention}
-                      onChange={(e) => setIncludeAttention(e.target.checked)}
-                      className="rounded text-emerald-500 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Sertakan Sales & Isu Butuh Perhatian</span>
-                  </label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium select-none">
+                      <input
+                        type="checkbox"
+                        checked={includeAttention}
+                        onChange={(e) => setIncludeAttention(e.target.checked)}
+                        className="rounded text-emerald-500 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                      />
+                      <span>Sertakan Peringatan & Isu Butuh Perhatian</span>
+                      {availableAlertsCount > 0 && (
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                          style={{
+                            background: isLight ? "rgba(245, 158, 11, 0.15)" : "rgba(245, 158, 11, 0.2)",
+                            color: isLight ? "#B45309" : "#FBBF24",
+                          }}
+                        >
+                          {availableAlertsCount} terdeteksi
+                        </span>
+                      )}
+                    </label>
+
+                    {includeAttention && (
+                      <div className="pl-6 pt-1 pb-1">
+                        <span className="text-[11px] font-medium block mb-1.5" style={{ color: colors.textMuted }}>
+                          Maksimum Peringatan Ditampilkan:
+                        </span>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {[
+                            { val: 2, label: "2 Isu" },
+                            { val: 4, label: "4 Isu" },
+                            { val: 6, label: "6 Isu" },
+                            { val: "all", label: "Semua" },
+                          ].map((opt) => (
+                            <button
+                              key={opt.val}
+                              type="button"
+                              onClick={() => setAttentionCount(opt.val)}
+                              className={`py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                attentionCount === opt.val
+                                  ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                                  : "border-transparent opacity-75 hover:opacity-100"
+                              }`}
+                              style={{
+                                background: attentionCount === opt.val ? undefined : (isLight ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.07)"),
+                                color: attentionCount === opt.val ? "#FFFFFF" : colors.text,
+                              }}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium select-none">
                     <input
