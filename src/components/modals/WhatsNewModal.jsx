@@ -34,6 +34,9 @@ function getScopeStyle(scope, colors) {
   if (s.includes("pwa") || s.includes("offline")) {
     return { bg: (colors.sky || "#38BDF8") + "20", border: (colors.sky || "#38BDF8") + "44", text: colors.sky || "#38BDF8" };
   }
+  if (s.includes("alert") || s.includes("peringatan")) {
+    return { bg: (colors.coral || "#F43F5E") + "20", border: (colors.coral || "#F43F5E") + "44", text: colors.coral || "#F43F5E" };
+  }
   return { bg: colors.glassFill || "rgba(255,255,255,0.06)", border: colors.glassBorder || "rgba(255,255,255,0.12)", text: colors.textMuted || "#94A3B8" };
 }
 

@@ -27,6 +27,8 @@ const today = new Date().toISOString().split("T")[0];
 const SCOPE_LABELS = {
   ai: "AI",
   report: "Laporan",
+  alerts: "Smart Alerts",
+  alert: "Smart Alerts",
   map: "Peta & Lokasi",
   outlet: "Outlet",
   sales: "Sales & Target",
@@ -41,8 +43,9 @@ const SCOPE_LABELS = {
 function inferScopeFromText(text) {
   if (!text) return null;
   const lower = text.toLowerCase();
+  if (/\b(alerts?|peringatan|anomali)\b/.test(lower)) return "Smart Alerts";
   if (/\b(ai|chat|react|thinking)\b/.test(lower)) return "AI";
-  if (/\b(laporan|report|peringatan)\b/.test(lower)) return "Laporan";
+  if (/\b(laporan|report)\b/.test(lower)) return "Laporan";
   if (/\b(map|peta|koordinat|toko)\b/.test(lower)) return "Peta & Lokasi";
   if (/\b(pwa|offline|sw|service worker)\b/.test(lower)) return "PWA & Offline";
   if (/\b(target|sales)\b/.test(lower)) return "Sales & Target";
@@ -90,7 +93,7 @@ function getGitCommits() {
 }
 
 // Parse pesan commit berdasarkan Conventional Commits
-function parseCommits(commits) {
+function parseCommits(commits, olderHashes = new Set(), olderTitles = new Set()) {
   const features = [];
   const fixes = [];
   const improvements = [];
@@ -103,7 +106,12 @@ function parseCommits(commits) {
     const { hash, subject } = item;
     if (!subject) continue;
 
-    // Abaikan commit merge otomatis atau internal developer
+    // Kritis: Abaikan commit yang sudah pernah tercatat di versi sebelumnya
+    if (hash && olderHashes.has(hash.toLowerCase().trim())) {
+      continue;
+    }
+
+    // Abaikan commit merge otomatis atau commit rilis
     if (/^merge\b/i.test(subject) || /^\d+\.\d+\.\d+$/i.test(subject)) continue;
 
     const match = subject.match(commitRegex);
@@ -121,7 +129,12 @@ function parseCommits(commits) {
     const scope = formatScope(rawScope, rawMessage);
     const message = capitalizeFirst(rawMessage.trim());
 
-    // Deduplikasi pesan identik
+    // Kritis: Abaikan jika pesan perubahan sudah ada di versi lama
+    if (olderTitles.has(message.toLowerCase().trim())) {
+      continue;
+    }
+
+    // Deduplikasi pesan identik di rilis ini
     const dedupeKey = `${type}:${scope}:${message.toLowerCase()}`;
     if (seenMessages.has(dedupeKey)) continue;
     seenMessages.add(dedupeKey);
@@ -163,28 +176,48 @@ function main() {
     }
   }
 
+  // Pisahkan rilis versi lama (versi yang tidak sama dengan currentVersion)
+  const filteredOlder = existingChangelog.filter((rel) => rel.version !== currentVersion);
+
+  // Kumpulkan semua commit hash & judul dari versi-versi lama
+  const olderHashes = new Set();
+  const olderTitles = new Set();
+  for (const rel of filteredOlder) {
+    const allOlderItems = [
+      ...(rel.features || []),
+      ...(rel.fixes || []),
+      ...(rel.improvements || []),
+    ];
+    for (const item of allOlderItems) {
+      if (item.hash) olderHashes.add(item.hash.toLowerCase().trim());
+      if (item.title) olderTitles.add(item.title.toLowerCase().trim());
+    }
+  }
+
   const rawCommits = getGitCommits();
-  const parsed = parseCommits(rawCommits);
+  const parsed = parseCommits(rawCommits, olderHashes, olderTitles);
+
+  const existingCurrent = existingChangelog.find((rel) => rel.version === currentVersion);
 
   const currentRelease = {
     version: currentVersion,
-    date: today,
-    title: `Pembaruan Versi ${currentVersion}`,
+    date: existingCurrent?.date || today,
+    title: existingCurrent?.title || `Pembaruan Versi ${currentVersion}`,
     features: parsed.features,
     fixes: parsed.fixes,
     improvements: parsed.improvements,
   };
 
-  // Simpan rilis saat ini di posisi paling atas, pertahankan riwayat versi lama yang berbeda
-  const filteredOlder = existingChangelog.filter((rel) => rel.version !== currentVersion);
+  // Simpan rilis saat ini di posisi paling atas, pertahankan riwayat versi lama
   const updatedChangelog = [currentRelease, ...filteredOlder];
 
   fs.writeFileSync(changelogPath, JSON.stringify(updatedChangelog, null, 2) + "\n", "utf-8");
 
   console.log(`✅ [changelog] Berhasil memperbarui ${path.relative(rootDir, changelogPath)}`);
-  console.log(`   - 🚀 Fitur Baru: ${parsed.features.length}`);
-  console.log(`   - 🐛 Perbaikan: ${parsed.fixes.length}`);
-  console.log(`   - ⚡ Peningkatan: ${parsed.improvements.length}\n`);
+  console.log(`   - 🚀 Fitur Baru (v${currentVersion}): ${parsed.features.length}`);
+  console.log(`   - 🐛 Perbaikan (v${currentVersion}): ${parsed.fixes.length}`);
+  console.log(`   - ⚡ Peningkatan (v${currentVersion}): ${parsed.improvements.length}`);
+  console.log(`   - 📦 Riwayat Versi Lama Terpelihara: ${filteredOlder.length} versi\n`);
 }
 
 main();

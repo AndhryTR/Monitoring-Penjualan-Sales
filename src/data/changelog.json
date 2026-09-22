@@ -1,5 +1,19 @@
 [
   {
+    "version": "4.2.0",
+    "date": "2026-09-22",
+    "title": "Pembaruan Versi 4.2.0",
+    "features": [
+      {
+        "hash": "926c5ce",
+        "scope": "Smart Alerts",
+        "title": "Tingkatkan smart alert dengan 6 aturan anomali dan retensi distribusi penjualan"
+      }
+    ],
+    "fixes": [],
+    "improvements": []
+  },
+  {
     "version": "4.1.0",
     "date": "2026-09-22",
     "title": "Pembaruan Versi 4.1.0",
