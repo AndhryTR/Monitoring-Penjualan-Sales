@@ -1,8 +1,9 @@
 import {
   FileSpreadsheet, LayoutDashboard, TrendingUp, Store, Crosshair, Download, Users, Shield,
-  Package, History,
+  Package, History, Sparkles,
 } from "lucide-react";
 import { Modal } from "../ui/Modal.jsx";
+import changelogData from "../../data/changelog.json";
 
 /* ============================================================================
    ABOUT MODAL — "Tentang Aplikasi"
@@ -22,7 +23,8 @@ const FEATURES = [
   { icon: Users, label: "Multi-Sales", desc: "Kelola target & performa tiap sales" },
 ];
 
-export function AboutModal({ isOpen, onClose, colors }) {
+export function AboutModal({ isOpen, onClose, colors, onOpenWhatsNew }) {
+  const currentVersion = changelogData?.[0]?.version || "4.1.0";
   return (
     <Modal
       isOpen={isOpen}
@@ -81,7 +83,27 @@ export function AboutModal({ isOpen, onClose, colors }) {
           <div className="sm-card p-4 text-center" style={{ borderLeft: `3px solid ${colors.coral}` }}>
             <div className="text-xs" style={{ color: colors.textMuted }}>Dibuat oleh</div>
             <div className="disp text-2xl font-bold mt-0.5" style={{ color: colors.coral }}>Andri.S</div>
-            <div className="text-xs mt-2" style={{ color: colors.textMuted }}>React · Vite · Tailwind CSS &middot; v4.1.0</div>
+            <div className="text-xs mt-2" style={{ color: colors.textMuted }}>
+              React · Vite · Tailwind CSS &middot; v{currentVersion}
+            </div>
+            {onOpenWhatsNew && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenWhatsNew();
+                }}
+                className="sm-btn mt-3.5 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer"
+                style={{
+                  background: `linear-gradient(135deg, ${colors.gold}22, ${colors.violet}22)`,
+                  border: `1px solid ${colors.gold}55`,
+                  color: colors.gold,
+                }}
+              >
+                <Sparkles size={13} />
+                <span>Lihat Catatan Pembaruan</span>
+              </button>
+            )}
           </div>
     </Modal>
   );

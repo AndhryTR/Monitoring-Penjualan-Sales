@@ -51,6 +51,7 @@ import { useStock } from "./hooks/useStock.js";
 import { useAiContext } from "./hooks/useAiContext.js";
 // ⚠️ Superuser Admin Dashboard: permissions engine
 import { usePermissions } from "./hooks/usePermissions.js";
+import { useWhatsNew } from "./hooks/useWhatsNew.js";
 import { Monitor } from "lucide-react";
 import { FilterBar } from "./components/ui/FilterBar.jsx";
 import { DashboardSkeleton } from "./components/ui/DashboardSkeleton.jsx";
@@ -93,6 +94,7 @@ const DataPreviewModal = lazy(() => import("./components/modals/DataPreviewModal
 const HistoryModal = lazy(() => import("./components/modals/HistoryModal.jsx").then(m => ({ default: m.HistoryModal })));
 const SettingsModal = lazy(() => import("./components/modals/SettingsModal.jsx").then(m => ({ default: m.SettingsModal })));
 const AboutModal = lazy(() => import("./components/modals/AboutModal.jsx").then(m => ({ default: m.AboutModal })));
+const WhatsNewModal = lazy(() => import("./components/modals/WhatsNewModal.jsx").then(m => ({ default: m.WhatsNewModal })));
 const RangeDeleteModal = lazy(() => import("./components/modals/RangeDeleteModal.jsx").then(m => ({ default: m.RangeDeleteModal })));
 const DailyReportModal = lazy(() => import("./components/modals/DailyReportModal.jsx").then(m => ({ default: m.DailyReportModal })));
 const AiChatDrawer = lazy(() => import("./components/ai/AiChatDrawer.jsx").then(m => ({ default: m.AiChatDrawer })));
@@ -201,6 +203,13 @@ export default function SalesMonitoringApp() {
   }, [activeTab, tabLoading]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const {
+    isOpen: isWhatsNewOpen,
+    open: openWhatsNew,
+    close: closeWhatsNew,
+    currentVersion,
+    hasUnread: hasUnreadWhatsNew,
+  } = useWhatsNew();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isDailyReportOpen, setIsDailyReportOpen] = useState(false);
   const [isAiChatOpen, setIsAiChatOpen] = useState(false);
@@ -1043,7 +1052,21 @@ export default function SalesMonitoringApp() {
       )}
       {isAboutOpen && (
         <Suspense fallback={null}>
-          <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} colors={colors} />
+          <AboutModal
+            isOpen={isAboutOpen}
+            onClose={() => setIsAboutOpen(false)}
+            colors={colors}
+            onOpenWhatsNew={openWhatsNew}
+          />
+        </Suspense>
+      )}
+      {isWhatsNewOpen && (
+        <Suspense fallback={null}>
+          <WhatsNewModal
+            isOpen={isWhatsNewOpen}
+            onClose={closeWhatsNew}
+            colors={colors}
+          />
         </Suspense>
       )}
       {isDailyReportOpen && (
@@ -1477,9 +1500,28 @@ export default function SalesMonitoringApp() {
               ? `Masuk sebagai ${sessionUser.email || "pengguna"} · Sinkronisasi ${settingsSyncState === "error" || masterSyncState === "error" ? "gagal" : settingsSyncState === "syncing" || masterSyncState === "syncing" ? "berjalan…" : settingsSyncState === "done" || masterSyncState === "done" ? "aktif" : "offline"}`
               : "Data diproses langsung di browser Anda — tidak diunggah ke server manapun."}
           </p>
-          <button onClick={() => setIsAboutOpen(true)} className="sm-btn text-xs font-medium px-3 py-1.5 rounded-lg" style={{ color: colors.textMuted }}>
-            Tentang Aplikasi
-          </button>
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            <button
+              onClick={() => setIsAboutOpen(true)}
+              className="sm-btn text-xs font-medium px-3 py-1.5 rounded-lg"
+              style={{ color: colors.textMuted }}
+            >
+              Tentang Aplikasi
+            </button>
+            <span className="text-xs select-none" style={{ color: colors.textMuted }}>&middot;</span>
+            <button
+              onClick={openWhatsNew}
+              className="sm-btn text-xs font-medium px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5"
+              style={{ color: hasUnreadWhatsNew ? colors.gold : colors.textMuted }}
+              title="Lihat Catatan Pembaruan"
+            >
+              {hasUnreadWhatsNew && (
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse shrink-0" style={{ background: colors.gold }} />
+              )}
+              <span>v{currentVersion}</span>
+              <span className="hidden sm:inline">&middot; Catatan Pembaruan</span>
+            </button>
+          </div>
         </div>
       </div>
         </div>

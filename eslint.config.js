@@ -10,6 +10,18 @@ export default [
   // Base JS recommended
   js.configs.recommended,
 
+  // Node scripts
+  {
+    files: ["scripts/**/*.js"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+
   // React + React Hooks + React Refresh
   {
     files: ["src/**/*.{js,jsx}"],

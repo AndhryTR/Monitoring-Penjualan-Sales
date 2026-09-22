@@ -1,11 +1,12 @@
 {
   "name": "sales-monitoring-app",
   "private": true,
-  "version": "4.1.0",
+  "version": "4.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "changelog": "node scripts/generate-changelog.js",
+    "build": "node scripts/generate-changelog.js && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

@@ -1,0 +1,117 @@
+[
+  {
+    "version": "4.1.0",
+    "date": "2026-09-22",
+    "title": "Pembaruan Versi 4.1.0",
+    "features": [
+      {
+        "hash": "a24daf4",
+        "scope": "Laporan",
+        "title": "Tambah opsi jumlah peringatan laporan harian dan kecualikan catatan kualitas data"
+      },
+      {
+        "hash": "6f0637e",
+        "scope": "AI",
+        "title": "Upgrade fitur AI (ReAct, search, UI actions, custom export), modularisasi upload, & peningkatan komponen"
+      },
+      {
+        "hash": "d97538c",
+        "scope": "Peta & Lokasi",
+        "title": "Pointing dan drag koordinat toko langsung di map (Google Maps style) & bebas watermark"
+      },
+      {
+        "hash": "ca76aab",
+        "scope": "AI",
+        "title": "AI lihat seluruh data + deret bulanan (bebas filter tanggal)"
+      },
+      {
+        "hash": "d393fe6",
+        "scope": "AI",
+        "title": "AI chat umum + thinking timeline + render hasil + queryData sort/limit"
+      },
+      {
+        "hash": "96c1b10",
+        "scope": "AI",
+        "title": "AI chat via Rust native di Tauri (bebas CORS/CSP), badge Tauri"
+      },
+      {
+        "hash": "fd7807d",
+        "scope": "AI",
+        "title": "AiChatDrawer in-app chat UI + header button + permission gate (Task 5)"
+      },
+      {
+        "hash": "2582417",
+        "scope": null,
+        "title": "AiTools baca+tulis via setter existing (Task 4)"
+      },
+      {
+        "hash": "ac99504",
+        "scope": null,
+        "title": "AiDispatcher transport Direct + parse + validasi"
+      },
+      {
+        "hash": "703a280",
+        "scope": "AI",
+        "title": "AiSettings device-local untuk chat AI"
+      },
+      {
+        "hash": "c8901ef",
+        "scope": "AI",
+        "title": "Permission feat:ai_chat untuk chat AI"
+      }
+    ],
+    "fixes": [
+      {
+        "hash": "b917a82",
+        "scope": "AI",
+        "title": "Atasi salah konteks bulan dengan parser bulan spesifik dan perbaikan tools query"
+      },
+      {
+        "hash": "bc7434b",
+        "scope": "AI",
+        "title": "Tangani respon objek/tool call dan cegah reply.trim is not a function saat uji koneksi"
+      },
+      {
+        "hash": "0ac2861",
+        "scope": "AI",
+        "title": "Parse JSON tahan fence markdown + teks sekitar (chat tak tampil mentah)"
+      },
+      {
+        "hash": "9e6814e",
+        "scope": "AI",
+        "title": "Konteks AI ringkas 348B (hapus rawRows mentah), tulis via deps lokal"
+      },
+      {
+        "hash": "ad83c70",
+        "scope": null,
+        "title": "Uji koneksi jujur, respons kosong = gagal (sukses palsu dilarang)"
+      },
+      {
+        "hash": "53e0d40",
+        "scope": null,
+        "title": "Kembalikan json_object, timeout 90s, tanpa retry, abort berpesan jelas"
+      },
+      {
+        "hash": "4f0f5cc",
+        "scope": "AI",
+        "title": "Stabilize direct AI chat requests"
+      },
+      {
+        "hash": "42a4624",
+        "scope": null,
+        "title": "Support SSE streaming response format & explicit stream:false for 9router"
+      },
+      {
+        "hash": "6ca3a4b",
+        "scope": null,
+        "title": "Import Sparkles icon di SalesMonitoringApp & clean no-empty di AiChatDrawer"
+      },
+      {
+        "hash": "510ce60",
+        "scope": null,
+        "title": "SetTarget tulis total.value (skema asli), bukan field nilai hantu"
+      }
+    ],
+    "improvements": []
+  }
+]
