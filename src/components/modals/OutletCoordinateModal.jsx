@@ -142,9 +142,9 @@ export function OutletCoordinateModal({
   };
 
   // Download template Excel
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
     try {
-      const filename = exportCoordinateTemplate(outlets, depotName);
+      const filename = await exportCoordinateTemplate(outlets, depotName);
       setImportStatus({
         type: "success",
         text: `Template ${filename} berhasil diunduh. Silakan isi Latitude & Longitude lalu unggah kembali.`,

@@ -1,5 +1,36 @@
 [
   {
+    "version": "4.3.0",
+    "date": "2026-09-23",
+    "title": "Pembaruan Versi 4.3.0",
+    "features": [
+      {
+        "hash": "1fdfac5",
+        "scope": "Sales & Target",
+        "title": "Tambah analisis Pareto ABC, kalkulator komisi berjenjang & insentif produk fokus campur rasa dengan prasyarat AO"
+      },
+      {
+      "scope": "Sales & Target",
+      "title": "Kalkulator komisi berjenjang & insentif produk fokus campur rasa dengan prasyarat AO"
+    },
+    {
+      "scope": "Outlet",
+      "title": "Analisis segmentasi outlet Pareto ABC (Key Accounts Kelas A, B, dan C)"
+    },
+    {
+      "scope": "Peta & Lokasi",
+      "title": "Visualisasi rute kunjungan salesmen (TSP) dan nomor urut kunjungan"
+    }
+    ],
+    "fixes": [],
+    "improvements": [
+       {
+      "scope": "Tampilan",
+      "title": "Peningkatan kontras teks standar WCAG AA dan gestur swipe-down dismiss pada perangkat mobile"
+    }
+    ]
+  },
+  {
     "version": "4.2.0",
     "date": "2026-09-22",
     "title": "Pembaruan Versi 4.2.0",

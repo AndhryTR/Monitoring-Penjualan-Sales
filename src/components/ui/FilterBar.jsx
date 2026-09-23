@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Users, Package, CalendarDays, RefreshCw, Filter, X, ChevronDown } from "lucide-react";
 import { MultiSelect } from "./MultiSelect.jsx";
@@ -14,6 +14,7 @@ import { useFloatingDropdown } from "../../hooks/useFloatingDropdown.js";
 export function FilterBar({ salesOptions, groupOptions, filters, setFilters, colors, theme, rawRows }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
+  const touchStartY = useRef(0);
 
   const {
     triggerRef: dateMenuTriggerRef,
@@ -347,8 +348,18 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Drag handle — indikator visual standar bottom-sheet iOS/Android */}
-            <div className="mx-auto mb-4 w-10 h-1 rounded-full" style={{ background: colors.glassBorder }} />
+            {/* Drag handle & gesture container */}
+            <div
+              className="pt-1 pb-3 -mt-1 cursor-grab active:cursor-grabbing touch-none"
+              onTouchStart={(e) => { touchStartY.current = e.touches[0].clientY; }}
+              onTouchEnd={(e) => {
+                if (e.changedTouches[0].clientY - touchStartY.current > 50) {
+                  setMobileOpen(false);
+                }
+              }}
+            >
+              <div className="sm-bottom-sheet-handle" />
+            </div>
 
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2.5">
@@ -359,7 +370,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
                 {active > 0 && (
                   <span
                     className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold"
-                    style={{ background: colors.gold, color: "#0A1120" }}
+                    style={{ background: colors.gold, color: colors.ink || "#0A1120" }}
                   >
                     {active}
                   </span>
@@ -382,7 +393,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
             <button
               onClick={() => setMobileOpen(false)}
               className="mt-5 w-full sm-btn py-3 rounded-xl text-sm font-semibold"
-              style={{ background: colors.gold, color: "#0A1120" }}
+              style={{ background: colors.gold, color: colors.ink || "#0A1120" }}
             >
               Terapkan Filter
             </button>

@@ -1,6 +1,7 @@
-import { useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Package, Upload, AlertTriangle, TrendingDown, Clock, History,
+  Calendar,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtMixedUnits } from "../utils/formatters.js";
 import { KpiCard } from "../components/KpiCard.jsx";
@@ -9,13 +10,25 @@ import { SectionTitle } from "../components/ui/index.jsx";
 import { exportStockExcel } from "../utils/stockExport.js";
 import { notifyExportSuccess, notifyError } from "../utils/notifyExport.js";
 
+function formatDepletion(dateStr) {
+  if (!dateStr) return "-";
+  try {
+    const d = new Date(dateStr + "T00:00:00");
+    const day = d.getDate();
+    const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+    return `${day} ${months[d.getMonth()]}`;
+  } catch {
+    return dateStr;
+  }
+}
+
 /* ============================================================================
    STOCK PAGE — Sprint 19 / Stock Module
    Tab baru "Stok Barang" dengan KPI cards + tabel stok per produk.
 
    Features:
-   - KPI: total produk, total stok (qty + value), stok kritis, stok habis
-   - Tabel: kode, nama, grup, awal, terjual, saat ini, coverage, nilai
+   - KPI: total produk, total stok (qty + value), rata-rata runway (DOI), stok kritis
+   - Tabel: kode, nama, grup, awal, terjual, saat ini, coverage, estimasi habis, nilai
    - Status flags: habis (coral), rendah (gold), overstock (blue), dead stock (muted)
    - Stale warning: snapshot > 7 hari
    - Empty state: belum ada data stok
@@ -34,6 +47,8 @@ export function StockPage({
   const {
     loading, uploading, activeSnapshot, stockMetrics, snapshotHistory, adjustments,
   } = stockData;
+
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const filteredStock = useMemo(() => {
     const groups = filters?.groups || [];
@@ -63,6 +78,45 @@ export function StockPage({
     });
     return () => unregisterTabExport?.("stock");
   }, [registerTabExport, unregisterTabExport, handleExportExcel, filteredStock]);
+
+  // KPI ringkasan dan estimasi runway inventaris
+  const stockKpis = useMemo(() => {
+    if (!filteredStock || !filteredStock.length) return null;
+    const totalItems = filteredStock.length;
+    const totalQty = filteredStock.reduce((s, p) => s + (p.currentQty || 0), 0);
+    const totalVal = filteredStock.reduce((s, p) => s + (p.currentValue || 0), 0);
+    const stockouts = filteredStock.filter((p) => p.isStockout).length;
+    const lowStocks = filteredStock.filter((p) => p.isLowStock && !p.isStockout).length;
+    const needReorders = filteredStock.filter((p) => (p.isNeedReorder || p.isLowStock) && !p.isStockout).length;
+    const overstocks = filteredStock.filter((p) => p.isOverstock).length;
+
+    // Rata-rata DOI (Days of Inventory) untuk SKU yang ada transaksi penjualan
+    const itemsWithCov = filteredStock.filter((p) => p.coverageDays !== null && p.coverageDays >= 0);
+    const avgDoi = itemsWithCov.length > 0
+      ? itemsWithCov.reduce((s, p) => s + p.coverageDays, 0) / itemsWithCov.length
+      : null;
+
+    return {
+      totalItems,
+      totalQty,
+      totalVal,
+      stockouts,
+      lowStocks,
+      needReorders,
+      overstocks,
+      avgDoi,
+    };
+  }, [filteredStock]);
+
+  // Filter tampilan berdasarkan chip status
+  const displayedStock = useMemo(() => {
+    if (statusFilter === "stockout") return filteredStock.filter((p) => p.isStockout);
+    if (statusFilter === "low") return filteredStock.filter((p) => p.isLowStock && !p.isStockout);
+    if (statusFilter === "reorder") return filteredStock.filter((p) => (p.isNeedReorder || p.isLowStock) && !p.isStockout);
+    if (statusFilter === "overstock") return filteredStock.filter((p) => p.isOverstock);
+    if (statusFilter === "normal") return filteredStock.filter((p) => !p.isStockout && !p.isLowStock && !p.isNeedReorder && !p.isOverstock);
+    return filteredStock;
+  }, [filteredStock, statusFilter]);
 
   // Compute days since last upload (for stale warning)
   const daysSinceUpload = useMemo(() => {
@@ -149,40 +203,117 @@ export function StockPage({
       )}
 
       {/* KPI Cards */}
-      {filteredStock && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      {stockKpis && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5 mb-6">
           <KpiCard
             label="Total Produk"
-            value={filteredStock.length}
+            value={stockKpis.totalItems}
             icon={Package}
             accent={colors.blue}
             colors={colors}
           />
           <KpiCard
             label="Total Stok"
-            value={fmtNum(filteredStock.reduce((s, p) => s + (p.currentQty || 0), 0))}
-            sub={`${filteredStock.length} SKU`}
+            value={fmtNum(stockKpis.totalQty)}
+            sub={`${stockKpis.totalItems} SKU`}
             icon={Package}
             accent={colors.mint}
             colors={colors}
           />
           <KpiCard
             label="Nilai Stok"
-            value={fmtRp(filteredStock.reduce((s, p) => s + (p.currentValue || 0), 0))}
+            value={fmtRp(stockKpis.totalVal)}
             icon={TrendingDown}
             accent={colors.gold}
             colors={colors}
           />
           <KpiCard
+            label="Rata-rata Runway"
+            value={stockKpis.avgDoi !== null ? `${stockKpis.avgDoi.toFixed(0)} hari` : "-"}
+            sub="Days of Inventory (DOI)"
+            icon={Calendar}
+            accent={colors.violet || colors.blue}
+            colors={colors}
+          />
+          <KpiCard
             label="Stok Kritis"
-            value={filteredStock.filter((p) => p.isLowStock || p.isStockout).length}
-            sub={`${filteredStock.filter((p) => p.isStockout).length} habis · ${filteredStock.filter((p) => p.isLowStock && !p.isStockout).length} rendah`}
+            value={stockKpis.stockouts + stockKpis.lowStocks}
+            sub={`${stockKpis.stockouts} habis · ${stockKpis.lowStocks} kritis`}
             icon={AlertTriangle}
             accent={colors.coral}
             colors={colors}
           />
         </div>
       )}
+
+      {/* Quick Status Filter Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-3 text-xs">
+        <button
+          onClick={() => setStatusFilter("all")}
+          className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+            statusFilter === "all" ? "font-bold shadow-sm" : "opacity-75 hover:opacity-100"
+          }`}
+          style={{
+            background: statusFilter === "all" ? colors.blue : colors.glassFill,
+            color: statusFilter === "all" ? "#FFFFFF" : colors.text,
+            border: `1px solid ${statusFilter === "all" ? colors.blue : colors.glassBorder}`,
+          }}
+        >
+          Semua ({filteredStock.length})
+        </button>
+        <button
+          onClick={() => setStatusFilter("stockout")}
+          className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+            statusFilter === "stockout" ? "font-bold shadow-sm" : "opacity-75 hover:opacity-100"
+          }`}
+          style={{
+            background: statusFilter === "stockout" ? colors.coral : colors.glassFill,
+            color: statusFilter === "stockout" ? "#FFFFFF" : colors.coral,
+            border: `1px solid ${statusFilter === "stockout" ? colors.coral : colors.glassBorder}`,
+          }}
+        >
+          Habis / 0 ({stockKpis?.stockouts || 0})
+        </button>
+        <button
+          onClick={() => setStatusFilter("low")}
+          className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+            statusFilter === "low" ? "font-bold shadow-sm" : "opacity-75 hover:opacity-100"
+          }`}
+          style={{
+            background: statusFilter === "low" ? colors.gold : colors.glassFill,
+            color: statusFilter === "low" ? "#0A1120" : colors.gold,
+            border: `1px solid ${statusFilter === "low" ? colors.gold : colors.glassBorder}`,
+          }}
+        >
+          Kritis &lt; 7 Hari ({stockKpis?.lowStocks || 0})
+        </button>
+        <button
+          onClick={() => setStatusFilter("reorder")}
+          className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+            statusFilter === "reorder" ? "font-bold shadow-sm" : "opacity-75 hover:opacity-100"
+          }`}
+          style={{
+            background: statusFilter === "reorder" ? colors.mint : colors.glassFill,
+            color: statusFilter === "reorder" ? "#0A1120" : colors.mint,
+            border: `1px solid ${statusFilter === "reorder" ? colors.mint : colors.glassBorder}`,
+          }}
+        >
+          Perlu Restock &lt; 14 Hari ({stockKpis?.needReorders || 0})
+        </button>
+        <button
+          onClick={() => setStatusFilter("overstock")}
+          className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+            statusFilter === "overstock" ? "font-bold shadow-sm" : "opacity-75 hover:opacity-100"
+          }`}
+          style={{
+            background: statusFilter === "overstock" ? (colors.violet || colors.blue) : colors.glassFill,
+            color: statusFilter === "overstock" ? "#FFFFFF" : (colors.violet || colors.blue),
+            border: `1px solid ${statusFilter === "overstock" ? (colors.violet || colors.blue) : colors.glassBorder}`,
+          }}
+        >
+          Overstock &gt; 60 Hari ({stockKpis?.overstocks || 0})
+        </button>
+      </div>
 
       {/* Stock Table */}
       <DataTable
@@ -192,7 +323,7 @@ export function StockPage({
         searchable
         searchKeys={["productCode", "productName", "group"]}
         searchPlaceholder="Cari kode/nama produk..."
-        rows={filteredStock}
+        rows={displayedStock}
         columns={[
           {
             key: "productCode",
@@ -279,6 +410,54 @@ export function StockPage({
               ) : (
                 <span style={{ color: colors.textMuted }}>-</span>
               ),
+          },
+          {
+            key: "estimatedDepletionDate",
+            label: "Estimasi Habis & Saran",
+            render: (p) => {
+              if (p.isStockout) {
+                return (
+                  <span
+                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold"
+                    style={{ background: colors.coral + "22", color: colors.coral }}
+                  >
+                    Stok Habis
+                  </span>
+                );
+              }
+              if (!p.estimatedDepletionDate) {
+                return <span style={{ color: colors.textMuted }}>-</span>;
+              }
+              const isUrgent = p.isLowStock;
+              const isWarning = p.isNeedReorder && !p.isLowStock;
+              const badgeBg = isUrgent
+                ? colors.coral + "22"
+                : isWarning
+                  ? colors.gold + "22"
+                  : colors.glassFill;
+              const badgeColor = isUrgent
+                ? colors.coral
+                : isWarning
+                  ? colors.gold
+                  : colors.text;
+
+              return (
+                <div className="flex flex-col gap-0.5">
+                  <span
+                    className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded w-fit"
+                    style={{ background: badgeBg, color: badgeColor }}
+                  >
+                    📅 {formatDepletion(p.estimatedDepletionDate)}
+                    {isUrgent && <span className="text-[10px] font-bold">(! Segera)</span>}
+                  </span>
+                  {p.suggestedReorderQty > 0 && (
+                    <span className="text-[10.5px]" style={{ color: colors.textMuted }}>
+                      Saran: +{fmtNum(p.suggestedReorderQty)} {p.unit || "PCS"}
+                    </span>
+                  )}
+                </div>
+              );
+            },
           },
           {
             key: "currentValue",

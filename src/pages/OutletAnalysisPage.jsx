@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, lazy, Suspense } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
@@ -13,12 +13,13 @@ import { SectionTitle } from "../components/ui/index.jsx";
 import { createChartTooltipStyle } from "../styles/globalStyle.js";
 // ⚠️ Sprint 5 / S3: reportExcelExport.js lazy-loaded di handler Export.
 import { VisitPatternModal } from "../components/modals/VisitPatternModal.jsx";
-import { OutletMapView } from "../components/outlet/OutletMapView.jsx";
+const OutletMapView = lazy(() => import("../components/outlet/OutletMapView.jsx").then(m => ({ default: m.OutletMapView })));
 import { OutletCoordinateModal } from "../components/modals/OutletCoordinateModal.jsx";
 import { getStoredCoordinates } from "../utils/geoStorage.js";
 import { OUTLET_STATUS_META } from "../constants/thresholds.js";
 import { getStoredSchedule, DAY_LABELS, DAY_COLORS } from "../utils/visitScheduleStorage.js";
 import { VisitScheduleModal } from "../components/modals/VisitScheduleModal.jsx";
+import { computeParetoClassification } from "../utils/paretoEngine.js";
 
 /* ============================================================================
    TAB: ANALISIS OUTLET
@@ -38,6 +39,7 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [storedSchedule, setStoredSchedule] = useState(() => getStoredSchedule(depotName));
   const [pointingOutlet, setPointingOutlet] = useState(null);
+  const [paretoFilter, setParetoFilter] = useState("all"); // "all" | "A" | "B" | "C"
 
   useEffect(() => {
     setStoredCoords(getStoredCoordinates(depotName));
@@ -67,6 +69,16 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
     () => computeOutletAnalysis(agg.filteredRows, agg.meta, thresholds),
     [agg.filteredRows, agg.meta, thresholds]
   );
+
+  const { outletsWithPareto, paretoSummary } = useMemo(
+    () => computeParetoClassification(list),
+    [list]
+  );
+
+  const filteredOutlets = useMemo(() => {
+    if (paretoFilter === "all") return outletsWithPareto;
+    return outletsWithPareto.filter((o) => o.paretoClass === paretoFilter);
+  }, [outletsWithPareto, paretoFilter]);
 
   const chartData = useMemo(() => [
     { name: "Aktif", value: summary.active, fill: colors.mint },
@@ -161,18 +173,25 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
         <>
           {/* Tampilan Peta Sebaran */}
           {viewMode === "map" && !slideshowMode && (
-            <OutletMapView
-              outlets={list}
-              storedCoords={storedCoords}
-              schedule={storedSchedule}
-              colors={colors}
-              depotName={depotName}
-              onSelectOutlet={onSelectOutlet}
-              onOpenCoordinateModal={() => setCoordModalOpen(true)}
-              onOpenScheduleModal={() => setScheduleModalOpen(true)}
-              pointingOutlet={pointingOutlet}
-              onClearPointingOutlet={() => setPointingOutlet(null)}
-            />
+            <Suspense fallback={
+              <div className="sm-card p-12 text-center text-sm" style={{ color: colors.textMuted }}>
+                <Map size={32} className="mx-auto mb-3 animate-pulse opacity-40" />
+                Memuat peta sebaran outlet...
+              </div>
+            }>
+              <OutletMapView
+                outlets={outletsWithPareto}
+                storedCoords={storedCoords}
+                schedule={storedSchedule}
+                colors={colors}
+                depotName={depotName}
+                onSelectOutlet={onSelectOutlet}
+                onOpenCoordinateModal={() => setCoordModalOpen(true)}
+                onOpenScheduleModal={() => setScheduleModalOpen(true)}
+                pointingOutlet={pointingOutlet}
+                onClearPointingOutlet={() => setPointingOutlet(null)}
+              />
+            </Suspense>
           )}
 
           {/* Tampilan Tabel Tradisional */}
@@ -193,6 +212,102 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
                 </ResponsiveContainer>
               </div>
 
+              {/* Segmentasi Pareto ABC */}
+              {!slideshowMode && (
+                <div className="sm-card p-4 mb-6">
+                  <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+                    <div className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: colors.text }}>
+                      <span>Segmentasi Pareto ABC (Kontribusi Omset)</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        onClick={() => setParetoFilter("all")}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                          paretoFilter === "all" ? "bg-blue-600 text-white shadow-sm" : ""
+                        }`}
+                        style={paretoFilter !== "all" ? { background: colors.glassFill, color: colors.textMuted, border: `1px solid ${colors.glassBorder}` } : {}}
+                      >
+                        Semua ({paretoSummary.totalOutlets})
+                      </button>
+                      <button
+                        onClick={() => setParetoFilter("A")}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                          paretoFilter === "A" ? "bg-amber-500 text-white shadow-sm" : ""
+                        }`}
+                        style={paretoFilter !== "A" ? { background: colors.gold + "1A", color: colors.gold, border: `1px solid ${colors.gold}44` } : {}}
+                      >
+                        👑 Kelas A ({paretoSummary.classA.count})
+                      </button>
+                      <button
+                        onClick={() => setParetoFilter("B")}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                          paretoFilter === "B" ? "bg-blue-500 text-white shadow-sm" : ""
+                        }`}
+                        style={paretoFilter !== "B" ? { background: colors.blue + "1A", color: colors.blue, border: `1px solid ${colors.blue}44` } : {}}
+                      >
+                        🔷 Kelas B ({paretoSummary.classB.count})
+                      </button>
+                      <button
+                        onClick={() => setParetoFilter("C")}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                          paretoFilter === "C" ? "bg-slate-500 text-white shadow-sm" : ""
+                        }`}
+                        style={paretoFilter !== "C" ? { background: colors.glassFill, color: colors.textMuted, border: `1px solid ${colors.glassBorder}` } : {}}
+                      >
+                        ⚪ Kelas C ({paretoSummary.classC.count})
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                    <div className="p-3 rounded-xl flex items-center justify-between" style={{ background: colors.gold + "12", border: `1px solid ${colors.gold}33` }}>
+                      <div>
+                        <div className="font-bold flex items-center gap-1.5" style={{ color: colors.gold }}>
+                          👑 Kelas A (Key Accounts)
+                        </div>
+                        <div className="text-[11px] mt-0.5" style={{ color: colors.textMuted }}>
+                          {paretoSummary.classA.count} toko ({paretoSummary.classA.pctCount}% total toko)
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="mono font-bold" style={{ color: colors.text }}>{fmtRp(paretoSummary.classA.value)}</div>
+                        <div className="text-[11px] font-semibold" style={{ color: colors.gold }}>{paretoSummary.classA.pctValue}% Omset</div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl flex items-center justify-between" style={{ background: colors.blue + "12", border: `1px solid ${colors.blue}33` }}>
+                      <div>
+                        <div className="font-bold flex items-center gap-1.5" style={{ color: colors.blue }}>
+                          🔷 Kelas B (Silver Stores)
+                        </div>
+                        <div className="text-[11px] mt-0.5" style={{ color: colors.textMuted }}>
+                          {paretoSummary.classB.count} toko ({paretoSummary.classB.pctCount}% total toko)
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="mono font-bold" style={{ color: colors.text }}>{fmtRp(paretoSummary.classB.value)}</div>
+                        <div className="text-[11px] font-semibold" style={{ color: colors.blue }}>{paretoSummary.classB.pctValue}% Omset</div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl flex items-center justify-between" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
+                      <div>
+                        <div className="font-bold flex items-center gap-1.5" style={{ color: colors.textMuted }}>
+                          ⚪ Kelas C (Bronze Stores)
+                        </div>
+                        <div className="text-[11px] mt-0.5" style={{ color: colors.textMuted }}>
+                          {paretoSummary.classC.count} toko ({paretoSummary.classC.pctCount}% total toko)
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="mono font-bold" style={{ color: colors.text }}>{fmtRp(paretoSummary.classC.value)}</div>
+                        <div className="text-[11px] font-semibold" style={{ color: colors.textMuted }}>{paretoSummary.classC.pctValue}% Omset</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Daftar outlet — di-hide di mode slideshow */}
               {!slideshowMode && (
                 <DataTable
@@ -206,6 +321,27 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
                     { key: "outletName", label: "Nama Outlet", render: (o) => (
                       <button onClick={() => onSelectOutlet(o)} className="text-left hover:underline" style={{ color: colors.text }}>{o.outletName}</button>
                     ) },
+                    { key: "paretoClass", label: "Pareto", render: (o) => {
+                      if (o.paretoClass === "A") {
+                        return (
+                          <span className="sm-badge px-2 py-0.5 font-bold inline-flex items-center gap-1 text-[11px]" style={{ background: colors.gold + "1F", color: colors.gold, border: `1px solid ${colors.gold}44` }}>
+                            👑 Kelas A ({o.contributionPercent}%)
+                          </span>
+                        );
+                      }
+                      if (o.paretoClass === "B") {
+                        return (
+                          <span className="sm-badge px-2 py-0.5 font-bold inline-flex items-center gap-1 text-[11px]" style={{ background: colors.blue + "1F", color: colors.blue, border: `1px solid ${colors.blue}44` }}>
+                            🔷 Kelas B ({o.contributionPercent}%)
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="sm-badge px-2 py-0.5 font-medium inline-flex items-center gap-1 text-[11px] opacity-75" style={{ background: colors.glassFill, color: colors.textMuted, border: `1px solid ${colors.glassBorder}` }}>
+                          ⚪ Kelas C ({o.contributionPercent}%)
+                        </span>
+                      );
+                    } },
                     { key: "salesLabel", label: "Sales", render: (o) => (
                       <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full sm:max-w-[220px]" title={o.salesLabel}>
                         <span className="truncate">{o.salesLabel}</span>
@@ -247,7 +383,7 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
                     { key: "daysSinceLastPurchase", label: "Jeda", render: (o) => <span className="mono">{o.daysSinceLastPurchase ?? "-"}</span> },
                     { key: "status", label: "Status", render: (o) => <OutletStatusBadge status={o.status} colors={colors} /> },
                   ]}
-                  rows={list}
+                  rows={filteredOutlets}
                 />
               )}
             </>

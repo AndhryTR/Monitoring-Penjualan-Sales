@@ -39,11 +39,11 @@ function saveChatLog(log) {
 }
 
 const QUICK_PROMPTS = [
-  "Analisis performa & ACH tim sales saat ini",
-  "Cek barang yang stoknya habis atau kritis",
-  "Cari outlet yang tidak aktif minggu ini",
-  "Buka halaman Analisis Outlet",
-  "Reset semua filter dashboard",
+  "🎯 Simulasi proyeksi target akhir bulan",
+  "📦 Cek barang yang stoknya habis atau kritis",
+  "📊 Analisis performa & ACH tim sales saat ini",
+  "📍 Cari outlet yang tidak aktif minggu ini",
+  "🔄 Reset semua filter dashboard",
 ];
 
 
@@ -373,6 +373,173 @@ function ResultBlock({ tool, data, colors = {}, reactData, reactTool }) {
         </div>
       );
     }
+  }
+
+  // --- simulasiTarget ---
+  if (effectiveTool === "simulasiTarget" && effectiveData) {
+    const isSingle = effectiveData.tipe === "sales_tunggal";
+    const projAch = effectiveData.proyeksiAchAkhirBulan ?? 0;
+    const isSuccess = projAch >= 100;
+    const badgeColor = isSuccess ? colors.mint : colors.coral;
+
+    return (
+      <div className="mt-2 space-y-2">
+        <div className="rounded-xl border p-2.5 space-y-2" style={{ borderColor: colors.glassBorder, background: colors.glassFill }}>
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold" style={{ color: colors.text }}>
+              🎯 {isSingle ? `Simulasi: ${effectiveData.nama}` : "Simulasi Proyeksi Tim"}
+            </span>
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded font-mono"
+              style={{ background: `${badgeColor}22`, color: badgeColor }}
+            >
+              Proyeksi: {projAch}%
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-[10px]">
+            <div className="p-1.5 rounded-lg" style={{ background: colors.glassFillStrong || "rgba(0,0,0,0.2)" }}>
+              <div style={{ color: colors.textMuted }}>Run Rate Aktual</div>
+              <div className="font-bold font-mono text-xs" style={{ color: colors.text }}>
+                {fmtRpShort(effectiveData.runRateHarianAktual)} /hr
+              </div>
+            </div>
+            <div className="p-1.5 rounded-lg" style={{ background: colors.glassFillStrong || "rgba(0,0,0,0.2)" }}>
+              <div style={{ color: colors.textMuted }}>Dibutuhkan (Target)</div>
+              <div className="font-bold font-mono text-xs" style={{ color: effectiveData.kekuranganTarget > 0 ? colors.coral : colors.mint }}>
+                {fmtRpShort(effectiveData.runRateHarianDibutuhkan)} /hr
+              </div>
+            </div>
+          </div>
+
+          <div className="text-[10px] flex items-center justify-between" style={{ color: colors.textMuted }}>
+            <span>Sisa Hari Kerja: <b>{effectiveData.sisaHariKerja} hari</b></span>
+            <span>Target: <b>{fmtRpShort(effectiveData.totalTargetSimulasi || effectiveData.targetSimulasi)}</b></span>
+          </div>
+        </div>
+
+        {Array.isArray(effectiveData.salesPerluIntervensi) && effectiveData.salesPerluIntervensi.length > 0 && (
+          <div className="rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
+            <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: colors.glassFill, color: colors.coral }}>
+              Prioritas Intervensi (Proyeksi &lt; 100%)
+            </div>
+            {effectiveData.salesPerluIntervensi.map((s, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] border-t" style={{ borderColor: colors.glassBorder }}>
+                <span className="truncate font-semibold">{s.nama}</span>
+                <div className="shrink-0 text-right">
+                  <span className="font-mono font-bold text-xs" style={{ color: colors.coral }}>
+                    {s.proyeksiAch}%
+                  </span>
+                  <div className="text-[9.5px] font-mono" style={{ color: colors.textMuted }}>
+                    Gap: {fmtRpShort(s.gapTarget)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // --- analisisPareto ---
+  if (effectiveTool === "analisisPareto" && effectiveData?.summary) {
+    const sum = effectiveData.summary;
+    return (
+      <div className="mt-2 space-y-2">
+        <div className="p-2.5 rounded-xl border" style={{ borderColor: colors.glassBorder, background: colors.glassFill }}>
+          <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: colors.gold }}>
+            👑 Matriks Pareto ABC ({sum.totalOutlets} Toko)
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+            <div className="p-1.5 rounded-lg text-center" style={{ background: colors.gold + "1A", border: `1px solid ${colors.gold}33` }}>
+              <div className="font-bold" style={{ color: colors.gold }}>Kelas A</div>
+              <div className="font-semibold">{sum.classA.pctValue}% Omset</div>
+              <div className="text-[9px]" style={{ color: colors.textMuted }}>{sum.classA.count} toko ({sum.classA.pctCount}%)</div>
+            </div>
+            <div className="p-1.5 rounded-lg text-center" style={{ background: colors.blue + "1A", border: `1px solid ${colors.blue}33` }}>
+              <div className="font-bold" style={{ color: colors.blue }}>Kelas B</div>
+              <div className="font-semibold">{sum.classB.pctValue}% Omset</div>
+              <div className="text-[9px]" style={{ color: colors.textMuted }}>{sum.classB.count} toko ({sum.classB.pctCount}%)</div>
+            </div>
+            <div className="p-1.5 rounded-lg text-center" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
+              <div className="font-bold" style={{ color: colors.textMuted }}>Kelas C</div>
+              <div className="font-semibold">{sum.classC.pctValue}% Omset</div>
+              <div className="text-[9px]" style={{ color: colors.textMuted }}>{sum.classC.count} toko ({sum.classC.pctCount}%)</div>
+            </div>
+          </div>
+        </div>
+
+        {Array.isArray(effectiveData.outlets) && effectiveData.outlets.length > 0 && (
+          <div className="rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
+            <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ background: colors.glassFill, color: colors.textMuted }}>
+              Daftar Toko ({effectiveData.ditampilkan} teratas)
+            </div>
+            {effectiveData.outlets.map((o, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] border-t" style={{ borderColor: colors.glassBorder }}>
+                <div className="truncate flex items-center gap-1.5">
+                  <span className="text-[9px] px-1 py-0.5 rounded font-bold" style={{
+                    background: o.kelas === "A" ? colors.gold + "22" : o.kelas === "B" ? colors.blue + "22" : colors.glassFill,
+                    color: o.kelas === "A" ? colors.gold : o.kelas === "B" ? colors.blue : colors.textMuted,
+                  }}>
+                    {o.kelas}
+                  </span>
+                  <span className="truncate font-semibold">{o.nama}</span>
+                </div>
+                <div className="shrink-0 text-right font-mono">
+                  <span className="font-bold" style={{ color: colors.text }}>{fmtRpShort(o.omset)}</span>
+                  <span className="text-[9.5px] ml-1.5" style={{ color: colors.textMuted }}>({o.kontribusi}%)</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // --- hitungKomisi ---
+  if (effectiveTool === "hitungKomisi" && effectiveData?.summary) {
+    const sum = effectiveData.summary;
+    return (
+      <div className="mt-2 space-y-2">
+        <div className="p-2.5 rounded-xl border flex items-center justify-between" style={{ borderColor: colors.glassBorder, background: colors.glassFill }}>
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: colors.mint }}>
+              💰 Estimasi Total Insentif
+            </div>
+            <div className="text-sm font-bold font-mono" style={{ color: colors.mint }}>
+              {fmtRpShort(sum.totalPayout)}
+            </div>
+          </div>
+          <div className="text-right text-[10px]" style={{ color: colors.textMuted }}>
+            <div>Lolos Insentif: <b>{sum.qualifiedSalesCount} / {sum.totalSalesCount}</b></div>
+            <div>Rata-rata: <b>{fmtRpShort(sum.avgPayout)}</b></div>
+          </div>
+        </div>
+
+        {Array.isArray(effectiveData.commissions) && effectiveData.commissions.length > 0 && (
+          <div className="rounded-xl border overflow-hidden" style={{ borderColor: colors.glassBorder }}>
+            <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ background: colors.glassFill, color: colors.textMuted }}>
+              Estimasi Payout Sales
+            </div>
+            {effectiveData.commissions.map((c, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] border-t" style={{ borderColor: colors.glassBorder }}>
+                <div className="truncate">
+                  <div className="truncate font-semibold">{c.salesName}</div>
+                  <div className="text-[9.5px]" style={{ color: colors.textMuted }}>
+                    {c.tierLabel} · ACH {c.ach}% {c.aoBonusQualified ? "· AO ✓" : ""}
+                  </div>
+                </div>
+                <div className="shrink-0 text-right font-mono font-bold" style={{ color: c.totalIncentive > 0 ? colors.mint : colors.textMuted }}>
+                  {fmtRpShort(c.totalIncentive)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   }
 
   return null;

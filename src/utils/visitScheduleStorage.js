@@ -1,4 +1,3 @@
-import * as XLSX from "xlsx-js-style";
 import { dateStrToLocalDate } from "./excelParse.js";
 import { fmtRp } from "./formatters.js";
 
@@ -288,7 +287,8 @@ function makeCell(val) {
 /**
  * Menghasilkan file Excel Master Jadwal Kunjungan.
  */
-export function exportScheduleExcel(schedule = {}, outlets = [], depotName = "", coords = {}) {
+export async function exportScheduleExcel(schedule = {}, outlets = [], depotName = "", coords = {}) {
+  const XLSX = await import("xlsx-js-style");
   const safeDepot = (depotName || "DEPO").replace(/[^a-zA-Z0-9_-]/g, "_");
   const wb = XLSX.utils.book_new();
 
@@ -365,6 +365,7 @@ export function exportScheduleExcel(schedule = {}, outlets = [], depotName = "",
  * Membaca dan mem-parse file Excel Master Jadwal yang diunggah pengguna.
  */
 export async function parseScheduleExcel(file) {
+  const XLSX = await import("xlsx-js-style");
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 

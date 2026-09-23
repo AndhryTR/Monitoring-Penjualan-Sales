@@ -236,9 +236,9 @@ export function NotificationBell({
                       borderRadius: "16px",
                     }),
                 background: isLight
-                  ? "rgba(255, 255, 255, 0.96)"
-                  : `radial-gradient(120% 60% at 15% -5%, ${colors.glassSheen || "rgba(255,255,255,0.10)"}, transparent 55%), rgba(17, 24, 39, 0.96)`,
-                border: `1px solid ${isLight ? "rgba(0,0,0,0.12)" : colors.dropdownBorder || "rgba(255,255,255,0.12)"}`,
+                  ? (colors.dropdownBg || "rgba(255, 255, 255, 0.96)")
+                  : `radial-gradient(120% 60% at 15% -5%, ${colors.glassSheen || "rgba(255,255,255,0.10)"}, transparent 55%), ${colors.dropdownBg || "rgba(17, 24, 39, 0.96)"}`,
+                border: `1px solid ${isLight ? (colors.dropdownBorder || "rgba(0,0,0,0.10)") : (colors.dropdownBorder || "rgba(255,255,255,0.14)")}`,
                 boxShadow: isLight
                   ? "0 20px 48px -10px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06)"
                   : "0 20px 48px -10px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.08)",
@@ -249,6 +249,11 @@ export function NotificationBell({
                 overflow: "hidden",
               }}
             >
+              {/* Mobile drag handle */}
+              <div className="md:hidden pt-2.5 pb-0">
+                <div className="sm-bottom-sheet-handle" />
+              </div>
+
               {/* Header Panel */}
               <div
                 className="p-3.5 flex items-center justify-between gap-3 border-b"

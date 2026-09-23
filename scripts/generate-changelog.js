@@ -237,13 +237,36 @@ function main() {
 
   const existingCurrent = existingChangelog.find((rel) => rel.version === currentVersion);
 
+  // Fungsi penggabung agar entri kustom/manual yang sudah ditulis user tidak terhapus
+  function mergeItems(existing = [], parsed = []) {
+    const list = [...existing];
+    const seenTitles = new Set(existing.map((item) => (item.title || "").toLowerCase().trim()));
+    const seenHashes = new Set(existing.map((item) => (item.hash || "").toLowerCase().trim()).filter(Boolean));
+
+    for (const item of parsed) {
+      const t = (item.title || "").toLowerCase().trim();
+      const h = (item.hash || "").toLowerCase().trim();
+      if ((t && seenTitles.has(t)) || (h && seenHashes.has(h))) {
+        continue;
+      }
+      list.push(item);
+      if (t) seenTitles.add(t);
+      if (h) seenHashes.add(h);
+    }
+    return list;
+  }
+
+  const finalFeatures = mergeItems(existingCurrent?.features || [], parsed.features);
+  const finalFixes = mergeItems(existingCurrent?.fixes || [], parsed.fixes);
+  const finalImprovements = mergeItems(existingCurrent?.improvements || [], parsed.improvements);
+
   const currentRelease = {
     version: currentVersion,
     date: existingCurrent?.date || today,
     title: existingCurrent?.title || `Pembaruan Versi ${currentVersion}`,
-    features: parsed.features,
-    fixes: parsed.fixes,
-    improvements: parsed.improvements,
+    features: finalFeatures,
+    fixes: finalFixes,
+    improvements: finalImprovements,
   };
 
   // Simpan rilis saat ini di posisi paling atas, pertahankan riwayat versi lama

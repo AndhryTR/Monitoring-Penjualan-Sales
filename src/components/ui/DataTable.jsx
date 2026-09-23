@@ -54,10 +54,21 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
+    const isAsc = sortDir === "asc";
     arr.sort((a, b) => {
-      const va = a[sortKey], vb = b[sortKey];
-      if (typeof va === "string") return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
-      return sortDir === "asc" ? (va || 0) - (vb || 0) : (vb || 0) - (va || 0);
+      const va = a[sortKey];
+      const vb = b[sortKey];
+      if (va === vb) return 0;
+      if (va === null || va === undefined || va === "") return isAsc ? 1 : -1;
+      if (vb === null || vb === undefined || vb === "") return isAsc ? -1 : 1;
+      if (typeof va === "string" || typeof vb === "string") {
+        const sa = String(va);
+        const sb = String(vb);
+        const cmp = sa < sb ? -1 : (sa > sb ? 1 : 0);
+        return isAsc ? cmp : -cmp;
+      }
+      const diff = (Number(va) || 0) - (Number(vb) || 0);
+      return isAsc ? diff : -diff;
     });
     return arr;
   }, [filtered, sortKey, sortDir]);

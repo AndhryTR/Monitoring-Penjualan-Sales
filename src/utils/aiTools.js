@@ -6,6 +6,8 @@
 // Tahap 2: navigasiTab, aturFilter, resetFilter — aksi langsung ke state UI dashboard.
 
 import { matchRanked } from "../hooks/useGlobalSearch.js";
+import { computeParetoClassification } from "./paretoEngine.js";
+import { computeAllSalesCommissions, getStoredCommissionRules } from "./commissionEngine.js";
 
 export { ALLOWLIST, WRITE_TOOLS } from "./aiDispatcher.js";
 import { WRITE_TOOLS_SET } from "./aiDispatcher.js";
@@ -560,6 +562,9 @@ export function runReadTool(tool, params = {}, ctx = {}, deps = {}) {
     case "cariProduk": return cariProduk(ctx, params, deps);
     case "detailSales": return detailSales(ctx, params, deps);
     case "analisisDrop": return analisisDrop(ctx, params, deps);
+    case "simulasiTarget": return simulasiTarget(ctx, params, deps);
+    case "analisisPareto": return analisisPareto(ctx, params, deps);
+    case "hitungKomisi": return hitungKomisi(ctx, params, deps);
     default: return { ok: false, reason: `Tool baca tak dikenal: ${String(tool)}.` };
   }
 }
@@ -759,6 +764,231 @@ export function analisisDrop(ctx = {}, _params = {}, _deps = {}) {
       ringkasan: `ACH global ${num(achGlobal ?? 0, 1)}%. ${merahTotal.length} dari ${src.length} sales di bawah 100% target. ` +
         (merah5.length ? `Terendah: ${merah5.map((s) => s.nama + " " + s.ach + "%").join(", ")}. ` : "") +
         (gapTotal > 0 ? `Gap total dari sales merah: ${(gapTotal / 1e6).toFixed(1)}jt.` : ""),
+    },
+  };
+}
+
+// simulasiTarget: What-If Target Scenario, Run-Rate harian & Proyeksi Akhir Bulan
+export function simulasiTarget(ctx = {}, params = {}, _deps = {}) {
+  const salesList = asArray(ctx.semua?.sales?.length ? ctx.semua.sales : ctx.sales);
+  if (!salesList.length) {
+    return { ok: false, reason: "Data sales dan target belum tersedia. Pastikan data penjualan sudah dimuat." };
+  }
+
+  const kodeParam = str(params.salesCode ?? params.sales ?? params.kode ?? "", 60).toLowerCase();
+  const targetAdjustmentPercent = num(params.targetAdjustmentPercent ?? params.kenaikanTarget ?? 0, 1);
+  const userRemainingDays = params.remainingDays != null ? num(params.remainingDays, 0) : null;
+
+  const elapsedDays = Math.max(num(ctx.semua?.hari ?? ctx.hari ?? 20, 0), 1);
+  const totalWorkDaysInMonth = 26;
+  const remainingWorkDays = userRemainingDays !== null
+    ? Math.max(userRemainingDays, 1)
+    : Math.max(totalWorkDaysInMonth - elapsedDays, 5);
+
+  const multiplier = 1 + (targetAdjustmentPercent / 100);
+
+  // Jika simulasi untuk satu orang sales spesifik
+  if (kodeParam) {
+    const s = salesList.find((x) =>
+      String(x.kode ?? "").toLowerCase().includes(kodeParam) ||
+      String(x.nama ?? "").toLowerCase().includes(kodeParam)
+    );
+    if (!s) {
+      return { ok: false, reason: `Sales "${kodeParam}" tidak ditemukan di data aktif.` };
+    }
+
+    const currentTotal = num(s.total ?? s.realisasi ?? 0, 0);
+    const originalTarget = num(s.target ?? 0, 0);
+    const adjustedTarget = Math.round(originalTarget * multiplier);
+    const currentAch = originalTarget > 0 ? num((currentTotal / originalTarget) * 100, 1) : 0;
+
+    const currentDailyRate = currentTotal / elapsedDays;
+    const projectedFinal = currentTotal + (currentDailyRate * remainingWorkDays);
+    const projectedAch = adjustedTarget > 0 ? num((projectedFinal / adjustedTarget) * 100, 1) : 0;
+    const gap = Math.max(0, adjustedTarget - currentTotal);
+    const requiredDailyRate = gap / remainingWorkDays;
+
+    return {
+      ok: true,
+      data: {
+        tipe: "sales_tunggal",
+        nama: s.nama || s.kode,
+        kode: s.kode,
+        hariBerjalan: elapsedDays,
+        sisaHariKerja: remainingWorkDays,
+        realisasiSaatIni: currentTotal,
+        targetAwal: originalTarget,
+        penyesuaianTargetPersen: targetAdjustmentPercent,
+        targetSimulasi: adjustedTarget,
+        achSaatIni: currentAch,
+        runRateHarianAktual: Math.round(currentDailyRate),
+        proyeksiTotalAkhirBulan: Math.round(projectedFinal),
+        proyeksiAchAkhirBulan: projectedAch,
+        kekuranganTarget: gap,
+        runRateHarianDibutuhkan: Math.round(requiredDailyRate),
+        statusProyeksi: projectedAch >= 100 ? "TERCAPAI" : "BERISIKO_KURANG",
+        ringkasan: `Sales ${s.nama || s.kode}: Realisasi Rp ${currentTotal.toLocaleString("id-ID")} (${currentAch}%). ` +
+          `Pada sisa ${remainingWorkDays} hari kerja dengan run-rate Rp ${Math.round(currentDailyRate).toLocaleString("id-ID")}/hari, ` +
+          `proyeksi akhir mencapai Rp ${Math.round(projectedFinal).toLocaleString("id-ID")} (${projectedAch}%). ` +
+          (gap > 0 ? `Dibutuhkan run-rate Rp ${Math.round(requiredDailyRate).toLocaleString("id-ID")}/hari untuk mencapai 100% target.` : `Aman mencapai target.`),
+      },
+    };
+  }
+
+  // Simulasi untuk seluruh tim
+  const totalRealisasi = num(ctx.semua?.total ?? ctx.total ?? 0, 0);
+  const totalTargetAwal = num(ctx.semua?.target ?? ctx.target ?? 0, 0);
+  const totalTargetSimulasi = Math.round(totalTargetAwal * multiplier);
+  const currentGlobalAch = totalTargetAwal > 0 ? num((totalRealisasi / totalTargetAwal) * 100, 1) : 0;
+
+  const globalDailyRate = totalRealisasi / elapsedDays;
+  const globalProjectedTotal = totalRealisasi + (globalDailyRate * remainingWorkDays);
+  const globalProjectedAch = totalTargetSimulasi > 0 ? num((globalProjectedTotal / totalTargetSimulasi) * 100, 1) : 0;
+  const globalGap = Math.max(0, totalTargetSimulasi - totalRealisasi);
+  const globalRequiredDailyRate = globalGap / remainingWorkDays;
+
+  // Rincian per sales untuk yang berisiko
+  const salesSimulasi = salesList.map((s) => {
+    const real = num(s.total ?? s.realisasi ?? 0, 0);
+    const tgt = Math.round(num(s.target ?? 0, 0) * multiplier);
+    const dailyRate = real / elapsedDays;
+    const proj = real + (dailyRate * remainingWorkDays);
+    const projAch = tgt > 0 ? num((proj / tgt) * 100, 1) : 0;
+    const gap = Math.max(0, tgt - real);
+    const reqRate = gap / remainingWorkDays;
+
+    return {
+      nama: s.nama || s.kode,
+      kode: s.kode,
+      realisasi: real,
+      target: tgt,
+      achSaatIni: tgt > 0 ? num((real / tgt) * 100, 1) : 0,
+      runRateAktual: Math.round(dailyRate),
+      proyeksiAkhir: Math.round(proj),
+      proyeksiAch: projAch,
+      gapTarget: gap,
+      runRateDibutuhkan: Math.round(reqRate),
+    };
+  });
+
+  salesSimulasi.sort((a, b) => a.proyeksiAch - b.proyeksiAch);
+  const salesKritis = salesSimulasi.filter((s) => s.proyeksiAch < 100).slice(0, 5);
+
+  return {
+    ok: true,
+    data: {
+      tipe: "seluruh_tim",
+      hariBerjalan: elapsedDays,
+      sisaHariKerja: remainingWorkDays,
+      totalRealisasi,
+      totalTargetAwal,
+      penyesuaianTargetPersen: targetAdjustmentPercent,
+      totalTargetSimulasi,
+      achSaatIni: currentGlobalAch,
+      runRateHarianAktual: Math.round(globalDailyRate),
+      proyeksiTotalAkhirBulan: Math.round(globalProjectedTotal),
+      proyeksiAchAkhirBulan: globalProjectedAch,
+      kekuranganTarget: globalGap,
+      runRateHarianDibutuhkan: Math.round(globalRequiredDailyRate),
+      salesPerluIntervensi: salesKritis,
+      ringkasan: `Simulasi Tim: ACH saat ini ${currentGlobalAch}%. Dengan sisa ${remainingWorkDays} hari kerja, ` +
+        `proyeksi akhir bulan mencapai Rp ${Math.round(globalProjectedTotal).toLocaleString("id-ID")} (${globalProjectedAch}% dari target). ` +
+        (globalGap > 0
+          ? `Gap target Rp ${Math.round(globalGap).toLocaleString("id-ID")} (butuh run-rate Rp ${Math.round(globalRequiredDailyRate).toLocaleString("id-ID")}/hari). ` +
+            (salesKritis.length ? `Prioritas intervensi ${salesKritis.length} sales: ${salesKritis.map((s) => `${s.nama} (${s.proyeksiAch}%)`).join(", ")}.` : "")
+          : `Seluruh tim diproyeksikan aman mencapai target.`),
+    },
+  };
+}
+
+// ---------- TOOL BARU (Tahap 4): Advanced FMCG Analytics (Pareto & Komisi) ----------
+
+// analisisPareto: segmentasi outlet ABC berdasarkan kontribusi kumulatif penjualan
+export function analisisPareto(_ctx = {}, params = {}, deps = {}) {
+  const rawRows = typeof deps.getRawRows === "function" ? deps.getRawRows() : [];
+  if (!rawRows.length) return { ok: false, reason: "Data transaksi belum tersedia — upload file Excel dulu." };
+
+  const outlets = buildOutletIndex(rawRows);
+  const { outletsWithPareto, paretoSummary } = computeParetoClassification(outlets);
+
+  const filterKelas = (params.kelas || "").toUpperCase();
+  let hasil = outletsWithPareto;
+  if (filterKelas === "A" || filterKelas === "B" || filterKelas === "C") {
+    hasil = outletsWithPareto.filter((o) => o.paretoClass === filterKelas);
+  }
+
+  const limit = Math.min(Math.max(num(params.limit ?? 10, 0), 1), 30);
+  const topList = hasil.slice(0, limit).map((o) => ({
+    kode: o.code,
+    nama: o.name,
+    kelas: o.paretoClass,
+    kontribusi: o.contributionPercent,
+    omset: o.value,
+    frekuensi: o.invoiceCount,
+    sales: o.salesList,
+  }));
+
+  return {
+    ok: true,
+    data: {
+      summary: paretoSummary,
+      kelasFilter: filterKelas || "semua",
+      ditampilkan: topList.length,
+      outlets: topList,
+    },
+  };
+}
+
+// hitungKomisi: simulasi payout insentif sales FMCG berdasarkan tier achievement & bonus AO
+export function hitungKomisi(ctx = {}, params = {}, deps = {}) {
+  let salesList = asArray(ctx.semua?.sales ?? ctx.sales ?? []);
+
+  // Jika tidak ada di context, coba susun dari rawRows
+  if (!salesList.length && typeof deps.getRawRows === "function") {
+    const rawRows = deps.getRawRows();
+    const map = new Map();
+    for (const r of rawRows) {
+      const code = r.salesCode || r.salesName || "";
+      if (!code) continue;
+      let s = map.get(code);
+      if (!s) {
+        s = { code, name: r.salesName || code, realisasiValue: 0, realisasiAo: 0, outlets: new Set() };
+        map.set(code, s);
+      }
+      s.realisasiValue += r.value || 0;
+      if (r.outletCode) s.outlets.add(r.outletCode);
+    }
+    salesList = Array.from(map.values()).map((s) => ({
+      code: s.code,
+      name: s.name,
+      realisasiValue: s.realisasiValue,
+      realisasiAo: s.outlets.size,
+      targetValue: s.realisasiValue * 0.9,
+      targetAo: Math.round(s.outlets.size * 0.9),
+    }));
+  }
+
+  if (!salesList.length) {
+    return { ok: false, reason: "Data sales tidak tersedia untuk perhitungan komisi." };
+  }
+
+  const rules = getStoredCommissionRules(deps.depotName || "default");
+  const rawRowsForCommission = typeof deps.getRawRows === "function" ? deps.getRawRows() : [];
+  const { commissions, summary } = computeAllSalesCommissions(salesList, rules, rawRowsForCommission);
+
+  let filteredCommissions = commissions;
+  if (params.salesCode) {
+    const q = String(params.salesCode).toLowerCase();
+    filteredCommissions = commissions.filter(
+      (c) => c.salesCode.toLowerCase().includes(q) || c.salesName.toLowerCase().includes(q)
+    );
+  }
+
+  return {
+    ok: true,
+    data: {
+      summary,
+      commissions: filteredCommissions.slice(0, 15),
     },
   };
 }

@@ -62,9 +62,9 @@ export const THEMES = {
     surface2: "#F3F4F6",
     border: "#E5E7EB",
     text: "#111827",
-    textMuted: "#6B7280",
-    // Sama dengan textMuted — mode terang sudah cukup kontras, jadi tidak perlu warna berbeda.
-    tableHeader: "#6B7280",
+    textMuted: "#4B5563",
+    // Header tabel di mode terang ditingkatkan kontrasnya untuk keterbacaan optimal.
+    tableHeader: "#374151",
     gold: "#D97706",
     mint: "#059669",
     coral: "#DC2626",

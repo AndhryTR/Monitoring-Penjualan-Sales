@@ -1,5 +1,3 @@
-import * as XLSX from "xlsx-js-style";
-
 /* ============================================================================
    GEO STORAGE & COORDINATE MANAGER (Fitur B4 - Outlet Map Visualization)
    1. Penyimpanan koordinat per depo di localStorage/IndexedDB
@@ -128,7 +126,8 @@ function makeCell(val, isItalic = false) {
  * Meng-export template Excel koordinat yang sudah otomatis berisi seluruh
  * outlet yang sedang aktif di data saat ini.
  */
-export function exportCoordinateTemplate(outlets = [], depotName = "") {
+export async function exportCoordinateTemplate(outlets = [], depotName = "") {
+  const XLSX = await import("xlsx-js-style");
   const stored = getStoredCoordinates(depotName);
   const safeDepot = (depotName || "DEPO").replace(/[^a-zA-Z0-9_-]/g, "_");
 
@@ -213,6 +212,7 @@ export function exportCoordinateTemplate(outlets = [], depotName = "") {
  * Membaca dan mem-parse file Excel koordinat yang diunggah pengguna.
  */
 export async function parseCoordinateExcel(file) {
+  const XLSX = await import("xlsx-js-style");
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 

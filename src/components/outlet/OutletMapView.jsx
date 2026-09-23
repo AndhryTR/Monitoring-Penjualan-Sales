@@ -32,15 +32,16 @@ const TILE_ATTRIBUTION_ESRI = '&copy; <a href="https://www.esri.com/">Esri</a>, 
 const DEFAULT_CENTER = [-7.250445, 112.768845]; // Surabaya default
 const DEFAULT_ZOOM = 12;
 
-function createPinIcon(color, isSelected = false) {
-  const w = isSelected ? 32 : 26;
-  const h = isSelected ? 40 : 34;
+function createPinIcon(color, isSelected = false, stopNumber = null) {
+  const w = isSelected ? 34 : (stopNumber ? 30 : 26);
+  const h = isSelected ? 42 : (stopNumber ? 38 : 34);
 
   const svg = `
     <svg width="${w}" height="${h}" viewBox="0 0 28 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));">
       <path d="M14 0C6.268 0 0 6.268 0 14C0 24.5 14 36 14 36C14 36 28 24.5 28 14C28 6.268 21.732 0 14 0Z" fill="${color}"/>
-      <circle cx="14" cy="14" r="5.5" fill="#FFFFFF"/>
-      ${isSelected ? `<circle cx="14" cy="14" r="9" stroke="#FFFFFF" stroke-width="2" fill="none"/>` : ""}
+      <circle cx="14" cy="14" r="${stopNumber ? "7" : "5.5"}" fill="#FFFFFF"/>
+      ${stopNumber !== null ? `<text x="14" y="17.5" text-anchor="middle" font-size="9" font-family="-apple-system,sans-serif" font-weight="bold" fill="${color}">${stopNumber}</text>` : ""}
+      ${isSelected ? `<circle cx="14" cy="14" r="10" stroke="#FFFFFF" stroke-width="2" fill="none"/>` : ""}
     </svg>
   `;
 
@@ -51,6 +52,44 @@ function createPinIcon(color, isSelected = false) {
     iconAnchor: [w / 2, h],
     popupAnchor: [0, -h],
   });
+}
+
+function computeRoutePath(outlets) {
+  if (!outlets || outlets.length < 2) return { route: outlets || [], totalDistanceKm: 0 };
+
+  const getDist = (a, b) => {
+    const R = 6371; // km
+    const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+    const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+    const lat1 = (a.lat * Math.PI) / 180;
+    const lat2 = (b.lat * Math.PI) / 180;
+    const aHarv =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(aHarv), Math.sqrt(1 - aHarv));
+    return R * c;
+  };
+
+  const remaining = [...outlets];
+  const route = [remaining.shift()];
+  let totalDistanceKm = 0;
+
+  while (remaining.length > 0) {
+    const current = route[route.length - 1];
+    let nearestIdx = 0;
+    let minD = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const d = getDist(current, remaining[i]);
+      if (d < minD) {
+        minD = d;
+        nearestIdx = i;
+      }
+    }
+    totalDistanceKm += minD;
+    route.push(remaining.splice(nearestIdx, 1)[0]);
+  }
+
+  return { route, totalDistanceKm: Number(totalDistanceKm.toFixed(1)) };
 }
 
 function createDraggablePinIcon() {
@@ -100,6 +139,7 @@ export function OutletMapView({
     dormant: true,
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [showRoute, setShowRoute] = useState(false);
 
   // Map layer toggle: "auto" | "streets" | "satellite"
   const [mapLayer, setMapLayer] = useState("auto");
@@ -190,6 +230,19 @@ export function OutletMapView({
       return true;
     });
   }, [outletsWithCoords, selectedStatus, selectedSales, selectedDay, schedule, searchQuery]);
+
+  // Kalkulasi rute urutan kunjungan salesmen (Nearest Neighbor TSP)
+  const routeInfo = useMemo(() => {
+    if (!showRoute || visibleOutlets.length < 2) {
+      return { route: visibleOutlets, totalDistanceKm: 0, orderMap: {} };
+    }
+    const { route, totalDistanceKm } = computeRoutePath(visibleOutlets);
+    const orderMap = {};
+    route.forEach((o, idx) => {
+      orderMap[o.outletCode] = idx + 1;
+    });
+    return { route, totalDistanceKm, orderMap };
+  }, [showRoute, visibleOutlets]);
 
   // Statistik outlet
   const stats = useMemo(() => {
@@ -447,6 +500,18 @@ export function OutletMapView({
 
     const bounds = L.latLngBounds([]);
 
+    // Visualisasikan garis rute kunjungan jika mode rute diaktifkan
+    if (showRoute && routeInfo.route.length >= 2) {
+      const latlngs = routeInfo.route.map((o) => [o.lat, o.lng]);
+      const polyline = L.polyline(latlngs, {
+        color: colors.blue || "#3B82F6",
+        weight: 3.5,
+        dashArray: "6, 8",
+        opacity: 0.85,
+      });
+      group.addLayer(polyline);
+    }
+
     visibleOutlets.forEach((o) => {
       if (o.lat === undefined || o.lng === undefined) return;
 
@@ -458,8 +523,9 @@ export function OutletMapView({
 
       const meta = OUTLET_STATUS_META[o.status] || OUTLET_STATUS_META.unknown;
       const pinColor = colors[meta.color] || colors.blue;
+      const stopNumber = showRoute ? (routeInfo.orderMap[o.outletCode] || null) : null;
 
-      const icon = createPinIcon(pinColor);
+      const icon = createPinIcon(pinColor, false, stopNumber);
       const marker = L.marker([o.lat, o.lng], { icon, title: o.outletName });
 
       // Konten Popup
@@ -475,9 +541,16 @@ export function OutletMapView({
       const popupHtml = `
         <div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;min-width:230px;max-width:280px;color:${isDark ? '#F1F5F9' : '#0F172A'};line-height:1.4;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-            <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:${statusBg};color:${pinColor};border:1px solid ${pinColor}44;">
-              ${meta.label}
-            </span>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:${statusBg};color:${pinColor};border:1px solid ${pinColor}44;">
+                ${meta.label}
+              </span>
+              ${o.paretoClass ? `
+                <span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:999px;background:${o.paretoClass === 'A' ? colors.gold + '22' : o.paretoClass === 'B' ? colors.blue + '22' : colors.glassFill};color:${o.paretoClass === 'A' ? colors.gold : o.paretoClass === 'B' ? colors.blue : colors.textMuted};border:1px solid ${o.paretoClass === 'A' ? colors.gold + '55' : o.paretoClass === 'B' ? colors.blue + '55' : colors.glassBorder};">
+                  ${o.paretoClass === 'A' ? '👑 [A]' : o.paretoClass === 'B' ? '🔷 [B]' : '⚪ [C]'}
+                </span>
+              ` : ''}
+            </div>
             <span style="font-size:10px;color:${colors.textMuted};font-family:monospace;">
               ${o.outletCode}
             </span>
@@ -486,6 +559,12 @@ export function OutletMapView({
           <div style="font-size:13px;font-weight:700;margin-bottom:4px;color:${isDark ? '#F8FAFC' : '#0F172A'};">
             ${o.outletName}
           </div>
+
+          ${stopNumber ? `
+            <div style="font-size:11px;font-weight:700;color:${colors.blue};margin-bottom:6px;display:flex;align-items:center;gap:4px;">
+              🚩 Urutan Kunjungan: Stop #${stopNumber}
+            </div>
+          ` : ''}
 
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
             <span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px;background:${dayBadgeBg};color:${dayBadgeText};border:1px solid ${dayBorder};">
@@ -555,7 +634,7 @@ export function OutletMapView({
     if (bounds.isValid() && !activePointingOutlet) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
     }
-  }, [visibleOutlets, colors, isDark, schedule, activePointingOutlet]);
+  }, [visibleOutlets, colors, isDark, schedule, activePointingOutlet, showRoute, routeInfo]);
 
   // Pusatkan peta dan buka popup outlet dari hasil pencarian
   const handleSelectSearchResult = useCallback((outlet) => {
@@ -845,6 +924,24 @@ export function OutletMapView({
           >
             <Crosshair size={14} />
             Pointing Toko {stats.missing > 0 ? `(${stats.missing})` : ""}
+          </button>
+
+          {/* Tombol Visualisasi Rute Kunjungan */}
+          <button
+            onClick={() => setShowRoute((v) => !v)}
+            disabled={visibleOutlets.length < 2}
+            className={`sm-btn px-3 py-1.5 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-all ${
+              showRoute ? "shadow-sm font-bold" : "opacity-85 hover:opacity-100"
+            }`}
+            style={{
+              background: showRoute ? (colors.blue || "#3B82F6") : colors.glassFill,
+              border: `1px solid ${showRoute ? (colors.blue || "#3B82F6") : colors.glassBorder}`,
+              color: showRoute ? "#FFFFFF" : colors.text,
+            }}
+            title={visibleOutlets.length < 2 ? "Butuh minimal 2 outlet bertitik untuk menampilkan alur rute" : "Visualisasikan alur rute kunjungan call sheet"}
+          >
+            <Navigation size={14} className={showRoute ? "animate-pulse" : ""} />
+            {showRoute ? `Rute (${routeInfo.totalDistanceKm} km)` : "Rute Kunjungan"}
           </button>
 
           {onOpenScheduleModal && (

@@ -161,8 +161,31 @@ export function computeStockMetrics(stockMap, salesByProduct = {}, _workDays = 2
     // Kalau coverage null (tidak ada data penjualan) → tidak bisa tentukan kritis.
     const isStockout = stock.currentQty <= 0;
     const isLowStock = !isStockout && coverageDays !== null && coverageDays < 7;
+    const isNeedReorder = !isStockout && coverageDays !== null && coverageDays < 14;
     const isOverstock = coverageDays !== null && coverageDays > 60;
     const isDeadStock = stock.openingQty > 0 && stock.currentQty > 0 && stock.transactionCount === 0;
+
+    // Estimasi tanggal kehabisan stok & saran restock buffer 30 hari
+    let estimatedDepletionDate = null;
+    let daysRemaining = null;
+    if (isStockout) {
+      daysRemaining = 0;
+    } else if (coverageDays !== null && Number.isFinite(coverageDays) && coverageDays >= 0) {
+      daysRemaining = Math.round(coverageDays);
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + daysRemaining);
+      estimatedDepletionDate = targetDate.toISOString().slice(0, 10);
+    }
+
+    const suggestedReorderQty = sales.avgDailyQty > 0 && (coverageDays === null || coverageDays < 14)
+      ? Math.max(0, Math.ceil((30 - (coverageDays || 0)) * sales.avgDailyQty))
+      : 0;
+
+    let reorderUrgency = "AMAN";
+    if (isStockout) reorderUrgency = "HABIS";
+    else if (isLowStock) reorderUrgency = "KRITIS";
+    else if (isNeedReorder) reorderUrgency = "PERINGATAN";
+    else if (isOverstock) reorderUrgency = "OVERSTOCK";
 
     metrics.push({
       ...stock,
@@ -171,8 +194,13 @@ export function computeStockMetrics(stockMap, salesByProduct = {}, _workDays = 2
       turnoverRatio,
       isStockout,
       isLowStock,
+      isNeedReorder,
       isOverstock,
       isDeadStock,
+      estimatedDepletionDate,
+      daysRemaining,
+      suggestedReorderQty,
+      reorderUrgency,
       salesData: sales,
     });
   }
@@ -203,8 +231,11 @@ export function computeStockSummary(stockMap, salesByProduct = {}, _daysCount = 
   let totalValue = 0;
   let totalSoldQty = 0;
   let lowStockCount = 0;
+  let needReorderCount = 0;
   let stockoutCount = 0;
   let deadStockCount = 0;
+  let totalCoverageDays = 0;
+  let coverageCount = 0;
   let groupBreakdown = {};
 
   for (const [code, stock] of stockMap) {
@@ -216,8 +247,18 @@ export function computeStockSummary(stockMap, salesByProduct = {}, _daysCount = 
     const sales = salesByProduct[code] || { totalQty: 0, avgDailyQty: 0 };
     const coverageDays = sales.avgDailyQty > 0 ? stock.currentQty / sales.avgDailyQty : null;
 
-    if (stock.currentQty <= 0) stockoutCount++;
-    else if (coverageDays !== null && coverageDays < 7) lowStockCount++;
+    if (stock.currentQty <= 0) {
+      stockoutCount++;
+    } else if (coverageDays !== null) {
+      totalCoverageDays += coverageDays;
+      coverageCount++;
+      if (coverageDays < 7) {
+        lowStockCount++;
+      }
+      if (coverageDays < 14) {
+        needReorderCount++;
+      }
+    }
     if (stock.openingQty > 0 && stock.currentQty > 0 && stock.transactionCount === 0) deadStockCount++;
 
     if (stock.group) {
@@ -237,8 +278,10 @@ export function computeStockSummary(stockMap, salesByProduct = {}, _daysCount = 
     totalValue,
     totalSoldQty,
     lowStockCount,
+    needReorderCount,
     stockoutCount,
     deadStockCount,
+    avgCoverageDays: coverageCount > 0 ? totalCoverageDays / coverageCount : null,
     groupBreakdown,
   };
 }

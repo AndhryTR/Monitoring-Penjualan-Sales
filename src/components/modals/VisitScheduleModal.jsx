@@ -272,9 +272,9 @@ export function VisitScheduleModal({
   };
 
   // 5. Download Master Jadwal Excel
-  const handleDownloadExcel = () => {
+  const handleDownloadExcel = async () => {
     try {
-      const filename = exportScheduleExcel(schedule, outlets, depotName, coords);
+      const filename = await exportScheduleExcel(schedule, outlets, depotName, coords);
       showToast("success", `File ${filename} berhasil diunduh.`);
     } catch (err) {
       showToast("error", `Gagal mengunduh Excel: ${err.message}`);

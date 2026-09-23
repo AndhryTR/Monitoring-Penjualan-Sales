@@ -1,28 +1,52 @@
+import React from "react";
+import { Skeleton, KpiCardSkeleton } from "./Skeleton.jsx";
+
 /* ============================================================================
    DASHBOARDSKELETON
-   Skeleton generik yang meniru bentuk akhir dashboard (baris KPI + kartu berisi
-   beberapa baris) — dipakai selagi menunggu proses async yang biasanya cepat
-   tapi tidak instan (baca sesi terakhir dari IndexedDB saat app pertama dibuka).
-   Shimmer terasa lebih "cepat" secara persepsi dibanding spinner polos karena
-   user sudah lihat kira-kira bentuk konten yang akan muncul.
+   Skeleton modern dengan efek shimmer yang meniru bentuk nyata dashboard
+   (Pace strip + 6 KPI Big Cards + Card Tabel/Chart).
+   Meningkatkan perceived performance selagi menunggu komputasi data.
 ============================================================================ */
 export function DashboardSkeleton({ colors }) {
   return (
-    <div className="sm-fadein" aria-busy="true" aria-label="Memuat data">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="sm-card p-4 animate-pulse">
-            <div className="h-3 w-16 rounded mb-3" style={{ background: colors.surface2 }} />
-            <div className="h-6 w-20 rounded" style={{ background: colors.surface2 }} />
+    <div className="sm-fadein space-y-6" aria-busy="true" aria-label="Memuat dashboard...">
+      {/* Pace strip skeleton */}
+      <div
+        className="sm-card p-4 flex flex-col md:flex-row items-center justify-between gap-4"
+        style={{ background: colors?.glassFill, border: `1px solid ${colors?.glassBorder}` }}
+      >
+        <div className="w-full md:w-1/3 space-y-2">
+          <Skeleton className="h-3 w-28 rounded" colors={colors} />
+          <Skeleton className="h-5 w-44 rounded-lg" colors={colors} />
+        </div>
+        <div className="w-full md:w-2/3 space-y-2">
+          <Skeleton className="h-4 w-full rounded-full" colors={colors} />
+          <div className="flex justify-between">
+            <Skeleton className="h-3 w-20 rounded" colors={colors} />
+            <Skeleton className="h-3 w-20 rounded" colors={colors} />
           </div>
-        ))}
+        </div>
       </div>
-      <div className="sm-card p-5 mb-8 animate-pulse">
-        <div className="h-4 w-44 rounded mb-5" style={{ background: colors.surface2 }} />
-        <div className="space-y-2.5">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-11 rounded-xl" style={{ background: colors.surface2, opacity: 1 - i * 0.08 }} />
-          ))}
+
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <KpiCardSkeleton colors={colors} count={6} />
+      </div>
+
+      {/* Table / Section placeholder */}
+      <div
+        className="sm-card p-5"
+        style={{ background: colors?.glassFill, border: `1px solid ${colors?.glassBorder}` }}
+      >
+        <div className="flex items-center justify-between mb-5">
+          <Skeleton className="h-4 w-48 rounded" colors={colors} />
+          <Skeleton className="h-8 w-28 rounded-xl" colors={colors} />
+        </div>
+        <div className="space-y-3">
+          <Skeleton className="h-10 w-full rounded-xl" colors={colors} />
+          <Skeleton className="h-10 w-full rounded-xl" colors={colors} />
+          <Skeleton className="h-10 w-full rounded-xl" colors={colors} />
+          <Skeleton className="h-10 w-full rounded-xl" colors={colors} />
         </div>
       </div>
     </div>

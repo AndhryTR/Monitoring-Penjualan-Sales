@@ -28,6 +28,10 @@ export const ALLOWLIST = [
   "resetFilter",
   // Tahap 3: Deep Data & Inventory
   "cariStok",
+  "simulasiTarget",
+  // Tahap 4: Advanced FMCG Analytics
+  "analisisPareto",
+  "hitungKomisi",
 ];
 
 
@@ -240,6 +244,21 @@ export const TOOL_SCHEMAS = [
   {
     type: "function",
     function: {
+      name: "simulasiTarget",
+      description: "Simulasi what-if pencapaian target penjualan, estimasi proyeksi akhir bulan, analisis run rate harian, dan rekomendasi intervensi tim.",
+      parameters: {
+        type: "object",
+        properties: {
+          salesCode: { type: "string", description: "Kode atau nama sales spesifik (opsional)" },
+          targetAdjustmentPercent: { type: "number", description: "Persentase simulasi perubahan target (misal: 10 untuk +10%, -5 untuk -5%)" },
+          remainingDays: { type: "integer", description: "Jumlah sisa hari kerja simulasi (opsional)" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "bacaTransaksi",
       description: "Cari riwayat faktur/transaksi faktual penjualan dengan filter fleksibel.",
       parameters: {
@@ -407,6 +426,33 @@ export const TOOL_SCHEMAS = [
   {
     type: "function",
     function: {
+      name: "analisisPareto",
+      description: "Analisis segmentasi outlet Pareto ABC (Key Accounts Kelas A 80% omset, Kelas B 15%, Kelas C 5%).",
+      parameters: {
+        type: "object",
+        properties: {
+          kelas: { type: "string", enum: ["A", "B", "C", "semua"], description: "Filter kelas outlet tertentu" },
+          limit: { type: "number", description: "Batas jumlah outlet yang ditampilkan (default 10)" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "hitungKomisi",
+      description: "Hitung simulasi dan estimasi komisi/insentif sales berdasarkan tier pencapaian omset dan bonus pemenuhan target AO.",
+      parameters: {
+        type: "object",
+        properties: {
+          salesCode: { type: "string", description: "Kode sales tertentu atau kosongkan untuk seluruh sales" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "chat",
       description: "Gunakan untuk percakapan umum, sapaan, ucapan terima kasih, atau penjelasan tanpa aksi data.",
       parameters: {
@@ -450,6 +496,9 @@ export const SYSTEM_PROMPT = [
   "    Contoh: \"stok yang menipis atau kritis\" -> {\"tool\":\"cariStok\",\"params\":{\"status\":\"kritis\"},\"ringkasan\":\"Cek barang coverage < 7 hari\"}.",
   "    Contoh: \"sisa stok Beras 5kg\" -> {\"tool\":\"cariStok\",\"params\":{\"q\":\"beras 5kg\"},\"ringkasan\":\"Cek stok Beras 5kg\"}.",
   "  bacaStok: ringkasan global stok (total SKU, habis, kritis, nilai). params: {}.",
+  "  simulasiTarget: simulasi target what-if, run-rate harian, dan proyeksi akhir bulan. params: {\"salesCode\":\"kode/nama sales\", \"targetAdjustmentPercent\":N, \"remainingDays\":N}.",
+  "    Contoh: \"simulasi proyeksi akhir bulan\" -> {\"tool\":\"simulasiTarget\",\"params\":{},\"ringkasan\":\"Simulasi proyeksi target akhir bulan\"}.",
+  "    Contoh: \"kalau target dinaikkan 10%\" -> {\"tool\":\"simulasiTarget\",\"params\":{\"targetAdjustmentPercent\":10},\"ringkasan\":\"Simulasi kenaikan target 10%\"}.",
   "ANALISIS & TREN PERIODE:",
   "  queryData: dukung params {\"sortBy\":\"ach|total|nama\", \"order\":\"asc|desc\", \"limit\":N, \"minAch\":N, \"bulan\":\"nama_atau_kode_bulan\"}.",
   "    Contoh: \"3 sales terendah\" -> {\"tool\":\"queryData\",\"params\":{\"sortBy\":\"ach\",\"order\":\"asc\",\"limit\":3},\"ringkasan\":\"Ambil 3 sales ACH terendah\"}.",
@@ -490,6 +539,8 @@ export const SYSTEM_PROMPT = [
   "Bila perintah tanya stok/inventaris/barang habis/menipis -> pakai cariStok atau bacaStok.",
   "Bila perintah cari transaksi/faktur/nota belanja -> pakai bacaTransaksi.",
   "Bila perintah soal performa rendah/drop/merah -> pakai analisisDrop atau detailSales.",
+  "Bila perintah minta analisis Pareto ABC / toko kontributor omset terbesar 80% -> pakai analisisPareto.",
+  "Bila perintah minta hitung komisi/insentif sales/payout bonus -> pakai hitungKomisi.",
   "Bila perintah minta pindah halaman/tab -> pakai navigasiTab.",
   "Bila perintah minta ubah filter/tampilan -> pakai aturFilter atau resetFilter.",
 ].join("\n");

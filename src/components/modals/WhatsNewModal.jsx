@@ -25,17 +25,32 @@ function getScopeStyle(scope, colors) {
   if (s.includes("ai")) {
     return { bg: (colors.violet || "#A78BFA") + "20", border: (colors.violet || "#A78BFA") + "44", text: colors.violet || "#A78BFA" };
   }
+  if (s.includes("sales") || s.includes("target") || s.includes("komisi")) {
+    return { bg: (colors.blue || "#60A5FA") + "20", border: (colors.blue || "#60A5FA") + "44", text: colors.blue || "#60A5FA" };
+  }
+  if (s.includes("outlet") || s.includes("toko")) {
+    return { bg: (colors.gold || "#FBBF24") + "20", border: (colors.gold || "#FBBF24") + "44", text: colors.gold || "#FBBF24" };
+  }
+  if (s.includes("stok") || s.includes("stock")) {
+    return { bg: (colors.coral || "#F87171") + "20", border: (colors.coral || "#F87171") + "44", text: colors.coral || "#F87171" };
+  }
   if (s.includes("laporan") || s.includes("report")) {
     return { bg: (colors.gold || "#FBBF24") + "20", border: (colors.gold || "#FBBF24") + "44", text: colors.gold || "#FBBF24" };
   }
   if (s.includes("peta") || s.includes("lokasi") || s.includes("map")) {
     return { bg: (colors.mint || "#34D399") + "20", border: (colors.mint || "#34D399") + "44", text: colors.mint || "#34D399" };
   }
+  if (s.includes("tampilan") || s.includes("ui")) {
+    return { bg: (colors.violet || "#A78BFA") + "20", border: (colors.violet || "#A78BFA") + "44", text: colors.violet || "#A78BFA" };
+  }
   if (s.includes("pwa") || s.includes("offline")) {
     return { bg: (colors.sky || "#38BDF8") + "20", border: (colors.sky || "#38BDF8") + "44", text: colors.sky || "#38BDF8" };
   }
   if (s.includes("alert") || s.includes("peringatan")) {
     return { bg: (colors.coral || "#F43F5E") + "20", border: (colors.coral || "#F43F5E") + "44", text: colors.coral || "#F43F5E" };
+  }
+  if (s.includes("ekspor") || s.includes("export")) {
+    return { bg: (colors.mint || "#34D399") + "20", border: (colors.mint || "#34D399") + "44", text: colors.mint || "#34D399" };
   }
   return { bg: colors.glassFill || "rgba(255,255,255,0.06)", border: colors.glassBorder || "rgba(255,255,255,0.12)", text: colors.textMuted || "#94A3B8" };
 }

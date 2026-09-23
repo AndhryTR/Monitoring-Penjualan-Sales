@@ -8,7 +8,6 @@ import {
   CalendarDays, LayoutDashboard,
 } from "lucide-react";
 import { fmtRp, fmtNum, fmtCompactNum } from "../utils/formatters.js";
-import { dateKey } from "../utils/aggregation.js";
 import { ACH_TIERS } from "../constants/thresholds.js";
 import { KpiBigCard } from "../components/KpiBigCard.jsx";
 import { PaceStrip } from "../components/PaceStrip.jsx";
@@ -29,7 +28,7 @@ import { ProjectionCard, PeriodComparisonCard } from "../components/cards/index.
 ============================================================================ */
 export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison, onClearComparison, projectionMethod, onProjectionMethodChange, rawRows, filters, slideshowMode = false, loading = false }) {
   const isAggLoading = loading || Boolean(agg?.aggregationLoading && !agg?.totals?.targetValue && !agg?.totals?.realisasiValue);
-  const uniqueDaysInData = useMemo(() => new Set((agg?.filteredRows || []).map(r => dateKey(r.date))).size, [agg?.filteredRows]);
+  const uniqueDaysInData = agg?.meta?.uniqueDays ?? 0;
   const t = agg?.totals || {};
   const timeGone = workDays ? Math.min(1, uniqueDaysInData / workDays) : 0;
 

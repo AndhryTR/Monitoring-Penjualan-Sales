@@ -98,6 +98,11 @@ html, body {
 .sm-btn { background: ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transition: transform .2s ease, box-shadow .2s ease, background .2s ease; box-shadow: 0 4px 16px rgba(0,0,0,.18), inset 0 1px 0 ${colors.glassHighlight}; }
 .sm-btn:hover { transform: translateY(-2px); background: ${colors.glassFillStrong}; box-shadow: 0 6px 20px rgba(0,0,0,.22), inset 0 1px 0 ${colors.glassHighlight}; }
 .sm-btn:active { transform: translateY(0); box-shadow: inset 0 2px 8px rgba(0,0,0,.25); }
+.sm-btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 10px; }
+.sm-btn-md { padding: 8px 14px; font-size: 13px; border-radius: 12px; }
+.sm-btn-lg { padding: 10px 18px; font-size: 14px; border-radius: 14px; }
+.sm-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; }
+.sm-bottom-sheet-handle { width: 36px; height: 4px; border-radius: 999px; background: ${colors.glassBorderElevated || colors.border}; margin: 0 auto 12px auto; }
 .sm-progress-fill { transition: width 1s cubic-bezier(.16,1,.3,1); }
 @keyframes smModalPop { 0% { opacity: 0; transform: scale(0.96) translateY(8px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
 .sm-scale-in { animation: smModalPop .24s cubic-bezier(.16,1,.3,1) both; }
