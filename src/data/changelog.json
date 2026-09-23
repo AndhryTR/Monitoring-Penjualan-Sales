@@ -10,6 +10,10 @@
         "title": "Tambah analisis Pareto ABC, kalkulator komisi berjenjang & insentif produk fokus campur rasa dengan prasyarat AO"
       },
       {
+        "scope": "Produk",
+        "title": "Sub-tab Analisis SKU Lengkap dengan metrik penetrasi pasar, kontribusi omset, dan drilldown per outlet"
+      },
+      {
         "scope": "Sales & Target",
         "title": "Kalkulator komisi berjenjang & insentif produk fokus campur rasa dengan prasyarat AO"
       },
@@ -32,11 +36,19 @@
     ],
     "fixes": [
       {
+        "scope": "Produk",
+        "title": "Perbaiki kalkulasi penetrasi toko di sub-tab SKU yang selalu tampil 100% karena pembagi menggunakan field yang tidak tersedia"
+      },
+      {
         "scope": "",
         "title": "Peningkatan Performa dan stabilitas aplikasi, termasuk perbaikan bug minor"
       }
     ],
     "improvements": [
+      {
+        "scope": "Produk",
+        "title": "Selaraskan UI sub-tab Analisis SKU dengan global design system: KpiCard animasi count-up, CustomSelect glassmorphism, dan DataTable search bawaan"
+      },
       {
         "scope": "Tampilan",
         "title": "Peningkatan kontras teks abu-abu mengikuti standar WCAG AA dan gestur swipe-down dismiss pada perangkat mobile"
