@@ -34,9 +34,10 @@ function Sparkline({ data, color, height = 28 }) {
 }
 
 export function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct, delay = 0, colors, trend }) {
-  const numeric = isPct ? (value || 0) * 100 : (value || 0);
+  const isString = typeof value === "string";
+  const numeric = !isString ? (isPct ? (value || 0) * 100 : (value || 0)) : 0;
   const animated = useCountUp(numeric);
-  const displayText = isMoney ? fmtRp(animated) : isPct ? animated.toFixed(1) + "%" : fmtNum(animated);
+  const displayText = isString ? value : isMoney ? fmtRp(animated) : isPct ? animated.toFixed(1) + "%" : fmtNum(animated);
 
   // Ukuran font adaptif berdasarkan PANJANG TEKS hasil format, bukan breakpoint
   // layar — soalnya masalahnya murni angka besar (mis. "Rp 123.456.789" untuk

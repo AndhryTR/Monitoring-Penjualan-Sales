@@ -10,24 +10,37 @@
         "title": "Tambah analisis Pareto ABC, kalkulator komisi berjenjang & insentif produk fokus campur rasa dengan prasyarat AO"
       },
       {
-      "scope": "Sales & Target",
-      "title": "Kalkulator komisi berjenjang & insentif produk fokus campur rasa dengan prasyarat AO"
-    },
-    {
-      "scope": "Outlet",
-      "title": "Analisis segmentasi outlet Pareto ABC (Key Accounts Kelas A, B, dan C)"
-    },
-    {
-      "scope": "Peta & Lokasi",
-      "title": "Visualisasi rute kunjungan salesmen (TSP) dan nomor urut kunjungan"
-    }
+        "scope": "Sales & Target",
+        "title": "Kalkulator komisi berjenjang & insentif produk fokus campur rasa dengan prasyarat AO"
+      },
+      {
+        "scope": "Outlet",
+        "title": "Analisis segmentasi outlet Pareto ABC (Key Accounts Kelas A, B, dan C)"
+      },
+      {
+        "scope": "Peta & Lokasi",
+        "title": "Visualisasi rute kunjungan salesmen (TSP) dan nomor urut kunjungan"
+      },
+      {
+        "scope": "Stok",
+        "title": "Penambahan estimasi tanggal habis dan saran tindakan untuk stok yang menipis"
+      },
+      {
+        "scope": "Stok",
+        "title": "Penambahan filter pills untuk stok habis, kritis, perlu restock, dan overstock"
+      }
     ],
-    "fixes": [],
+    "fixes": [
+      {
+        "scope": "",
+        "title": "Peningkatan Performa dan stabilitas aplikasi, termasuk perbaikan bug minor"
+      }
+    ],
     "improvements": [
-       {
-      "scope": "Tampilan",
-      "title": "Peningkatan kontras teks standar WCAG AA dan gestur swipe-down dismiss pada perangkat mobile"
-    }
+      {
+        "scope": "Tampilan",
+        "title": "Peningkatan kontras teks abu-abu mengikuti standar WCAG AA dan gestur swipe-down dismiss pada perangkat mobile"
+      }
     ]
   },
   {
