@@ -10,7 +10,13 @@
         "title": "Tingkatkan smart alert dengan 6 aturan anomali dan retensi distribusi penjualan"
       }
     ],
-    "fixes": [],
+    "fixes": [
+      {
+        "hash": "6b9d74e",
+        "scope": "Changelog",
+        "title": "Isolasi commit versi lama agar tidak masuk ke changelog versi baru"
+      }
+    ],
     "improvements": []
   },
   {

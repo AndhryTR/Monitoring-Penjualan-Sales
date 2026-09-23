@@ -67,10 +67,47 @@ function capitalizeFirst(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-// Ambil riwayat commit dari Git
-function getGitCommits() {
+// Cari Git Tag rilis sebelumnya (misal v4.1.0) untuk isolasi commit rentang vPrevious..HEAD
+function getPreviousGitTag(currentVer) {
   try {
-    const rawLog = execSync('git log -n 50 --pretty=format:"%h|%ad|%s" --date=short', {
+    const rawTags = execSync("git tag --sort=-creatordate", {
+      cwd: rootDir,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+
+    if (!rawTags || !rawTags.trim()) return null;
+
+    const tags = rawTags
+      .trim()
+      .split("\n")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const cleanCurrent = currentVer.replace(/^v/, "");
+
+    // Cari tag rilis yang bukan rilis aktif saat ini
+    const prevTag = tags.find((t) => {
+      const cleanTag = t.replace(/^v/, "");
+      return cleanTag !== cleanCurrent;
+    });
+
+    return prevTag || null;
+  } catch {
+    return null;
+  }
+}
+
+// Ambil riwayat commit dari Git (mendukung rentang tag: previousTag..HEAD)
+function getGitCommits(previousTag = null) {
+  try {
+    let logCmd = 'git log -n 50 --pretty=format:"%h|%ad|%s" --date=short';
+    if (previousTag) {
+      logCmd = `git log ${previousTag}..HEAD --pretty=format:"%h|%ad|%s" --date=short`;
+      console.log(`📌 [changelog] Menggunakan rentang Git Tag: ${previousTag}..HEAD`);
+    }
+
+    const rawLog = execSync(logCmd, {
       cwd: rootDir,
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "ignore"],
@@ -87,7 +124,7 @@ function getGitCommits() {
         return { hash, date, subject };
       });
   } catch (err) {
-    console.warn("⚠️ [changelog] Tidak dapat membaca git log (mungkin shallow clone atau non-git environment):", err.message);
+    console.warn("⚠️ [changelog] Gagal membaca git log:", err.message);
     return [];
   }
 }
@@ -194,7 +231,8 @@ function main() {
     }
   }
 
-  const rawCommits = getGitCommits();
+  const previousTag = getPreviousGitTag(currentVersion);
+  const rawCommits = getGitCommits(previousTag);
   const parsed = parseCommits(rawCommits, olderHashes, olderTitles);
 
   const existingCurrent = existingChangelog.find((rel) => rel.version === currentVersion);

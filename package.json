@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "changelog": "node scripts/generate-changelog.js",
+    "tag": "node scripts/tag-release.js",
     "build": "node scripts/generate-changelog.js && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
