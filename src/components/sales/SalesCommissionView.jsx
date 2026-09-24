@@ -446,28 +446,28 @@ export function SalesCommissionView({ rows = [], filteredRows = [], colors, depo
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard
           label="Total Estimasi Payout"
-          value={fmtRp(summary.totalPayout)}
+          value={fmtRp(summary?.totalPayout ?? 0)}
           icon={Coins}
           accent={colors.mint}
           colors={colors}
         />
         <KpiCard
           label="Sales Lolos Insentif"
-          value={`${summary.qualifiedSalesCount} / ${summary.totalSalesCount}`}
+          value={`${summary?.qualifiedSalesCount ?? 0} / ${summary?.totalSalesCount ?? 0}`}
           icon={UserCheck}
           accent={colors.blue}
           colors={colors}
         />
         <KpiCard
           label="Komisi Omset & AO"
-          value={fmtRp(summary.totalValueCommission + summary.totalAoBonus)}
+          value={fmtRp((summary?.totalValueCommission ?? 0) + (summary?.totalAoBonus ?? 0))}
           icon={TrendingUp}
           accent={colors.gold}
           colors={colors}
         />
         <KpiCard
           label="Bonus Produk Fokus"
-          value={fmtRp(summary.totalFocusBonus)}
+          value={fmtRp(summary?.totalFocusBonus ?? 0)}
           icon={Award}
           accent={colors.violet}
           colors={colors}
@@ -650,7 +650,7 @@ export function SalesCommissionView({ rows = [], filteredRows = [], colors, depo
               ),
             },
           ]}
-          rows={commissions}
+          rows={commissions || []}
         />
       </div>
     </div>

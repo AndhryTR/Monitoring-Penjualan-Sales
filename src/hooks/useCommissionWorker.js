@@ -1,22 +1,68 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { computeAllSalesCommissions } from "../utils/commissionEngine.js";
+
+const DEFAULT_SUMMARY = {
+  totalPayout: 0,
+  totalValueCommission: 0,
+  totalAoBonus: 0,
+  totalFocusBonus: 0,
+  qualifiedSalesCount: 0,
+  totalSalesCount: 0,
+  avgPayout: 0,
+};
 
 /**
  * Hook untuk menjalankan kalkulasi komisi sales bertingkat dan insentif produk fokus
  * di Web Worker agar iterasi rules atas baris transaksi tidak memblokir UI thread.
  *
- * @param {Array} salesList - Daftar sales atau baris agregat sales
+ * @param {Array} salesList - Daftar sales atau baris agregat sales (agg.bySales)
  * @param {object} rules - Konfigurasi aturan komisi
- * @param {Array} transactionRows - Baris transaksi
+ * @param {Array} transactionRows - Baris transaksi (agg.filteredRows)
  * @returns {{ commissions: Array, summary: object, commissionLoading: boolean, commissionError: string|null }}
  */
 export function useCommissionWorker(salesList, rules, transactionRows) {
   const requestIdRef = useRef(0);
   const workerRef = useRef(null);
 
-  const fallbackCompute = () => {
-    return computeAllSalesCommissions(salesList, rules, transactionRows);
-  };
+  // Sanitasi salesList agar TIDAK membawa fungsi (seperti predicate) yang tidak dapat
+  // di-clone oleh algoritma structuredClone pada postMessage Web Worker.
+  const cleanSalesList = useMemo(() => {
+    if (!Array.isArray(salesList)) return [];
+    return salesList.map((s) => ({
+      code: s.code || s.salesCode || "",
+      salesCode: s.code || s.salesCode || "",
+      name: s.name || s.salesName || "",
+      salesName: s.name || s.salesName || "",
+      realisasiValue: Number(s.realisasiValue ?? s.value ?? 0),
+      targetValue: Number(s.targetValue ?? 0),
+      ach: s.ach !== null && s.ach !== undefined ? Number(s.ach) : null,
+      realisasiAo: Number(s.realisasiAo ?? s.ao ?? 0),
+      targetAo: Number(s.targetAo ?? 0),
+      achAo: s.achAo !== null && s.achAo !== undefined ? Number(s.achAo) : null,
+    }));
+  }, [salesList]);
+
+  // Sanitasi baris transaksi agar hanya properti yang dibutuhkan yang ditransfer
+  const cleanTransactionRows = useMemo(() => {
+    if (!Array.isArray(transactionRows)) return [];
+    return transactionRows.map((r) => ({
+      salesCode: r.salesCode || "",
+      group: r.group || "",
+      outletCode: r.outletCode || "",
+      productName: r.productName || "",
+      productCode: r.productCode || "",
+      qty: Number(r.qty) || 0,
+    }));
+  }, [transactionRows]);
+
+  const fallbackCompute = useCallback(() => {
+    try {
+      return computeAllSalesCommissions(cleanSalesList, rules, cleanTransactionRows);
+    } catch (err) {
+      console.warn("Gagal fallbackCompute komisi synchronous:", err);
+      return { commissions: [], summary: DEFAULT_SUMMARY };
+    }
+  }, [cleanSalesList, rules, cleanTransactionRows]);
 
   const [state, setState] = useState(() => ({
     loading: false,
@@ -25,11 +71,11 @@ export function useCommissionWorker(salesList, rules, transactionRows) {
   }));
 
   useEffect(() => {
-    if (!salesList || !salesList.length) {
+    if (!cleanSalesList || !cleanSalesList.length) {
       setState({
         loading: false,
         error: null,
-        data: fallbackCompute(),
+        data: { commissions: [], summary: DEFAULT_SUMMARY },
       });
       return;
     }
@@ -59,13 +105,18 @@ export function useCommissionWorker(salesList, rules, transactionRows) {
     worker.onmessage = ({ data }) => {
       if (!data || data.requestId !== requestIdRef.current) return;
       if (data.error) {
-        setState((prev) => ({ ...prev, loading: false, error: data.error }));
+        console.warn("Commission Worker error:", data.error);
+        setState({
+          loading: false,
+          error: data.error,
+          data: fallbackCompute(),
+        });
         return;
       }
       setState({
         loading: false,
         error: null,
-        data: data.result,
+        data: data.result || { commissions: [], summary: DEFAULT_SUMMARY },
       });
     };
 
@@ -83,13 +134,22 @@ export function useCommissionWorker(salesList, rules, transactionRows) {
       }
     };
 
-    worker.postMessage({
-      requestId,
-      salesList,
-      rules,
-      transactionRows,
-    });
-  }, [salesList, rules, transactionRows]);
+    try {
+      worker.postMessage({
+        requestId,
+        salesList: cleanSalesList,
+        rules,
+        transactionRows: cleanTransactionRows,
+      });
+    } catch (err) {
+      console.warn("Gagal postMessage ke Commission Worker, fallback synchronous:", err);
+      setState({
+        loading: false,
+        error: err.message,
+        data: fallbackCompute(),
+      });
+    }
+  }, [cleanSalesList, rules, cleanTransactionRows, fallbackCompute]);
 
   useEffect(() => {
     return () => {
@@ -102,8 +162,8 @@ export function useCommissionWorker(salesList, rules, transactionRows) {
 
   return useMemo(
     () => ({
-      commissions: state.data.commissions,
-      summary: state.data.summary,
+      commissions: state.data?.commissions || [],
+      summary: state.data?.summary || DEFAULT_SUMMARY,
       commissionLoading: state.loading,
       commissionError: state.error,
     }),
