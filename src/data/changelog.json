@@ -63,6 +63,11 @@
       {
         "scope": "",
         "title": "Peningkatan Performa dan stabilitas aplikasi, termasuk perbaikan bug minor"
+      },
+      {
+        "hash": "93a8e39",
+        "scope": "Commission",
+        "title": "Perbaiki DataCloneError pada Web Worker dan guard aman di kalkulator insentif"
       }
     ],
     "improvements": [
