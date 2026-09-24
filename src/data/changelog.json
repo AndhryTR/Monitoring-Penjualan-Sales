@@ -43,6 +43,16 @@
         "hash": "c66838c",
         "scope": "Product",
         "title": "Tambah kartu sorotan Top 5 Bintang vs Top 5 Slow-Moving pada laporan produk"
+      },
+      {
+        "hash": "ba5caac",
+        "scope": "Product",
+        "title": "Tambah kartu KPI ringkasan kinerja produk di bagian atas laporan produk"
+      },
+      {
+        "hash": "ec88667",
+        "scope": "Ekspor Data",
+        "title": "Tambah export Excel untuk analisis SKU lengkap pada menu export global"
       }
     ],
     "fixes": [
