@@ -14,10 +14,6 @@
         "title": "Sub-tab Analisis SKU Lengkap dengan metrik penetrasi pasar, kontribusi omset, dan drilldown per outlet"
       },
       {
-        "scope": "Sales & Target",
-        "title": "Kalkulator komisi berjenjang & insentif produk fokus campur rasa dengan prasyarat AO"
-      },
-      {
         "scope": "Outlet",
         "title": "Analisis segmentasi outlet Pareto ABC (Key Accounts Kelas A, B, dan C)"
       },
@@ -32,6 +28,11 @@
       {
         "scope": "Stok",
         "title": "Penambahan filter pills untuk stok habis, kritis, perlu restock, dan overstock"
+      },
+      {
+        "hash": "f33b01d",
+        "scope": "Laporan",
+        "title": "Tambah analisis SKU lengkap pada laporan produk"
       }
     ],
     "fixes": [

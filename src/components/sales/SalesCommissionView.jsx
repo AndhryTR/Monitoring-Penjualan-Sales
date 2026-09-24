@@ -8,9 +8,9 @@ import {
   DEFAULT_COMMISSION_RULES,
   getStoredCommissionRules,
   saveStoredCommissionRules,
-  computeAllSalesCommissions,
   formatCommissionWhatsAppSlip,
 } from "../../utils/commissionEngine.js";
+import { useCommissionWorker } from "../../hooks/useCommissionWorker.js";
 import { KpiCard } from "../KpiCard.jsx";
 import { DataTable } from "../ui/DataTable.jsx";
 import { AchBadge } from "../AchBadge.jsx";
@@ -36,10 +36,7 @@ export function SalesCommissionView({ rows = [], filteredRows = [], colors, depo
     return Array.from(set).sort();
   }, [filteredRows]);
 
-  const { commissions, summary } = useMemo(
-    () => computeAllSalesCommissions(rows, rules, filteredRows),
-    [rows, rules, filteredRows]
-  );
+  const { commissions, summary } = useCommissionWorker(rows, rules, filteredRows);
 
   const handleRuleChange = (field, val) => {
     setRules((prev) => {

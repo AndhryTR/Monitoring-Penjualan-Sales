@@ -6,7 +6,6 @@ import {
   Store, Settings, CheckCircle2, AlertTriangle, XCircle, CalendarDays, Table, Map,
 } from "lucide-react";
 import { fmtRp, fmtNum } from "../utils/formatters.js";
-import { computeOutletAnalysis } from "../utils/aggregation.js";
 import { KpiCard } from "../components/KpiCard.jsx";
 import { DataTable } from "../components/ui/DataTable.jsx";
 import { SectionTitle } from "../components/ui/index.jsx";
@@ -19,7 +18,7 @@ import { getStoredCoordinates } from "../utils/geoStorage.js";
 import { OUTLET_STATUS_META } from "../constants/thresholds.js";
 import { getStoredSchedule, DAY_LABELS, DAY_COLORS } from "../utils/visitScheduleStorage.js";
 import { VisitScheduleModal } from "../components/modals/VisitScheduleModal.jsx";
-import { computeParetoClassification } from "../utils/paretoEngine.js";
+import { useParetoWorker } from "../hooks/useParetoWorker.js";
 
 /* ============================================================================
    TAB: ANALISIS OUTLET
@@ -65,14 +64,10 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
     };
   }, [depotName]);
 
-  const { list, summary } = useMemo(
-    () => computeOutletAnalysis(agg.filteredRows, agg.meta, thresholds),
-    [agg.filteredRows, agg.meta, thresholds]
-  );
-
-  const { outletsWithPareto, paretoSummary } = useMemo(
-    () => computeParetoClassification(list),
-    [list]
+  const { list, summary, outletsWithPareto, paretoSummary } = useParetoWorker(
+    agg.filteredRows,
+    agg.meta,
+    thresholds
   );
 
   const filteredOutlets = useMemo(() => {

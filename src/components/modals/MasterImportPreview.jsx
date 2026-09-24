@@ -3,6 +3,7 @@ import {
   X, FileSpreadsheet, AlertCircle, CheckCircle2, Loader2, Upload, FileDown,
 } from "lucide-react";
 import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
+import { useMasterImportWorker } from "../../hooks/useMasterImportWorker.js";
 import { fmtRp } from "../../utils/formatters.js";
 
 /* ============================================================================
@@ -24,6 +25,7 @@ export function MasterImportPreview({ isOpen, onClose, onConfirm, existingCodes 
   const [result, setResult] = useState(null); // { targets, stats, errors }
   const [parseError, setParseError] = useState("");
   const fileInputRef = useRef(null);
+  const { parseMaster } = useMasterImportWorker();
 
   useScrollLock(isOpen);
   useEscapeKey(isOpen, onClose);
@@ -49,9 +51,7 @@ export function MasterImportPreview({ isOpen, onClose, onConfirm, existingCodes 
     setParseError("");
     setParsing(true);
     try {
-      // Lazy import supaya bundle awal tidak keberatan (xlsx-js-style ~600KB)
-      const { parseMasterExcel } = await import("../../utils/masterImport.js");
-      const res = await parseMasterExcel(selected);
+      const res = await parseMaster(selected);
       setResult(res);
     } catch (err) {
       console.error("Master import parse error:", err);

@@ -103,14 +103,17 @@ function normalizeTier(v) {
 }
 
 /**
- * Parse file Excel master 3-sheet → objek targets.
+ * Parse ArrayBuffer master Excel (3-sheet) → objek targets siap replace.
+ * Dipanggil dari Web Worker yang menerima buffer dari main thread,
+ * atau langsung dari parseMasterExcel sebagai delegate.
  *
- * @param {File} file - File .xlsx dari input type="file"
- * @returns {Promise<{targets: Target[], stats: object, errors: Array}>}
+ * Fungsi ini SINKRON — tidak ada await di dalamnya.
+ *
+ * @param {ArrayBuffer} buffer - Buffer file .xlsx
+ * @returns {{ targets: Target[], stats: object, errors: Array }}
  */
-export async function parseMasterExcel(file) {
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array" });
+export function parseMasterBuffer(buffer) {
+  const wb = XLSX.read(buffer, { type: "array" });
 
   const errors = [];
   const stats = { salesCount: 0, groupCount: 0, focusCount: 0, skippedRows: 0 };
@@ -309,4 +312,19 @@ export async function parseMasterExcel(file) {
   const targets = salesOrder.map((code) => salesMap.get(code));
 
   return { targets, stats, errors };
+}
+
+/**
+ * Parse file Excel master 3-sheet → objek targets.
+ * Wrapper async untuk parseMasterBuffer — membaca ArrayBuffer dari File
+ * lalu mendelegasikan ke parseMasterBuffer.
+ *
+ * Dipertahankan agar semua caller lama tetap berfungsi tanpa perubahan.
+ *
+ * @param {File} file - File .xlsx dari input type="file"
+ * @returns {Promise<{ targets: Target[], stats: object, errors: Array }>}
+ */
+export async function parseMasterExcel(file) {
+  const buf = await file.arrayBuffer();
+  return parseMasterBuffer(buf);
 }

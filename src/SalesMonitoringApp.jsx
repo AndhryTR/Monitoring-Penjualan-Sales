@@ -61,7 +61,7 @@ import { useWindowDragDrop } from "./hooks/useWindowDragDrop.js";
 import { AvatarButton } from "./components/ui/AvatarButton.jsx";
 import { MobileHeaderMenu } from "./components/ui/MobileHeaderMenu.jsx";
 import { NotificationBell } from "./components/ui/NotificationBell.jsx";
-import { computeSmartAlerts } from "./utils/smartAlerts.js";
+import { useSmartAlertsWorker } from "./hooks/useSmartAlertsWorker.js";
 import { UploadLoading } from "./components/ui/UploadLoading.jsx";
 import { AccessRestricted } from "./components/ui/index.jsx";
 import { TrendPeriodePage } from "./components/trend/index.jsx";
@@ -442,14 +442,7 @@ export default function SalesMonitoringApp() {
   const salesOptions = useMemo(() => targets.map((t) => ({ name: t.name, code: t.code })), [targets]);
   const aggFinal = useAggregatesWorker(rawRows, targets, filters, workDays);
   const dataQualityNotes = useDataQualityNotes(rawRows, targets, parseMeta);
-  const smartAlerts = useMemo(() => {
-    return computeSmartAlerts({
-      agg: aggFinal,
-      targets,
-      workDays,
-      dataQualityNotes,
-    });
-  }, [aggFinal, targets, workDays, dataQualityNotes]);
+  const { alerts: smartAlerts } = useSmartAlertsWorker(aggFinal, targets, workDays, dataQualityNotes);
 
   // ⚠️ Stock must be initialized before groupOptions so stock-only groups can
   // appear in the global filter without reading a variable in its TDZ.

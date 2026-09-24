@@ -82,34 +82,100 @@ export function useStock({ depotId, transactions = [], daysCount = 30 }) {
     return () => { cancelled = true; };
   }, [depotId]);
 
-  // Compute current stock (memoized)
-  const currentStock = useMemo(() => {
-    if (!activeSnapshot) return new Map();
-    return computeCurrentStock(activeSnapshot, transactions);
-  }, [activeSnapshot, transactions]);
+  // Stock computation state from Web Worker
+  const stockRequestIdRef = useRef(0);
+  const stockWorkerRef = useRef(null);
+  const [stockState, setStockState] = useState(() => {
+    if (!activeSnapshot || !activeSnapshot.products) {
+      return {
+        currentStock: new Map(),
+        stockMetrics: [],
+        stockSummary: null,
+      };
+    }
+    const currentStock = computeCurrentStock(activeSnapshot, transactions);
+    const salesByProduct = computeSalesByProduct(transactions, daysCount, null);
+    const stockMetrics = computeStockMetrics(currentStock, salesByProduct, daysCount);
+    const stockSummary = computeStockSummary(currentStock, salesByProduct, daysCount);
+    return { currentStock, stockMetrics, stockSummary };
+  });
 
-  // Compute sales-by-product for metrics
-  // ⚠️ Sprint 19h4 / Bugfix: JANGAN filter by snapshotDate di sini.
-  // snapshotDate = tanggal UPLOAD stok (mis. 2026-08-23), tapi transaksi
-  // terbaru mungkin 2026-08-18 (sebelum upload). Filter r.date >= snapshotDate
-  // memfilter SEMUA transaksi → kosong → avgDailyQty=0 → coverage=null → "-"
-  // Filter snapshotDate HANYA untuk computeCurrentStock (pengurangan stok).
-  // Untuk rate penjualan: gunakan SEMUA transaksi (semua rentang data).
-  const salesByProduct = useMemo(() => {
-    return computeSalesByProduct(transactions, daysCount, null);
-  }, [transactions, daysCount]);
+  useEffect(() => {
+    if (!activeSnapshot || !activeSnapshot.products) {
+      setStockState({
+        currentStock: new Map(),
+        stockMetrics: [],
+        stockSummary: null,
+      });
+      return;
+    }
 
-  // Stock metrics
-  const stockMetrics = useMemo(() => {
-    if (!currentStock.size) return [];
-    return computeStockMetrics(currentStock, salesByProduct, daysCount);
-  }, [currentStock, salesByProduct, daysCount]);
+    let worker = stockWorkerRef.current;
+    if (!worker) {
+      try {
+        worker = new Worker(
+          new URL("../workers/stock.worker.js", import.meta.url),
+          { type: "module" }
+        );
+        stockWorkerRef.current = worker;
+      } catch (err) {
+        console.warn("Gagal inisialisasi Stock Worker, fallback synchronous:", err);
+        const currentStock = computeCurrentStock(activeSnapshot, transactions);
+        const salesByProduct = computeSalesByProduct(transactions, daysCount, null);
+        const stockMetrics = computeStockMetrics(currentStock, salesByProduct, daysCount);
+        const stockSummary = computeStockSummary(currentStock, salesByProduct, daysCount);
+        setStockState({ currentStock, stockMetrics, stockSummary });
+        return;
+      }
+    }
 
-  // Stock summary KPIs
-  const stockSummary = useMemo(() => {
-    if (!currentStock.size) return null;
-    return computeStockSummary(currentStock, salesByProduct, daysCount);
-  }, [currentStock, salesByProduct, daysCount]);
+    const requestId = ++stockRequestIdRef.current;
+
+    worker.onmessage = ({ data }) => {
+      if (!data || data.requestId !== stockRequestIdRef.current) return;
+      if (data.error) {
+        console.warn("Stock Worker error:", data.error);
+        return;
+      }
+      setStockState({
+        currentStock: new Map(data.result.currentStockEntries),
+        stockMetrics: data.result.stockMetrics,
+        stockSummary: data.result.stockSummary,
+      });
+    };
+
+    worker.onerror = (event) => {
+      if (requestId !== stockRequestIdRef.current) return;
+      console.error("Stock Worker gagal:", event.error || event.message);
+      const currentStock = computeCurrentStock(activeSnapshot, transactions);
+      const salesByProduct = computeSalesByProduct(transactions, daysCount, null);
+      const stockMetrics = computeStockMetrics(currentStock, salesByProduct, daysCount);
+      const stockSummary = computeStockSummary(currentStock, salesByProduct, daysCount);
+      setStockState({ currentStock, stockMetrics, stockSummary });
+      if (stockWorkerRef.current === worker) {
+        try { worker.terminate(); } catch { /* ignore */ }
+        stockWorkerRef.current = null;
+      }
+    };
+
+    worker.postMessage({
+      requestId,
+      activeSnapshot,
+      transactions,
+      daysCount,
+    });
+  }, [activeSnapshot, transactions, daysCount]);
+
+  useEffect(() => {
+    return () => {
+      if (stockWorkerRef.current) {
+        try { stockWorkerRef.current.terminate(); } catch { /* ignore */ }
+        stockWorkerRef.current = null;
+      }
+    };
+  }, []);
+
+  const { currentStock, stockMetrics, stockSummary } = stockState;
 
   /**
    * Compute diff between current stock and new upload.

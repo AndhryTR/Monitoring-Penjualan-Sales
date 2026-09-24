@@ -10,8 +10,9 @@ import { MatrixKpiTotal } from "../components/comparison/MatrixKpiTotal.jsx";
 import { GroupedBarChart } from "../components/comparison/GroupedBarChart.jsx";
 import { periodColorPicker } from "../styles/globalStyle.js";
 import { MatrixTable } from "../components/comparison/MatrixTable.jsx";
+import { useComparisonWorker } from "../hooks/useComparisonWorker.js";
 import {
-  computePeriodAggs, buildSalesMatrix, buildGroupMatrix,
+  buildSalesMatrix, buildGroupMatrix,
   buildOutletMatrix, collectOutletOptions, COMPARISON_METRICS, rowTotal,
 } from "../utils/comparison.js";
 import { saveCompareState, loadCompareState } from "../utils/storage.js";
@@ -98,13 +99,8 @@ export function ComparisonPage({
   const salesKeys = useMemo(() => mode === "sales" ? selectedEntities.map((n) => salesCodeByName[n] || n) : [], [mode, selectedEntities, salesCodeByName]);
 
   // ---- Agregat per periode (hanya periode yang dipilih user) ----
-  // Sales mode wajib filter pakai KODE — nama tidak cocok dengan r.salesCode
-  // (pencocokan di computeAggregates), kalau nama yang dikirim semua baris
-  // terfilter habis dan value jadi 0.
-  const periodAggs = useMemo(() => {
-    if (!periods.length) return [];
-    return computePeriodAggs(rawRows, targets, salesKeys, periods, workDays);
-  }, [rawRows, targets, salesKeys, periods, workDays]);
+  // Dihitung di Web Worker agar UI tidak freeze saat memproses banyak periode
+  const { periodAggs } = useComparisonWorker(rawRows, targets, salesKeys, periods, workDays);
 
   // ---- Opsi entitas per mode ----
   // Sales: {label: nama, code} untuk picker; matriks pakai KODE (sama seperti
