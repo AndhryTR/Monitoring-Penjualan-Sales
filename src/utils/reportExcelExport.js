@@ -1,7 +1,8 @@
 import * as XLSX_MODULE from "xlsx-js-style";
 const XLSX = XLSX_MODULE.default || XLSX_MODULE;
 import { todayLocalDateStr } from "./excelParse.js";
-import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT1, achGradientColor, makeSheetBuilder, writeTitleBlock, writeHeaderRow } from "./xlsxStyle.js";
+import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT1, achGradientColor, makeSheetBuilder, writeTitleBlock, writeHeaderRow, sanitizeFilename } from "./xlsxStyle.js";
+import { getProductBreakdownForGroup } from "./aggregation.js";
 import { getStoredSchedule, DAY_LABELS, DAY_COLORS } from "./visitScheduleStorage.js";
 
 /* ============================================================================
@@ -73,6 +74,140 @@ export function exportProductReportExcel(byGroup, opts = {}) {
   });
   XLSX.utils.book_append_sheet(wb, b.finalize([24, 18, 18, 10, 14]), "Per Grup Produk");
   XLSX.writeFile(wb, `Product_Report_${(depotName || "depo").replace(/[^a-z0-9]+/gi, "_")}_${todayLocalDateStr()}.xlsx`);
+}
+
+/* ---------------------------------------------------------------------------
+   2b. SKU ANALYSIS — 1 sheet: Analisis SKU Lengkap
+--------------------------------------------------------------------------- */
+export function exportSkuAnalysisExcel(aggOrSkuList, opts = {}) {
+  const { depotName = "", dateRangeLabel = "", selectedGroup = "Semua Grup" } = opts;
+  let skuList = [];
+
+  if (Array.isArray(aggOrSkuList)) {
+    skuList = aggOrSkuList;
+  } else if (aggOrSkuList && aggOrSkuList.filteredRows) {
+    const totalActiveOutlets = (aggOrSkuList.byOutlet && aggOrSkuList.byOutlet.length > 0)
+      ? aggOrSkuList.byOutlet.length
+      : new Set((aggOrSkuList.filteredRows || []).map((r) => r.outletCode || r.outletName).filter(Boolean)).size || 1;
+    const totalPeriodValue = aggOrSkuList.totals?.realisasiValue || (aggOrSkuList.byGroup || []).reduce((s, g) => s + (g.realisasiValue || 0), 0) || 1;
+    const raw = getProductBreakdownForGroup(aggOrSkuList.filteredRows, null);
+    skuList = raw.map((p) => ({
+      ...p,
+      penetrationPct: totalActiveOutlets > 0 ? Number(((p.outletCount / totalActiveOutlets) * 100).toFixed(1)) : 0,
+      contributionPct: totalPeriodValue > 0 ? Number(((p.value / totalPeriodValue) * 100).toFixed(1)) : 0,
+    }));
+  }
+
+  const wb = XLSX.utils.book_new();
+  const b = makeSheetBuilder();
+
+  // Mini summary
+  const totalSku = skuList.length;
+  const totalVolume = skuList.reduce((s, p) => s + (p.qty || 0), 0);
+  const totalValue = skuList.reduce((s, p) => s + (p.value || 0), 0);
+  const avgPenetration = totalSku > 0
+    ? (skuList.reduce((s, p) => s + (p.penetrationPct || 0), 0) / totalSku)
+    : 0;
+
+  const filterInfo = selectedGroup && selectedGroup !== "all" && selectedGroup !== "Semua Grup"
+    ? ` · Filter Grup: ${selectedGroup}`
+    : "";
+  writeTitleBlock(
+    b,
+    "Laporan Analisis Produk & SKU Lengkap",
+    `${depotName} · ${dateRangeLabel}${filterInfo} · Dibuat ${todayLocalDateStr()}`,
+    14
+  );
+
+  // Baris 4: Header Ringkasan
+  b.setCell(4, 1, "RINGKASAN EKSEKUTIF", { bold: true, size: 10, fill: "F3F4F6", color: XL_COLORS.navy });
+  for (let c = 2; c <= 14; c++) {
+    b.setCell(4, c, "", { fill: "F3F4F6" });
+  }
+  b.merge(4, 1, 4, 14);
+
+  // Baris 5: Indikator Ringkasan
+  b.setCell(5, 1, "Total SKU Aktif:", { bold: true, size: 9, color: "4B5563" });
+  b.setCell(5, 2, totalSku, { bold: true, numFmt: XL_NUMFMT_INT });
+  b.setCell(5, 4, "Total Volume Terjual:", { bold: true, size: 9, color: "4B5563" });
+  b.setCell(5, 5, Math.round(totalVolume), { bold: true, numFmt: XL_NUMFMT_INT });
+  b.setCell(5, 7, "Total Realisasi Omset:", { bold: true, size: 9, color: "4B5563" });
+  b.setCell(5, 8, totalValue, { bold: true, numFmt: XL_NUMFMT_MONEY });
+  b.setCell(5, 10, "Rata-rata Penetrasi Toko:", { bold: true, size: 9, color: "4B5563" });
+  b.setCell(5, 11, avgPenetration / 100, { bold: true, numFmt: XL_NUMFMT_PCT1 });
+
+  // Baris 7: Header Kolom
+  const headers = [
+    "No",
+    "Kode SKU",
+    "Nama Produk",
+    "Grup Produk",
+    "Klasifikasi",
+    "Volume Terjual",
+    "Satuan",
+    "Nilai Penjualan (Rp)",
+    "% Kontribusi Omset",
+    "Sebaran Toko (AO)",
+    "% Penetrasi Toko",
+    "Frekuensi Faktur",
+    "Tim Sales",
+    "Transaksi Terakhir",
+  ];
+  writeHeaderRow(b, 7, headers, XL_COLORS.headerCyan);
+
+  // Sort descending by value
+  const sorted = [...skuList].sort((a, b) => (b.value || 0) - (a.value || 0));
+
+  sorted.forEach((r, i) => {
+    const row = 8 + i;
+    let classification = "Reguler";
+    let classFill = undefined;
+    if (i < 5) {
+      classification = `Bintang #${i + 1}`;
+      classFill = "FEF3C7"; // Amber pastel
+    } else if (sorted.length > 5 && i >= sorted.length - 5) {
+      classification = `Slow-Moving #${sorted.length - i}`;
+      classFill = "FEE2E2"; // Coral pastel
+    }
+
+    b.setCell(row, 1, i + 1, { align: "center", numFmt: XL_NUMFMT_INT });
+    b.setCell(row, 2, r.productCode || "-");
+    b.setCell(row, 3, r.productName || "-");
+    b.setCell(row, 4, r.group || "-");
+    b.setCell(row, 5, classification, { align: "center", bold: classification !== "Reguler", fill: classFill });
+    b.setCell(row, 6, Math.round(r.qty || 0), { numFmt: XL_NUMFMT_INT, align: "right" });
+    b.setCell(row, 7, r.unit || "-", { align: "center" });
+    b.setCell(row, 8, r.value || 0, { numFmt: XL_NUMFMT_MONEY, align: "right" });
+    b.setCell(row, 9, (r.contributionPct || 0) / 100, { numFmt: XL_NUMFMT_PCT1, align: "right" });
+    b.setCell(row, 10, r.outletCount || 0, { numFmt: XL_NUMFMT_INT, align: "right" });
+    b.setCell(row, 11, (r.penetrationPct || 0) / 100, { numFmt: XL_NUMFMT_PCT1, align: "right" });
+    b.setCell(row, 12, r.invoiceCount || 0, { numFmt: XL_NUMFMT_INT, align: "right" });
+    b.setCell(row, 13, r.salesLabel || "-");
+    b.setCell(row, 14, r.lastDate || "-", { align: "center" });
+  });
+
+  if (sorted.length > 0) {
+    const totalRow = 8 + sorted.length;
+    b.setCell(totalRow, 1, "TOTAL", { bold: true, fill: XL_COLORS.headerCyan, align: "center" });
+    for (let c = 2; c <= 5; c++) {
+      b.setCell(totalRow, c, "", { fill: XL_COLORS.headerCyan });
+    }
+    b.merge(totalRow, 1, totalRow, 5);
+    b.setCell(totalRow, 6, Math.round(totalVolume), { bold: true, numFmt: XL_NUMFMT_INT, fill: XL_COLORS.headerCyan, align: "right" });
+    b.setCell(totalRow, 7, "", { fill: XL_COLORS.headerCyan });
+    b.setCell(totalRow, 8, totalValue, { bold: true, numFmt: XL_NUMFMT_MONEY, fill: XL_COLORS.headerCyan, align: "right" });
+    b.setCell(totalRow, 9, 1.0, { bold: true, numFmt: XL_NUMFMT_PCT1, fill: XL_COLORS.headerCyan, align: "right" });
+    for (let c = 10; c <= 14; c++) {
+      b.setCell(totalRow, c, "", { fill: XL_COLORS.headerCyan });
+    }
+  }
+
+  // Lebar kolom adaptif
+  const colWidths = [6, 16, 32, 18, 18, 16, 10, 22, 18, 16, 16, 16, 26, 16];
+  XLSX.utils.book_append_sheet(wb, b.finalize(colWidths), "Analisis SKU");
+
+  const depotPart = sanitizeFilename(depotName || "depo");
+  XLSX.writeFile(wb, `Analisis_SKU_${depotPart}_${todayLocalDateStr()}.xlsx`);
 }
 
 /* ---------------------------------------------------------------------------

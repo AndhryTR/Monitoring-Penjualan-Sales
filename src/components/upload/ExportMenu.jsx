@@ -442,13 +442,22 @@ export function ExportMenu({
       return (
         <>
           <SectionLabel colors={colors}>Excel</SectionLabel>
-          <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Detail Produk"
+          <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Detail Grup Produk"
             desc="Ranking performa, value, target & ACH per grup produk"
             colors={colors}
             onClick={async () => {
               const { exportProductReportExcel } = await import("../../utils/reportExcelExport.js");
               exportProductReportExcel(agg.byGroup, opts);
-              await notifyExportSuccess("Export berhasil", "Laporan Produk (Excel)");
+              await notifyExportSuccess("Export berhasil", "Laporan Grup Produk (Excel)");
+              setOpen(false);
+            }} />
+          <MenuItem icon={FileSpreadsheet} iconColor={colors.blue || "#3B82F6"} label="Analisis SKU Lengkap"
+            desc="Detail seluruh produk, volume, omset, dan penetrasi toko"
+            colors={colors}
+            onClick={async () => {
+              const { exportSkuAnalysisExcel } = await import("../../utils/reportExcelExport.js");
+              exportSkuAnalysisExcel(agg, opts);
+              await notifyExportSuccess("Export berhasil", "Analisis SKU Lengkap (Excel)");
               setOpen(false);
             }} />
         </>
