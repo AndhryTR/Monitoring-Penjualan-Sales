@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
-import { Boxes, Package, Tag, Store, Hash, TrendingUp, X, Sparkles, AlertTriangle } from "lucide-react";
+import { Boxes, Package, Tag, Store, Hash, TrendingUp, X, Sparkles, AlertTriangle, Award } from "lucide-react";
 import { fmtRp, fmtNum, fmtCompactNum, formatDateIDShort } from "../utils/formatters.js";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { getAchColor } from "../constants/thresholds.js";
@@ -62,6 +62,25 @@ export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, 
     if (selectedGroupFilter === "all") return skuList;
     return skuList.filter((p) => p.group === selectedGroupFilter);
   }, [skuList, selectedGroupFilter]);
+  // ── Ringkasan Kinerja Produk (Header KPI) ──────────────────────────────────
+  const totalVolume = useMemo(() => {
+    return skuList.reduce((s, p) => s + (p.qty || 0), 0);
+  }, [skuList]);
+
+  const championGroup = useMemo(() => {
+    if (!agg.byGroup || agg.byGroup.length === 0) return null;
+    const sorted = [...agg.byGroup].sort((a, b) => (b.ach || 0) - (a.ach || 0));
+    return sorted[0];
+  }, [agg.byGroup]);
+
+  const heroSku = useMemo(() => {
+    return skuList[0] || null;
+  }, [skuList]);
+
+  const overallAvgPenetration = useMemo(() => {
+    if (!skuList.length) return 0;
+    return (skuList.reduce((s, p) => s + p.penetrationPct, 0) / skuList.length).toFixed(1);
+  }, [skuList]);
 
   // ── Mini KPI (SKU tab) ─────────────────────────────────────────────────────
   const skuKpis = useMemo(() => {
@@ -157,6 +176,43 @@ export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, 
       ══════════════════════════════════════════════════════════════════════ */}
       {activeSubTab === "group" && (
         <>
+          {/* ── KPI Cards Ringkasan Kinerja Produk (Di Bagian Atas) ─────── */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
+            <KpiCard
+              label="Total Volume"
+              value={Math.round(totalVolume)}
+              sub={`Karton/satuan · ${fmtNum(skuList.length)} SKU`}
+              icon={Package}
+              accent={colors.blue}
+              colors={colors}
+            />
+            <KpiCard
+              label="Grup Terbaik"
+              value={championGroup ? championGroup.name : "-"}
+              sub={championGroup ? `${championGroup.ach}% ACH · ${fmtCompactNum(championGroup.realisasiValue)}` : "-"}
+              icon={Award}
+              accent={colors.mint || colors.green}
+              colors={colors}
+            />
+            <KpiCard
+              label="Hero SKU"
+              value={heroSku ? heroSku.productName : "-"}
+              sub={heroSku ? `${fmtCompactNum(heroSku.value)} · ${heroSku.contributionPct}% omset` : "-"}
+              icon={Boxes}
+              accent={colors.violet || colors.accent}
+              colors={colors}
+            />
+            <KpiCard
+              label="Rata Penetrasi"
+              value={Number(overallAvgPenetration) / 100}
+              isPct={true}
+              sub={`vs ${fmtNum(totalActiveOutlets)} total AO`}
+              icon={Store}
+              accent={colors.gold}
+              colors={colors}
+            />
+          </div>
+
           <SectionTitle title="Pencapaian per Grup Produk" sub="Ranking berdasarkan realisasi" icon={Boxes} colors={colors} accent={colors.mint} />
           <ResponsiveContainer width="100%" height={Math.max(240, agg.byGroup.length * 42)}>
             <BarChart data={agg.byGroup} layout="vertical" margin={{ left: 10 }}>

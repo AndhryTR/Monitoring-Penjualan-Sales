@@ -38,6 +38,11 @@
         "hash": "0a56906",
         "scope": "Perf",
         "title": "Optimasi pemrosesan ke Web Worker (smartAlerts, masterImport, comparison, pareto, stock, commission)"
+      },
+      {
+        "hash": "c66838c",
+        "scope": "Product",
+        "title": "Tambah kartu sorotan Top 5 Bintang vs Top 5 Slow-Moving pada laporan produk"
       }
     ],
     "fixes": [
