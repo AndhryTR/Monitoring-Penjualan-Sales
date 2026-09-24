@@ -33,6 +33,11 @@
         "hash": "f33b01d",
         "scope": "Laporan",
         "title": "Tambah analisis SKU lengkap pada laporan produk"
+      },
+      {
+        "hash": "0a56906",
+        "scope": "Perf",
+        "title": "Optimasi pemrosesan ke Web Worker (smartAlerts, masterImport, comparison, pareto, stock, commission)"
       }
     ],
     "fixes": [

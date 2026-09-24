@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
-import { Boxes, Package, Tag, Store, Hash, TrendingUp, X } from "lucide-react";
+import { Boxes, Package, Tag, Store, Hash, TrendingUp, X, Sparkles, AlertTriangle } from "lucide-react";
 import { fmtRp, fmtNum, fmtCompactNum, formatDateIDShort } from "../utils/formatters.js";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { getAchColor } from "../constants/thresholds.js";
@@ -76,6 +76,20 @@ export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, 
       topSku: list[0]?.productName || "-",
     };
   }, [filteredSkuList]);
+
+  // ── Top 5 Bintang vs Top 5 Slow-Moving (Opsi A: Nilai Omset) ───────────────
+  const topStarSkus = useMemo(() => {
+    return [...filteredSkuList]
+      .sort((a, b) => (b.value || 0) - (a.value || 0))
+      .slice(0, 5);
+  }, [filteredSkuList]);
+
+  const bottomSlowSkus = useMemo(() => {
+    const starCodes = new Set(topStarSkus.map((s) => s.productCode));
+    const sortedAsc = [...filteredSkuList].sort((a, b) => (a.value || 0) - (b.value || 0));
+    const available = sortedAsc.filter((s) => !starCodes.has(s.productCode));
+    return available.slice(0, 5);
+  }, [filteredSkuList, topStarSkus]);
 
   // ── Theme-aware Group Badge ────────────────────────────────────────────────
   const getGroupBadgeStyle = (group) => {
@@ -235,6 +249,219 @@ export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, 
               accent={colors.violet || colors.accent}
               colors={colors}
             />
+          </div>
+
+          {/* ── Sorotan Top 5 Bintang vs Slow-Moving (Opsi A) ─────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            {/* Card 1: Top 5 Bintang */}
+            <div
+              className="sm-card p-4 rounded-xl flex flex-col justify-between"
+              style={{
+                background: colors.cardBg,
+                border: `1px solid ${colors.border}`,
+                boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+              }}
+            >
+              <div>
+                <div className="flex items-center justify-between pb-3 mb-3 border-b" style={{ borderColor: colors.border }}>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ background: (colors.gold || "#FBBF24") + "20", color: colors.gold || "#FBBF24" }}
+                    >
+                      <Sparkles size={16} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: colors.text }}>
+                        Top 5 Bintang (Hero SKUs)
+                      </h4>
+                      <p className="text-[11px]" style={{ color: colors.textMuted }}>
+                        Penyumbang omset terbesar di periode terpilih
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full mono shrink-0"
+                    style={{
+                      background: (colors.gold || "#FBBF24") + "18",
+                      color: colors.gold || "#FBBF24",
+                      border: `1px solid ${(colors.gold || "#FBBF24")}33`,
+                    }}
+                  >
+                    FAST-MOVING
+                  </span>
+                </div>
+
+                {topStarSkus.length === 0 ? (
+                  <div className="py-8 text-center text-xs" style={{ color: colors.textMuted }}>
+                    Tidak ada SKU aktif.
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {topStarSkus.map((p, idx) => (
+                      <div
+                        key={p.productCode || idx}
+                        className="flex items-center justify-between p-2.5 rounded-lg transition-all"
+                        style={{ background: colors.glassFill || "rgba(255,255,255,0.02)", border: `1px solid ${colors.border}44` }}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <span
+                            className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0 mono"
+                            style={{
+                              background: idx === 0 ? (colors.gold || "#FBBF24") : idx === 1 ? (colors.mint || "#34D399") : colors.glassBorder,
+                              color: idx <= 1 ? "#000000" : colors.text,
+                            }}
+                          >
+                            #{idx + 1}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-xs truncate max-w-[200px]" style={{ color: colors.text }} title={p.productName}>
+                                {p.productName}
+                              </span>
+                              <span style={getGroupBadgeStyle(p.group)}>{p.group || "-"}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] mono mt-0.5" style={{ color: colors.textMuted }}>
+                              <span>{fmtNum(p.outletCount)} toko ({p.penetrationPct}%)</span>
+                              <span>·</span>
+                              <span>{fmtNum(Math.round(p.qty))} {p.unit || ""}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 pl-2">
+                          <div className="text-right">
+                            <div className="mono text-xs font-semibold" style={{ color: colors.text }}>
+                              {fmtRp(p.value)}
+                            </div>
+                            <div className="text-[10px] mono font-medium" style={{ color: colors.mint || colors.green || "#34D399" }}>
+                              {p.contributionPct}% omset
+                            </div>
+                          </div>
+                          {onDrilldown && (
+                            <DrilldownButton
+                              colors={colors}
+                              onClick={() =>
+                                onDrilldown(
+                                  p.productName,
+                                  "Outlet",
+                                  (row) => row.productCode === p.productCode || row.productName === p.productName
+                                )
+                              }
+                            />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Card 2: Top 5 Slow-Moving */}
+            <div
+              className="sm-card p-4 rounded-xl flex flex-col justify-between"
+              style={{
+                background: colors.cardBg,
+                border: `1px solid ${colors.border}`,
+                boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+              }}
+            >
+              <div>
+                <div className="flex items-center justify-between pb-3 mb-3 border-b" style={{ borderColor: colors.border }}>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ background: (colors.coral || "#F87171") + "20", color: colors.coral || "#F87171" }}
+                    >
+                      <AlertTriangle size={16} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: colors.text }}>
+                        Top 5 Butuh Perhatian (Slow-Moving)
+                      </h4>
+                      <p className="text-[11px]" style={{ color: colors.textMuted }}>
+                        Omset terendah, perlu program dorongan promo
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full mono shrink-0"
+                    style={{
+                      background: (colors.coral || "#F87171") + "18",
+                      color: colors.coral || "#F87171",
+                      border: `1px solid ${(colors.coral || "#F87171")}33`,
+                    }}
+                  >
+                    SLOW-MOVING
+                  </span>
+                </div>
+
+                {bottomSlowSkus.length === 0 ? (
+                  <div className="py-8 text-center text-xs" style={{ color: colors.textMuted }}>
+                    Semua SKU masuk dalam kategori Bintang (≤ 5 produk aktif).
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {bottomSlowSkus.map((p, idx) => (
+                      <div
+                        key={p.productCode || idx}
+                        className="flex items-center justify-between p-2.5 rounded-lg transition-all"
+                        style={{ background: colors.glassFill || "rgba(255,255,255,0.02)", border: `1px solid ${colors.border}44` }}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <span
+                            className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0 mono"
+                            style={{
+                              background: (colors.coral || "#F87171") + "22",
+                              color: colors.coral || "#F87171",
+                            }}
+                          >
+                            #{idx + 1}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-xs truncate max-w-[200px]" style={{ color: colors.text }} title={p.productName}>
+                                {p.productName}
+                              </span>
+                              <span style={getGroupBadgeStyle(p.group)}>{p.group || "-"}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] mono mt-0.5" style={{ color: colors.textMuted }}>
+                              <span>{fmtNum(p.outletCount)} toko ({p.penetrationPct}%)</span>
+                              <span>·</span>
+                              <span>{fmtNum(Math.round(p.qty))} {p.unit || ""}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 pl-2">
+                          <div className="text-right">
+                            <div className="mono text-xs font-semibold" style={{ color: colors.text }}>
+                              {fmtRp(p.value)}
+                            </div>
+                            <div className="text-[10px] mono font-medium" style={{ color: colors.coral || "#F87171" }}>
+                              {p.contributionPct}% omset
+                            </div>
+                          </div>
+                          {onDrilldown && (
+                            <DrilldownButton
+                              colors={colors}
+                              onClick={() =>
+                                onDrilldown(
+                                  p.productName,
+                                  "Outlet",
+                                  (row) => row.productCode === p.productCode || row.productName === p.productName
+                                )
+                              }
+                            />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* ── Toolbar Filter Grup (Menggunakan CustomSelect global) ──── */}
