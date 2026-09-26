@@ -150,7 +150,7 @@ export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, 
               className="px-3.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer"
               style={{
                 background: activeSubTab === "group" ? (colors.accent || colors.blue) : "transparent",
-                color: activeSubTab === "group" ? "#FFFFFF" : colors.textMuted,
+                color: activeSubTab === "group" ? (colors.onBlue || "#FFFFFF") : colors.textMuted,
                 boxShadow: activeSubTab === "group" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
               }}
             >
@@ -161,7 +161,7 @@ export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, 
               className="px-3.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer"
               style={{
                 background: activeSubTab === "sku" ? (colors.accent || colors.blue) : "transparent",
-                color: activeSubTab === "sku" ? "#FFFFFF" : colors.textMuted,
+                color: activeSubTab === "sku" ? (colors.onBlue || "#FFFFFF") : colors.textMuted,
                 boxShadow: activeSubTab === "sku" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
               }}
             >

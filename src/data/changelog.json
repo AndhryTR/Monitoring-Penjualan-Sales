@@ -4,7 +4,13 @@
     "date": "2026-09-26",
     "title": "Pembaruan Versi 4.4.0",
     "features": [],
-    "fixes": [],
+    "fixes": [
+      {
+        "hash": "c696ca1",
+        "scope": "Tampilan",
+        "title": "Perbaiki kontras aksen, tabel aksesibilitas, tauri canvas scrim, dan transparansi frosted glass tooltip"
+      }
+    ],
     "improvements": []
   },
   {

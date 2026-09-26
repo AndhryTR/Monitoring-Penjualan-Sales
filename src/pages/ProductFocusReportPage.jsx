@@ -33,16 +33,31 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown, onGroupDrilld
   return (
     <div className="sm-page-enter">
       {/* Toggle Grup Fokus | Produk Fokus — Grup Fokus dulu (default) */}
-      <div className="flex items-center gap-2 mb-6">
-        <div className="flex p-1 rounded-xl" style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}>
-          <button onClick={() => setViewMode("group")}
-            className="sm-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5"
-            style={{ background: viewMode === "group" ? colors.glassFillStrong : "transparent", color: viewMode === "group" ? colors.violet : colors.textMuted }}>
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
+        <div
+          className="inline-flex p-1 rounded-xl"
+          style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}` }}
+        >
+          <button
+            onClick={() => setViewMode("group")}
+            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer"
+            style={{
+              background: viewMode === "group" ? colors.violet : "transparent",
+              color: viewMode === "group" ? (colors.onViolet || "#FFFFFF") : colors.textMuted,
+              boxShadow: viewMode === "group" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+            }}
+          >
             <Package size={13} /> Grup Fokus
           </button>
-          <button onClick={() => setViewMode("product")}
-            className="sm-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5"
-            style={{ background: viewMode === "product" ? colors.glassFillStrong : "transparent", color: viewMode === "product" ? colors.coral : colors.textMuted }}>
+          <button
+            onClick={() => setViewMode("product")}
+            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer"
+            style={{
+              background: viewMode === "product" ? colors.violet : "transparent",
+              color: viewMode === "product" ? (colors.onViolet || "#FFFFFF") : colors.textMuted,
+              boxShadow: viewMode === "product" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+            }}
+          >
             <Crosshair size={13} /> Produk Fokus
           </button>
         </div>

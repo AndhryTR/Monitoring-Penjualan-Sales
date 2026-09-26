@@ -95,19 +95,23 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
             >
               <button
                 onClick={() => setViewMode("table")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-all ${
-                  viewMode === "table" ? "bg-blue-600 text-white shadow-sm" : ""
-                }`}
-                style={viewMode !== "table" ? { color: colors.textMuted } : {}}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer"
+                style={{
+                  background: viewMode === "table" ? colors.blue : "transparent",
+                  color: viewMode === "table" ? (colors.onBlue || "#FFFFFF") : colors.textMuted,
+                  boxShadow: viewMode === "table" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+                }}
               >
                 <Table size={13} /> Tabel
               </button>
               <button
                 onClick={() => setViewMode("map")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-all ${
-                  viewMode === "map" ? "bg-blue-600 text-white shadow-sm" : ""
-                }`}
-                style={viewMode !== "map" ? { color: colors.textMuted } : {}}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer"
+                style={{
+                  background: viewMode === "map" ? colors.blue : "transparent",
+                  color: viewMode === "map" ? (colors.onBlue || "#FFFFFF") : colors.textMuted,
+                  boxShadow: viewMode === "map" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+                }}
               >
                 <Map size={13} /> Peta Sebaran
               </button>
@@ -217,37 +221,49 @@ export function OutletAnalysisPage({ agg, colors, thresholds, setThresholds, onS
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <button
                         onClick={() => setParetoFilter("all")}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                          paretoFilter === "all" ? "bg-blue-600 text-white shadow-sm" : ""
-                        }`}
-                        style={paretoFilter !== "all" ? { background: colors.glassFill, color: colors.textMuted, border: `1px solid ${colors.glassBorder}` } : {}}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                        style={{
+                          background: paretoFilter === "all" ? colors.blue : colors.glassFill,
+                          color: paretoFilter === "all" ? (colors.onBlue || "#FFFFFF") : colors.textMuted,
+                          border: `1px solid ${paretoFilter === "all" ? colors.blue : colors.glassBorder}`,
+                          boxShadow: paretoFilter === "all" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+                        }}
                       >
                         Semua ({paretoSummary.totalOutlets})
                       </button>
                       <button
                         onClick={() => setParetoFilter("A")}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                          paretoFilter === "A" ? "bg-amber-500 text-white shadow-sm" : ""
-                        }`}
-                        style={paretoFilter !== "A" ? { background: colors.gold + "1A", color: colors.gold, border: `1px solid ${colors.gold}44` } : {}}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                        style={{
+                          background: paretoFilter === "A" ? colors.gold : colors.gold + "1A",
+                          color: paretoFilter === "A" ? (colors.onGold || "#0A1120") : colors.gold,
+                          border: `1px solid ${paretoFilter === "A" ? colors.gold : colors.gold + "44"}`,
+                          boxShadow: paretoFilter === "A" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+                        }}
                       >
                         👑 Kelas A ({paretoSummary.classA.count})
                       </button>
                       <button
                         onClick={() => setParetoFilter("B")}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                          paretoFilter === "B" ? "bg-blue-500 text-white shadow-sm" : ""
-                        }`}
-                        style={paretoFilter !== "B" ? { background: colors.blue + "1A", color: colors.blue, border: `1px solid ${colors.blue}44` } : {}}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                        style={{
+                          background: paretoFilter === "B" ? colors.blue : colors.blue + "1A",
+                          color: paretoFilter === "B" ? (colors.onBlue || "#FFFFFF") : colors.blue,
+                          border: `1px solid ${paretoFilter === "B" ? colors.blue : colors.blue + "44"}`,
+                          boxShadow: paretoFilter === "B" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+                        }}
                       >
                         🔷 Kelas B ({paretoSummary.classB.count})
                       </button>
                       <button
                         onClick={() => setParetoFilter("C")}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                          paretoFilter === "C" ? "bg-slate-500 text-white shadow-sm" : ""
-                        }`}
-                        style={paretoFilter !== "C" ? { background: colors.glassFill, color: colors.textMuted, border: `1px solid ${colors.glassBorder}` } : {}}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                        style={{
+                          background: paretoFilter === "C" ? colors.surface2 : colors.glassFill,
+                          color: paretoFilter === "C" ? colors.text : colors.textMuted,
+                          border: `1px solid ${colors.glassBorder}`,
+                          boxShadow: paretoFilter === "C" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+                        }}
                       >
                         ⚪ Kelas C ({paretoSummary.classC.count})
                       </button>

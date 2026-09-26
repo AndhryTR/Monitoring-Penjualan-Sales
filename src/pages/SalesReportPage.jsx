@@ -84,19 +84,23 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName,
           >
             <button
               onClick={() => setActiveSubTab("performance")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-all ${
-                activeSubTab === "performance" ? "bg-blue-600 text-white shadow-sm" : ""
-              }`}
-              style={activeSubTab !== "performance" ? { color: colors.textMuted } : {}}
+              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer"
+              style={{
+                background: activeSubTab === "performance" ? colors.blue : "transparent",
+                color: activeSubTab === "performance" ? (colors.onBlue || "#FFFFFF") : colors.textMuted,
+                boxShadow: activeSubTab === "performance" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+              }}
             >
               <UserRound size={13} /> Performa Sales
             </button>
             <button
               onClick={() => setActiveSubTab("commission")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-all ${
-                activeSubTab === "commission" ? "bg-blue-600 text-white shadow-sm" : ""
-              }`}
-              style={activeSubTab !== "commission" ? { color: colors.textMuted } : {}}
+              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer"
+              style={{
+                background: activeSubTab === "commission" ? colors.blue : "transparent",
+                color: activeSubTab === "commission" ? (colors.onBlue || "#FFFFFF") : colors.textMuted,
+                boxShadow: activeSubTab === "commission" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+              }}
             >
               <Coins size={13} /> Kalkulator Insentif
             </button>

@@ -23,6 +23,8 @@ export const THEMES = {
     onGold: "#0A1120",
     onMint: "#0A1120",
     onCoral: "#0A1120",
+    onBlue: "#0A1120",
+    onViolet: "#0A1120",
     // --- Glass morphism tokens (Fase 4 — final spec) ---
     meshBg: "#0A1120",
     glassSubtle: "rgba(255,255,255,0.03)",
@@ -80,6 +82,8 @@ export const THEMES = {
     onGold: "#FFFFFF",
     onMint: "#FFFFFF",
     onCoral: "#FFFFFF",
+    onBlue: "#FFFFFF",
+    onViolet: "#FFFFFF",
     // --- Glass morphism tokens (Fase 4 — final spec) ---
     meshBg: "linear-gradient(135deg, #e0e7ff, #f0fdf4, #fef3c7, #ede9fe)",
     glassSubtle: "rgba(255,255,255,0.25)",
