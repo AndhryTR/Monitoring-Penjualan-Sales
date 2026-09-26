@@ -3,7 +3,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
 import { Boxes, Package, Tag, Store, Hash, TrendingUp, X, Sparkles, AlertTriangle, Award } from "lucide-react";
-import { fmtRp, fmtNum, fmtCompactNum, formatDateIDShort } from "../utils/formatters.js";
+import { fmtRp, fmtNum, fmtQty, fmtCompactNum, formatDateIDShort } from "../utils/formatters.js";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { getAchColor } from "../constants/thresholds.js";
 import { DataTable } from "../components/ui/DataTable.jsx";
@@ -382,7 +382,7 @@ export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, 
                             <div className="flex items-center gap-2 text-[10px] mono mt-0.5" style={{ color: colors.textMuted }}>
                               <span>{fmtNum(p.outletCount)} toko ({p.penetrationPct}%)</span>
                               <span>·</span>
-                              <span>{fmtNum(Math.round(p.qty))} {p.unit || ""}</span>
+                              <span>{fmtQty(p.qty)} {p.unit || ""}</span>
                             </div>
                           </div>
                         </div>
@@ -487,7 +487,7 @@ export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, 
                             <div className="flex items-center gap-2 text-[10px] mono mt-0.5" style={{ color: colors.textMuted }}>
                               <span>{fmtNum(p.outletCount)} toko ({p.penetrationPct}%)</span>
                               <span>·</span>
-                              <span>{fmtNum(Math.round(p.qty))} {p.unit || ""}</span>
+                              <span>{fmtQty(p.qty)} {p.unit || ""}</span>
                             </div>
                           </div>
                         </div>
@@ -588,7 +588,7 @@ export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, 
                 label: "Volume",
                 render: (r) => (
                   <span className="mono text-xs">
-                    {fmtNum(Math.round(r.qty))} {r.unit || ""}
+                    {fmtQty(r.qty)} {r.unit || ""}
                   </span>
                 ),
               },

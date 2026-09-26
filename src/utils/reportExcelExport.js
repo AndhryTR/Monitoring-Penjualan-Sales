@@ -1,7 +1,7 @@
 import * as XLSX_MODULE from "xlsx-js-style";
 const XLSX = XLSX_MODULE.default || XLSX_MODULE;
 import { todayLocalDateStr } from "./excelParse.js";
-import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT1, achGradientColor, makeSheetBuilder, writeTitleBlock, writeHeaderRow, sanitizeFilename } from "./xlsxStyle.js";
+import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_QTY, XL_NUMFMT_PCT1, achGradientColor, makeSheetBuilder, writeTitleBlock, writeHeaderRow, sanitizeFilename } from "./xlsxStyle.js";
 import { getProductBreakdownForGroup } from "./aggregation.js";
 import { getStoredSchedule, DAY_LABELS, DAY_COLORS } from "./visitScheduleStorage.js";
 
@@ -130,7 +130,8 @@ export function exportSkuAnalysisExcel(aggOrSkuList, opts = {}) {
   b.setCell(5, 1, "Total SKU Aktif:", { bold: true, size: 9, color: "4B5563" });
   b.setCell(5, 2, totalSku, { bold: true, numFmt: XL_NUMFMT_INT });
   b.setCell(5, 4, "Total Volume Terjual:", { bold: true, size: 9, color: "4B5563" });
-  b.setCell(5, 5, Math.round(totalVolume), { bold: true, numFmt: XL_NUMFMT_INT });
+  const roundedTotalVolume = Math.round(totalVolume * 100) / 100;
+  b.setCell(5, 5, roundedTotalVolume, { bold: true, numFmt: Number.isInteger(roundedTotalVolume) ? XL_NUMFMT_INT : XL_NUMFMT_QTY });
   b.setCell(5, 7, "Total Realisasi Omset:", { bold: true, size: 9, color: "4B5563" });
   b.setCell(5, 8, totalValue, { bold: true, numFmt: XL_NUMFMT_MONEY });
   b.setCell(5, 10, "Rata-rata Penetrasi Toko:", { bold: true, size: 9, color: "4B5563" });
@@ -175,7 +176,8 @@ export function exportSkuAnalysisExcel(aggOrSkuList, opts = {}) {
     b.setCell(row, 3, r.productName || "-");
     b.setCell(row, 4, r.group || "-");
     b.setCell(row, 5, classification, { align: "center", bold: classification !== "Reguler", fill: classFill });
-    b.setCell(row, 6, Math.round(r.qty || 0), { numFmt: XL_NUMFMT_INT, align: "right" });
+    const qtyVal = typeof r.qty === "number" ? Math.round(r.qty * 100) / 100 : 0;
+    b.setCell(row, 6, qtyVal, { numFmt: Number.isInteger(qtyVal) ? XL_NUMFMT_INT : XL_NUMFMT_QTY, align: "right" });
     b.setCell(row, 7, r.unit || "-", { align: "center" });
     b.setCell(row, 8, r.value || 0, { numFmt: XL_NUMFMT_MONEY, align: "right" });
     b.setCell(row, 9, (r.contributionPct || 0) / 100, { numFmt: XL_NUMFMT_PCT1, align: "right" });

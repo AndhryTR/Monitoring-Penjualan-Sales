@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Crosshair, Package, AlertTriangle, ChevronRight } from "lucide-react";
-import { fmtRp, fmtNum, fmtPct } from "../utils/formatters.js";
+import { fmtRp, fmtNum, fmtQty, fmtPct } from "../utils/formatters.js";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { getAchColor } from "../constants/thresholds.js";
 import { MultiSelect } from "../components/ui/MultiSelect.jsx";
@@ -170,7 +170,7 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown, onGroupDrilld
                     <div className="sm-progress-fill h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: color }} />
                   </div>
                   <div className="flex justify-between mt-1.5 text-xs mono" style={{ color: colors.textMuted }}>
-                    <span>{fmtNum(f.realisasi)} {f.unit.toLowerCase()}</span>
+                    <span>{fmtQty(f.realisasi)} {f.unit.toLowerCase()}</span>
                     <span>Target {fmtNum(f.target)}</span>
                   </div>
                 </div>
@@ -198,7 +198,7 @@ export function ProductFocusReportPage({ agg, colors, onDrilldown, onGroupDrilld
                 </span>
               ) },
               { key: "target", label: "Target", render: (r) => <span className="mono">{fmtNum(r.target)}</span> },
-              { key: "realisasi", label: "Realisasi", render: (r) => <span className="mono">{fmtNum(r.realisasi)} <span style={{ color: colors.textMuted, fontSize: 10 }}>{r.unit}</span></span> },
+              { key: "realisasi", label: "Realisasi", render: (r) => <span className="mono">{fmtQty(r.realisasi)} <span style={{ color: colors.textMuted, fontSize: 10 }}>{r.unit}</span></span> },
               { key: "pct", label: "%", render: (r) => <AchBadge ach={r.pct} colors={colors} /> },
               { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(`${r.salesName} — ${r.name}`, "Outlet", r.predicate)} /> },
             ]}

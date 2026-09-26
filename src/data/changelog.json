@@ -9,6 +9,11 @@
         "hash": "c696ca1",
         "scope": "Tampilan",
         "title": "Perbaiki kontras aksen, tabel aksesibilitas, tauri canvas scrim, dan transparansi frosted glass tooltip"
+      },
+      {
+        "hash": "72b8c54",
+        "scope": "Tampilan",
+        "title": "Standardisasi elemen sub-tab switcher dengan token tema dan token onBlue/onViolet"
       }
     ],
     "improvements": []

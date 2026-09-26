@@ -293,13 +293,42 @@ export function getProductBreakdownForOutlet(rows, outletCode) {
   const map = {};
   rows.filter((r) => r.outletCode === outletCode).forEach((r) => {
     const key = r.productCode || r.productName || "UNKNOWN";
-    if (!map[key]) map[key] = { productName: r.productName || key, group: r.group || "-", value: 0, qty: 0, invoices: new Set() };
-    map[key].value += r.value;
-    map[key].qty += effectiveKartonQty(r);
-    if (r.invoiceNo) map[key].invoices.add(r.invoiceNo);
+    if (!map[key]) {
+      map[key] = {
+        productName: r.productName || key,
+        group: r.group || "-",
+        value: 0,
+        qty: 0,
+        invoices: new Set(),
+        rowCount: 0,
+        unconvCount: 0,
+        originalUnits: new Set(),
+      };
+    }
+    const p = map[key];
+    p.value += r.value;
+    p.qty += effectiveKartonQty(r);
+    if (r.invoiceNo) p.invoices.add(r.invoiceNo);
+    p.rowCount += 1;
+    if (r.unit) p.originalUnits.add(r.unit);
+    if (r.unconvertible) p.unconvCount += 1;
   });
   return Object.values(map)
-    .map((p) => ({ ...p, invoiceCount: p.invoices.size }))
+    .map((p) => {
+      let unit = "KARTON";
+      if (p.rowCount === 0) unit = "";
+      else if (p.unconvCount === 0) unit = "KARTON";
+      else if (p.unconvCount === p.rowCount) unit = p.originalUnits.size === 1 ? [...p.originalUnits][0] : (p.originalUnits.size === 0 ? "" : "Campuran");
+      else unit = "Campuran";
+      return {
+        productName: p.productName,
+        group: p.group,
+        value: p.value,
+        qty: p.qty,
+        unit,
+        invoiceCount: p.invoices.size,
+      };
+    })
     .sort((a, b) => b.value - a.value);
 }
 
@@ -322,8 +351,10 @@ export function getProductBreakdownForGroup(rows, predicate) {
         invoices: new Set(),
         outlets: new Set(),
         salesNames: new Set(),
-        unit: r.unit || "",
         lastDate: null,
+        rowCount: 0,
+        unconvCount: 0,
+        originalUnits: new Set(),
       };
     }
     const p = map[key];
@@ -333,14 +364,36 @@ export function getProductBreakdownForGroup(rows, predicate) {
     if (r.outletCode) p.outlets.add(r.outletCode);
     if (r.salesName) p.salesNames.add(r.salesName);
     if (!p.lastDate || r.date > p.lastDate) p.lastDate = r.date;
+    p.rowCount += 1;
+    if (r.unit) p.originalUnits.add(r.unit);
+    if (r.unconvertible) p.unconvCount += 1;
   });
   return Object.values(map)
-    .map((p) => ({
-      ...p,
-      invoiceCount: p.invoices.size,
-      outletCount: p.outlets.size,
-      salesLabel: Array.from(p.salesNames).sort().join(", ") || "-",
-    }))
+    .map((p) => {
+      let unit = "KARTON";
+      if (p.rowCount === 0) {
+        unit = "";
+      } else if (p.unconvCount === 0) {
+        unit = "KARTON";
+      } else if (p.unconvCount === p.rowCount) {
+        unit = p.originalUnits.size === 1 ? [...p.originalUnits][0] : (p.originalUnits.size === 0 ? "" : "Campuran");
+      } else {
+        unit = "Campuran";
+      }
+      return {
+        productCode: p.productCode,
+        productName: p.productName,
+        group: p.group,
+        value: p.value,
+        qty: p.qty,
+        unit,
+        lastDate: p.lastDate,
+        hasUnconvertible: p.unconvCount > 0,
+        invoiceCount: p.invoices.size,
+        outletCount: p.outlets.size,
+        salesLabel: Array.from(p.salesNames).sort().join(", ") || "-",
+      };
+    })
     .sort((a, b) => b.value - a.value);
 }
 

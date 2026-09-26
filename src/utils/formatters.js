@@ -12,6 +12,19 @@ export function fmtNum(n) {
   return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Math.round(n));
 }
 
+/**
+ * Format kuantitas/volume produk atau karton.
+ * Bilangan bulat tampil tanpa koma (misal: 144).
+ * Pecahan tampil dengan desimal secukupnya hingga maxDecimals (misal: 0,5 atau 0,25).
+ */
+export function fmtQty(n, maxDecimals = 2) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "-";
+  return new Intl.NumberFormat("id-ID", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: maxDecimals,
+  }).format(n);
+}
+
 export function fmtPct(n) {
   // Tambah guard Number.isNaN — sebelumnya NaN lolos dan tampil "NaN%".
   if (n === null || n === undefined || Number.isNaN(n)) return "-";

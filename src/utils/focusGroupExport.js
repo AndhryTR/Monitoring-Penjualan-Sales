@@ -2,8 +2,8 @@ import * as XLSX from "xlsx-js-style";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { todayLocalDateStr } from "./excelParse.js";
-import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT1, achGradientColor, makeSheetBuilder, writeTitleBlock, writeHeaderRow } from "./xlsxStyle.js";
-import { fmtRp, fmtNum, formatGeneratedAt } from "./formatters.js";
+import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_QTY, XL_NUMFMT_PCT1, achGradientColor, makeSheetBuilder, writeTitleBlock, writeHeaderRow } from "./xlsxStyle.js";
+import { fmtRp, fmtNum, fmtQty, formatGeneratedAt } from "./formatters.js";
 import { getProductBreakdownForGroup } from "./aggregation.js";
 
 /* ============================================================================
@@ -76,7 +76,8 @@ export function exportFocusGroupExcel(groupRows, filteredRows, opts = {}) {
       b2.setCell(skuRow, 2, g.name);
       b2.setCell(skuRow, 3, sku.productCode);
       b2.setCell(skuRow, 4, sku.productName);
-      b2.setCell(skuRow, 5, sku.qty, { numFmt: XL_NUMFMT_INT });
+      const skuQty = typeof sku.qty === "number" ? Math.round(sku.qty * 100) / 100 : 0;
+      b2.setCell(skuRow, 5, skuQty, { numFmt: Number.isInteger(skuQty) ? XL_NUMFMT_INT : XL_NUMFMT_QTY });
       b2.setCell(skuRow, 6, sku.value, { numFmt: XL_NUMFMT_MONEY });
       b2.setCell(skuRow, 7, sku.invoiceCount, { numFmt: XL_NUMFMT_INT });
       b2.setCell(skuRow, 8, sku.outletCount, { numFmt: XL_NUMFMT_INT });
@@ -91,7 +92,8 @@ export function exportFocusGroupExcel(groupRows, filteredRows, opts = {}) {
     b2.setCell(skuRow, 2, `Subtotal ${g.name}`, { bold: true, fill: "F3F4F6" });
     b2.setCell(skuRow, 3, "", { fill: "F3F4F6" });
     b2.setCell(skuRow, 4, `${skus.length} SKU`, { bold: true, fill: "F3F4F6", color: "6B7280" });
-    b2.setCell(skuRow, 5, subQty, { bold: true, numFmt: XL_NUMFMT_INT, fill: "F3F4F6" });
+    const roundedSubQty = Math.round(subQty * 100) / 100;
+    b2.setCell(skuRow, 5, roundedSubQty, { bold: true, numFmt: Number.isInteger(roundedSubQty) ? XL_NUMFMT_INT : XL_NUMFMT_QTY, fill: "F3F4F6" });
     b2.setCell(skuRow, 6, subValue, { bold: true, numFmt: XL_NUMFMT_MONEY, fill: "F3F4F6" });
     b2.setCell(skuRow, 7, subFrek, { bold: true, numFmt: XL_NUMFMT_INT, fill: "F3F4F6" });
     b2.setCell(skuRow, 8, subOutlet, { bold: true, numFmt: XL_NUMFMT_INT, fill: "F3F4F6" });
@@ -254,7 +256,7 @@ export function exportFocusGroupPDF(groupRows, filteredRows, opts = {}) {
       const skuBody = skus.map((sku) => [
         sku.productCode,
         sku.productName,
-        fmtNum(sku.qty),
+        fmtQty(sku.qty),
         fmtRp(sku.value),
         `${sku.invoiceCount}x`,
         `${sku.outletCount}`,
@@ -264,7 +266,7 @@ export function exportFocusGroupPDF(groupRows, filteredRows, opts = {}) {
       const subQty = skus.reduce((s, p) => s + p.qty, 0);
       const subValue = skus.reduce((s, p) => s + p.value, 0);
       const subFrek = skus.reduce((s, p) => s + p.invoiceCount, 0);
-      skuBody.push(["", `Subtotal (${skus.length} SKU)`, fmtNum(subQty), fmtRp(subValue), `${subFrek}x`, ""]);
+      skuBody.push(["", `Subtotal (${skus.length} SKU)`, fmtQty(subQty), fmtRp(subValue), `${subFrek}x`, ""]);
 
       autoTable(doc, {
         head: [["Kode", "Nama Produk", "Qty (KRT)", "Value", "Frek", "Outlet"]],

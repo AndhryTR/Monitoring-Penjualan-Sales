@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { createPortal } from "react-dom";
 import { X, Package } from "lucide-react";
 import { useScrollLock, useEscapeKey } from "../../hooks/useModalA11y.js";
-import { fmtRp, fmtNum } from "../../utils/formatters.js";
+import { fmtRp, fmtNum, fmtQty } from "../../utils/formatters.js";
 import { DataTable } from "../ui/DataTable.jsx";
 
 /* ============================================================================
@@ -118,7 +118,7 @@ export function GroupFocusDrilldownModal({
             </>
           )}
           <SummaryChip label="SKU" value={`${totalSKU}`} color={colors.violet} colors={colors} />
-          <SummaryChip label="Total Qty" value={`${fmtNum(totalQty)} KRT`} color={colors.text} colors={colors} />
+          <SummaryChip label="Total Qty" value={`${fmtQty(totalQty)} KRT`} color={colors.text} colors={colors} />
         </div>
 
         {/* Tabel SKU */}
@@ -162,7 +162,7 @@ export function GroupFocusDrilldownModal({
                   label: "Qty (KRT)",
                   render: (p) => (
                     <span className="mono text-sm" style={{ color: colors.text }}>
-                      {fmtNum(p.qty)}
+                      {fmtQty(p.qty)}
                     </span>
                   ),
                 },
