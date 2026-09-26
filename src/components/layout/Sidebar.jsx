@@ -105,6 +105,7 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
                     key={item.key}
                     onClick={() => !disabled && handleItemClick(item)}
                     disabled={disabled}
+                    aria-label={disabled ? `${item.label} (Akses dibatasi)` : item.label}
                     title={
                       disabled
                         ? `${item.label} (Akses dibatasi)`
@@ -140,6 +141,7 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
       {/* Toggle collapse — di bawah sidebar, pola umum (mirip VSCode/Notion) */}
       <button
         onClick={onToggleCollapse}
+        aria-label={collapsed ? "Perluas sidebar" : "Ciutkan sidebar"}
         title={collapsed ? "Perluas sidebar" : "Ciutkan sidebar"}
         className="sm-row flex items-center gap-2.5 px-4 py-3 text-sm shrink-0"
         style={{ color: colors.textMuted, borderTop: `1px solid ${colors.glassBorder}`, justifyContent: collapsed ? "center" : "flex-start" }}

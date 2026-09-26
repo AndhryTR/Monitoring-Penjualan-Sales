@@ -26,15 +26,12 @@ export function fmtPct(n) {
  * @returns {number}
  */
 export function sumBy(arr, iteratee) {
-  if (!arr || !arr.length) return 0;
+  if (!arr?.length) return 0;
   const isFn = typeof iteratee === "function";
-  let sum = 0;
-  for (let i = 0; i < arr.length; i++) {
-    const item = arr[i];
+  return arr.reduce((sum, item) => {
     const val = isFn ? Number(iteratee(item)) : Number(item?.[iteratee]);
-    if (!Number.isNaN(val)) sum += val;
-  }
-  return sum;
+    return Number.isNaN(val) ? sum : sum + val;
+  }, 0);
 }
 
 function shortenUnit(unit) {

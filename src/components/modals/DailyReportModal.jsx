@@ -260,8 +260,8 @@ export function DailyReportModal({
       <div
         className="w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden sm-scale-in"
         style={{
-          background: isLight ? "rgba(255, 255, 255, 0.98)" : "rgba(17, 24, 39, 0.96)",
-          border: `1px solid ${isLight ? "rgba(0, 0, 0, 0.12)" : "rgba(255, 255, 255, 0.12)"}`,
+          background: colors.modalPanelBg || (isLight ? "#FFFFFF" : colors.surface),
+          border: `1px solid ${colors.modalBorder || colors.glassBorder}`,
           color: colors.text,
         }}
         onClick={(e) => e.stopPropagation()}
@@ -270,14 +270,18 @@ export function DailyReportModal({
         <div
           className="px-5 py-3.5 flex items-center justify-between shrink-0"
           style={{
-            borderBottom: `1px solid ${isLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)"}`,
-            background: isLight ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.02)",
+            borderBottom: `1px solid ${colors.glassBorder}`,
+            background: colors.glassSubtle,
           }}
         >
           <div className="flex items-center gap-3">
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
-              style={{ background: "linear-gradient(135deg, #10B981, #059669)", color: "#FFFFFF" }}
+              style={{
+                background: `${colors.mint}22`,
+                color: colors.mint,
+                border: `1px solid ${colors.mint}44`,
+              }}
             >
               <MessageSquare size={18} />
             </div>
@@ -295,8 +299,9 @@ export function DailyReportModal({
             onClick={onClose}
             className="sm-btn p-2 rounded-xl transition-colors"
             style={{
-              background: isLight ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.08)",
+              background: colors.glassFill,
               color: colors.textMuted,
+              border: `1px solid ${colors.glassBorder}`,
             }}
             aria-label="Tutup modal"
           >
@@ -308,12 +313,12 @@ export function DailyReportModal({
         <div
           className="px-5 pt-3 pb-2 flex items-center justify-between shrink-0"
           style={{
-            borderBottom: `1px solid ${isLight ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)"}`,
+            borderBottom: `1px solid ${colors.glassBorder}`,
           }}
         >
           <div
             className="inline-flex p-1 rounded-xl"
-            style={{ background: isLight ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)" }}
+            style={{ background: colors.glassSubtle }}
           >
             <button
               onClick={() => setActiveTab("text")}
@@ -321,11 +326,11 @@ export function DailyReportModal({
                 activeTab === "text" ? "shadow-sm" : "opacity-70 hover:opacity-100"
               }`}
               style={{
-                background: activeTab === "text" ? (isLight ? "#FFFFFF" : colors.bgCard || "#1F2937") : "transparent",
+                background: activeTab === "text" ? colors.surface : "transparent",
                 color: activeTab === "text" ? colors.text : colors.textMuted,
               }}
             >
-              <MessageSquare size={14} className="text-emerald-500" />
+              <MessageSquare size={14} style={{ color: colors.mint }} />
               Pesan Teks (WhatsApp)
             </button>
             <button
@@ -334,11 +339,11 @@ export function DailyReportModal({
                 activeTab === "image" ? "shadow-sm" : "opacity-70 hover:opacity-100"
               }`}
               style={{
-                background: activeTab === "image" ? (isLight ? "#FFFFFF" : colors.bgCard || "#1F2937") : "transparent",
+                background: activeTab === "image" ? colors.surface : "transparent",
                 color: activeTab === "image" ? colors.text : colors.textMuted,
               }}
             >
-              <ImageIcon size={14} className="text-amber-500" />
+              <ImageIcon size={14} style={{ color: colors.gold }} />
               Kartu Gambar Mini (PNG)
             </button>
           </div>
@@ -348,19 +353,27 @@ export function DailyReportModal({
               <span className="text-xs font-medium" style={{ color: colors.textMuted }}>Tema Kartu:</span>
               <button
                 onClick={() => setCardTheme("dark")}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                  cardTheme === "dark" ? "ring-1 ring-emerald-500" : "opacity-60"
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  cardTheme === "dark" ? "ring-2" : "opacity-60 hover:opacity-100"
                 }`}
-                style={{ background: "#111827", color: "#F9FAFB" }}
+                style={{
+                  background: colors.surface2,
+                  color: colors.text,
+                  border: `1px solid ${cardTheme === "dark" ? colors.mint : colors.glassBorder}`,
+                }}
               >
                 Gelap
               </button>
               <button
                 onClick={() => setCardTheme("light")}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                  cardTheme === "light" ? "ring-1 ring-emerald-500" : "opacity-60"
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  cardTheme === "light" ? "ring-2" : "opacity-60 hover:opacity-100"
                 }`}
-                style={{ background: "#F1F5F9", color: "#0F172A", border: "1px solid #CBD5E1" }}
+                style={{
+                  background: colors.surface,
+                  color: colors.text,
+                  border: `1px solid ${cardTheme === "light" ? colors.mint : colors.glassBorder}`,
+                }}
               >
                 Terang
               </button>
@@ -431,12 +444,12 @@ export function DailyReportModal({
               <div
                 className="rounded-2xl p-4 flex flex-col gap-3.5"
                 style={{
-                  background: isLight ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.03)",
-                  border: `1px solid ${isLight ? "rgba(0,0,0,0.07)" : "rgba(255,255,255,0.07)"}`,
+                  background: colors.glassSubtle,
+                  border: `1px solid ${colors.glassBorder}`,
                 }}
               >
                 <div className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: colors.textMuted }}>
-                  <Sparkles size={13} className="text-amber-400" />
+                  <Sparkles size={13} style={{ color: colors.gold }} />
                   Kustomisasi Konten Laporan
                 </div>
 
@@ -456,12 +469,13 @@ export function DailyReportModal({
                         onClick={() => setTopSalesCount(opt.val)}
                         className={`py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                           topSalesCount === opt.val
-                            ? "bg-emerald-500 text-white border-emerald-500 shadow-sm"
+                            ? "shadow-sm"
                             : "border-transparent opacity-75 hover:opacity-100"
                         }`}
                         style={{
-                          background: topSalesCount === opt.val ? undefined : (isLight ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.07)"),
-                          color: topSalesCount === opt.val ? "#FFFFFF" : colors.text,
+                          background: topSalesCount === opt.val ? colors.mint : colors.glassFill,
+                          color: topSalesCount === opt.val ? (isLight ? "#ffffff" : "#0A1120") : colors.text,
+                          border: `1px solid ${topSalesCount === opt.val ? colors.mint : colors.glassBorder}`,
                         }}
                       >
                         {opt.label}
@@ -478,15 +492,17 @@ export function DailyReportModal({
                         type="checkbox"
                         checked={includeAttention}
                         onChange={(e) => setIncludeAttention(e.target.checked)}
-                        className="rounded text-emerald-500 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                        className="rounded w-4 h-4 cursor-pointer"
+                        style={{ accentColor: colors.mint }}
                       />
                       <span>Sertakan Peringatan & Isu Butuh Perhatian</span>
                       {availableAlertsCount > 0 && (
                         <span
                           className="text-[10px] px-2 py-0.5 rounded-full font-bold"
                           style={{
-                            background: isLight ? "rgba(245, 158, 11, 0.15)" : "rgba(245, 158, 11, 0.2)",
-                            color: isLight ? "#B45309" : "#FBBF24",
+                            background: `${colors.gold}22`,
+                            color: colors.gold,
+                            border: `1px solid ${colors.gold}44`,
                           }}
                         >
                           {availableAlertsCount} terdeteksi
@@ -512,12 +528,13 @@ export function DailyReportModal({
                               onClick={() => setAttentionCount(opt.val)}
                               className={`py-1 rounded-lg text-[11px] font-semibold border transition-all ${
                                 attentionCount === opt.val
-                                  ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                                  ? "shadow-sm"
                                   : "border-transparent opacity-75 hover:opacity-100"
                               }`}
                               style={{
-                                background: attentionCount === opt.val ? undefined : (isLight ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.07)"),
-                                color: attentionCount === opt.val ? "#FFFFFF" : colors.text,
+                                background: attentionCount === opt.val ? colors.gold : colors.glassFill,
+                                color: attentionCount === opt.val ? (isLight ? "#ffffff" : "#0A1120") : colors.text,
+                                border: `1px solid ${attentionCount === opt.val ? colors.gold : colors.glassBorder}`,
                               }}
                             >
                               {opt.label}
@@ -533,7 +550,8 @@ export function DailyReportModal({
                       type="checkbox"
                       checked={includeCategories}
                       onChange={(e) => setIncludeCategories(e.target.checked)}
-                      className="rounded text-emerald-500 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                      className="rounded w-4 h-4 cursor-pointer"
+                      style={{ accentColor: colors.mint }}
                     />
                     <span>Sertakan Rekap Kategori Produk</span>
                   </label>
@@ -543,7 +561,8 @@ export function DailyReportModal({
                       type="checkbox"
                       checked={includeAo}
                       onChange={(e) => setIncludeAo(e.target.checked)}
-                      className="rounded text-emerald-500 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                      className="rounded w-4 h-4 cursor-pointer"
+                      style={{ accentColor: colors.mint }}
                     />
                     <span>Tampilkan Jumlah Toko Aktif (AO)</span>
                   </label>
@@ -553,7 +572,8 @@ export function DailyReportModal({
                       type="checkbox"
                       checked={includeLastDaySales}
                       onChange={(e) => setIncludeLastDaySales(e.target.checked)}
-                      className="rounded text-emerald-500 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                      className="rounded w-4 h-4 cursor-pointer"
+                      style={{ accentColor: colors.mint }}
                     />
                     <span>⚡ Tampilkan Penjualan Hari Terakhir Semua Sales (Value & AO)</span>
                   </label>
@@ -569,10 +589,10 @@ export function DailyReportModal({
                     value={customNote}
                     onChange={(e) => setCustomNote(e.target.value)}
                     placeholder="Contoh: Besok briefing pagi jam 07:30 di kantor..."
-                    className="w-full text-xs p-2.5 rounded-xl border transition-all resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full text-xs p-2.5 rounded-xl border transition-all resize-none focus:outline-none"
                     style={{
-                      background: isLight ? "#FFFFFF" : "rgba(0,0,0,0.2)",
-                      borderColor: isLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.15)",
+                      background: colors.glassFill,
+                      borderColor: colors.glassBorder,
                       color: colors.text,
                     }}
                   />
@@ -583,12 +603,12 @@ export function DailyReportModal({
               <div
                 className="p-3 rounded-xl text-xs flex items-start gap-2"
                 style={{
-                  background: isLight ? "rgba(16, 185, 129, 0.08)" : "rgba(16, 185, 129, 0.12)",
-                  border: `1px solid ${isLight ? "rgba(16, 185, 129, 0.2)" : "rgba(16, 185, 129, 0.25)"}`,
-                  color: isLight ? "#065F46" : "#A7F3D0",
+                  background: `${colors.mint}14`,
+                  border: `1px solid ${colors.mint}33`,
+                  color: colors.text,
                 }}
               >
-                <Sparkles size={14} className="shrink-0 mt-0.5" />
+                <Sparkles size={14} className="shrink-0 mt-0.5" style={{ color: colors.mint }} />
                 <p className="leading-snug">
                   <b>Tips:</b> Gunakan tombol <b>Buka WhatsApp</b> untuk langsung membuka aplikasi dengan teks yang sudah terisi otomatis, atau <b>Salin Teks</b> untuk menempelkannya ke grup manapun.
                 </p>
@@ -602,8 +622,8 @@ export function DailyReportModal({
         <div
           className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 shrink-0"
           style={{
-            borderTop: `1px solid ${isLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)"}`,
-            background: isLight ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.02)",
+            borderTop: `1px solid ${colors.glassBorder}`,
+            background: colors.glassSubtle,
           }}
         >
           <div className="text-xs hidden sm:block" style={{ color: colors.textMuted }}>
@@ -615,12 +635,13 @@ export function DailyReportModal({
               <>
                 {/* Tombol Salin Teks */}
                 <button
+                  type="button"
                   onClick={handleCopyText}
                   className="sm-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all"
                   style={{
-                    background: copiedText ? (isLight ? "#D1FAE5" : "#064E3B") : (isLight ? "#FFFFFF" : colors.bgCard || "#1F2937"),
-                    border: `1px solid ${copiedText ? "#10B981" : (isLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.15)")}`,
-                    color: copiedText ? "#10B981" : colors.text,
+                    background: copiedText ? `${colors.mint}22` : colors.glassFill,
+                    border: `1px solid ${copiedText ? colors.mint : colors.glassBorder}`,
+                    color: copiedText ? colors.mint : colors.text,
                   }}
                 >
                   {copiedText ? <Check size={15} /> : <Copy size={15} />}
@@ -630,11 +651,12 @@ export function DailyReportModal({
                 {/* Tombol Share (Mobile / Web Share) */}
                 {typeof navigator !== "undefined" && typeof navigator.share === "function" && (
                   <button
+                    type="button"
                     onClick={handleShare}
                     className="sm-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm"
                     style={{
-                      background: isLight ? "#FFFFFF" : colors.bgCard || "#1F2937",
-                      border: `1px solid ${isLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.15)"}`,
+                      background: colors.glassFill,
+                      border: `1px solid ${colors.glassBorder}`,
                       color: colors.text,
                     }}
                   >
@@ -645,6 +667,7 @@ export function DailyReportModal({
 
                 {/* Tombol Buka WhatsApp (Utama) */}
                 <button
+                  type="button"
                   onClick={handleOpenWhatsApp}
                   className="sm-btn px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 text-white shadow-md hover:brightness-105 active:scale-95 transition-all"
                   style={{
@@ -659,13 +682,14 @@ export function DailyReportModal({
               <>
                 {/* Tombol Salin Gambar */}
                 <button
+                  type="button"
                   onClick={handleCopyCardImage}
                   disabled={isGenerating}
                   className="sm-btn px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
                   style={{
-                    background: copiedImage ? (isLight ? "#D1FAE5" : "#064E3B") : (isLight ? "#FFFFFF" : colors.bgCard || "#1F2937"),
-                    border: `1px solid ${copiedImage ? "#10B981" : (isLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.15)")}`,
-                    color: copiedImage ? "#10B981" : colors.text,
+                    background: copiedImage ? `${colors.mint}22` : colors.glassFill,
+                    border: `1px solid ${copiedImage ? colors.mint : colors.glassBorder}`,
+                    color: copiedImage ? colors.mint : colors.text,
                   }}
                 >
                   {copiedImage ? <Check size={15} /> : <Copy size={15} />}
@@ -674,11 +698,13 @@ export function DailyReportModal({
 
                 {/* Tombol Download Kartu PNG (Utama) */}
                 <button
+                  type="button"
                   onClick={handleDownloadCard}
                   disabled={isGenerating}
-                  className="sm-btn px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 text-white shadow-md hover:brightness-105 active:scale-95 transition-all disabled:opacity-50"
+                  className="sm-btn px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md hover:brightness-105 active:scale-95 transition-all disabled:opacity-50"
                   style={{
-                    background: "linear-gradient(135deg, #F59E0B, #D97706)",
+                    background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral || '#DC2626'})`,
+                    color: colors.onGold || (isLight ? "#FFFFFF" : "#0A1120"),
                   }}
                 >
                   <Download size={15} />

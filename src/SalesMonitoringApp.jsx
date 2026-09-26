@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import {
   Sun, Moon,
   Search, Sparkles,
-  FileSpreadsheet, AlertTriangle,
+  FileSpreadsheet, AlertTriangle, Monitor,
 } from "lucide-react";
 import { saveSession, loadSession, clearSession, saveHistory, loadHistory, clearHistory, clearCompareState, saveMasterMax, saveLastMasterSyncAt } from "./utils/storage.js";
 import { supabase, getSession, onAuthChange, signOutAccount } from "./utils/cloud.js";
@@ -28,8 +28,6 @@ import { Sidebar } from "./components/layout/Sidebar.jsx";
 import { HISTORY_MAX_ENTRIES } from "./constants/thresholds.js";
 // ⚠️ Sprint 6 / R4: WORK_DAYS_DEFAULT dan DEFAULT_TARGETS sekarang dipakai di
 // hook useSettings.js, bukan di SalesMonitoringApp.jsx. Hapus import di sini.
-// ⚠️ Sprint 5 / S5: Web Vitals monitoring — track real-user FCP/LCP/INP/CLS/TTFB.
-import { useWebVitals } from "./hooks/useWebVitals.js";
 // ⚠️ Sprint 6 / R4: settings state + auto-save dipindah ke hook useSettings.js.
 import { useSettings } from "./hooks/useSettings.js";
 // Modul virtual dari vite-plugin-pwa — hanya ada saat plugin ini terpasang &
@@ -52,10 +50,13 @@ import { useAiContext } from "./hooks/useAiContext.js";
 // ⚠️ Superuser Admin Dashboard: permissions engine
 import { usePermissions } from "./hooks/usePermissions.js";
 import { useWhatsNew } from "./hooks/useWhatsNew.js";
-import { Monitor } from "lucide-react";
 import { FilterBar } from "./components/ui/FilterBar.jsx";
 import { DashboardSkeleton } from "./components/ui/DashboardSkeleton.jsx";
-import { UploadDropzone, MobileBottomNav, MobileFab, ExportMenu, GlobalDragOverlay } from "./components/upload/index.jsx";
+import { UploadDropzone } from "./components/upload/UploadDropzone.jsx";
+import { MobileBottomNav } from "./components/upload/MobileBottomNav.jsx";
+import { MobileFab } from "./components/upload/MobileFab.jsx";
+import { ExportMenu } from "./components/upload/ExportMenu.jsx";
+import { GlobalDragOverlay } from "./components/upload/GlobalDragOverlay.jsx";
 import { useWindowDragDrop } from "./hooks/useWindowDragDrop.js";
 // ⚠️ Sprint 18 / Header Redesign: AvatarButton untuk header baru
 import { AvatarButton } from "./components/ui/AvatarButton.jsx";
@@ -405,19 +406,6 @@ export default function SalesMonitoringApp() {
     handleInstallClick,
     canShowInstallButton,
   } = usePwaInstall();
-
-  // ⚠️ Sprint 5 / S5: track Core Web Vitals (FCP/LCP/INP/CLS/TTFB) untuk
-  // monitor real-user performance. Saat ini cuma log ke console di dev mode.
-  // Production bisa extend dengan post ke analytics endpoint lewat onMetric.
-  // Lihat hooks/useWebVitals.js untuk detail.
-  useWebVitals({
-    onMetric: (_metric) => {
-      // Hook untuk analytics production — contoh:
-      // if (navigator.sendBeacon && metric.rating === "poor") {
-      //   navigator.sendBeacon("/api/vitals", JSON.stringify(metric));
-      // }
-    },
-  });
 
   const colors = useMemo(() => {
     const base = THEMES[theme];

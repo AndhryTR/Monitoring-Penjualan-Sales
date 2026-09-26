@@ -110,20 +110,22 @@ export function SalesReportPage({ agg, colors, onDrilldown, workDays, depotName,
         <>
           <Leaderboard rows={rows} colors={colors} onDrilldown={onDrilldown} onExportScorecard={handleExportScorecard} />
 
-          <div className="flex items-center justify-between flex-wrap gap-3 mb-0">
-            <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} accent={colors.mint} />
+          <div className="sm-card p-5 mb-6">
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-0">
+              <SectionTitle title="Performa per Sales" sub="Pilih Sales pada filter di atas untuk melihat detail" icon={UserRound} colors={colors} accent={colors.mint} />
+            </div>
+            <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
+              <BarChart data={rows} layout="vertical" margin={{ left: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} horizontal={false} />
+                <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={fmtCompactNum} />
+                <YAxis type="category" dataKey="name" width={160} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip content={<AchBarChartTooltip colors={colors} />} cursor={{ fill: colors.glassSubtle }} />
+                <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
+                  {rows.map((r, i) => <Cell key={i} fill={getAchColor(r.ach, colors)} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-          <ResponsiveContainer width="100%" height={Math.max(220, rows.length * 46)}>
-            <BarChart data={rows} layout="vertical" margin={{ left: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} horizontal={false} />
-              <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={fmtCompactNum} />
-              <YAxis type="category" dataKey="name" width={160} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<AchBarChartTooltip colors={colors} />} cursor={{ fill: colors.glassSubtle }} />
-              <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
-                {rows.map((r, i) => <Cell key={i} fill={getAchColor(r.ach, colors)} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
 
           {/* Detail per Sales × Grup — di-hide di mode slideshow */}
           {!slideshowMode && (

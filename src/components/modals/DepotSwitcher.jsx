@@ -339,7 +339,7 @@ function AddDepotDialog({ depots, colors, onClose, onAdd }) {
             onClick={handleSubmit}
             disabled={!name.trim() || !code.trim()}
             className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: colors.mint, color: "#0A1120" }}
+            style={{ background: colors.mint, color: colors.onMint || "#0A1120" }}
           >
             Buat Depo
           </button>

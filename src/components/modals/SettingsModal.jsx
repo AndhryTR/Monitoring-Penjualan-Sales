@@ -469,7 +469,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                 </div>
                 <button onClick={() => { onClose(); onStartSlideshow?.(); }}
                   className="sm-btn w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
-                  style={{ background: colors.mint, color: "#0A1120" }}
+                  style={{ background: colors.mint, color: colors.onMint || "#0A1120" }}
                   disabled={slideshowConfig.enabledTabs.length < 2}>
                   <Play size={14} /> Mulai Slideshow Sekarang
                 </button>
@@ -566,7 +566,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                   </button>
                   <button onClick={handleSave} disabled={!changes.hasChanges}
                     className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40"
-                    style={{ background: colors.gold, color: "#0A1120" }}>
+                    style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}>
                     Konfirmasi & Simpan
                   </button>
                 </div>
@@ -580,7 +580,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
           <button onClick={onClose} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${colors.glassBorder}` }}>
             Batal
           </button>
-          <button onClick={handleSaveClick} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: colors.gold, color: "#0A1120" }}>
+          <button onClick={handleSaveClick} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}>
             {saveButtonLabel}
           </button>
         </div>

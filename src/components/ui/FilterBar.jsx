@@ -168,11 +168,23 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
       </div>
       {datePreset === "custom" && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}` }}>
-          <input type="date" value={filters.dateFrom || ""} onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value, datePreset: "custom" }))}
-            className="bg-transparent outline-none" style={{ color: colors.text, colorScheme } } />
+          <input
+            type="date"
+            aria-label="Tanggal mulai filter"
+            value={filters.dateFrom || ""}
+            onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value, datePreset: "custom" }))}
+            className="bg-transparent outline-none"
+            style={{ color: colors.text, colorScheme }}
+          />
           <span style={{ color: colors.textMuted }}>-</span>
-          <input type="date" value={filters.dateTo || ""} onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value, datePreset: "custom" }))}
-            className="bg-transparent outline-none" style={{ color: colors.text, colorScheme } } />
+          <input
+            type="date"
+            aria-label="Tanggal akhir filter"
+            value={filters.dateTo || ""}
+            onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value, datePreset: "custom" }))}
+            className="bg-transparent outline-none"
+            style={{ color: colors.text, colorScheme }}
+          />
         </div>
       )}
       {active > 0 && (
@@ -203,7 +215,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
           {active > 0 && (
             <span
               className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold"
-              style={{ background: colors.gold, color: "#0A1120" }}
+              style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}
             >
               {active}
             </span>
@@ -370,7 +382,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
                 {active > 0 && (
                   <span
                     className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold"
-                    style={{ background: colors.gold, color: colors.ink || "#0A1120" }}
+                    style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}
                   >
                     {active}
                   </span>
@@ -393,7 +405,7 @@ export function FilterBar({ salesOptions, groupOptions, filters, setFilters, col
             <button
               onClick={() => setMobileOpen(false)}
               className="mt-5 w-full sm-btn py-3 rounded-xl text-sm font-semibold"
-              style={{ background: colors.gold, color: colors.ink || "#0A1120" }}
+              style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}
             >
               Terapkan Filter
             </button>

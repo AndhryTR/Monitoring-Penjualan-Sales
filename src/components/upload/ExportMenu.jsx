@@ -49,7 +49,7 @@ function FormatPill({ label, active, disabled, onClick, colors, title }) {
           : (active ? `${colors.gold}25` : colors.glassFill),
         border: `1px solid ${hovered ? colors.gold : (active ? `${colors.gold}66` : colors.glassBorder)}`,
         color: hovered
-          ? (active ? "#0A1120" : colors.text)
+          ? (active ? (colors.onGold || "#0A1120") : colors.text)
           : (active ? colors.gold : colors.textMuted),
         boxShadow: hovered ? `0 2px 8px ${colors.gold}44` : "none",
       }}
@@ -631,7 +631,7 @@ export function ExportMenu({
         // ⚠️ Sprint 18d8 / Responsive: padding p-2 di mobile (sama dengan icon button
         // lain di header), px-4 py-2.5 di desktop (label visible).
         className="sm-btn flex items-center gap-1.5 h-9 px-2.5 md:px-3.5 rounded-xl text-xs font-semibold disabled:opacity-40 shrink-0"
-        style={{ background: colors.gold, color: "#0A1120" }}>
+        style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}>
         <Download size={14} /> <span className="hidden md:inline">Export</span> <ChevronDown size={13} className="hidden md:inline" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && (

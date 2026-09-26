@@ -36,7 +36,7 @@ export function EmptyState({ icon: Icon, title, description, actionLabel, onActi
         <button
           onClick={onAction}
           className="sm-btn mt-4 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
-          style={{ background: colors.gold, color: "#0A1120" }}
+          style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}
         >
           {actionLabel} <ArrowRight size={14} />
         </button>

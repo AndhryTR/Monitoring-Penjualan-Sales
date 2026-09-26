@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { fmtNum } from "../../utils/formatters.js";
 import { TableScrollWrapper } from "./TableScrollWrapper.jsx";
 import { CustomSelect } from "./CustomSelect.jsx";
@@ -125,6 +125,8 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }} />
             <input
+              type="text"
+              aria-label={searchPlaceholder || "Cari data tabel"}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={searchPlaceholder || "Cari..."}
@@ -132,7 +134,13 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
               style={{ background: colors.glassFill, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: `1px solid ${colors.glassBorder}`, color: colors.text }}
             />
             {query && (
-              <button onClick={() => setQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: colors.textMuted }}>
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Hapus pencarian"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 hover:opacity-75 transition-opacity"
+                style={{ color: colors.textMuted }}
+              >
                 <X size={14} />
               </button>
             )}
@@ -150,12 +158,58 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">
             <tr style={{ background: colors.glassFillStrong, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
-              {columns.map((c) => (
-                <th key={c.key} onClick={() => c.label && toggleSort(c.key)} className="px-4 py-3 text-left cursor-pointer select-none whitespace-nowrap"
-                  style={{ color: colors.tableHeader, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", background: colors.glassFillStrong, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: `0 1px 0 ${colors.glassBorderElevated}` }}>
-                  {c.label} {sortKey === c.key && (sortDir === "asc" ? "↑" : "↓")}
-                </th>
-              ))}
+              {columns.map((c) => {
+                const isSortable = Boolean(c.label);
+                const isCurrentSort = sortKey === c.key;
+                const sortDirection = isCurrentSort ? (sortDir === "asc" ? "ascending" : "descending") : "none";
+                return (
+                  <th
+                    key={c.key}
+                    scope="col"
+                    aria-sort={isSortable ? sortDirection : undefined}
+                    onClick={() => isSortable && toggleSort(c.key)}
+                    className={`px-4 py-3 text-left select-none whitespace-nowrap ${isSortable ? "cursor-pointer" : ""}`}
+                    style={{
+                      color: colors.tableHeader,
+                      fontSize: 11,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      background: colors.glassFillStrong,
+                      backdropFilter: "blur(20px)",
+                      WebkitBackdropFilter: "blur(20px)",
+                      boxShadow: `0 1px 0 ${colors.glassBorderElevated}`,
+                    }}
+                  >
+                    {isSortable ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSort(c.key);
+                        }}
+                        aria-label={`Urutkan berdasarkan ${c.label}${isCurrentSort ? `, saat ini ${sortDir === "asc" ? "naik" : "turun"}` : ""}`}
+                        className="group inline-flex items-center gap-1.5 uppercase font-semibold transition-colors focus-visible:outline-none focus-visible:underline rounded"
+                        style={{ color: isCurrentSort ? colors.text : colors.tableHeader }}
+                      >
+                        <span>{c.label}</span>
+                        <span className="inline-flex items-center">
+                          {isCurrentSort ? (
+                            sortDir === "asc" ? (
+                              <ArrowUp size={12} className="shrink-0" style={{ color: colors.mint }} />
+                            ) : (
+                              <ArrowDown size={12} className="shrink-0" style={{ color: colors.mint }} />
+                            )
+                          ) : (
+                            <ArrowUpDown size={11} className="shrink-0 opacity-0 group-hover:opacity-60 group-focus-visible:opacity-60 transition-opacity" style={{ color: colors.textMuted }} />
+                          )}
+                        </span>
+                      </button>
+                    ) : (
+                      c.label || <span className="sr-only">Aksi</span>
+                    )}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -195,7 +249,54 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
       {/* Mobile (<640px): card-stack — tiap baris jadi kartu dengan judul +
           grid 2-kolom label-value + optional footer aksi. Menghindari horizontal
           scroll yang menyiksa di layar sempit (mis. tabel 7-8 kolom). */}
-      <div className="sm:hidden max-h-[65vh] overflow-y-auto">
+      <div className="sm:hidden">
+        {/* Mobile sort bar agar pengguna mobile juga dapat memilih urutan */}
+        {columns.some((c) => c.label) && (
+          <div
+            className="px-4 py-2.5 flex items-center justify-between gap-2 border-b"
+            style={{ borderColor: colors.glassBorder, background: colors.glassSubtle }}
+          >
+            <span className="text-xs font-medium" style={{ color: colors.textMuted }}>
+              Urutkan:
+            </span>
+            <div className="flex items-center gap-2">
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value)}
+                aria-label="Pilih kolom pengurutan data"
+                className="text-xs rounded-lg px-2.5 py-1 outline-none font-medium cursor-pointer"
+                style={{
+                  background: colors.glassFill,
+                  color: colors.text,
+                  border: `1px solid ${colors.glassBorder}`,
+                }}
+              >
+                {columns
+                  .filter((c) => c.label)
+                  .map((c) => (
+                    <option
+                      key={c.key}
+                      value={c.key}
+                      style={{ background: colors.surface || "#111827", color: colors.text || "#F9FAFB" }}
+                    >
+                      {c.label}
+                    </option>
+                  ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+                aria-label={`Arah urutan: ${sortDir === "asc" ? "naik (A-Z / terkecil)" : "turun (Z-A / terbesar)"}`}
+                className="sm-btn p-1 rounded-lg text-xs flex items-center justify-center w-7 h-7"
+                style={{ color: colors.text, border: `1px solid ${colors.glassBorder}` }}
+              >
+                {sortDir === "asc" ? <ArrowUp size={13} style={{ color: colors.mint }} /> : <ArrowDown size={13} style={{ color: colors.mint }} />}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="max-h-[65vh] overflow-y-auto">
         {sorted.length === 0 ? (
           <div className="px-4 py-10 text-center text-sm" style={{ color: colors.textMuted }}>
             {query ? "Tidak ada hasil yang cocok dengan pencarian" : "Belum ada data untuk filter ini"}
@@ -266,6 +367,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
           </div>
         )}
       </div>
+    </div>
 
       {effectivePageSize && sorted.length > 0 && (
         <div className="flex items-center justify-between gap-3 px-4 py-3 flex-wrap" style={{ borderTop: `1px solid ${colors.glassBorder}` }}>
@@ -309,6 +411,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
                     {showEllipsis && <span className="px-1 text-xs" style={{ color: colors.textMuted }}>…</span>}
                     <button
                       onClick={() => setPage(p)}
+                      aria-label={`Halaman ${p}`}
                       aria-current={active ? "page" : undefined}
                       className="sm-btn min-w-8 h-8 px-2 rounded-lg text-xs font-semibold mono"
                       style={{

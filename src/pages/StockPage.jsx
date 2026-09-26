@@ -158,7 +158,7 @@ export function StockPage({
             onClick={onUploadStock}
             disabled={uploading}
             className="sm-btn inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
-            style={{ background: colors.mint, color: "#0A1120" }}
+            style={{ background: colors.mint, color: colors.onMint || "#0A1120" }}
           >
             <Upload size={15} /> Upload Master Stok
           </button>
@@ -281,7 +281,7 @@ export function StockPage({
           }`}
           style={{
             background: statusFilter === "low" ? colors.gold : colors.glassFill,
-            color: statusFilter === "low" ? "#0A1120" : colors.gold,
+            color: statusFilter === "low" ? (colors.onGold || "#0A1120") : colors.gold,
             border: `1px solid ${statusFilter === "low" ? colors.gold : colors.glassBorder}`,
           }}
         >
@@ -294,7 +294,7 @@ export function StockPage({
           }`}
           style={{
             background: statusFilter === "reorder" ? colors.mint : colors.glassFill,
-            color: statusFilter === "reorder" ? "#0A1120" : colors.mint,
+            color: statusFilter === "reorder" ? (colors.onMint || "#0A1120") : colors.mint,
             border: `1px solid ${statusFilter === "reorder" ? colors.mint : colors.glassBorder}`,
           }}
         >

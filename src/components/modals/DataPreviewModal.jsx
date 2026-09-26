@@ -42,7 +42,7 @@ export function DataPreviewModal({ isOpen, onCancel, onConfirm, preview, colors,
           <button onClick={onCancel} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}>
             Batal
           </button>
-          <button onClick={() => onConfirm(mode)} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.gold, color: "#0A1120" }}>
+          <button onClick={() => onConfirm(mode)} className="sm-btn px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}>
             {mode === "merge" ? "Gabungkan Data" : mode === "replace_dates" ? "Ganti Data per Tanggal" : "Gunakan Data Ini"}
           </button>
         </div>

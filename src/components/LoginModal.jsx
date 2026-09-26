@@ -270,7 +270,7 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
                 <button onClick={() => setForgotMode(false)} className="sm-btn flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold" style={{ border: `1px solid ${colors.glassBorder}`, color: colors.textMuted }}>
                   Kembali
                 </button>
-                <button onClick={handleForgot} disabled={busy} className="sm-btn flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5" style={{ background: colors.mint, color: "#0A1120" }}>
+                <button onClick={handleForgot} disabled={busy} className="sm-btn flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5" style={{ background: colors.mint, color: colors.onMint || "#0A1120" }}>
                   {busy ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />} Kirim Link
                 </button>
               </div>
@@ -298,7 +298,7 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
                     className={`${inputCls} pl-9 ${focusCls}`} style={inputStyle} />
                 </div>
               </div>
-              <button onClick={handleLogin} disabled={busy} className="sm-btn w-full px-3 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5" style={{ background: colors.mint, color: "#0A1120" }}>
+              <button onClick={handleLogin} disabled={busy} className="sm-btn w-full px-3 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5" style={{ background: colors.mint, color: colors.onMint || "#0A1120" }}>
                 {busy ? <Loader2 size={15} className="animate-spin" /> : <LogIn size={15} />} Masuk
               </button>
               <p className="text-[11px] text-center" style={{ color: colors.textMuted }}>
@@ -340,7 +340,7 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
                   className={`${inputCls} pl-9 ${focusCls}`} style={inputStyle} />
               </div>
             </div>
-            <button onClick={handleRegister} disabled={busy} className="sm-btn w-full px-3 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5" style={{ background: colors.mint, color: "#0A1120" }}>
+            <button onClick={handleRegister} disabled={busy} className="sm-btn w-full px-3 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5" style={{ background: colors.mint, color: colors.onMint || "#0A1120" }}>
               {busy ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />} Daftar
             </button>
           </div>

@@ -34,6 +34,11 @@ export function ConfirmDialog({
   const danger = variant === "danger";
   const accent = danger ? colors.coral || "#F87171" : colors.mint || "#10B981";
 
+  const isLight = colors?.colorScheme === "light";
+  const confirmTextColor = danger
+    ? (colors.onCoral || (isLight ? "#ffffff" : "#0A1120"))
+    : (colors.onMint || (isLight ? "#ffffff" : "#0A1120"));
+
   return (
     <Modal
       isOpen={isOpen}
@@ -68,7 +73,7 @@ export function ConfirmDialog({
             onClick={onConfirm}
             disabled={busy}
             className="sm-btn px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-40"
-            style={{ background: accent, color: "#fff" }}
+            style={{ background: accent, color: confirmTextColor }}
           >
             {busy ? "Memproses…" : confirmLabel}
           </button>

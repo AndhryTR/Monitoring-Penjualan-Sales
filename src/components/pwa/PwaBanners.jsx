@@ -48,7 +48,7 @@ export function PwaBanners({
             <button
               onClick={() => updateServiceWorker(true)}
               className="sm-btn px-3 py-1.5 rounded-lg text-xs font-semibold"
-              style={{ background: colors.gold, color: "#0A1120" }}
+              style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}
             >
               Perbarui Sekarang
             </button>

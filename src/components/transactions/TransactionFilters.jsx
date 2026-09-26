@@ -155,7 +155,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
         {activeCount > 0 && (
           <span
             className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold"
-            style={{ background: colors.gold, color: "#0A1120" }}
+            style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}
           >
             {activeCount}
           </span>
@@ -280,7 +280,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
                 {activeCount > 0 && (
                   <span
                     className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold"
-                    style={{ background: colors.gold, color: "#0A1120" }}
+                    style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}
                   >
                     {activeCount}
                   </span>
@@ -299,7 +299,7 @@ export function TransactionFilters({ rows, filters, setFilters, colors }) {
             <button
               onClick={() => setOpen(false)}
               className="mt-5 w-full sm-btn py-3 rounded-xl text-sm font-semibold"
-              style={{ background: colors.gold, color: "#0A1120" }}
+              style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}
             >
               Terapkan Filter
             </button>

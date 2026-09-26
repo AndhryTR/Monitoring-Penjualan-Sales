@@ -47,7 +47,7 @@ export function HistoryModal({ isOpen, onClose, history, onSave, onApply, onDele
           onClick={() => checked.length > 0 && onApply(checked)}
           disabled={checked.length === 0}
           className="sm-btn w-full px-4 py-2.5 rounded-xl text-sm font-semibold"
-          style={{ background: checked.length ? colors.gold : colors.glassFill, color: checked.length ? "#0A1120" : colors.textMuted }}
+          style={{ background: checked.length ? colors.gold : colors.glassFill, color: checked.length ? (colors.onGold || "#0A1120") : colors.textMuted }}
         >
           {actionLabel}
         </button>
@@ -56,7 +56,7 @@ export function HistoryModal({ isOpen, onClose, history, onSave, onApply, onDele
       <div className="flex gap-2 mb-5">
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label periode (mis. Juli 2026 Minggu 1)"
           className="flex-1 px-3 py-2 rounded-lg text-sm" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}`, color: colors.text }} />
-        <button onClick={() => onSave(label)} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap" style={{ background: colors.gold, color: "#0A1120" }}>
+        <button onClick={() => onSave(label)} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap" style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}>
           Simpan Snapshot Ini
         </button>
       </div>

@@ -240,6 +240,7 @@ export function CustomSelect({
                 <Search size={12} style={{ color: colors.textMuted || "#94A3B8" }} />
                 <input
                   type="text"
+                  aria-label={searchPlaceholder || "Cari opsi..."}
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   onKeyDown={(e) => {

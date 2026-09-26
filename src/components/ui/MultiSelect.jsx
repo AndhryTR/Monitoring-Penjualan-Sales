@@ -64,8 +64,15 @@ export function MultiSelect({ label, icon: Icon, options, selected, onChange, pl
         >
           <div className="flex items-center gap-2 px-2 py-1.5 mb-1 rounded-lg" style={{ background: colors.glassSubtle }}>
             <Search size={13} style={{ color: colors.textMuted }} />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder || "Cari..."}
-              className="bg-transparent outline-none text-sm w-full" style={{ color: colors.text }} />
+            <input
+              type="text"
+              aria-label={placeholder || "Cari opsi..."}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={placeholder || "Cari..."}
+              className="bg-transparent outline-none text-sm w-full"
+              style={{ color: colors.text }}
+            />
           </div>
           <div className="max-h-56 overflow-y-auto">
             {filtered.length === 0 && <div className="text-xs px-2 py-2" style={{ color: colors.textMuted }}>Tidak ada hasil</div>}

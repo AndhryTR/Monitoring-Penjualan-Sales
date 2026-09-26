@@ -282,7 +282,7 @@ export function StockImportPreview({
             className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold"
             style={{
               background: hasWarnings ? colors.gold : colors.mint,
-              color: "#0A1120",
+              color: hasWarnings ? (colors.onGold || "#0A1120") : (colors.onMint || "#0A1120"),
             }}
           >
             {hasDiff

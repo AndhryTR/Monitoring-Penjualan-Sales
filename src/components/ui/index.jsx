@@ -53,7 +53,18 @@ export function AchBarChartTooltip({ active, payload, label, colors }) {
     const data = payload[0].payload;
     const barColor = getAchColor(data.ach, colors);
     return (
-      <div className="p-3" style={{ background: colors.modalBg, backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)", border: `1px solid ${colors.modalBorder}`, borderRadius: 10, fontSize: 12, boxShadow: colors.glassShadow }}>
+      <div
+        className="p-3 rounded-xl pointer-events-none"
+        style={{
+          background: `radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen || "rgba(255,255,255,0.12)"}, transparent 55%), ${colors.tooltipBg || (colors.colorScheme === "light" ? "rgba(255,255,255,0.68)" : "rgba(15,23,42,0.60)")}`,
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: `1px solid ${colors.modalBorder || colors.glassBorder}`,
+          borderRadius: 12,
+          boxShadow: `${colors.glassShadow || "0 8px 32px rgba(0,0,0,0.25)"}, inset 0 1px 0 ${colors.glassHighlight || "rgba(255,255,255,0.15)"}`,
+          fontSize: 12,
+        }}
+      >
         <div className="font-semibold mb-1" style={{ color: colors.text }}>{label}</div>
         <div className="mono font-semibold" style={{ color: barColor }}>
           Realisasi: {fmtRp(data.realisasiValue)}

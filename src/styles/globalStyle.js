@@ -23,8 +23,8 @@ html, body {
   font-family: 'Inter', sans-serif;
   color: ${colors.text};
 }
-.smapp.is-tauri { background: transparent; }
-.smapp.is-tauri .sm-mesh { opacity: .35; }
+.smapp.is-tauri { background: ${colors.colorScheme === "light" ? "rgba(244, 246, 251, 0.6)" : "transparent"}; }
+.smapp.is-tauri .sm-mesh { opacity: ${colors.colorScheme === "light" ? ".65" : ".35"}; }
 /* Scrim hybrid: header bar (sm-card sticky) & elemen melayang butuh alpha lebih
    tinggi di atas Acrylic — blur dihilangkan (tak ada bahan web untuk diblur). */
 .smapp.is-tauri .sm-card { backdrop-filter: none; -webkit-backdrop-filter: none; }
@@ -213,14 +213,15 @@ ${powerSaveMode ? `
  * @returns {Object} style object untuk prop contentStyle di Recharts <Tooltip>
  */
 export const createChartTooltipStyle = (colors) => ({
-  background: colors.modalBg,
+  background: `radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen || "rgba(255,255,255,0.12)"}, transparent 55%), ${colors.tooltipBg || (colors.colorScheme === "light" ? "rgba(255,255,255,0.68)" : "rgba(15,23,42,0.60)")}`,
   backdropFilter: "blur(28px)",
   WebkitBackdropFilter: "blur(28px)",
-  border: `1px solid ${colors.modalBorder}`,
-  borderRadius: 10,
+  border: `1px solid ${colors.modalBorder || colors.glassBorder}`,
+  borderRadius: 12,
   color: colors.text,
   fontSize: 12,
-  boxShadow: colors.glassShadow,
+  boxShadow: `${colors.glassShadow || "0 8px 32px rgba(0,0,0,0.25)"}, inset 0 1px 0 ${colors.glassHighlight || "rgba(255,255,255,0.15)"}`,
+  padding: "8px 12px",
 });
 
 /**

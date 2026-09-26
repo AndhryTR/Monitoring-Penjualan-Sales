@@ -19,6 +19,10 @@ export const THEMES = {
     coral: "#F87171",
     violet: "#A78BFA",
     blue: "#60A5FA",
+    // Warna teks kontras saat elemen menggunakan aksen solid sebagai background fill (e.g. tombol / badge)
+    onGold: "#0A1120",
+    onMint: "#0A1120",
+    onCoral: "#0A1120",
     // --- Glass morphism tokens (Fase 4 — final spec) ---
     meshBg: "#0A1120",
     glassSubtle: "rgba(255,255,255,0.03)",
@@ -45,6 +49,7 @@ export const THEMES = {
     // Border pakai glassBorderElevated supaya lebih tegas di background kompleks.
     dropdownBg: "rgba(15,23,42,0.55)",
     dropdownBorder: "rgba(255,255,255,0.14)",
+    tooltipBg: "rgba(15,23,42,0.60)",
     chartGrid: "rgba(255,255,255,0.08)",
     glassSheen: "rgba(255,255,255,0.10)",
     blobs: [
@@ -65,11 +70,16 @@ export const THEMES = {
     textMuted: "#4B5563",
     // Header tabel di mode terang ditingkatkan kontrasnya untuk keterbacaan optimal.
     tableHeader: "#374151",
-    gold: "#D97706",
-    mint: "#059669",
+    gold: "#B45309",
+    mint: "#047857",
     coral: "#DC2626",
     violet: "#7C3AED",
     blue: "#2563EB",
+    // Pada mode terang, aksen gold/mint/coral adalah warna pekat (WCAG AA >= 4.5:1),
+    // sehingga teks di atas background aksen solid harus PUTIH (#FFFFFF) agar kontras optimal dan tidak kusam.
+    onGold: "#FFFFFF",
+    onMint: "#FFFFFF",
+    onCoral: "#FFFFFF",
     // --- Glass morphism tokens (Fase 4 — final spec) ---
     meshBg: "linear-gradient(135deg, #e0e7ff, #f0fdf4, #fef3c7, #ede9fe)",
     glassSubtle: "rgba(255,255,255,0.25)",
@@ -88,6 +98,7 @@ export const THEMES = {
     // terang — perlu opacity lebih untuk readability teks gelap).
     dropdownBg: "rgba(255,255,255,0.65)",
     dropdownBorder: "rgba(0,0,0,0.10)",
+    tooltipBg: "rgba(255,255,255,0.68)",
     chartGrid: "rgba(17,24,39,0.10)",
     glassSheen: "rgba(255,255,255,0.45)",
     blobs: [
@@ -119,6 +130,7 @@ export function applyPowerSaveColors(colors) {
     modalBg: colors.surface2,
     modalPanelBg: colors.surface,
     dropdownBg: colors.surface,
+    tooltipBg: colors.surface,
     glassSheen: "transparent",
   };
 }
@@ -142,6 +154,7 @@ export function applyTauriScrimColors(colors) {
     // Dropdown/tooltip melayang tanpa overlay: butuh scrim pekat agar teks kecil terbaca.
     dropdownBg: isDark ? "rgba(10,17,32,0.90)" : "rgba(255,255,255,0.97)",
     modalPanelBg: isDark ? "rgba(10,17,32,0.94)" : "rgba(255,255,255,0.98)",
+    tooltipBg: isDark ? "rgba(10,17,32,0.70)" : "rgba(255,255,255,0.76)",
     // Light theme + Acrylic: wallpaper tembus → label abu turun kontras.
     // textMuted digelapkan supaya teks sekunder tetap terbaca di atas kaca transparan.
     ...(isDark ? {} : { textMuted: "#374151", tableHeader: "#374151" }),

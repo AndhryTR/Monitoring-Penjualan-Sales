@@ -215,10 +215,11 @@ function CustomGoalTooltip({ active, payload, colors, primaryAccent }) {
     <div
       className="p-3 rounded-xl text-xs space-y-2 max-w-[240px] pointer-events-none"
       style={{
-        background: colors.dropdownBg,
-        border: `1px solid ${colors.dropdownBorder}`,
-        boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-        backdropFilter: "blur(12px)",
+        background: `radial-gradient(130% 90% at 12% -10%, ${colors.glassSheen || "rgba(255,255,255,0.12)"}, transparent 55%), ${colors.tooltipBg || (colors.colorScheme === "light" ? "rgba(255,255,255,0.68)" : "rgba(15,23,42,0.60)")}`,
+        border: `1px solid ${colors.dropdownBorder || colors.modalBorder}`,
+        boxShadow: `${colors.glassShadow || "0 8px 24px rgba(0,0,0,0.35)"}, inset 0 1px 0 ${colors.glassHighlight || "rgba(255,255,255,0.15)"}`,
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
       }}
     >
       {/* Header */}

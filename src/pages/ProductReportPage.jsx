@@ -213,18 +213,20 @@ export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, 
             />
           </div>
 
-          <SectionTitle title="Pencapaian per Grup Produk" sub="Ranking berdasarkan realisasi" icon={Boxes} colors={colors} accent={colors.mint} />
-          <ResponsiveContainer width="100%" height={Math.max(240, agg.byGroup.length * 42)}>
-            <BarChart data={agg.byGroup} layout="vertical" margin={{ left: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} horizontal={false} />
-              <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={fmtCompactNum} />
-              <YAxis type="category" dataKey="name" width={170} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<AchBarChartTooltip colors={colors} />} cursor={{ fill: colors.glassSubtle }} />
-              <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
-                {agg.byGroup.map((r, i) => <Cell key={i} fill={getAchColor(r.ach, colors)} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="sm-card p-5 mb-6">
+            <SectionTitle title="Pencapaian per Grup Produk" sub="Ranking berdasarkan realisasi" icon={Boxes} colors={colors} accent={colors.mint} />
+            <ResponsiveContainer width="100%" height={Math.max(240, agg.byGroup.length * 42)}>
+              <BarChart data={agg.byGroup} layout="vertical" margin={{ left: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={colors.chartGrid} horizontal={false} />
+                <XAxis type="number" tick={{ fill: colors.textMuted, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={fmtCompactNum} />
+                <YAxis type="category" dataKey="name" width={170} tick={{ fill: colors.text, fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip content={<AchBarChartTooltip colors={colors} />} cursor={{ fill: colors.glassSubtle }} />
+                <Bar dataKey="realisasiValue" radius={[0, 6, 6, 0]}>
+                  {agg.byGroup.map((r, i) => <Cell key={i} fill={getAchColor(r.ach, colors)} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
 
           {/* Detail Grup Produk — di-hide di mode slideshow */}
           {!slideshowMode && (
