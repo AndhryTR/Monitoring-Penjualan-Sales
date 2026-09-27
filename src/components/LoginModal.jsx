@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { X, LogIn, UserPlus, KeyRound, Mail, User, User as UserIcon, Loader2, AlertTriangle, CheckCircle2, Cloud, LogOut, CloudUpload, CloudOff, CloudDownload, RefreshCw } from "lucide-react";
 import { signInWithIdentifier, signUpAccount, resetPassword } from "../utils/cloud.js";
 import { useScrollLock, useFocusTrap, useEscapeKey } from "../hooks/useModalA11y.js";
+import { AppLogo } from "./ui/AppLogo.jsx";
 
 /* ============================================================================
    LOGIN MODAL
@@ -140,8 +141,8 @@ export function LoginModal({ isOpen, onClose, colors, onLoginSuccess, sessionUse
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl" style={{ background: colors.mint + "1A" }}>
-              <Cloud size={17} style={{ color: colors.mint }} />
+            <div className="p-1.5 rounded-xl flex items-center justify-center shrink-0 shadow-sm" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}` }}>
+              <AppLogo size={20} />
             </div>
             <div className="disp text-base font-semibold">Akun & Sinkronisasi</div>
           </div>

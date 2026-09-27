@@ -64,3 +64,65 @@ html, body, #root {
 .leaflet-dark-tiles {
   filter: invert(100%) hue-rotate(180deg) brightness(82%) contrast(105%) saturate(80%);
 }
+
+/* ============================================================================
+   APP LOGO & MOTION STYLES (from logo_motion.html)
+   ============================================================================ */
+.app-logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-logo-animated #bars > path,
+.app-logo-animated #ribbon-grp > path,
+.app-logo-animated #box > path,
+.app-logo-animated .applogo-bars > path,
+.app-logo-animated .applogo-ribbon > path,
+.app-logo-animated .applogo-box > path {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+}
+
+.app-logo-animated .applogo-bar-1 { animation-name: p2m-rise; animation-duration: 500ms; animation-delay: 160ms; }
+.app-logo-animated .applogo-bar-2 { animation-name: p2m-rise; animation-duration: 500ms; animation-delay: 260ms; }
+.app-logo-animated .applogo-bar-3 { animation-name: p2m-rise; animation-duration: 500ms; animation-delay: 360ms; }
+.app-logo-animated .applogo-tail { animation-name: p2m-sweep; animation-duration: 520ms; animation-delay: 480ms; }
+.app-logo-animated .applogo-arrow { animation-name: p2m-fly; animation-duration: 520ms; animation-delay: 600ms; }
+.app-logo-animated .applogo-box-top { animation-name: p2m-pop; animation-duration: 320ms; animation-delay: 880ms; }
+.app-logo-animated .applogo-box-tape { animation-name: p2m-pop; animation-duration: 320ms; animation-delay: 960ms; }
+.app-logo-animated .applogo-box-left { animation-name: p2m-pop; animation-duration: 320ms; animation-delay: 1040ms; }
+.app-logo-animated .applogo-box-right { animation-name: p2m-pop; animation-duration: 320ms; animation-delay: 1120ms; }
+
+.app-logo-loop {
+  animation: applogo-breathe 3.5s ease-in-out infinite;
+}
+
+@keyframes p2m-rise {
+  0% { opacity: 0; transform: translateY(60px) scale(0.92); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  60% { opacity: 1; transform: translateY(-4px) scale(1.005); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes p2m-sweep {
+  0% { opacity: 0; transform: translate(60px, -40px) rotate(6deg) scale(0.9); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  55% { opacity: 1; transform: translate(-6px, 4px) rotate(-1deg) scale(1.01); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0) scale(1); }
+}
+@keyframes p2m-fly {
+  0% { opacity: 0; transform: translate(-140px, 110px) rotate(-8deg) scale(0.85); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  55% { opacity: 1; transform: translate(8px, -6px) rotate(1deg) scale(1.01); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0) scale(1); }
+}
+@keyframes p2m-pop {
+  0% { opacity: 0; transform: scale(0.6); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  60% { opacity: 1; transform: scale(1.04); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  80% { transform: scale(0.995); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes applogo-breathe {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0px rgba(56, 189, 248, 0)); }
+  50% { transform: scale(1.04); filter: drop-shadow(0 0 16px rgba(56, 189, 248, 0.35)); }
+}
+

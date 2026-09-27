@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FileSpreadsheet, Loader2 } from "lucide-react";
+import { AppLogo } from "./AppLogo.jsx";
 
 /* ============================================================================
    UPLOAD LOADING — overlay fullscreen saat parsing file Excel.
@@ -54,8 +55,8 @@ export function UploadLoading({ colors, fileName, progress = 0 }) {
       }}
       role="status" aria-live="polite" aria-label="Memproses file"
     >
-      <div style={{ width: 64, height: 64, borderRadius: 20, display: "flex", alignItems: "center", justifyContent: "center", background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})`, boxShadow: "0 10px 40px rgba(0,0,0,0.4)" }}>
-        <FileSpreadsheet size={28} color="#0A1120" />
+      <div style={{ width: 68, height: 68, borderRadius: 22, display: "flex", alignItems: "center", justifyContent: "center", background: colors.glassFill || "rgba(255,255,255,0.06)", border: `1px solid ${colors.glassBorderElevated || "rgba(255,255,255,0.15)"}`, boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }}>
+        <AppLogo size={46} loop />
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <Loader2 size={20} className="animate-spin" style={{ color: colors.mint }} />

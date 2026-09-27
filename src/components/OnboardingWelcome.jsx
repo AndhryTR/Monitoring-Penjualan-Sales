@@ -3,6 +3,7 @@ import {
   FileSpreadsheet, Upload, Sparkles, Download, ArrowRight,
   Gauge, Users, Crosshair, Store, History, Zap,
 } from "lucide-react";
+import { AppLogo } from "./ui/AppLogo.jsx";
 
 /* ============================================================================
    ONBOARDING WELCOME — tampil saat belum ada data diupload.
@@ -28,11 +29,17 @@ export function OnboardingWelcome({ colors, onUpload, onSample, onImportBackup, 
     <div className="sm-page-enter max-w-3xl mx-auto">
       {/* Hero */}
       <div className="text-center mb-8 mt-4">
-        <div
-          className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
-          style={{ background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})` }}
-        >
-          <Gauge size={28} color="#0A1120" />
+        <div className="mb-5 flex justify-center">
+          <div
+            className="p-3.5 rounded-3xl flex items-center justify-center shadow-lg"
+            style={{
+              background: colors.glassFill,
+              border: `1px solid ${colors.glassBorderElevated}`,
+              boxShadow: `0 12px 32px -8px ${colors.blue || "#3B82F6"}33`,
+            }}
+          >
+            <AppLogo size={72} animated loop />
+          </div>
         </div>
         <h1 className="disp text-2xl font-bold mb-2" style={{ color: colors.text }}>
           Monitoring Penjualan Sales

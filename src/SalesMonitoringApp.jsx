@@ -43,6 +43,7 @@ import { useGlobalSearch } from "./hooks/useGlobalSearch.js";
 import { OnboardingWelcome } from "./components/OnboardingWelcome.jsx";
 // ⚠️ Sprint 17 / SS1+SS2: Slideshow mode untuk display monitor.
 import { useSlideshow } from "./hooks/useSlideshow.js";
+import { AppLogo } from "./components/ui/AppLogo.jsx";
 import { useScrollDirection } from "./hooks/useScrollDirection.js";
 // ⚠️ Sprint 19 / Stock Module
 import { useStock } from "./hooks/useStock.js";
@@ -1224,12 +1225,12 @@ export default function SalesMonitoringApp() {
           <div className="flex items-center justify-between gap-2 md:gap-3">
 
             {/* Blok kiri: Brand — selalu di kiri */}
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="p-1.5 rounded-lg shrink-0" style={{ background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})` }}>
-                <FileSpreadsheet size={14} color="#0A1120" />
+            <div className="flex items-center gap-2.5 shrink-0">
+              <div className="p-1 rounded-xl shrink-0 flex items-center justify-center shadow-sm" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}` }}>
+                <AppLogo size={24} />
               </div>
               <div className="min-w-0 block sm:block">
-                <h1 className="disp text-sm font-bold truncate" style={{ color: colors.text }}>Monitoring Penjualan</h1>
+                <h1 className="disp text-sm font-bold truncate tracking-tight" style={{ color: colors.text }}>Monitoring Penjualan</h1>
                 <p className="text-[10px] leading-tight hidden sm:block" style={{ color: colors.textMuted }}>Dashboard sales & produk</p>
               </div>
             </div>

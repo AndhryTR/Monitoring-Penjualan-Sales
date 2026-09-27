@@ -3,6 +3,7 @@ import {
   Package, History, Sparkles,
 } from "lucide-react";
 import { Modal } from "../ui/Modal.jsx";
+import { AppLogo } from "../ui/AppLogo.jsx";
 import changelogData from "../../data/changelog.json";
 
 /* ============================================================================
@@ -35,9 +36,9 @@ export function AboutModal({ isOpen, onClose, colors, onOpenWhatsNew }) {
       contentClassName="space-y-5"
     >
           {/* Header identitas */}
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl shrink-0" style={{ background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})` }}>
-              <FileSpreadsheet size={20} color="#0A1120" />
+          <div className="flex items-center gap-3.5">
+            <div className="p-2 rounded-2xl shrink-0 shadow-sm flex items-center justify-center" style={{ background: colors.glassFill, border: `1px solid ${colors.glassBorder}` }}>
+              <AppLogo size={42} animated />
             </div>
             <div>
               <div className="disp text-lg font-bold" style={{ color: colors.text }}>Monitoring Penjualan Sales</div>

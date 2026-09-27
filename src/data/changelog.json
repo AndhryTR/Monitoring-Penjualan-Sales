@@ -14,6 +14,11 @@
         "hash": "72b8c54",
         "scope": "Tampilan",
         "title": "Standardisasi elemen sub-tab switcher dengan token tema dan token onBlue/onViolet"
+      },
+      {
+        "hash": "625ccb5",
+        "scope": "Aggregation",
+        "title": "Perbaiki resolusi satuan karton dan format desimal kuantitas volume"
       }
     ],
     "improvements": []
