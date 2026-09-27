@@ -3,7 +3,13 @@
     "version": "4.4.0",
     "date": "2026-09-26",
     "title": "Pembaruan Versi 4.4.0",
-    "features": [],
+    "features": [
+      {
+        "hash": "8105d9e",
+        "scope": "Tampilan",
+        "title": "Penerapan identitas logo baru berbasis vector SVG dan animasi perakitan splash motion di seluruh aplikasi (Header, Onboarding, About, Loading, Web, Tauri, dan Android)"
+      }
+    ],
     "fixes": [
       {
         "hash": "c696ca1",
@@ -21,7 +27,13 @@
         "title": "Perbaiki resolusi satuan karton dan format desimal kuantitas volume"
       }
     ],
-    "improvements": []
+    "improvements": [
+      {
+        "hash": "1598744",
+        "scope": "Desktop & Mobile",
+        "title": "Pembaruan aset icon resmi multi-resolusi untuk aplikasi desktop Tauri (.ico, .icns, PNG) dan Android APK (mipmap, adaptive icon)"
+      }
+    ]
   },
   {
     "version": "4.3.0",
