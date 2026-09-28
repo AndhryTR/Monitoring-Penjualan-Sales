@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { Search, X, ChevronLeft, ChevronRight, ArrowUp, ArrowUpDown } from "lucide-react";
 import { fmtNum } from "../../utils/formatters.js";
 import { TableScrollWrapper } from "./TableScrollWrapper.jsx";
 import { CustomSelect } from "./CustomSelect.jsx";
@@ -194,11 +194,14 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
                         <span>{c.label}</span>
                         <span className="inline-flex items-center">
                           {isCurrentSort ? (
-                            sortDir === "asc" ? (
-                              <ArrowUp size={12} className="shrink-0" style={{ color: colors.mint }} />
-                            ) : (
-                              <ArrowDown size={12} className="shrink-0" style={{ color: colors.mint }} />
-                            )
+                            <ArrowUp
+                              size={12}
+                              className="shrink-0 transition-transform duration-200"
+                              style={{
+                                color: colors.mint,
+                                transform: sortDir === "asc" ? "rotate(0deg)" : "rotate(180deg)",
+                              }}
+                            />
                           ) : (
                             <ArrowUpDown size={11} className="shrink-0 opacity-0 group-hover:opacity-60 group-focus-visible:opacity-60 transition-opacity" style={{ color: colors.textMuted }} />
                           )}
@@ -212,7 +215,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
               })}
             </tr>
           </thead>
-          <tbody>
+          <tbody key={`${currentPage}-${sortKey}-${sortDir}`} className="sm-fadein">
             {visibleRows.map((row, i) => (
               // ⚠️ Sprint 4 / K2: stable key — pakai rowKey prop bila disupply,
               // fallback ke composite dari row values (bukan array index).
@@ -290,7 +293,14 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
                 className="sm-btn p-1 rounded-lg text-xs flex items-center justify-center w-7 h-7"
                 style={{ color: colors.text, border: `1px solid ${colors.glassBorder}` }}
               >
-                {sortDir === "asc" ? <ArrowUp size={13} style={{ color: colors.mint }} /> : <ArrowDown size={13} style={{ color: colors.mint }} />}
+                <ArrowUp
+                  size={13}
+                  className="transition-transform duration-200"
+                  style={{
+                    color: colors.mint,
+                    transform: sortDir === "asc" ? "rotate(0deg)" : "rotate(180deg)",
+                  }}
+                />
               </button>
             </div>
           </div>
@@ -302,7 +312,7 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
             {query ? "Tidak ada hasil yang cocok dengan pencarian" : "Belum ada data untuk filter ini"}
           </div>
         ) : (
-          <div>
+          <div key={`${currentPage}-${sortKey}-${sortDir}`} className="sm-fadein">
             {visibleRows.map((row, i) => (
               <div
                 // ⚠️ Sprint 4 / K2: stable key (mirip dengan table view di atas).

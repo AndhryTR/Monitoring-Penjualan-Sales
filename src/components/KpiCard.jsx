@@ -27,8 +27,8 @@ function Sparkline({ data, color, height = 28 }) {
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={areaPath} fill={`url(#${gradId})`} stroke="none" />
-      <path d={linePath} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={areaPath} fill={`url(#${gradId})`} stroke="none" className="sm-fadein" style={{ animationDuration: "600ms" }} />
+      <path d={linePath} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="sm-sparkline-line" />
     </svg>
   );
 }

@@ -214,7 +214,7 @@ export function CustomSelect({
             role="listbox"
             id={menuId}
             aria-label={placeholder}
-            className="sm-fadein fixed z-[99999] rounded-xl p-1.5 shadow-2xl flex flex-col"
+            className="sm-dropdown-pop fixed z-[99999] rounded-xl p-1.5 shadow-2xl flex flex-col"
             style={{
               top: dropdownPos.top,
               left: dropdownPos.left,

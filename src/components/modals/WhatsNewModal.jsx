@@ -78,8 +78,8 @@ export function WhatsNewModal({
       title="Catatan Pembaruan"
       subtitle="Ketahui fitur baru, peningkatan, dan perbaikan pada aplikasi"
       icon={Sparkles}
-      iconBg={`linear-gradient(135deg, ${colors.gold || "#F59E0B"}33, ${colors.coral || "#F43F5E"}33)`}
-      iconColor={colors.gold || "#F59E0B"}
+      iconBg={`linear-gradient(135deg, ${colors.skyblue || "#13b6ff"}33, ${colors.blue || "#156ae9"}33)`}
+      iconColor={colors.blue || "#13b6ff"}
       colors={colors}
       maxWidth="max-w-xl"
       maxHeight="max-h-[88vh]"
@@ -101,8 +101,8 @@ export function WhatsNewModal({
             onClick={onClose}
             className="sm-btn px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2"
             style={{
-              background: `linear-gradient(135deg, ${colors.gold || "#F59E0B"}, ${colors.coral || "#F43F5E"})`,
-              color: "#0A1120",
+              background: `linear-gradient(135deg, ${colors.skyblue || "#13b6ff"}, ${colors.blue || "#156ae9"})`,
+              color: "onBlue" in colors ? colors.onBlue : "#0A1120",
             }}
           >
             <span>Saya Mengerti</span>
@@ -115,16 +115,16 @@ export function WhatsNewModal({
       <div
         className="p-4 rounded-xl flex items-center justify-between gap-3"
         style={{
-          background: `linear-gradient(135deg, ${colors.gold || "#F59E0B"}15, ${colors.violet || "#8B5CF6"}15)`,
-          border: `1px solid ${colors.gold || "#F59E0B"}33`,
+          background: `linear-gradient(135deg, ${colors.skyblue || "#13b6ff"}15, ${colors.blue || "#156ae9"}15)`,
+          border: `1px solid ${colors.skyblue || "#13b6ff"}33`,
         }}
       >
         <div className="flex items-center gap-3">
           <div
             className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider"
             style={{
-              background: colors.gold || "#F59E0B",
-              color: "#0A1120",
+              background: colors.blue || "#156ae9",
+              color: "onBlue" in colors ? colors.onBlue : "#0A1120",
             }}
           >
             v{version}

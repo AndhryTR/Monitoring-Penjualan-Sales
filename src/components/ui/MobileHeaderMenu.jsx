@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Search, Monitor, History as HistoryIcon, Settings as SettingsIcon, Sun, Moon, UserCircle, LogIn, Smartphone, Download, Menu, X, Sparkles } from "lucide-react";
+import { Search, Monitor, History as HistoryIcon, Settings as SettingsIcon, UserCircle, LogIn, Smartphone, Download, Menu, X, Sparkles } from "lucide-react";
+import { ThemeAnimatedIcon } from "./ThemeToggle.jsx";
 import { useEscapeKey, useFocusTrap, useScrollLock } from "../../hooks/useModalA11y.js";
 
 /* ============================================================================
@@ -142,7 +143,7 @@ export function MobileHeaderMenu({
               <Item icon={Search} label="Pencarian Global" colors={colors} disabled={searchDisabled} onClick={() => run(onOpenSearch)} />
               <Item icon={Monitor} label="Mode Pajangan" colors={colors} disabled={slideshowDisabled} onClick={() => run(onStartSlideshow)} />
               <Item icon={HistoryIcon} label="Snapshot Periode" colors={colors} disabled={historyDisabled} onClick={() => run(onOpenHistory)} />
-              <Item icon={theme === "dark" ? Sun : Moon} label={`Tema ${theme === "dark" ? "Terang" : "Gelap"}`} colors={colors} onClick={onToggleTheme} />
+              <Item icon={(props) => <ThemeAnimatedIcon theme={theme} colors={colors} {...props} />} label={`Tema ${theme === "dark" ? "Terang" : "Gelap"}`} colors={colors} onClick={onToggleTheme} />
 
               <div style={{ borderTop: `1px solid ${colors.glassBorder}`, margin: "6px 0", paddingTop: 6 }} />
               <Item icon={SettingsIcon} label="Pengaturan" colors={colors} onClick={() => run(onOpenSettings)} />

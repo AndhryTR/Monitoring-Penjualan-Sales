@@ -85,7 +85,7 @@ export function DepotSwitcher({ depots, activeDepotId, onSelect, onAddDepot, onD
           }}
           title={compact ? activeDepot.name : undefined}
         >
-          <Building2 size={16} className="shrink-0" style={{ color: colors.gold }} />
+          <Building2 size={16} className="shrink-0" style={{ color: colors.blue}} />
           {!compact && (
             <div className="flex-1 min-w-0">
               <div className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: colors.textMuted }}>

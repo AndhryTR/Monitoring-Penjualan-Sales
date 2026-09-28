@@ -18,6 +18,7 @@ export const THEMES = {
     mint: "#34D399",
     coral: "#F87171",
     violet: "#A78BFA",
+    skyblue: "#13b6ff",
     blue: "#60A5FA",
     // Warna teks kontras saat elemen menggunakan aksen solid sebagai background fill (e.g. tombol / badge)
     onGold: "#0A1120",
@@ -76,6 +77,7 @@ export const THEMES = {
     mint: "#047857",
     coral: "#DC2626",
     violet: "#7C3AED",
+    skyblue: "#0EA5E9",
     blue: "#2563EB",
     // Pada mode terang, aksen gold/mint/coral adalah warna pekat (WCAG AA >= 4.5:1),
     // sehingga teks di atas background aksen solid harus PUTIH (#FFFFFF) agar kontras optimal dan tidak kusam.

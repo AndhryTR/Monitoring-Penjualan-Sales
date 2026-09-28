@@ -1,5 +1,19 @@
 [
   {
+    "version": "4.4.2",
+    "date": "2026-09-28",
+    "title": "Pembaruan Versi 4.4.2",
+    "features": [
+      {
+        "hash": "5b82af0",
+        "scope": "Desktop (Tauri)",
+        "title": "Hide window until SplashScreen mounts to prevent WebView2 navigation flicker"
+      }
+    ],
+    "fixes": [],
+    "improvements": []
+  },
+  {
     "version": "4.4.0",
     "date": "2026-09-26",
     "title": "Pembaruan Versi 4.4.0",

@@ -172,12 +172,12 @@ export function NotificationBell({
         aria-label={`Notifikasi & Smart Alert (${counts.total} aktif)`}
         title={`Notifikasi & Smart Alert (${counts.total} aktif)`}
       >
-        <Bell size={15} className={hasCritical ? "sm-pulse" : ""} />
+        <Bell size={15} className={hasCritical ? "sm-bell-ring" : ""} />
 
         {/* Dynamic Badge Counter */}
         {counts.total > 0 && (
           <span
-            className={`absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 text-[10px] font-bold rounded-full flex items-center justify-center text-white ${
+            className={`absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 text-[10px] font-bold rounded-full flex items-center justify-center text-white sm-badge-pop ${
               hasCritical ? "animate-pulse" : ""
             }`}
             style={{
@@ -214,7 +214,7 @@ export function NotificationBell({
                 dropdownRef.current = node;
                 sheetRef.current = node;
               }}
-              className="sm-slide-up md:sm-fadeup"
+              className="sm-slide-up md:sm-dropdown-pop"
               style={{
                 position: "fixed",
                 zIndex: 85,

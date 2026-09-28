@@ -628,31 +628,24 @@ export function ExportMenu({
   return (
     <div className="relative z-20" ref={ref}>
       <button onClick={() => setOpen((o) => !o)} disabled={disabled}
-        // ⚠️ Sprint 18d8 / Responsive: padding p-2 di mobile (sama dengan icon button
-        // lain di header), px-4 py-2.5 di desktop (label visible).
         className="sm-btn flex items-center gap-1.5 h-9 px-2.5 md:px-3.5 rounded-xl text-xs font-semibold disabled:opacity-40 shrink-0"
-        style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}>
+        style={{ background: `linear-gradient(135deg, ${colors.skyblue}, ${colors.blue})`, color: colors.onBlue || "#0A1120" }}>
         <Download size={14} /> <span className="hidden md:inline">Export</span> <ChevronDown size={13} className="hidden md:inline" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && (
         <>
-          {/* ⚠️ Sprint 18d / Header Redesign bugfix: desktop dropdown dirender
+          {/* ⚠️ Header Redesign bugfix: desktop dropdown dirender
               via createPortal ke document.body supaya KELUAR dari parent
               `.sm-card` header yang punya backdrop-filter sendiri (itu bikin
               stacking context baru → backdrop-filter child tidak blur konten
               di belakang parent, hanya blur di dalam parent saja → efek glass
               tidak terlihat). Dengan portal, dropdown floating di body level,
               backdrop-filter bekerja penuh terhadap konten header & dashboard
-              di belakangnya.
-
-              Alpha background pakai colors.dropdownBg (theme-aware) bukan
-              hardcoded rgba — supaya adaptif dark/light theme. Set color:
-              colors.text supaya semua child text inherit warna tema aktif
-              (saat portal ke body, kita di luar .smapp container). */}
+              di belakangnya. */}
           {createPortal(
             <div
               ref={desktopDropdownRef}
-              className="hidden md:block fixed z-50 w-80 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-5rem)] overflow-y-auto rounded-xl sm-fadein"
+              className="hidden md:block fixed z-50 w-80 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-5rem)] overflow-y-auto rounded-xl sm-dropdown-pop"
               style={{
                 top: desktopDropdownPos.top,
                 left: desktopDropdownPos.left,

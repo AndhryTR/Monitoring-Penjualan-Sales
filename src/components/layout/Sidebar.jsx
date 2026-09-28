@@ -12,10 +12,6 @@ const WIDTH_COLLAPSED = 68;
    (lihat komentar di constants/tabs.js). Collapsible: lebar berubah antara
    WIDTH_EXPANDED/WIDTH_COLLAPSED, status disimpan di parent (persist ke
    localStorage lewat saveSettings, sama seperti tema/filter/dll).
-
-   ⚠️ Sprint 18 / Multi-Depo: DepotSwitcher ditaruh di header sidebar (di atas
-   brand logo) supaya user bisa ganti depo dengan cepat tanpa buka Settings.
-   Compact mode: switcher render hanya kode depo singkat.
 ============================================================================ */
 export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, onOpenHistory, onOpenSettings, historyDisabled, colors,
   // ⚠️ Sprint 18: multi-depo props
@@ -113,7 +109,7 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
                         ? item.label
                         : undefined
                     }
-                    className="sm-row flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-left disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="sm-row flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-left disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
                     style={{
                       background: active ? colors.mint + "1F" : "transparent",
                       color: disabled ? colors.textMuted : active ? colors.mint : colors.text,
@@ -124,7 +120,7 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
                   >
                     <Icon size={16} className="shrink-0" />
                     {!collapsed && (
-                      <span className="truncate flex-1 flex items-center justify-between gap-1.5">
+                      <span className="truncate flex-1 flex items-center justify-between gap-1.5 sm-fadein">
                         <span className="truncate">{item.label}</span>
                         {disabled && <Lock size={12} className="shrink-0 opacity-60" />}
                       </span>

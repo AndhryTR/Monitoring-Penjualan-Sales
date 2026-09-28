@@ -31,7 +31,7 @@ export function MobileFab({ onFile, colors, loading }) {
           width: 56,
           height: 56,
           borderRadius: "9999px",
-          background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})`,
+          background: `linear-gradient(135deg, ${colors.skyblue}, ${colors.blue})`,
           filter: "blur(20px)",
           opacity: 0.5,
         }}
@@ -42,7 +42,7 @@ export function MobileFab({ onFile, colors, loading }) {
         className="md:hidden fixed right-4 z-40 sm-btn flex items-center justify-center w-14 h-14 rounded-full"
         style={{
           bottom: "calc(96px + env(safe-area-inset-bottom))",
-          background: `linear-gradient(135deg, ${colors.gold}, ${colors.coral})`,
+          background: `linear-gradient(135deg, ${colors.skyblue}, ${colors.blue})`,
           color: "#0A1120",
           boxShadow: "0 8px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.35)",
         }}

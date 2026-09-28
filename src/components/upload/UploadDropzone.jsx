@@ -234,10 +234,10 @@ export function UploadDropzone({
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
         onClick={() => inputRef.current && inputRef.current.click()}
-        className={`sm-drop cursor-pointer rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 transition-colors relative ${dragOver ? "sm-pulse" : ""}`}
+        className={`sm-drop cursor-pointer rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 transition-all duration-300 relative ${dragOver ? "scale-[1.01] shadow-2xl" : ""}`}
         style={{
-          border: `2px dashed ${dragOver ? colors.mint + "66" : colors.glassBorderElevated}`,
-          background: dragOver ? colors.mint + "0F" : colors.glassSubtle,
+          border: `2px dashed ${dragOver ? colors.mint + "88" : colors.glassBorderElevated}`,
+          background: dragOver ? colors.mint + "14" : colors.glassSubtle,
           backdropFilter: "blur(16px)",
           WebkitBackdropFilter: "blur(16px)",
         }}
@@ -245,8 +245,15 @@ export function UploadDropzone({
         <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
 
         <div className="flex items-center gap-4 flex-1 min-w-0 w-full sm:w-auto">
-          <div className="p-3 rounded-xl shrink-0" style={{ background: colors.gold + "1A" }}>
-            {loading ? <RefreshCw size={20} className="sm-pulse" style={{ color: colors.gold }} /> : <Upload size={20} style={{ color: colors.gold }} />}
+          <div
+            className={`p-3 rounded-xl shrink-0 transition-all duration-300 ${dragOver ? "-translate-y-1 scale-110" : ""}`}
+            style={{ background: (dragOver ? colors.mint : colors.gold) + "1A" }}
+          >
+            {loading ? (
+              <RefreshCw size={20} className="sm-pulse" style={{ color: colors.gold }} />
+            ) : (
+              <Upload size={20} className={dragOver ? "animate-bounce" : ""} style={{ color: dragOver ? colors.mint : colors.gold }} />
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-semibold disp" style={{ color: colors.text }}>

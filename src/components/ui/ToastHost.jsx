@@ -7,10 +7,12 @@ import { subscribeToToast } from "../../utils/toastBus.js";
    Styling via token colors supaya theme-aware. Auto-hide 4 detik (error 6
    detik agar sempat dibaca), klik tombol × untuk menutup lebih cepat,
    max 3 tumpuk (yang paling lama di-drop). Varian kind: success | error | info.
+   Mendukung animasi keluar halus (.sm-toast-out) dan progress countdown bar.
 ============================================================================ */
 const TOAST_TTL = 4000;
 const TOAST_TTL_ERROR = 6000;
 const MAX_TOASTS = 3;
+const EXIT_DURATION = 260;
 
 const KIND_STYLE = {
   success: { Icon: CheckCircle2, key: "mint" },
@@ -20,15 +22,38 @@ const KIND_STYLE = {
 
 export function ToastHost({ colors }) {
   const [toasts, setToasts] = useState([]);
+  const [exitingIds, setExitingIds] = useState(new Set());
   const timersRef = useRef(new Map());
+  const exitTimersRef = useRef(new Map());
 
   const dismiss = useCallback((id) => {
+    // Hindari trigger ganda jika sedang animasi keluar
+    setExitingIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+
+    // Batalkan timer auto-hide jika ada
     const timers = timersRef.current;
     if (timers.has(id)) {
       clearTimeout(timers.get(id));
       timers.delete(id);
     }
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+
+    // Hapus permanen setelah animasi exit selesai
+    const exitTimer = setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+      setExitingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      exitTimersRef.current.delete(id);
+    }, EXIT_DURATION);
+
+    exitTimersRef.current.set(id, exitTimer);
   }, []);
 
   useEffect(() => {
@@ -52,11 +77,15 @@ export function ToastHost({ colors }) {
       const ttl = toast.kind === "error" ? TOAST_TTL_ERROR : TOAST_TTL;
       timersRef.current.set(toast.id, setTimeout(() => dismiss(toast.id), ttl));
     });
+
     const timers = timersRef.current;
+    const exitTimers = exitTimersRef.current;
     return () => {
       unsub();
       timers.forEach((t) => clearTimeout(t));
       timers.clear();
+      exitTimers.forEach((t) => clearTimeout(t));
+      exitTimers.clear();
     };
   }, [dismiss]);
 
@@ -67,10 +96,11 @@ export function ToastHost({ colors }) {
       {toasts.map((t) => {
         const { Icon, key } = KIND_STYLE[t.kind] || KIND_STYLE.success;
         const accent = colors[key] || (t.kind === "error" ? "#F87171" : colors.mint);
+        const isExiting = exitingIds.has(t.id);
         return (
           <div
             key={t.id}
-            className="pointer-events-auto sm-toast-in flex items-start gap-3 p-3.5 rounded-xl shadow-2xl"
+            className={`pointer-events-auto ${isExiting ? "sm-toast-out" : "sm-toast-in"} relative overflow-hidden flex items-start gap-3 p-3.5 rounded-xl shadow-2xl`}
             style={{
               background: `${colors.glassFill}`,
               border: `1px solid ${t.kind === "error" ? accent + "55" : colors.glassBorder}`,
@@ -83,19 +113,34 @@ export function ToastHost({ colors }) {
             <div className="p-1.5 rounded-lg shrink-0" style={{ background: `${accent}1A` }}>
               <Icon size={16} style={{ color: accent }} />
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 pb-1">
               <div className="text-sm font-semibold" style={{ color: colors.text }}>{t.title}</div>
               {t.body && <div className="text-xs mt-0.5 break-words" style={{ color: colors.textMuted }}>{t.body}</div>}
             </div>
             <button
               onClick={() => dismiss(t.id)}
-              className="p-1 rounded-md shrink-0"
+              className="p-1 rounded-md shrink-0 transition-opacity hover:opacity-100 opacity-60"
               style={{ color: colors.textMuted }}
               title="Tutup"
               aria-label="Tutup notifikasi"
             >
               <X size={14} />
             </button>
+
+            {/* Countdown TTL progress bar */}
+            <div
+              className="absolute bottom-0 left-0 right-0 h-[2.5px] overflow-hidden"
+              style={{ background: `${accent}22` }}
+            >
+              <div
+                className="sm-toast-progress h-full"
+                style={{
+                  background: accent,
+                  animationDuration: `${t.kind === "error" ? TOAST_TTL_ERROR : TOAST_TTL}ms`,
+                  animationPlayState: isExiting ? "paused" : "running",
+                }}
+              />
+            </div>
           </div>
         );
       })}

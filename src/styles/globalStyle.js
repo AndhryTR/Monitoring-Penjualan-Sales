@@ -58,7 +58,13 @@ html, body {
 @keyframes smPulse { 0%,100% { opacity:1 } 50% { opacity:.55 } }
 @keyframes smShimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
 @keyframes smDash { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
-@media (prefers-reduced-motion: reduce) { .sm-mesh .blob { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .sm-mesh .blob, .sm-drawer-slide-in, .sm-toast-in, .sm-toast-out, .sm-toast-progress, .sm-fadeup, .sm-fadein, .sm-page-enter, .sm-scale-in,
+  .sm-sparkline-line, .sm-dropdown-pop, .sm-bell-ring, .sm-badge-pop, .sm-theme-icon, .sm-theme-toggle, .sm-theme-glow {
+    animation: none !important;
+    transition: none !important;
+  }
+}
 /* Saat scroll aktif ATAU tab browser sedang tidak aktif/disembunyikan:
    hentikan animasi blob & sembunyikan noise sementara. Animasi blob
    (translate+scale infinite) membebani compositor GPU setiap frame — kalau
@@ -74,6 +80,72 @@ html, body {
 /* Toast in-window (ToastHost) — slide dari kanan + fade */
 @keyframes smToastIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
 .sm-toast-in { animation: smToastIn .3s cubic-bezier(.16,1,.3,1); }
+/* Toast exit — slide ke kanan + collapse fade */
+@keyframes smToastOut {
+  0% { opacity: 1; transform: translateX(0); max-height: 120px; margin-bottom: 0; }
+  100% { opacity: 0; transform: translateX(36px); max-height: 0; margin-bottom: -8px; padding-top: 0; padding-bottom: 0; overflow: hidden; }
+}
+.sm-toast-out { animation: smToastOut .26s cubic-bezier(.16,1,.3,1) forwards; pointer-events: none; }
+/* Toast countdown progress bar (auto-hide TTL) */
+@keyframes smToastProgress {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+.sm-toast-progress {
+  height: 2.5px;
+  border-radius: 999px;
+  animation: smToastProgress linear forwards;
+}
+/* Side Drawer (AiChatDrawer / Slide-over) — slide masuk mulus dari kanan */
+@keyframes smDrawerSlideIn {
+  from { transform: translateX(100%); opacity: 0.7; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.sm-drawer-slide-in {
+  animation: smDrawerSlideIn .32s cubic-bezier(.16,1,.3,1) both;
+}
+/* Sparkline SVG path draw-in */
+@keyframes smSparklineDraw {
+  from { stroke-dashoffset: 260; opacity: 0.2; }
+  to { stroke-dashoffset: 0; opacity: 1; }
+}
+.sm-sparkline-line {
+  stroke-dasharray: 260;
+  stroke-dashoffset: 0;
+  animation: smSparklineDraw .75s cubic-bezier(.16,1,.3,1) both;
+}
+/* Floating Dropdown / Popover micro-pop */
+@keyframes smDropdownPop {
+  0% { opacity: 0; transform: scale(0.95) translateY(-5px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.sm-dropdown-pop {
+  animation: smDropdownPop .18s cubic-bezier(.16,1,.3,1) both;
+  transform-origin: top right;
+}
+/* Notification Bell wobble ring */
+@keyframes smBellRing {
+  0%, 100% { transform: rotate(0); }
+  15% { transform: rotate(-14deg); }
+  30% { transform: rotate(12deg); }
+  45% { transform: rotate(-8deg); }
+  60% { transform: rotate(6deg); }
+  75% { transform: rotate(0); }
+}
+.sm-bell-ring {
+  display: inline-block;
+  transform-origin: top center;
+  animation: smBellRing 1.8s ease-in-out infinite;
+}
+/* Notification badge scale pop */
+@keyframes smBadgePop {
+  0% { transform: scale(0); opacity: 0; }
+  65% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.sm-badge-pop {
+  animation: smBadgePop .28s cubic-bezier(.16,1,.3,1) both;
+}
 /* Bottom-sheet (mobile header drawer) — slide-up dari bawah + fade */
 @keyframes smSlideUp { from { transform: translateY(100%); opacity: .6; } to { transform: translateY(0); opacity: 1; } }
 .sm-slide-up { animation: smSlideUp .3s cubic-bezier(.16,1,.3,1); }
@@ -98,6 +170,11 @@ html, body {
 .sm-btn { background: ${colors.glassFill}; border: 1px solid ${colors.glassBorder}; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transition: transform .2s ease, box-shadow .2s ease, background .2s ease; box-shadow: 0 4px 16px rgba(0,0,0,.18), inset 0 1px 0 ${colors.glassHighlight}; }
 .sm-btn:hover { transform: translateY(-2px); background: ${colors.glassFillStrong}; box-shadow: 0 6px 20px rgba(0,0,0,.22), inset 0 1px 0 ${colors.glassHighlight}; }
 .sm-btn:active { transform: translateY(0); box-shadow: inset 0 2px 8px rgba(0,0,0,.25); }
+.sm-theme-toggle { transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease; }
+.sm-theme-toggle:hover { transform: translateY(-2px) scale(1.05); }
+.sm-theme-toggle:active { transform: translateY(0) scale(0.92) rotate(-6deg); }
+.sm-theme-glow { opacity: 0; transition: opacity 0.35s ease, transform 0.35s ease; }
+.sm-theme-toggle:hover .sm-theme-glow { opacity: 1; transform: scale(1.08); }
 .sm-btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 10px; }
 .sm-btn-md { padding: 8px 14px; font-size: 13px; border-radius: 12px; }
 .sm-btn-lg { padding: 10px 18px; font-size: 14px; border-radius: 14px; }
@@ -168,18 +245,18 @@ html, body {
   height: 16px;
   margin-top: -4px;
   border-radius: 50%;
-  background: ${colors.gold};
+  background: ${colors.blue};
   border: 2px solid rgba(255,255,255,.5);
   cursor: pointer;
   box-shadow: 0 0 10px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.4);
   transition: transform .15s ease, box-shadow .15s ease;
 }
-.sm-slider::-webkit-slider-thumb:hover { transform: scale(1.15); box-shadow: 0 0 14px ${colors.gold}77, inset 0 1px 0 rgba(255,255,255,.5); }
+.sm-slider::-webkit-slider-thumb:hover { transform: scale(1.15); box-shadow: 0 0 14px ${colors.blue}77, inset 0 1px 0 rgba(255,255,255,.5); }
 .sm-slider::-moz-range-thumb {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: ${colors.gold};
+  background: ${colors.blue};
   border: 2px solid rgba(255,255,255,.5);
   cursor: pointer;
   box-shadow: 0 0 10px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.4);
@@ -203,6 +280,14 @@ ${powerSaveMode ? `
    dari rule !important lain (mis. .sm-modal-glass) lewat urutan sumber. */
 .sm-powersave * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 .sm-powersave .sm-glow { display: none; }
+.sm-powersave .sm-drawer-slide-in,
+.sm-powersave .sm-toast-in,
+.sm-powersave .sm-toast-out,
+.sm-powersave .sm-toast-progress,
+.sm-powersave .sm-sparkline-line,
+.sm-powersave .sm-dropdown-pop,
+.sm-powersave .sm-bell-ring,
+.sm-powersave .sm-badge-pop { animation-duration: 0.01ms !important; }
 ` : ""}
 `;
 }
@@ -237,4 +322,3 @@ export function periodColorPicker(colors) {
     return `hsl(${((x - EXTRA.length) * 137.508) % 360}, 70%, 55%)`;
   };
 }
-

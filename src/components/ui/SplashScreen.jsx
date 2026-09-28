@@ -10,7 +10,7 @@ import { AppLogo } from "./AppLogo.jsx";
    - Bisa diklik/tap untuk langsung skip jika user sedang terburu-buru.
 ============================================================================ */
 
-export const SplashScreen = memo(function SplashScreen({ onFinish, duration = 2600 }) {
+export const SplashScreen = memo(function SplashScreen({ onFinish, duration = 1600 }) {
   const [fading, setFading] = useState(false);
   const isTauri = typeof window !== "undefined" && Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
 

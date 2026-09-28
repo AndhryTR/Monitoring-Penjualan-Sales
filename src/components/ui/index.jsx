@@ -7,7 +7,7 @@ import { getAchColor } from "../../constants/thresholds.js";
    Header kecil untuk section di dalam page: ikon + judul + sub-teks opsional.
 ============================================================================ */
 export function SectionTitle({ title, sub, icon: Icon, colors, accent }) {
-  const tint = accent || colors.gold;
+  const tint = accent || colors.blue;
   return (
     <div className="flex items-center gap-3 mb-4">
       {Icon && <div className="p-2 rounded-xl" style={{ background: tint + "1A" }}><Icon size={16} style={{ color: tint }} /></div>}

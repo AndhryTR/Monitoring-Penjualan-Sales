@@ -61,16 +61,6 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
   useScrollLock(isOpen);
   useEscapeKey(isOpen, onClose);
 
-  // ---- Compute changes (untuk preview sebelum simpan) ----
-  // ⚠️ Sprint 7 / D3: bandingkan localTargets dengan targets (props original)
-  // untuk detect apa yang berubah. Dipakai untuk ChangesPreview panel.
-  // ⚠️ Aturan Hooks: useMemo HARUS dipanggil SEBELUM conditional return.
-  // ⚠️ Sprint 14 / H19 (bug "ubah fokus saja tidak terdeteksi"): perbandingan
-  // group/fokus SEBELUMNYA pakai `length` (jumlah item) — user yang cuma
-  // toggle fokus grup existing, ubah keyword/name/target fokus, atau ubah
-  // value/ao/name grup TANPA menambah/menghapus item → diff = 0 → "Tidak ada
-  // perubahan" → tombol "Konfirmasi & Simpan" disabled. Fix: bandingkan ISI
-  // tiap elemen (element-wise key), bukan panjangnya.
   const groupsKey = (g) => JSON.stringify([g.name ?? "", g.value ?? 0, g.ao ?? 0, g.focus ?? false]);
   const focusKey = (f) => JSON.stringify([f.name ?? "", f.target ?? 0, f.keyword ?? "", f.unit ?? "", f.matchType ?? "contains"]);
   const changes = useMemo(() => {
@@ -148,9 +138,6 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
     onClose();
   };
 
-  // ⚠️ Sprint 7 / D3: tombol Simpan sekarang punya 2 mode:
-  // - Bila ada perubahan & belum preview → tampilkan ChangesPreview dulu
-  // - Bila sudah preview atau tidak ada perubahan → langsung simpan
   const handleSaveClick = () => {
     if (!showChangesPreview) {
       setShowChangesPreview(true);
@@ -367,11 +354,11 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-sm font-medium">Durasi per Halaman</label>
-                      <span className="mono text-sm font-bold" style={{ color: colors.gold }}>{slideshowConfig.tabDuration}s</span>
+                      <span className="mono text-sm font-bold" style={{ color: colors.mint }}>{slideshowConfig.tabDuration}s</span>
                     </div>
                     <input type="range" min={10} max={120} step={5} value={slideshowConfig.tabDuration}
                       onChange={(e) => setSlideshowConfig({ ...slideshowConfig, tabDuration: Number(e.target.value) })}
-                      className="w-full accent-[--sm-gold]" style={{ accentColor: colors.gold }} />
+                      className="w-full accent-[--sm-mint]" style={{ accentColor: colors.mint }} />
                     <div className="flex justify-between text-xs mt-1" style={{ color: colors.textMuted }}>
                       <span>10s</span><span>120s</span>
                     </div>
@@ -444,7 +431,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                     <label key={opt.key} className="flex items-center gap-3 p-2 rounded-lg cursor-pointer" style={{ background: colors.glassFill }}>
                       <input type="checkbox" checked={slideshowConfig[opt.key]}
                         onChange={(e) => setSlideshowConfig({ ...slideshowConfig, [opt.key]: e.target.checked })}
-                        className="w-4 h-4" style={{ accentColor: colors.gold }} />
+                        className="w-4 h-4" style={{ accentColor: colors.blue }} />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium">{opt.label}</div>
                         <div className="text-xs" style={{ color: colors.textMuted }}>{opt.desc}</div>
@@ -516,7 +503,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                           <div className="flex items-center gap-2 min-w-0">
                             {c.type === "added" && <Plus size={12} style={{ color: colors.mint }} />}
                             {c.type === "removed" && <X size={12} style={{ color: colors.coral }} />}
-                            {c.type === "modified" && <CheckCircle2 size={12} style={{ color: colors.gold }} />}
+                            {c.type === "modified" && <CheckCircle2 size={12} style={{ color: colors.blue }} />}
                             <span className="text-sm truncate">{c.name}</span>
                           </div>
                           {c.type === "modified" && (
@@ -566,7 +553,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                   </button>
                   <button onClick={handleSave} disabled={!changes.hasChanges}
                     className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40"
-                    style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}>
+                    style={{ background: colors.blue, color: colors.onBlue || "#0A1120" }}>
                     Konfirmasi & Simpan
                   </button>
                 </div>
@@ -580,7 +567,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
           <button onClick={onClose} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${colors.glassBorder}` }}>
             Batal
           </button>
-          <button onClick={handleSaveClick} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: colors.gold, color: colors.onGold || "#0A1120" }}>
+          <button onClick={handleSaveClick} className="sm-btn px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: colors.blue, color: colors.onBlue || "#0A1120" }}>
             {saveButtonLabel}
           </button>
         </div>

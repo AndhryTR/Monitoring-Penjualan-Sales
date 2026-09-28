@@ -1015,7 +1015,7 @@ export function AiChatDrawer({
     >
       <div
         ref={drawerRef}
-        className="w-full sm:w-[420px] h-full flex flex-col shadow-2xl sm-scale-in"
+        className="w-full sm:w-[420px] h-full flex flex-col shadow-2xl sm-drawer-slide-in"
         style={{
           background: colors.dropdownBg || "#0F172A",
           borderLeft: `1px solid ${colors.glassBorder}`,

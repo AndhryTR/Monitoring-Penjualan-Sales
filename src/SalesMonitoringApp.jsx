@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
-  Sun, Moon,
   Search, Sparkles,
   FileSpreadsheet, AlertTriangle, Monitor,
 } from "lucide-react";
@@ -63,6 +62,7 @@ import { useWindowDragDrop } from "./hooks/useWindowDragDrop.js";
 import { AvatarButton } from "./components/ui/AvatarButton.jsx";
 import { MobileHeaderMenu } from "./components/ui/MobileHeaderMenu.jsx";
 import { NotificationBell } from "./components/ui/NotificationBell.jsx";
+import { ThemeToggle } from "./components/ui/ThemeToggle.jsx";
 import { useSmartAlertsWorker } from "./hooks/useSmartAlertsWorker.js";
 import { UploadLoading } from "./components/ui/UploadLoading.jsx";
 import { AccessRestricted } from "./components/ui/index.jsx";
@@ -1308,13 +1308,12 @@ export default function SalesMonitoringApp() {
                     disabled={!rawRows.length}
                   />
                 )}
-                <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                  className="sm-btn w-9 h-9 rounded-xl hidden md:flex items-center justify-center shrink-0"
-                  style={{ background: colors.glassFill, color: colors.text, border: `1px solid ${colors.glassBorder}` }}
-                  aria-label="Ganti tema"
-                  title="Ganti tema">
-                  {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-                </button>
+                <ThemeToggle
+                  theme={theme}
+                  onToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  colors={colors}
+                  className="hidden md:flex"
+                />
               </div>
 
               {/* Divider — desktop only */}

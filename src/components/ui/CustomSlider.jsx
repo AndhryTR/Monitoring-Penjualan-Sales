@@ -11,7 +11,7 @@ export function CustomSlider({ value, min = 1, max = 31, onChange, colors }) {
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full h-2 rounded-lg appearance-none cursor-pointer sm-slider"
         style={{
-          background: `linear-gradient(to right, ${colors.gold} ${((value - min) / (max - min)) * 100}%, ${colors.glassBorder} ${((value - min) / (max - min)) * 100}%)`,
+          background: `linear-gradient(to right, ${colors.blue} ${((value - min) / (max - min)) * 100}%, ${colors.glassBorder} ${((value - min) / (max - min)) * 100}%)`,
         }}
       />
       <div 
