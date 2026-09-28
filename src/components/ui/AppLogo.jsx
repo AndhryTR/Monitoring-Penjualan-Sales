@@ -21,10 +21,14 @@ export const AppLogo = memo(function AppLogo({
 
   return (
     <div
-      className={`app-logo-wrap inline-flex items-center justify-center shrink-0 select-none ${animated ? "app-logo-animated" : ""} ${loop ? "app-logo-loop" : ""} ${className}`}
+      className={`app-logo-wrap inline-flex items-center justify-center shrink-0 select-none overflow-hidden ${animated ? "app-logo-animated" : ""} ${loop ? "app-logo-loop" : ""} ${className}`}
       style={{
         width: pixelSize,
         height: pixelSize,
+        minWidth: pixelSize,
+        minHeight: pixelSize,
+        maxWidth: pixelSize,
+        maxHeight: pixelSize,
         ...style,
       }}
       aria-label={ariaLabel}
@@ -32,11 +36,15 @@ export const AppLogo = memo(function AppLogo({
     >
       <svg
         viewBox="0 0 1000 1000"
-        width="100%"
-        height="100%"
+        width={pixelSize}
+        height={pixelSize}
         style={{
-          overflow: "visible",
+          width: "100%",
+          height: "100%",
+          maxWidth: "100%",
+          maxHeight: "100%",
           display: "block",
+          overflow: "hidden",
           fillRule: "evenodd",
           clipRule: "evenodd",
           strokeLinejoin: "round",
@@ -151,7 +159,7 @@ export const AppLogo = memo(function AppLogo({
             gradientTransform="matrix(122.286922,-96.98618,96.98618,122.286922,260.303168,659.875247)"
           >
             <stop offset="0" stopColor="#0441ae" stopOpacity="1" />
-            <stop offset="0.0e8ffe" stopColor="#0e8ffe" stopOpacity="1" />
+            <stop offset="1" stopColor="#0e8ffe" stopOpacity="1" />
           </linearGradient>
 
           <linearGradient

@@ -122,7 +122,13 @@ html, body, #root {
   100% { opacity: 1; transform: scale(1); }
 }
 @keyframes applogo-breathe {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0px rgba(56, 189, 248, 0)); }
-  50% { transform: scale(1.04); filter: drop-shadow(0 0 16px rgba(56, 189, 248, 0.35)); }
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+
+@keyframes splash-bar-progress {
+  0% { width: 0%; opacity: 0.6; }
+  60% { width: 75%; opacity: 1; }
+  100% { width: 100%; opacity: 1; }
 }
 
