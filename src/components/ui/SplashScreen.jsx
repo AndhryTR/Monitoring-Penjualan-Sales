@@ -10,9 +10,20 @@ import { AppLogo } from "./AppLogo.jsx";
    - Bisa diklik/tap untuk langsung skip jika user sedang terburu-buru.
 ============================================================================ */
 
-export const SplashScreen = memo(function SplashScreen({ onFinish, duration = 1600 }) {
+export const SplashScreen = memo(function SplashScreen({ onFinish, duration = 2600 }) {
   const [fading, setFading] = useState(false);
   const isTauri = typeof window !== "undefined" && Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
+
+  // Tampilkan jendela utama Tauri begitu splash screen ini siap di-render
+  useEffect(() => {
+    if (isTauri) {
+      import("@tauri-apps/api/core")
+        .then(({ invoke }) => {
+          invoke("show_main_window").catch(() => {});
+        })
+        .catch(() => {});
+    }
+  }, [isTauri]);
 
   useEffect(() => {
     // Timer mulai fade out
@@ -64,7 +75,7 @@ export const SplashScreen = memo(function SplashScreen({ onFinish, duration = 16
           boxShadow: "0 20px 50px -10px rgba(14, 143, 254, 0.35)",
         }}
       >
-        <AppLogo size={84} animated loop={false} />
+        <AppLogo size={84} animated loop={true} />
       </div>
 
       {/* Brand Title & Subtitle */}

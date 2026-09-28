@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Monitoring Penjualan - AndhryTR",
         "width": 1280,
         "height": 800,
@@ -22,6 +23,7 @@
         "center": true,
         "decorations": true,
         "transparent": true,
+        "visible": false,
         "windowEffects": {
           "effects": ["acrylic"],
           "color": [0, 0, 0, 204]

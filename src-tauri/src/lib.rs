@@ -1,11 +1,33 @@
+use tauri::Manager;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![ai_chat])
+        .invoke_handler(tauri::generate_handler![ai_chat, show_main_window])
+        .setup(|app| {
+            // Fallback timeout: jika frontend belum memanggil show_main_window
+            // dalam 2.5 detik, tampilkan window secara otomatis agar tidak hang tersembunyi
+            if let Some(window) = app.get_webview_window("main") {
+                let w = window.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
+                    let _ = w.show();
+                });
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+// Menampilkan jendela utama setelah frontend dan splash screen selesai di-render
+#[tauri::command]
+async fn show_main_window(window: tauri::Window) -> Result<(), ()> {
+    let _ = window.show();
+    let _ = window.set_focus();
+    Ok(())
 }
 
 #[derive(serde::Deserialize)]

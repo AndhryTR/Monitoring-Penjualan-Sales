@@ -25,6 +25,11 @@
         "hash": "625ccb5",
         "scope": "Aggregation",
         "title": "Perbaiki resolusi satuan karton dan format desimal kuantitas volume"
+      },
+      {
+        "hash": "b47a6dc",
+        "scope": "Desktop (Tauri)",
+        "title": "Replace raw HTML splash with React SplashScreen component to fix layout displacement"
       }
     ],
     "improvements": [
