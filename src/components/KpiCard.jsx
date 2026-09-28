@@ -48,11 +48,17 @@ export function KpiCard({ label, value, sub, icon: Icon, accent, isMoney, isPct,
   return (
     <div className="sm-glow-wrap sm-fadeup min-w-0 h-full" style={{ animationDelay: `${delay}ms` }}>
       <div className="sm-glow" style={{ background: accent }} />
-      <div className="sm-card p-5 min-w-0 h-full" style={{ position: "relative", overflow: "hidden" }}>
+      <div className="sm-card group p-5 min-w-0 h-full" style={{ position: "relative", overflow: "hidden" }}>
         <div className="sm-kpi-accent-line" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}00)` }} />
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs uppercase tracking-wider font-semibold" style={{ color: colors.textMuted }}>{label}</span>
-          <div className="p-1.5 rounded-lg" style={{ background: accent + "1A" }}>
+          <div
+            className="p-1.5 rounded-lg transition-transform duration-300 ease-out group-hover:scale-110 group-hover:-translate-y-0.5 group-hover:rotate-3"
+            style={{
+              background: accent + "1A",
+              transition: "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease",
+            }}
+          >
             <Icon size={14} style={{ color: accent }} />
           </div>
         </div>

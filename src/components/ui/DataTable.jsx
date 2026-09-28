@@ -196,10 +196,11 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
                           {isCurrentSort ? (
                             <ArrowUp
                               size={12}
-                              className="shrink-0 transition-transform duration-200"
+                              className="shrink-0"
                               style={{
                                 color: colors.mint,
                                 transform: sortDir === "asc" ? "rotate(0deg)" : "rotate(180deg)",
+                                transition: "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s ease",
                               }}
                             />
                           ) : (
@@ -295,10 +296,11 @@ export function DataTable({ columns, rows, initialSortKey, colors, searchable, s
               >
                 <ArrowUp
                   size={13}
-                  className="transition-transform duration-200"
+                  className="shrink-0"
                   style={{
                     color: colors.mint,
                     transform: sortDir === "asc" ? "rotate(0deg)" : "rotate(180deg)",
+                    transition: "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s ease",
                   }}
                 />
               </button>

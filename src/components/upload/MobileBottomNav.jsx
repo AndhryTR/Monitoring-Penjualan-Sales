@@ -51,17 +51,33 @@ export function MobileBottomNav({ tabs, activeTab, onChange, colors }) {
               ref={isActive ? activeRef : undefined}
               onClick={() => onChange(t.key)}
               style={itemStyle}
-              className="flex flex-col items-center justify-center gap-0.5 py-1.5 px-1 rounded-2xl transition-all duration-200 active:scale-95 shrink-0"
+              className="flex flex-col items-center justify-center gap-0.5 py-1.5 px-1 rounded-2xl transition-all duration-150 active:scale-90 select-none shrink-0"
               aria-label={t.label}
               aria-current={isActive ? "page" : undefined}
             >
               <div className="relative flex items-center justify-center" style={{ width: 20, height: 20 }}>
-                {isActive && (
-                  <div className="absolute inset-0 rounded-full sm-fadein transition-all duration-300" style={{ background: colors.mint, opacity: 0.25, filter: "blur(8px)" }} />
-                )}
-                <Icon size={20} className="transition-transform duration-200" style={{ strokeWidth: isActive ? 2.4 : 2, position: "relative", color: isActive ? colors.mint : colors.textMuted, transform: isActive ? "scale(1.08)" : "scale(1)" }} />
+                <div
+                  className="absolute inset-0 rounded-full pointer-events-none"
+                  style={{
+                    background: colors.mint,
+                    opacity: isActive ? 0.35 : 0,
+                    filter: "blur(8px)",
+                    transform: isActive ? "scale(1.3)" : "scale(0.5)",
+                    transition: "transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease",
+                  }}
+                />
+                <Icon
+                  size={20}
+                  style={{
+                    strokeWidth: isActive ? 2.4 : 2,
+                    position: "relative",
+                    color: isActive ? colors.mint : colors.textMuted,
+                    transform: isActive ? "scale(1.12) translateY(-1px)" : "scale(1)",
+                    transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                  }}
+                />
               </div>
-              <span className="text-[10px] font-medium leading-tight truncate w-full text-center whitespace-nowrap" style={{ color: isActive ? colors.mint : colors.textMuted, maxWidth: 64 }}>
+              <span className="text-[10px] font-medium leading-tight truncate w-full text-center whitespace-nowrap transition-colors duration-200" style={{ color: isActive ? colors.mint : colors.textMuted, maxWidth: 64 }}>
                 {t.shortLabel}
               </span>
             </button>
@@ -77,12 +93,13 @@ export function MobileBottomNav({ tabs, activeTab, onChange, colors }) {
             return (
               <div
                 key={t.key}
-                className="transition-all duration-250 rounded-full"
+                className="rounded-full"
                 style={{
-                  width: isActiveDot ? 16 : 5,
+                  width: isActiveDot ? 18 : 5,
                   height: 3,
                   borderRadius: 2,
                   background: isActiveDot ? colors.gold : colors.glassBorder,
+                  transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
                 }}
               />
             );

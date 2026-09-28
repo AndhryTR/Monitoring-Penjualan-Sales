@@ -277,10 +277,11 @@ export function CustomSelect({
                       disabled={opt.disabled}
                       onClick={() => handleSelect(opt)}
                       onMouseEnter={() => setActiveIndex(idx)}
-                      className={`sm-row w-full text-left flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                      className={`sm-row sm-fadein w-full text-left flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
                         opt.disabled ? "opacity-40 cursor-not-allowed" : ""
                       }`}
                       style={{
+                        animationDelay: `${Math.min(idx * 16, 160)}ms`,
                         background: isSelected
                           ? (colors.mint || "#10B981") + "20"
                           : isActive
@@ -316,7 +317,7 @@ export function CustomSelect({
                           </span>
                         )}
                         {isSelected && (
-                          <Check size={12} style={{ color: colors.mint || "#10B981" }} />
+                          <Check size={12} className="sm-check-pop" style={{ color: colors.mint || "#10B981" }} />
                         )}
                       </div>
                     </button>

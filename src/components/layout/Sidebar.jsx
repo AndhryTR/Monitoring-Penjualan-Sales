@@ -109,16 +109,17 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
                         ? item.label
                         : undefined
                     }
-                    className="sm-row flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-left disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                    className="sm-row group flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-left disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
                     style={{
                       background: active ? colors.mint + "1F" : "transparent",
                       color: disabled ? colors.textMuted : active ? colors.mint : colors.text,
                       borderLeft: `2px solid ${active ? colors.mint : "transparent"}`,
-                      boxShadow: active ? `0 0 16px ${colors.mint}33` : "none",
+                      boxShadow: active ? `0 0 16px ${colors.mint}33, inset 0 1px 0 rgba(255,255,255,0.05)` : "none",
                       justifyContent: collapsed ? "center" : "flex-start",
+                      transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)",
                     }}
                   >
-                    <Icon size={16} className="shrink-0" />
+                    <Icon size={16} className="shrink-0 transition-transform duration-200 ease-out group-hover:scale-110 group-active:scale-95" />
                     {!collapsed && (
                       <span className="truncate flex-1 flex items-center justify-between gap-1.5 sm-fadein">
                         <span className="truncate">{item.label}</span>
@@ -139,10 +140,15 @@ export function Sidebar({ activeTab, onChangeTab, collapsed, onToggleCollapse, o
         onClick={onToggleCollapse}
         aria-label={collapsed ? "Perluas sidebar" : "Ciutkan sidebar"}
         title={collapsed ? "Perluas sidebar" : "Ciutkan sidebar"}
-        className="sm-row flex items-center gap-2.5 px-4 py-3 text-sm shrink-0"
+        className="sm-row group flex items-center gap-2.5 px-4 py-3 text-sm shrink-0 transition-colors duration-200"
         style={{ color: colors.textMuted, borderTop: `1px solid ${colors.glassBorder}`, justifyContent: collapsed ? "center" : "flex-start" }}
       >
-        {collapsed ? <ChevronsRight size={16} /> : <><ChevronsLeft size={16} /> <span>Ciutkan</span></>}
+        <ChevronsLeft
+          size={16}
+          className="shrink-0 transition-transform duration-300 ease-out group-hover:scale-110"
+          style={{ transform: collapsed ? "rotate(180deg)" : "rotate(0deg)" }}
+        />
+        {!collapsed && <span className="sm-fadein">Ciutkan</span>}
       </button>
     </aside>
   );

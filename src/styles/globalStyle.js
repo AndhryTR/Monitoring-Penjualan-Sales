@@ -60,7 +60,8 @@ html, body {
 @keyframes smDash { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .sm-mesh .blob, .sm-drawer-slide-in, .sm-toast-in, .sm-toast-out, .sm-toast-progress, .sm-fadeup, .sm-fadein, .sm-page-enter, .sm-scale-in,
-  .sm-sparkline-line, .sm-dropdown-pop, .sm-bell-ring, .sm-badge-pop, .sm-theme-icon, .sm-theme-toggle, .sm-theme-glow {
+  .sm-sparkline-line, .sm-dropdown-pop, .sm-bell-ring, .sm-badge-pop, .sm-theme-icon, .sm-theme-toggle, .sm-theme-glow,
+  .sm-check-pop, .sm-glow-breath, .sm-card-dismiss {
     animation: none !important;
     transition: none !important;
   }
@@ -158,7 +159,43 @@ html, body {
 .sm-glow-wrap { position: relative; }
 .sm-glow-wrap .sm-glow { position: absolute; inset: -8px; border-radius: 20px; filter: blur(18px); opacity: .12; z-index: -1; pointer-events: none; transition: opacity .3s ease; }
 .sm-glow-wrap:hover .sm-glow { opacity: .20; }
-.sm-kpi-accent-line { position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 16px 16px 0 0; }
+.sm-kpi-accent-line { position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 16px 16px 0 0; overflow: hidden; }
+.sm-kpi-accent-line::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  width: 50%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.65s ease;
+}
+.sm-card:hover .sm-kpi-accent-line::after {
+  transform: translateX(300%);
+}
+@keyframes smCheckPop {
+  0% { transform: scale(0) rotate(-20deg); opacity: 0; }
+  70% { transform: scale(1.25) rotate(4deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+.sm-check-pop {
+  animation: smCheckPop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes smGlowBreath {
+  0%, 100% { transform: scale(1); opacity: 0.45; }
+  50% { transform: scale(1.15); opacity: 0.75; }
+}
+.sm-glow-breath {
+  animation: smGlowBreath 3.2s ease-in-out infinite;
+}
+@keyframes smCardSlideOut {
+  0% { transform: translateX(0); opacity: 1; max-height: 160px; margin-bottom: 8px; }
+  40% { transform: translateX(36px); opacity: 0; }
+  100% { transform: translateX(50px); opacity: 0; max-height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; overflow: hidden; }
+}
+.sm-card-dismiss {
+  animation: smCardSlideOut 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+}
 .sm-sidebar-glass { background: radial-gradient(120% 70% at 15% -10%, ${colors.glassSheen}, transparent 55%), ${colors.glassFill}; backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); border: 1px solid ${colors.glassBorder}; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
 .sm-mobile-nav-glass { background: radial-gradient(140% 200% at 20% -60%, ${colors.glassSheen}, transparent 60%), ${colors.glassFillStrong}; backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px); border: 1px solid ${colors.glassBorderElevated}; box-shadow: ${colors.glassShadow}, inset 0 1px 0 ${colors.glassHighlight}; }
 .sm-modal-glass { background: radial-gradient(120% 60% at 15% -5%, ${colors.glassSheen}, transparent 55%), ${colors.modalPanelBg} !important; border: 1px solid ${colors.modalBorder} !important; backdrop-filter: blur(40px) !important; -webkit-backdrop-filter: blur(40px) !important; }

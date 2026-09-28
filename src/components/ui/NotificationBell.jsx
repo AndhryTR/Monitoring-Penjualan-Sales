@@ -37,6 +37,7 @@ export function NotificationBell({
       return new Set();
     }
   });
+  const [dismissingId, setDismissingId] = useState(null);
 
   const sheetRef = useRef(null);
 
@@ -69,16 +70,20 @@ export function NotificationBell({
 
   const handleDismiss = useCallback((id, e) => {
     e?.stopPropagation();
-    setDismissedIds((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      try {
-        localStorage.setItem("sm_dismissed_alerts", JSON.stringify(Array.from(next)));
-      } catch {
-        // Ignore
-      }
-      return next;
-    });
+    setDismissingId(id);
+    setTimeout(() => {
+      setDismissedIds((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        try {
+          localStorage.setItem("sm_dismissed_alerts", JSON.stringify(Array.from(next)));
+        } catch {
+          // Ignore
+        }
+        return next;
+      });
+      setDismissingId((curr) => (curr === id ? null : curr));
+    }, 280);
   }, []);
 
   const handleDismissAll = useCallback(() => {
@@ -177,6 +182,7 @@ export function NotificationBell({
         {/* Dynamic Badge Counter */}
         {counts.total > 0 && (
           <span
+            key={counts.total}
             className={`absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 text-[10px] font-bold rounded-full flex items-center justify-center text-white sm-badge-pop ${
               hasCritical ? "animate-pulse" : ""
             }`}
@@ -478,7 +484,9 @@ export function NotificationBell({
                     return (
                       <div
                         key={a.id}
-                        className="rounded-xl p-3 sm-fadeup relative group transition-all"
+                        className={`rounded-xl p-3 relative group transition-all ${
+                          dismissingId === a.id ? "sm-card-dismiss" : "sm-fadeup"
+                        }`}
                         style={{
                           background: cardBg,
                           border: `1px solid ${cardBorder}`,
@@ -518,7 +526,7 @@ export function NotificationBell({
                           {/* Tombol Dismiss */}
                           <button
                             onClick={(e) => handleDismiss(a.id, e)}
-                            className="sm-btn p-1 rounded hover:opacity-100 opacity-60 transition-opacity"
+                            className="sm-btn p-1 rounded hover:opacity-100 opacity-60 hover:scale-110 active:scale-90 transition-all cursor-pointer"
                             style={{ color: colors.textMuted }}
                             title="Sembunyikan notifikasi ini"
                             aria-label="Sembunyikan"

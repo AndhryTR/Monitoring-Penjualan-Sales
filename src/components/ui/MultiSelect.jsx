@@ -41,7 +41,7 @@ export function MultiSelect({ label, icon: Icon, options, selected, onChange, pl
           <Icon size={14} style={{ color: colors.textMuted }} className="shrink-0" />
           <span className="truncate">{label}{selected.length ? ` (${selected.length})` : ""}</span>
         </span>
-        <ChevronDown size={14} className="shrink-0" style={{ color: colors.textMuted, transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+        <ChevronDown size={14} className="shrink-0" style={{ color: colors.textMuted, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)" }} />
       </button>
       {open && createPortal(
         <div
@@ -49,7 +49,7 @@ export function MultiSelect({ label, icon: Icon, options, selected, onChange, pl
           role="listbox"
           aria-label={label}
           aria-multiselectable="true"
-          className="sm-fadein fixed z-[60] rounded-xl p-2"
+          className="sm-dropdown-pop fixed z-[60] rounded-xl p-2"
           style={{
             top: dropdownPos.top,
             left: dropdownPos.left,
@@ -76,10 +76,24 @@ export function MultiSelect({ label, icon: Icon, options, selected, onChange, pl
           </div>
           <div className="max-h-56 overflow-y-auto">
             {filtered.length === 0 && <div className="text-xs px-2 py-2" style={{ color: colors.textMuted }}>Tidak ada hasil</div>}
-            {filtered.map((o) => (
-              <button key={o} onClick={() => toggle(o)} role="option" aria-selected={selected.includes(o)} className="sm-row w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm">
-                <div className="w-4 h-4 rounded flex items-center justify-center" style={{ background: selected.includes(o) ? colors.gold : "transparent", border: `1px solid ${selected.includes(o) ? colors.gold : colors.glassBorder}` }}>
-                  {selected.includes(o) && <Check size={11} color="#0A1120" />}
+            {filtered.map((o, idx) => (
+              <button
+                key={o}
+                onClick={() => toggle(o)}
+                role="option"
+                aria-selected={selected.includes(o)}
+                className="sm-row sm-fadein w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm cursor-pointer"
+                style={{ animationDelay: `${Math.min(idx * 16, 160)}ms` }}
+              >
+                <div
+                  className="w-4 h-4 rounded flex items-center justify-center transition-all duration-200"
+                  style={{
+                    background: selected.includes(o) ? colors.gold : "transparent",
+                    border: `1px solid ${selected.includes(o) ? colors.gold : colors.glassBorder}`,
+                    transform: selected.includes(o) ? "scale(1.05)" : "scale(1)",
+                  }}
+                >
+                  {selected.includes(o) && <Check size={11} color="#0A1120" className="sm-check-pop" />}
                 </div>
                 <span className="truncate">{o}</span>
               </button>

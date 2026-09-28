@@ -8,6 +8,11 @@
         "hash": "5b82af0",
         "scope": "Desktop (Tauri)",
         "title": "Hide window until SplashScreen mounts to prevent WebView2 navigation flicker"
+      },
+      {
+        "hash": "98dde87",
+        "scope": "Tampilan",
+        "title": "Add fluid motion animation and spring physics to theme toggle button"
       }
     ],
     "fixes": [],
