@@ -3,7 +3,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
 import { Boxes, Package, Tag, Store, Hash, TrendingUp, X, Sparkles, AlertTriangle, Award } from "lucide-react";
-import { fmtRp, fmtNum, fmtQty, fmtCompactNum, formatDateIDShort } from "../utils/formatters.js";
+import { fmtRp, fmtNum, fmtQty, fmtCompactNum, formatDateIDShort, fmtPct } from "../utils/formatters.js";
 import { AchBadge } from "../components/AchBadge.jsx";
 import { getAchColor } from "../constants/thresholds.js";
 import { DataTable } from "../components/ui/DataTable.jsx";
@@ -189,7 +189,7 @@ export function ProductReportPage({ agg, colors, onDrilldown, onGroupDrilldown, 
             <KpiCard
               label="Grup Terbaik"
               value={championGroup ? championGroup.name : "-"}
-              sub={championGroup ? `${championGroup.ach}% ACH · ${fmtCompactNum(championGroup.realisasiValue)}` : "-"}
+              sub={championGroup ? `${fmtPct(championGroup.ach)} ACH · ${fmtCompactNum(championGroup.realisasiValue)}` : "-"}
               icon={Award}
               accent={colors.mint || colors.green}
               colors={colors}

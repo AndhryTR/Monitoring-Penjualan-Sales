@@ -9,6 +9,11 @@
         "hash": "c69d302",
         "scope": "Komisi",
         "title": "Sertakan unit dan konv pada sanitasi worker agar konversi satuan insentif fokus berjalan dengan benar"
+      },
+      {
+        "hash": "5a5c4e9",
+        "scope": "Tampilan",
+        "title": "Perbaiki bug tampilan ACH omset di tabel komisi menjadi format persentase yang benar"
       }
     ],
     "improvements": []
