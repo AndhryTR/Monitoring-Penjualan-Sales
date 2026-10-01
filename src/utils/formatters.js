@@ -12,6 +12,15 @@ export function fmtNum(n) {
   return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Math.round(n));
 }
 
+export function fmtDeviasi(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "-";
+  if (n < 0) {
+    return "+Rp " + new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Math.round(Math.abs(n)));
+  }
+  return "Rp " + new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Math.round(n));
+}
+
+
 /**
  * Format kuantitas/volume produk atau karton.
  * Bilangan bulat tampil tanpa koma (misal: 144).

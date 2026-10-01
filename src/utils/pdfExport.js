@@ -1,7 +1,8 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { fmtRp, fmtNum, fmtPct, MONTHS_ID, formatDateID, sumBy } from "./formatters.js";
+import { fmtRp, fmtNum, fmtPct, fmtDeviasi, MONTHS_ID, formatDateID, sumBy } from "./formatters.js";
 import { ACH_TIERS } from "../constants/thresholds.js";
+import { APP_LOGO_BASE64 } from "./exportLogo.js";
 
 /* ============================================================================
    EXPORT PDF
@@ -42,6 +43,16 @@ function drawHeader(doc, { depotName, title, subtitle }) {
 
   doc.setFillColor(...COLORS.headerFill);
   doc.rect(0, 0, pageWidth, 26, "F");
+
+  // Logo resmi baru di kanan atas header bar
+  if (APP_LOGO_BASE64) {
+    try {
+      const logoSize = 18;
+      doc.addImage(APP_LOGO_BASE64, "PNG", pageWidth - 14 - logoSize, 4, logoSize, logoSize);
+    } catch {
+      // Fallback jika terjadi kendala rendering raster
+    }
+  }
 
   doc.setTextColor(...COLORS.gold);
   doc.setFont("helvetica", "bold");
@@ -163,7 +174,7 @@ export function exportSummaryPDF(agg, targets, opts) {
     head: [["#", "Sales", "Target", "Realisasi", "Ach%", "Deviasi", "AO"]],
     body: sortedSales.map((s, i) => [
       i + 1, s.name, fmtRp(s.targetValue), fmtRp(s.realisasiValue), fmtPct(s.ach),
-      s.deviasiValue !== null ? fmtRp(s.deviasiValue) : "-", `${fmtNum(s.realisasiAo)}/${fmtNum(s.targetAo)}`,
+      s.deviasiValue !== null ? fmtDeviasi(s.deviasiValue) : "-", `${fmtNum(s.realisasiAo)}/${fmtNum(s.targetAo)}`,
     ]),
     theme: "grid",
     styles: { font: "helvetica", fontSize: 8, cellPadding: 2.2, textColor: COLORS.text, lineColor: COLORS.border, lineWidth: 0.1 },
@@ -269,7 +280,7 @@ function drawScorecardPage(doc, salesRow, agg, opts, rank, totalSales) {
   autoTable(doc, {
     startY: y,
     head: [["Grup Produk", "Target", "Realisasi", "Ach%", "Deviasi"]],
-    body: salesRow.groups.map((g) => [g.name, fmtRp(g.targetValue), fmtRp(g.realisasiValue), fmtPct(g.ach), fmtRp(g.deviasiValue)]),
+    body: salesRow.groups.map((g) => [g.name, fmtRp(g.targetValue), fmtRp(g.realisasiValue), fmtPct(g.ach), fmtDeviasi(g.deviasiValue)]),
     theme: "grid",
     styles: { font: "helvetica", fontSize: 8, cellPadding: 2.2, textColor: COLORS.text, lineColor: COLORS.border, lineWidth: 0.1 },
     headStyles: { fillColor: COLORS.headerFill, textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
@@ -401,13 +412,13 @@ export function exportSalesGroupComparisonPDF(agg, opts) {
   sortedSales.forEach((s, idx) => {
     section2Body.push([
       idx + 1, s.name, fmtRp(s.targetValue), fmtRp(s.realisasiValue), fmtPct(s.ach),
-      s.deviasiValue !== null ? fmtRp(s.deviasiValue) : "-", fmtNum(s.realisasiAo),
+      s.deviasiValue !== null ? fmtDeviasi(s.deviasiValue) : "-", fmtNum(s.realisasiAo),
     ]);
     section2Meta.push({ type: "sales", ach: s.ach });
     s.groups.forEach((g) => {
       section2Body.push([
         "", g.name, fmtRp(g.targetValue), fmtRp(g.realisasiValue), fmtPct(g.ach),
-        g.deviasiValue !== null ? fmtRp(g.deviasiValue) : "-", fmtNum(g.realisasiAo),
+        g.deviasiValue !== null ? fmtDeviasi(g.deviasiValue) : "-", fmtNum(g.realisasiAo),
       ]);
       section2Meta.push({ type: "group", ach: g.ach });
     });

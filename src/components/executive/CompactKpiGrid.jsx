@@ -1,5 +1,5 @@
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
-import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
+import { fmtRp, fmtNum, fmtPct, fmtDeviasi } from "../../utils/formatters.js";
 import { computePaceStatus } from "../../utils/aggregation.js";
 import { useCountUp } from "../../hooks/useCountUp.js";
 import { ACH_TIERS } from "../../constants/thresholds.js";
@@ -10,10 +10,10 @@ import { ACH_TIERS } from "../../constants/thresholds.js";
    tanpa sparkline — supaya 8 card muat dalam satu grid.
 ============================================================================ */
 
-function CompactKpiItem({ label, value, isMoney, isPct, accent, colors, delay }) {
+function CompactKpiItem({ label, value, isMoney, isPct, isDeviasi, accent, colors, delay }) {
   const numeric = isPct ? (value || 0) * 100 : (value || 0);
   const animated = useCountUp(numeric);
-  const displayText = isMoney ? fmtRp(animated) : isPct ? animated.toFixed(1) + "%" : fmtNum(animated);
+  const displayText = isDeviasi ? fmtDeviasi(animated) : isMoney ? fmtRp(animated) : isPct ? animated.toFixed(1) + "%" : fmtNum(animated);
 
   return (
     <div className="sm-fadeup min-w-0" style={{ animationDelay: `${delay}ms` }}>
@@ -114,7 +114,7 @@ export function CompactKpiGrid({ agg, growth, workDays, colors }) {
       <CompactKpiItem label="Target Value" value={t.targetValue} isMoney accent={colors.blue} colors={colors} delay={0} />
       <CompactKpiItem label="Realisasi" value={t.realisasiValue} isMoney accent={colors.mint} colors={colors} delay={40} />
       <CompactKpiItem label="ACH" value={t.ach} isPct accent={colors.gold} colors={colors} delay={80} />
-      <CompactKpiItem label="Deviasi" value={t.deviasiValue} isMoney accent={colors.coral} colors={colors} delay={120} />
+      <CompactKpiItem label="Deviasi" value={t.deviasiValue} isMoney isDeviasi accent={colors.coral} colors={colors} delay={120} />
 
       <CompactKpiItem label="AO Aktif" value={t.realisasiAo} accent={colors.violet} colors={colors} delay={160} />
       <CompactKpiItem label="Target AO" value={t.targetAo} accent={colors.textMuted} colors={colors} delay={200} />

@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas-pro";
 import { fmtRp, fmtNum, MONTHS_ID } from "./formatters.js";
+import { APP_LOGO_BASE64 } from "./exportLogo.js";
 
 /* ============================================================================
    AI EXPORT UTILITIES
@@ -204,6 +205,16 @@ function drawPdfHeader(doc, { title, subtitle }) {
 
   doc.setFillColor(...COLORS.headerFill);
   doc.rect(0, 0, pageWidth, 26, "F");
+
+  // Logo resmi baru di kanan atas header bar
+  if (APP_LOGO_BASE64) {
+    try {
+      const logoSize = 18;
+      doc.addImage(APP_LOGO_BASE64, "PNG", pageWidth - 14 - logoSize, 4, logoSize, logoSize);
+    } catch {
+      // Fallback jika terjadi kendala rendering raster
+    }
+  }
 
   doc.setTextColor(...COLORS.gold);
   doc.setFont("helvetica", "bold");

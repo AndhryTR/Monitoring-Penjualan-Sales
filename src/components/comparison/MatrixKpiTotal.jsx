@@ -1,4 +1,4 @@
-import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
+import { fmtRp, fmtNum, fmtPct, fmtDeviasi } from "../../utils/formatters.js";
 import { GrowthBadge } from "../ui/GrowthBadge.jsx";
 
 /* ============================================================================
@@ -11,10 +11,10 @@ import { GrowthBadge } from "../ui/GrowthBadge.jsx";
    Catatan: sebelumnya value = Σ semua periode, yang tidak ada hubungannya
    dengan % growth di bawah → membingungkan. Sekarang value = current.
 ============================================================================ */
-export function MatrixKpiTotal({ label, value, periodLabel, growth, isMoney, isPct, accent, colors }) {
+export function MatrixKpiTotal({ label, value, periodLabel, growth, isMoney, isPct, isDeviasi, accent, colors }) {
   const display = value === null || value === undefined
     ? "-"
-    : isPct ? fmtPct(value) : isMoney ? fmtRp(value) : fmtNum(value);
+    : isPct ? fmtPct(value) : isDeviasi ? fmtDeviasi(value) : isMoney ? fmtRp(value) : fmtNum(value);
 
   return (
     <div className="sm-card p-4 min-w-0" style={{ position: "relative", overflow: "hidden", borderTop: `2px solid ${accent}` }}>

@@ -9,6 +9,7 @@ import { ACH_TIERS } from "../constants/thresholds.js";
 // utils/xlsxStyle.js supaya tidak duplikat di 4 file export.
 import { XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT, XL_COLORS, achGradientColor, makeSheetBuilder } from "./xlsxStyle.js";
 import { computeBaseGrowth } from "./comparisonBase.js";
+import { APP_LOGO_BASE64 } from "./exportLogo.js";
 
 /* Hitung growth utk satu sales sesuai opsi pembanding (baseMode).
    Deret nilai diambil dari s.series (per periode, skip missing), lalu
@@ -208,6 +209,17 @@ function drawTrendHeader(doc, { depotName, subtitle }) {
   const pageWidth = doc.internal.pageSize.getWidth();
   doc.setFillColor(...PDF_COLORS.headerFill);
   doc.rect(0, 0, pageWidth, 26, "F");
+
+  // Logo resmi baru di kanan atas header bar
+  if (APP_LOGO_BASE64) {
+    try {
+      const logoSize = 18;
+      doc.addImage(APP_LOGO_BASE64, "PNG", pageWidth - 14 - logoSize, 4, logoSize, logoSize);
+    } catch {
+      // Fallback jika terjadi kendala rendering raster
+    }
+  }
+
   doc.setTextColor(...PDF_COLORS.gold);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);

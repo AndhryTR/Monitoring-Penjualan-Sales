@@ -352,7 +352,7 @@ export function ComparisonPage({
                 value={r._current}
                 periodLabel={r._currentPeriodLabel}
                 growth={r.growth}
-                isMoney={metricMeta.money}
+                isMoney={metricMeta.money} isDeviasi={metric === "deviasi"}
                 isPct={metricMeta.pct}
                 accent={pickColor(null, i)}
                 colors={colors}
@@ -365,7 +365,7 @@ export function ComparisonPage({
             <div className="text-xs uppercase tracking-wider mb-3" style={{ color: colors.textMuted }}>
               {metricLabel} per Periode
             </div>
-            <GroupedBarChart data={chartData} periods={periods} periodColor={pickColor} metricKey={metric} isMoney={metricMeta.money} isPct={metricMeta.pct} colors={colors} />
+            <GroupedBarChart data={chartData} periods={periods} periodColor={pickColor} metricKey={metric} isMoney={metricMeta.money} isDeviasi={metric === "deviasi"} isPct={metricMeta.pct} colors={colors} />
           </div>
           <div className="sm-card p-5 sm-fadeup">
             <SectionTitle title={`Detail ${metricLabel} per Entitas`} sub="Kolom = periode · angka kecil di bawah = ACH (hanya periode 1 bulan penuh)" icon={Wallet} colors={colors} />
@@ -374,7 +374,7 @@ export function ComparisonPage({
               periods={periods}
               periodColor={pickColor}
               metricKey={metric}
-              isMoney={metricMeta.money}
+              isMoney={metricMeta.money} isDeviasi={metric === "deviasi"}
               isPct={metricMeta.pct}
               showAch={metric !== "ach"}
               colors={colors}

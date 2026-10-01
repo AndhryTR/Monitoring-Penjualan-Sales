@@ -3,7 +3,7 @@ import { dateStrToLocalDate, todayLocalDateStr } from "./excelParse.js";
 // ⚠️ Sprint 4 / Q1: XL_* constants + achGradientColor dipusatkan ke
 // utils/xlsxStyle.js supaya tidak duplikat di 4 file export. SetCell tetap
 // inline di sini karena pattern-nya spesifik (ada `blank` helper).
-import { XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT, XL_COLORS, XL_TIER_FILL, achGradientColor, sanitizeFilename, makeSheetBuilder } from "./xlsxStyle.js";
+import { XL_NUMFMT_MONEY, XL_NUMFMT_DEVIASI, XL_NUMFMT_INT, XL_NUMFMT_PCT, XL_COLORS, XL_TIER_FILL, achGradientColor, sanitizeFilename, makeSheetBuilder } from "./xlsxStyle.js";
 
 /* ============================================================================
    EXCEL EXPORT
@@ -19,7 +19,7 @@ import { XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT, XL_COLORS, XL_TIER_FILL,
 // (sebelumnya reportExcelExport.js & comparisonExport.js import XL_* dan
 // achGradientColor dari sini — sekarang semua dari xlsxStyle.js, tapi kita
 // tetap re-export supaya tidak break import lama.)
-export { XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_PCT, XL_COLORS, XL_TIER_FILL, achGradientColor, sanitizeFilename };
+export { XL_NUMFMT_MONEY, XL_NUMFMT_DEVIASI, XL_NUMFMT_INT, XL_NUMFMT_PCT, XL_COLORS, XL_TIER_FILL, achGradientColor, sanitizeFilename };
 // PCT1 alias (lama) — tetap re-export untuk kompat
 export const XL_NUMFMT_PCT1 = XL_NUMFMT_PCT;
 
@@ -82,7 +82,7 @@ export function exportToExcel(agg, targets, opts) {
     setCell(r, 6, sm.realisasiAo, { fill, numFmt: XL_NUMFMT_INT, align: "center" });
     setCell(r, 7, sm.targetValue ? sm.ach : "-", { bold: true, fill: sm.targetValue ? achGradientColor(sm.ach) : undefined, numFmt: sm.targetValue ? XL_NUMFMT_PCT : undefined, align: "center" });
     setCell(r, 8, sm.targetAo ? sm.achAo : "-", { bold: true, fill: sm.targetAo ? achGradientColor(sm.achAo) : undefined, numFmt: sm.targetAo ? XL_NUMFMT_PCT : undefined, align: "center" });
-    setCell(r, 9, sm.targetValue ? sm.deviasiValue : 0, { fill: XL_COLORS.yellowTier, numFmt: XL_NUMFMT_MONEY });
+    setCell(r, 9, sm.targetValue ? sm.deviasiValue : 0, { fill: XL_COLORS.yellowTier, numFmt: XL_NUMFMT_DEVIASI });
     setCell(r, 10, sm.targetAo ? sm.deviasiAo : 0, { fill: XL_COLORS.yellowTier, numFmt: XL_NUMFMT_INT, align: "center" });
     if (sm.focus.length) {
       setCell(r, 11, sm.name, { bold: true, fill: XL_COLORS.headerPurple, color: "FFFFFF", align: "center" });
@@ -106,7 +106,7 @@ export function exportToExcel(agg, targets, opts) {
         setCell(r, 6, g.realisasiAo, { numFmt: XL_NUMFMT_INT, align: "center" });
         setCell(r, 7, g.targetValue ? g.ach : "-", { bold: true, fill: g.targetValue ? achGradientColor(g.ach) : undefined, numFmt: g.targetValue ? XL_NUMFMT_PCT : undefined, align: "center" });
         setCell(r, 8, g.targetAo ? g.achAo : "-", { bold: true, fill: g.targetAo ? achGradientColor(g.achAo) : undefined, numFmt: g.targetAo ? XL_NUMFMT_PCT : undefined, align: "center" });
-        setCell(r, 9, g.deviasiValue, { fill: XL_COLORS.yellowTier, numFmt: XL_NUMFMT_MONEY });
+        setCell(r, 9, g.deviasiValue, { fill: XL_COLORS.yellowTier, numFmt: XL_NUMFMT_DEVIASI });
         setCell(r, 10, g.deviasiAo, { fill: XL_COLORS.yellowTier, numFmt: XL_NUMFMT_INT, align: "center" });
       } else {
         blank(r, [2, 3, 4, 5, 6, 7, 8, 9, 10]);
@@ -138,7 +138,7 @@ export function exportToExcel(agg, targets, opts) {
   setCell(r, 6, tRealAo, { bold: true, fill: XL_COLORS.navy, color: "FFFFFF", numFmt: XL_NUMFMT_INT, align: "center" });
   setCell(r, 7, tTargetV ? tRealV / tTargetV : "-", { bold: true, fill: tTargetV ? achGradientColor(tRealV / tTargetV) : undefined, numFmt: tTargetV ? XL_NUMFMT_PCT : undefined, align: "center" });
   setCell(r, 8, tTargetAo ? tRealAo / tTargetAo : "-", { bold: true, fill: tTargetAo ? achGradientColor(tRealAo / tTargetAo) : undefined, numFmt: tTargetAo ? XL_NUMFMT_PCT : undefined, align: "center" });
-  setCell(r, 9, tTargetV - tRealV, { bold: true, fill: XL_COLORS.navy, color: "FFFFFF", numFmt: XL_NUMFMT_MONEY });
+  setCell(r, 9, tTargetV - tRealV, { bold: true, fill: XL_COLORS.navy, color: "FFFFFF", numFmt: XL_NUMFMT_DEVIASI });
   setCell(r, 10, tTargetAo - tRealAo, { bold: true, fill: XL_COLORS.navy, color: "FFFFFF", numFmt: XL_NUMFMT_INT, align: "center" });
   blank(r, [11, 12, 13, 14]);
 

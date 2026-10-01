@@ -15,6 +15,7 @@ import { ACH_TIERS } from "../constants/thresholds.js";
 
 // ---- Number formats (Indonesia) ----
 export const XL_NUMFMT_MONEY = '_(* #,##0_);_(* \\(#,##0\\);_(* "-"??_);_(@_)';
+export const XL_NUMFMT_DEVIASI = '_(* #,##0_);_(* "+"#,##0_);_(* "-"??_);_(@_)';
 export const XL_NUMFMT_INT = "#,##0";
 export const XL_NUMFMT_QTY = "#,##0.##";
 export const XL_NUMFMT_PCT = "0.0%";       // 1 desimal (tabel utama)

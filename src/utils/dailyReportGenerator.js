@@ -1,6 +1,7 @@
 import { fmtRp, fmtNum, fmtPct, fmtCompactRp, formatDateID, esc } from "./formatters.js";
 import { getLastDaySalesMap } from "./aggregation.js";
 import { getAchColor } from "../constants/thresholds.js";
+import { APP_LOGO_BASE64 } from "./exportLogo.js";
 
 export { getAchColor };
 
@@ -377,9 +378,9 @@ export function buildDailyReportCardHTML({
     
     <!-- Top Brand & Header -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid ${c.border};">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#F59E0B,#EF4444);display:flex;align-items:center;justify-content:center;font-size:18px;color:#0A1120;font-weight:bold;">
-          📊
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:40px;height:40px;border-radius:10px;background:${c.bgCardSubtle};border:1px solid ${c.border};display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:2px;box-sizing:border-box;">
+          <img src="${APP_LOGO_BASE64}" width="36" height="36" style="width:100%;height:100%;object-fit:contain;display:block;" alt="Logo" />
         </div>
         <div>
           <div style="font-size:16px;font-weight:800;letter-spacing:-0.02em;color:${c.text};">UPDATE PENJUALAN HARIAN</div>

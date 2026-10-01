@@ -3,8 +3,9 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { todayLocalDateStr } from "./excelParse.js";
 import { XL_COLORS, XL_NUMFMT_MONEY, XL_NUMFMT_INT, XL_NUMFMT_QTY, XL_NUMFMT_PCT1, achGradientColor, makeSheetBuilder, writeTitleBlock, writeHeaderRow } from "./xlsxStyle.js";
-import { fmtRp, fmtNum, fmtQty, formatGeneratedAt } from "./formatters.js";
+import { fmtRp, fmtQty, formatGeneratedAt } from "./formatters.js";
 import { getProductBreakdownForGroup } from "./aggregation.js";
+import { APP_LOGO_BASE64 } from "./exportLogo.js";
 
 /* ============================================================================
    FOCUS GROUP EXPORT — Sprint 19f
@@ -43,7 +44,7 @@ export function exportFocusGroupExcel(groupRows, filteredRows, opts = {}) {
     b1.setCell(row, 4, g.realisasiValue, { numFmt: XL_NUMFMT_MONEY });
     b1.setCell(row, 5, g.ach !== null && g.ach !== undefined ? g.ach : "", { numFmt: XL_NUMFMT_PCT1, fill: achFill || undefined });
     b1.setCell(row, 6, `${g.realisasiAo || 0}/${g.targetAo || 0}`);
-    b1.setCell(row, 7, deviasi, { numFmt: XL_NUMFMT_MONEY });
+    b1.setCell(row, 7, deviasi, { numFmt: XL_NUMFMT_DEVIASI });
     totalTarget += g.targetValue || 0;
     totalRealisasi += g.realisasiValue || 0;
     totalAoReal += g.realisasiAo || 0;
@@ -152,6 +153,17 @@ export function exportFocusGroupPDF(groupRows, filteredRows, opts = {}) {
     // ---- Header bar ----
     doc.setFillColor(...PDF_COLORS.headerFill);
     doc.rect(0, 0, pageWidth, 22, "F");
+
+    // Logo resmi baru di kanan atas header bar
+    if (APP_LOGO_BASE64) {
+      try {
+        const logoSize = 16;
+        doc.addImage(APP_LOGO_BASE64, "PNG", pageWidth - margin - logoSize, 3, logoSize, logoSize);
+      } catch {
+        // Fallback jika terjadi kendala rendering raster
+      }
+    }
+
     doc.setTextColor(...PDF_COLORS.gold);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
@@ -188,7 +200,7 @@ export function exportFocusGroupPDF(groupRows, filteredRows, opts = {}) {
         fmtRp(g.realisasiValue),
         achPct,
         `${g.realisasiAo || 0}/${g.targetAo || 0}`,
-        fmtRp(deviasi),
+        fmtDeviasi(deviasi),
       ];
     });
 

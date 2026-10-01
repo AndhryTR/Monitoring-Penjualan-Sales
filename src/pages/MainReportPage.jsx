@@ -7,7 +7,7 @@ import {
   Target, TrendingUp, TrendingDown, Sparkles, Users,
   CalendarDays, LayoutDashboard,
 } from "lucide-react";
-import { fmtRp, fmtNum, fmtCompactNum } from "../utils/formatters.js";
+import { fmtRp, fmtNum, fmtCompactNum, fmtDeviasi } from "../utils/formatters.js";
 import { ACH_TIERS } from "../constants/thresholds.js";
 import { KpiBigCard } from "../components/KpiBigCard.jsx";
 import { PaceStrip } from "../components/PaceStrip.jsx";
@@ -160,7 +160,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
         <KpiBigCard
           label="Deviasi Value"
           value={t.deviasiValue}
-          isMoney
+          isMoney isDeviasi
           icon={TrendingDown}
           accent={colors.coral}
           colors={colors}
@@ -263,7 +263,7 @@ export function MainReportPage({ agg, workDays, colors, onDrilldown, comparison,
           { key: "targetValue", label: "Target", render: (r) => <span className="mono">{fmtRp(r.targetValue)}</span> },
           { key: "realisasiValue", label: "Realisasi", render: (r) => <span className="mono">{fmtRp(r.realisasiValue)}</span> },
           { key: "ach", label: "ACH", render: (r) => <AchBadge ach={r.ach} colors={colors} /> },
-          { key: "deviasiValue", label: "Deviasi", render: (r) => <span className="mono" style={{ color: colors.textMuted }}>{fmtRp(r.deviasiValue)}</span> },
+          { key: "deviasiValue", label: "Deviasi", render: (r) => <span className="mono" style={{ color: colors.textMuted }}>{fmtDeviasi(r.deviasiValue)}</span> },
           { key: "realisasiAo", label: "AO", render: (r) => <span className="mono">{r.realisasiAo}/{r.targetAo}</span> },
           { key: "achAo", label: "ACH AO", render: (r) => <AchBadge ach={r.achAo} colors={colors} /> },
           { key: "_drilldown", label: "", render: (r) => onDrilldown && <DrilldownButton colors={colors} onClick={() => onDrilldown(r.name, "Semua outlet", r.predicate)} /> },

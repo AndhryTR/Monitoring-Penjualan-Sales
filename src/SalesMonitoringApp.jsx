@@ -1262,6 +1262,7 @@ export default function SalesMonitoringApp() {
                   targets={targets}
                   workDays={workDays}
                   depotName={depotName}
+                  rawRows={rawRows}
                   disabled={!rawRows.length}
                   colors={colors}
                   activeTab={activeTab}

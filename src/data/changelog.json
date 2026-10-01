@@ -13,6 +13,11 @@
         "hash": "98dde87",
         "scope": "Tampilan",
         "title": "Add fluid motion animation and spring physics to theme toggle button"
+      },
+      {
+        "hash": "0c67491",
+        "scope": "Tampilan",
+        "title": "Implement fluid motion animations and spring physics across navigation, cards, and dropdowns"
       }
     ],
     "fixes": [],

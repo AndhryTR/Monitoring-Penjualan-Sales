@@ -141,6 +141,7 @@ export function ExportMenu({
   targets,
   workDays,
   depotName,
+  rawRows = [],
   disabled,
   colors,
   activeTab = "main",
@@ -152,6 +153,14 @@ export function ExportMenu({
   const [open, setOpen] = useState(false);
   const [scorecardListOpen, setScorecardListOpen] = useState(false);
   const [imageBusy, setImageBusy] = useState(null);
+  const [includeIncentives, setIncludeIncentives] = useState(() => {
+    try {
+      return localStorage.getItem("sm_export_include_incentives") === "true";
+    } catch {
+      void 0;
+      return false;
+    }
+  });
   const sheetRef = useRef(null);
 
   const allowDaily = !canAccess || canAccess("feat:daily_report");
@@ -187,7 +196,7 @@ export function ExportMenu({
   // "nyangkut" kebuka pas dropdown dipakai lagi lain waktu.
   useEffect(() => { if (!open) { setScorecardListOpen(false); } }, [open]);
 
-  const opts = { workDays, depotName };
+  const opts = { workDays, depotName, includeIncentives, rawRows };
   const salesSorted = useMemo(() => [...(agg?.bySales || [])].sort((a, b) => a.name.localeCompare(b.name)), [agg?.bySales]);
   const currentTabExports = (tabExports && tabExports.current) ? tabExports.current : (tabExports || {});
 
@@ -323,10 +332,70 @@ export function ExportMenu({
           <>
             {(allowDaily || allowExcel || allowPdf) && <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />}
             <SectionLabel colors={colors}>Gambar</SectionLabel>
+
+            {/* Switch Opsi Sertakan Kalkulasi Insentif */}
+            <div
+              className="mx-3.5 mb-2 px-3 py-2 rounded-lg flex items-center justify-between transition-colors cursor-pointer select-none"
+              style={{
+                background: includeIncentives ? `${colors.gold}18` : colors.glassFill,
+                border: `1px solid ${includeIncentives ? `${colors.gold}66` : colors.glassBorder}`,
+              }}
+              onClick={() => {
+                setIncludeIncentives((prev) => {
+                  const next = !prev;
+                  try {
+                    localStorage.setItem("sm_export_include_incentives", String(next));
+                  } catch {
+                    void 0;
+                  }
+                  return next;
+                });
+              }}
+              title={includeIncentives ? "Klik untuk menonaktifkan kolom insentif" : "Klik untuk menyertakan kolom insentif"}
+            >
+              <div className="flex items-center gap-2 min-w-0 pr-2">
+                <span className="text-sm shrink-0">💰</span>
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold truncate" style={{ color: colors.text }}>
+                    Sertakan Data Insentif
+                  </div>
+                  <div className="text-[10px] truncate" style={{ color: colors.textMuted }}>
+                    {includeIncentives ? "Rate & total komisi disertakan" : "Tabel performa standar (tanpa insentif)"}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={includeIncentives}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIncludeIncentives((prev) => {
+                    const next = !prev;
+                    try {
+                      localStorage.setItem("sm_export_include_incentives", String(next));
+                    } catch {
+                      void 0;
+                    }
+                    return next;
+                  });
+                }}
+                className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                style={{
+                  backgroundColor: includeIncentives ? (colors.gold || "#10B981") : (colors.glassBorder || "#CBD5E1"),
+                }}
+              >
+                <span
+                  className="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                  style={{ transform: includeIncentives ? "translateX(16px)" : "translateX(0px)" }}
+                />
+              </button>
+            </div>
+
             <ImageMenuItem
               itemKey="excel"
               label="Laporan Tabel Utama (Gambar)"
-              desc="Tampilan visual tabel laporan utama (PNG / JPG)"
+              desc={includeIncentives ? "Tampilan visual tabel utama + kalkulasi insentif" : "Tampilan visual tabel laporan utama (PNG / JPG)"}
               imageBusy={imageBusy}
               onImageExport={handleImageExport}
               colors={colors}
@@ -335,7 +404,7 @@ export function ExportMenu({
                 const { buildExcelReportHTML } = await import("../../utils/imageExport.js");
                 return { html: buildExcelReportHTML(agg, targets, opts) };
               }}
-              filenameBase={`Laporan_Sales_Gambar_${agg?.meta?.lastDate || "export"}`}
+              filenameBase={includeIncentives ? `Laporan_Sales_Insentif_Gambar_${agg?.meta?.lastDate || "export"}` : `Laporan_Sales_Gambar_${agg?.meta?.lastDate || "export"}`}
             />
             <ImageMenuItem
               itemKey="comparison"

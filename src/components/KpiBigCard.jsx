@@ -1,5 +1,5 @@
 import { useCountUp } from "../hooks/useCountUp";
-import { fmtRp, fmtNum } from "../utils/formatters.js";
+import { fmtRp, fmtNum, fmtDeviasi } from "../utils/formatters.js";
 import { KpiCardSkeleton } from "./ui/index.jsx";
 
 /* ============================================================================
@@ -70,7 +70,7 @@ function ProgressBar({ value, gradient }) {
 
 export function KpiBigCard({
   label, value, icon: Icon, accent, colors,
-  isMoney, isPct, isPlain,
+  isMoney, isPct, isPlain, isDeviasi,
   variant = "none",
   sparkData, progressValue, progressGradient,
   footerLabel, footerDelta, footerDeltaType = "neutral",
@@ -88,7 +88,7 @@ export function KpiBigCard({
     );
   }
 
-  const displayText = isMoney ? fmtRp(animated) : isPct ? animated.toFixed(1) + "%" : isPlain ? value : fmtNum(animated);
+  const displayText = isDeviasi ? fmtDeviasi(animated) : isMoney ? fmtRp(animated) : isPct ? animated.toFixed(1) + "%" : isPlain ? value : fmtNum(animated);
 
   const deltaColor = footerDeltaType === "pos" ? colors.mint : footerDeltaType === "neg" ? colors.coral : colors.textMuted;
 

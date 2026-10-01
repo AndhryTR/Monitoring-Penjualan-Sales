@@ -1,4 +1,4 @@
-import { fmtRp, fmtNum, fmtPct } from "../../utils/formatters.js";
+import { fmtRp, fmtNum, fmtPct, fmtDeviasi } from "../../utils/formatters.js";
 import { getAchColor } from "../../constants/thresholds.js";
 import { GrowthBadge } from "../ui/GrowthBadge.jsx";
 import { TableScrollWrapper } from "../ui/TableScrollWrapper.jsx";
@@ -8,7 +8,7 @@ import { TableScrollWrapper } from "../ui/TableScrollWrapper.jsx";
    Tiap sel menampilkan metrik aktif; kalau periode itu full bulan, ACH kecil
    di bawah (konsisten dengan tabel Tren Periode). Kolom pertama sticky.
 ============================================================================ */
-export function MatrixTable({ rows, periods, periodColor, metricKey, isMoney, isPct, showAch, colors }) {
+export function MatrixTable({ rows, periods, periodColor, metricKey, isMoney, isPct, isDeviasi, showAch, colors }) {
   if (!rows.length) return null;
   return (
     <TableScrollWrapper colors={colors} className="-mx-1">
@@ -40,7 +40,7 @@ export function MatrixTable({ rows, periods, periodColor, metricKey, isMoney, is
                       <span className="text-xs" style={{ color: colors.textMuted }}>-</span>
                     ) : (
                       <div>
-                        <div className="mono">{v === null || v === undefined ? "-" : isPct ? fmtPct(v) : isMoney ? fmtRp(v) : fmtNum(v)}</div>
+                        <div className="mono">{v === null || v === undefined ? "-" : isPct ? fmtPct(v) : isDeviasi ? fmtDeviasi(v) : isMoney ? fmtRp(v) : fmtNum(v)}</div>
                         {showAch && c.exists && c.ach !== null && metricKey !== "ach" && (
                           <div className="text-[10px] mono" style={{ color: getAchColor(c.ach, colors) }}>
                             {fmtPct(c.ach)}
