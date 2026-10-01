@@ -52,6 +52,9 @@ export function useCommissionWorker(salesList, rules, transactionRows) {
       productName: r.productName || "",
       productCode: r.productCode || "",
       qty: Number(r.qty) || 0,
+      qtyKarton: r.qtyKarton,
+      unit: r.unit || "",
+      konv: Number(r.konv) || 0,
     }));
   }, [transactionRows]);
 
