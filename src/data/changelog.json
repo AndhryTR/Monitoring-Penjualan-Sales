@@ -18,6 +18,16 @@
         "hash": "0c67491",
         "scope": "Tampilan",
         "title": "Implement fluid motion animations and spring physics across navigation, cards, and dropdowns"
+      },
+      {
+        "hash": "201aa2a",
+        "scope": "Komisi",
+        "title": "Tambah input manual satuan barang (ktn/pcs/dll) pada kalkulator insentif produk fokus"
+      },
+      {
+        "hash": "7f06e63",
+        "scope": "Komisi",
+        "title": "Kalkulasi kuantitas cerdas berdasarkan input satuan pada insentif produk fokus"
       }
     ],
     "fixes": [

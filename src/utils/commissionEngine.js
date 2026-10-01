@@ -9,6 +9,7 @@
 ============================================================================ */
 
 import { fmtRp, fmtNum } from "./formatters.js";
+import { effectiveKartonQty } from "./excelParse.js";
 
 export const DEFAULT_COMMISSION_RULES = {
   tier1MinAch: 85,
@@ -110,7 +111,25 @@ export function calculateFocusProductIncentiveForSales(salesCode, transactionRow
   for (const rule of focusRules) {
     // Kumpulkan baris yang cocok dengan aturan (misal semua varian rasa Taro 65g)
     const matchingRows = salesRows.filter((r) => matchProductFocusRule(r, rule));
-    const totalQty = matchingRows.reduce((sum, r) => sum + (Number(r.qty) || 0), 0);
+    // Deteksi satuan target
+    const targetUnitRaw = String(rule.targetUnit || "ktn").trim().toLowerCase();
+    const isKarton = targetUnitRaw === "ktn" || targetUnitRaw === "karton" || targetUnitRaw === "krt";
+
+    const totalQty = matchingRows.reduce((sum, r) => {
+      let q = 0;
+      if (isKarton) {
+        q = effectiveKartonQty(r);
+      } else {
+        // Satuan base/terkecil (pcs, kaleng, bungkus, dsb)
+        const txnUnit = String(r.unit || "").trim().toUpperCase();
+        if (txnUnit === "PCS" || !txnUnit) {
+          q = Number(r.qty) || 0;
+        } else {
+          q = (r.konv && r.konv > 0) ? (Number(r.qty) || 0) * r.konv : (Number(r.qty) || 0);
+        }
+      }
+      return sum + q;
+    }, 0);
     const targetQty = Number(rule.targetQty || 0);
     const qtyAchieved = totalQty >= targetQty && targetQty > 0;
 
