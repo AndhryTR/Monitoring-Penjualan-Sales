@@ -172,6 +172,7 @@ export function calculateFocusProductIncentiveForSales(salesCode, transactionRow
       keyword: rule.keyword || "",
       totalQty,
       targetQty,
+      targetUnit: rule.targetUnit || "ktn/pcs",
       qtyAchieved,
       gatekeeperMode,
       minAo,
@@ -325,12 +326,12 @@ export function formatCommissionWhatsAppSlip(item, depotName = "") {
     focusLines = "\n-----------------------------------------\n*Bonus Produk Fokus (Push SKU):*\n";
     item.focusBreakdown.forEach((fb) => {
       if (fb.isQualified) {
-        focusLines += `• *${fb.ruleName}*: ${fmtNum(fb.totalQty)} / ${fmtNum(fb.targetQty)} ktn (*Lolos*) -> ${fmtRp(fb.bonus)}\n`;
+        focusLines += `• *${fb.ruleName}*: ${fmtNum(fb.totalQty)} / ${fmtNum(fb.targetQty)} ${fb.targetUnit || "ktn/pcs"} (*Lolos*) -> ${fmtRp(fb.bonus)}\n`;
       } else if (fb.qtyAchieved && !fb.aoGatekeeperPassed) {
         const failText = fb.failedGroups.map((g) => `${g.group} ${g.currentAo}/${g.requiredAo} toko`).join(", ");
-        focusLines += `• *${fb.ruleName}*: ${fmtNum(fb.totalQty)} / ${fmtNum(fb.targetQty)} ktn (_Tertahan Syarat AO: ${failText}_) -> Rp 0\n`;
+        focusLines += `• *${fb.ruleName}*: ${fmtNum(fb.totalQty)} / ${fmtNum(fb.targetQty)} ${fb.targetUnit || "ktn/pcs"} (_Tertahan Syarat AO: ${failText}_) -> Rp 0\n`;
       } else {
-        focusLines += `• *${fb.ruleName}*: ${fmtNum(fb.totalQty)} / ${fmtNum(fb.targetQty)} ktn (_Belum Capai Target Qty_) -> Rp 0\n`;
+        focusLines += `• *${fb.ruleName}*: ${fmtNum(fb.totalQty)} / ${fmtNum(fb.targetQty)} ${fb.targetUnit || "ktn/pcs"} (_Belum Capai Target Qty_) -> Rp 0\n`;
       }
     });
     focusLines += `Subtotal Produk Fokus: ${fmtRp(item.totalFocusBonus)}\n`;

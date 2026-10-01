@@ -20,7 +20,13 @@
         "title": "Implement fluid motion animations and spring physics across navigation, cards, and dropdowns"
       }
     ],
-    "fixes": [],
+    "fixes": [
+      {
+        "hash": "bd54b11",
+        "scope": "Ekspor Data",
+        "title": "Ubah tampilan deviasi minus menjadi positif dengan awalan plus jika target terlampaui"
+      }
+    ],
     "improvements": []
   },
   {

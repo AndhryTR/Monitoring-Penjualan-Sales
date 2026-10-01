@@ -335,6 +335,7 @@ export function SalesCommissionView({ rows = [], filteredRows = [], colors, depo
                       keyword: "",
                       groupName: availableGroups[0] || "",
                       targetQty: 100,
+                      targetUnit: "ktn",
                       rewardType: "per_unit",
                       rewardRate: 2000,
                       aoGatekeeperMode: "selected_groups",
@@ -402,10 +403,10 @@ export function SalesCommissionView({ rows = [], filteredRows = [], colors, depo
                           </b>
                         </div>
                         <div>
-                          Target: <b className="mono" style={{ color: colors.text }}>≥ {fmtNum(fr.targetQty)} ktn/pcs</b>
+                          Target: <b className="mono" style={{ color: colors.text }}>≥ {fmtNum(fr.targetQty)} {fr.targetUnit || "ktn/pcs"}</b>
                           {" · "}
                           Bonus: <b className="mono" style={{ color: colors.mint }}>
-                            {fr.rewardType === "flat" ? fmtRp(fr.rewardRate) + " (Flat)" : fmtRp(fr.rewardRate) + " / ktn"}
+                            {fr.rewardType === "flat" ? fmtRp(fr.rewardRate) + " (Flat)" : fmtRp(fr.rewardRate) + ` / ${fr.targetUnit || "ktn"}`}
                           </b>
                         </div>
                         <div className="pt-1 border-t flex items-start gap-1" style={{ borderColor: colors.glassBorder }}>
@@ -580,9 +581,9 @@ export function SalesCommissionView({ rows = [], filteredRows = [], colors, depo
                               key={idx}
                               className="text-[10px] px-1.5 py-0.5 rounded font-medium inline-flex items-center gap-1"
                               style={{ background: colors.mint + "1A", color: colors.mint, border: `1px solid ${colors.mint}33` }}
-                              title={`Lolos: ${fmtNum(fb.totalQty)}/${fmtNum(fb.targetQty)} ktn`}
+                              title={`Lolos: ${fmtNum(fb.totalQty)}/${fmtNum(fb.targetQty)} ${fb.targetUnit || "ktn"}`}
                             >
-                              ✓ {fb.ruleName} ({fmtNum(fb.totalQty)}/{fmtNum(fb.targetQty)})
+                              ✓ {fb.ruleName} ({fmtNum(fb.totalQty)}/{fmtNum(fb.targetQty)} {fb.targetUnit || ""})
                             </span>
                           );
                         }
@@ -770,7 +771,14 @@ function FocusRuleEditor({ initialData, availableGroups, colors, onSave, onCance
               className="w-full px-3 py-1.5 rounded-lg mono text-center font-bold"
               style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}
             />
-            <span style={{ color: colors.textMuted }}>ktn/pcs</span>
+            <input
+              type="text"
+              value={formData.targetUnit || ""}
+              onChange={(e) => setFormData({ ...formData, targetUnit: e.target.value })}
+              placeholder="ktn"
+              className="w-24 px-2 py-1.5 rounded-lg text-center font-medium"
+              style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}`, color: colors.textMuted }}
+            />
           </div>
         </div>
 
@@ -782,7 +790,7 @@ function FocusRuleEditor({ initialData, availableGroups, colors, onSave, onCance
             className="w-full px-3 py-1.5 rounded-lg"
             style={{ background: colors.glassSubtle, border: `1px solid ${colors.glassBorder}` }}
           >
-            <option value="per_unit">Bonus per Kuantitas Terjual (Rp/ktn)</option>
+            <option value="per_unit">Bonus per Kuantitas Terjual (Rp/{formData.targetUnit || "ktn"})</option>
             <option value="flat">Bonus Flat Sekali Cair (Rp)</option>
           </select>
         </div>
