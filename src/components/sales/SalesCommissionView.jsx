@@ -524,7 +524,7 @@ export function SalesCommissionView({ rows = [], filteredRows = [], colors, depo
             {
               key: "ach",
               label: "ACH Omset",
-              render: (r) => <AchBadge ach={r.ach} colors={colors} />,
+              render: (r) => <AchBadge ach={r.ach / 100} colors={colors} />,
             },
             {
               key: "valueCommission",

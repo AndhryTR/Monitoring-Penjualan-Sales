@@ -1,5 +1,19 @@
 [
   {
+    "version": "4.4.3",
+    "date": "2026-10-01",
+    "title": "Pembaruan Versi 4.4.3",
+    "features": [],
+    "fixes": [
+      {
+        "hash": "c69d302",
+        "scope": "Komisi",
+        "title": "Sertakan unit dan konv pada sanitasi worker agar konversi satuan insentif fokus berjalan dengan benar"
+      }
+    ],
+    "improvements": []
+  },
+  {
     "version": "4.4.2",
     "date": "2026-09-28",
     "title": "Pembaruan Versi 4.4.2",
