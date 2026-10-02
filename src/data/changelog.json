@@ -24,6 +24,11 @@
         "hash": "0bd62f3",
         "scope": "Tampilan",
         "title": "Perbaiki bug format persentase (ACH) pada kpi grup terbaik di product report"
+      },
+      {
+        "hash": "6445992",
+        "scope": "Ekspor Data",
+        "title": "Tingkatkan ukuran font dan kontras warna pada hasil export gambar laporan agar lebih terbaca di whatsapp, serta perbaiki pewarnaan nilai deviasi"
       }
     ],
     "improvements": []

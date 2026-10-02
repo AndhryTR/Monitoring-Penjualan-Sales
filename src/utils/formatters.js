@@ -20,6 +20,14 @@ export function fmtDeviasi(n) {
   return "Rp " + new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Math.round(n));
 }
 
+export function fmtDeviasiAo(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "-";
+  if (n < 0) {
+    return "+" + new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Math.round(Math.abs(n)));
+  }
+  return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Math.round(n));
+}
+
 
 /**
  * Format kuantitas/volume produk atau karton.

@@ -1,5 +1,5 @@
 import html2canvas from "html2canvas-pro";
-import { fmtRp, fmtNum, fmtPct, fmtDeviasi, formatDateID, esc, MONTHS_ID, formatGeneratedAt } from "./formatters.js";
+import { fmtRp, fmtNum, fmtPct, fmtDeviasi, fmtDeviasiAo, formatDateID, esc, MONTHS_ID, formatGeneratedAt } from "./formatters.js";
 import { dateStrToLocalDate } from "./excelParse.js";
 import { getAchColor } from "../constants/thresholds.js";
 import { APP_LOGO_BASE64 } from "./exportLogo.js";
@@ -480,7 +480,7 @@ export function buildExcelReportHTML(agg, targets, opts) {
     html += `<td style="padding:6px 4px;text-align:center;border:1px solid #E2E8F0;background:${rowBg};">${renderAchPill(sm.ach)}</td>`;
     html += `<td style="padding:6px 4px;text-align:center;border:1px solid #E2E8F0;background:${rowBg};">${renderAchPill(sm.achAo)}</td>`;
     html += `<td style="padding:6px 7px;text-align:right;font-weight:700;color:${pdfDeviasiTextColor(sm.deviasiValue)};border:1px solid #E2E8F0;background:${rowBg};white-space:nowrap;">${fmtDeviasi(sm.deviasiValue)}</td>`;
-    html += `<td style="padding:6px 4px;text-align:center;color:#334155;font-weight:700;border:1px solid #E2E8F0;background:${rowBg};">${fmtNum(sm.deviasiAo)}</td>`;
+    html += `<td style="padding:6px 4px;text-align:center;color:${pdfDeviasiTextColor(sm.deviasiAo)};font-weight:700;border:1px solid #E2E8F0;background:${rowBg};">${fmtDeviasiAo(sm.deviasiAo)}</td>`;
 
     // Focus product col in Row 0
     if (focusList.length === 0) {
@@ -514,7 +514,7 @@ export function buildExcelReportHTML(agg, targets, opts) {
         html += `<td style="padding:4px 4px;text-align:center;border:1px solid #E2E8F0;background:${rowBg};">${renderAchPill(g.ach)}</td>`;
         html += `<td style="padding:4px 4px;text-align:center;border:1px solid #E2E8F0;background:${rowBg};">${renderAchPill(g.achAo)}</td>`;
         html += `<td style="padding:4px 7px;text-align:right;font-size:11.5px;color:${pdfDeviasiTextColor(g.deviasiValue)};border:1px solid #E2E8F0;background:${rowBg};white-space:nowrap;">${fmtDeviasi(g.deviasiValue)}</td>`;
-        html += `<td style="padding:4px 4px;text-align:center;font-size:11.5px;color:#334155;border:1px solid #E2E8F0;background:${rowBg};">${fmtNum(g.deviasiAo)}</td>`;
+        html += `<td style="padding:4px 4px;text-align:center;font-size:11.5px;color:${pdfDeviasiTextColor(g.deviasiAo)};border:1px solid #E2E8F0;background:${rowBg};">${fmtDeviasiAo(g.deviasiAo)}</td>`;
       } else {
         for (let c = 0; c < 9; c++) {
           html += `<td style="border:1px solid #E2E8F0;background:${rowBg};"></td>`;
@@ -551,8 +551,8 @@ export function buildExcelReportHTML(agg, targets, opts) {
   html += `<td style="padding:9px 4px;text-align:center;border:1px solid #334155;">${renderAchPill(totalAchV)}</td>`;
   html += `<td style="padding:9px 4px;text-align:center;border:1px solid #334155;">${renderAchPill(totalAchAo)}</td>`;
   html += `<td style="padding:9px 7px;text-align:right;color:${pdfDeviasiTextColor(totalDeviasiV)};border:1px solid #334155;white-space:nowrap;">${fmtDeviasi(totalDeviasiV)}</td>`;
-  html += `<td style="padding:9px 4px;text-align:center;border:1px solid #334155;">${fmtNum(totalDeviasiAo)}</td>`;
-  html += `<td colspan="4" style="padding:9px 8px;text-align:center;font-size:12px;color:#1E293B;font-weight:500;border:1px solid #334155;">* Kuantitas produk fokus mengikuti satuan target</td>`;
+  html += `<td style="padding:9px 4px;text-align:center;color:${pdfDeviasiTextColor(totalDeviasiAo)};border:1px solid #334155;">${fmtDeviasiAo(totalDeviasiAo)}</td>`;
+  html += `<td colspan="4" style="padding:9px 8px;text-align:center;font-size:12px;color:#E5E7EB;font-weight:500;border:1px solid #334155;">* Kuantitas produk fokus mengikuti satuan target</td>`;
 
   if (includeIncentives) {
     html += `<td colspan="3" style="padding:9px 10px;text-align:right;color:#34D399;font-size:12.5px;font-weight:800;border:1px solid #059669;white-space:nowrap;">${fmtRp(totalDepoIncentive)}*</td>`;
