@@ -6,6 +6,11 @@
     "features": [],
     "fixes": [
       {
+        "hash": "bd54b11",
+        "scope": "Ekspor Data",
+        "title": "Ubah tampilan deviasi minus menjadi positif dengan awalan plus jika target terlampaui"
+      },
+      {
         "hash": "c69d302",
         "scope": "Komisi",
         "title": "Sertakan unit dan konv pada sanitasi worker agar konversi satuan insentif fokus berjalan dengan benar"
@@ -14,6 +19,11 @@
         "hash": "5a5c4e9",
         "scope": "Tampilan",
         "title": "Perbaiki bug tampilan ACH omset di tabel komisi menjadi format persentase yang benar"
+      },
+      {
+        "hash": "0bd62f3",
+        "scope": "Tampilan",
+        "title": "Perbaiki bug format persentase (ACH) pada kpi grup terbaik di product report"
       }
     ],
     "improvements": []
@@ -49,13 +59,7 @@
         "title": "Kalkulasi kuantitas cerdas berdasarkan input satuan pada insentif produk fokus"
       }
     ],
-    "fixes": [
-      {
-        "hash": "bd54b11",
-        "scope": "Ekspor Data",
-        "title": "Ubah tampilan deviasi minus menjadi positif dengan awalan plus jika target terlampaui"
-      }
-    ],
+    "fixes": [],
     "improvements": []
   },
   {

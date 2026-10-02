@@ -34,6 +34,11 @@ const PDF_COLORS = {
 // Mirror PERSIS dari achColor() di pdfExport.js — PDF laporan ini TIDAK pakai
 // gradien background (itu cuma fitur Excel), cuma warna TEKS 3-tingkat.
 // Jangan pakai achGradientColor (di bawah) untuk mirror PDF — beda template.
+function pdfDeviasiTextColor(dev) {
+  if (dev === null || dev === undefined) return "#334155";
+  return dev < 0 ? "#059669" : "#DC2626";
+}
+
 function pdfAchTextColor(ach) {
   return getAchColor(ach, PDF_COLORS);
 }
@@ -153,7 +158,7 @@ function pdfTd(content, { bg, color, bold, align = "left", fontSize = 11 } = {})
   return `<td style="${style}">${esc(content)}</td>`;
 }
 function pdfTh(content, { align = "center" } = {}) {
-  return `<th style="padding:5px 8px;text-align:${align};font-size:11px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;color:#fff;background:${PDF_COLORS.headerFill};border:1px solid ${PDF_COLORS.border};white-space:nowrap;">${esc(content)}</th>`;
+  return `<th style="padding:5px 8px;text-align:${align};font-size:12.5px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;color:#fff;background:${PDF_COLORS.headerFill};border:1px solid ${PDF_COLORS.border};white-space:nowrap;">${esc(content)}</th>`;
 }
 
 function buildSalesRowHtml(cols, achIndex = -1) {
@@ -161,13 +166,13 @@ function buildSalesRowHtml(cols, achIndex = -1) {
   // bold (baris "sales"). Kolom ach (kalau ada, achIndex) teksnya JUGA diwarnai
   // 3-tingkat — persis seperti didParseCell di PDF asli yang menerapkan
   // textColor=achColor(...) ke SEMUA baris (sales maupun grup), bukan cuma grup.
-  return `<tr>${cols.map((c, i) => pdfTd(c.content, { bg: PDF_COLORS.goldTint, bold: true, align: c.align, fontSize: c.fontSize, color: i === achIndex ? c.achColor : undefined })).join("")}</tr>`;
+  return `<tr>${cols.map((c, i) => pdfTd(c.content, { bg: PDF_COLORS.goldTint, bold: true, align: c.align, fontSize: c.fontSize, color: c.color || (i === achIndex ? c.achColor : undefined) })).join("")}</tr>`;
 }
 function buildGroupRowHtml(cols, achIndex) {
   // cols = array of {content, align} — baris "grup" polos, kolom ach (kalau ada)
   // diwarnai TEKS 3-tingkat (mint/gold/coral), BUKAN background gradien —
   // sesuai template PDF asli (achColor), beda dengan template Excel.
-  return `<tr>${cols.map((c, i) => pdfTd(c.content, { align: c.align, bold: i === achIndex, color: i === achIndex ? c.achColor : undefined })).join("")}</tr>`;
+  return `<tr>${cols.map((c, i) => pdfTd(c.content, { align: c.align, bold: i === achIndex, color: c.color || (i === achIndex ? c.achColor : undefined) })).join("")}</tr>`;
 }
 
 export function buildSalesGroupComparisonHTML(agg, opts) {
@@ -184,7 +189,7 @@ export function buildSalesGroupComparisonHTML(agg, opts) {
   html += `<div>`;
   html += `<div style="font-size:16px;font-weight:bold;color:${PDF_COLORS.text};">${esc(depotName || "DEPO")}</div>`;
   html += `<div style="font-size:13px;font-weight:bold;color:${PDF_COLORS.text};margin-top:3px;">LAPORAN PERBANDINGAN PENCAPAIAN SALES</div>`;
-  html += `<div style="font-size:10px;color:${PDF_COLORS.textMuted};margin-top:2px;">Grup: ${esc(groupLabel)} &nbsp;·&nbsp; ${esc(periodLabel)}</div>`;
+  html += `<div style="font-size:11.5px;color:${PDF_COLORS.textMuted};margin-top:2px;">Grup: ${esc(groupLabel)} &nbsp;·&nbsp; ${esc(periodLabel)}</div>`;
   html += `</div>`;
   html += `<div style="width:48px;height:48px;flex-shrink:0;">`;
   html += `<img src="${APP_LOGO_BASE64}" width="48" height="48" style="width:100%;height:100%;object-fit:contain;display:block;" alt="Logo" />`;
@@ -192,7 +197,7 @@ export function buildSalesGroupComparisonHTML(agg, opts) {
   html += `</div>`;
 
   // Section 1
-  html += `<div style="font-size:11px;font-weight:bold;color:${PDF_COLORS.text};margin:10px 0 4px;">Rekap per Grup Produk</div>`;
+  html += `<div style="font-size:12.5px;font-weight:bold;color:${PDF_COLORS.text};margin:10px 0 4px;">Rekap per Grup Produk</div>`;
   html += `<table style="border-collapse:collapse;width:100%;margin-bottom:14px;"><thead><tr>${pdfTh("Grup Produk", { align: "left" })}${pdfTh("Target")}${pdfTh("Realisasi")}${pdfTh("Ach%")}</tr></thead><tbody>`;
   sortedGroups.forEach((g) => {
     html += `<tr>${pdfTd(g.name)}${pdfTd(fmtRp(g.targetValue), { align: "right" })}${pdfTd(fmtRp(g.realisasiValue), { align: "right" })}${pdfTd(fmtPct(g.ach), { align: "right", bold: true, color: pdfAchTextColor(g.ach) })}</tr>`;
@@ -200,13 +205,13 @@ export function buildSalesGroupComparisonHTML(agg, opts) {
   html += `</tbody></table>`;
 
   // Section 2
-  html += `<div style="font-size:11px;font-weight:bold;color:${PDF_COLORS.text};margin:10px 0 4px;">Rekap per Sales — Total Periode</div>`;
+  html += `<div style="font-size:12.5px;font-weight:bold;color:${PDF_COLORS.text};margin:10px 0 4px;">Rekap per Sales — Total Periode</div>`;
   html += `<table style="border-collapse:collapse;width:100%;margin-bottom:14px;"><thead><tr>${pdfTh("#")}${pdfTh("Nama", { align: "left" })}${pdfTh("Target")}${pdfTh("Realisasi")}${pdfTh("Ach%")}${pdfTh("Deviasi")}${pdfTh("AO")}</tr></thead><tbody>`;
   sortedSales.forEach((s, idx) => {
     html += buildSalesRowHtml([
       { content: idx + 1, align: "center" }, { content: s.name, align: "left" },
       { content: fmtRp(s.targetValue), align: "right" }, { content: fmtRp(s.realisasiValue), align: "right" },
-      { content: fmtPct(s.ach), align: "right", achColor: pdfAchTextColor(s.ach) }, { content: s.deviasiValue !== null ? fmtDeviasi(s.deviasiValue) : "-", align: "right" },
+      { content: fmtPct(s.ach), align: "right", achColor: pdfAchTextColor(s.ach) }, { content: s.deviasiValue !== null ? fmtDeviasi(s.deviasiValue) : "-", align: "right", color: pdfDeviasiTextColor(s.deviasiValue) },
       { content: fmtNum(s.realisasiAo), align: "right" },
     ], 4);
     s.groups.forEach((g) => {
@@ -214,7 +219,7 @@ export function buildSalesGroupComparisonHTML(agg, opts) {
         { content: "", align: "center" }, { content: g.name, align: "left" },
         { content: fmtRp(g.targetValue), align: "right" }, { content: fmtRp(g.realisasiValue), align: "right" },
         { content: fmtPct(g.ach), align: "right", achColor: pdfAchTextColor(g.ach) },
-        { content: g.deviasiValue !== null ? fmtDeviasi(g.deviasiValue) : "-", align: "right" },
+        { content: g.deviasiValue !== null ? fmtDeviasi(g.deviasiValue) : "-", align: "right", color: pdfDeviasiTextColor(g.deviasiValue) },
         { content: fmtNum(g.realisasiAo), align: "right" },
       ], 4);
     });
@@ -222,9 +227,9 @@ export function buildSalesGroupComparisonHTML(agg, opts) {
   html += `</tbody></table>`;
 
   // Section 3
-  html += `<div style="font-size:11px;font-weight:bold;color:${PDF_COLORS.text};margin:10px 0 4px;">Pencapaian Hari Terakhir — ${esc(formatDateID(agg.meta.lastDate))}</div>`;
+  html += `<div style="font-size:12.5px;font-weight:bold;color:${PDF_COLORS.text};margin:10px 0 4px;">Pencapaian Hari Terakhir — ${esc(formatDateID(agg.meta.lastDate))}</div>`;
   if (lastDateRows.length === 0) {
-    html += `<div style="font-size:10px;color:${PDF_COLORS.textMuted};">Tidak ada transaksi pada tanggal ini untuk grup yang difilter.</div>`;
+    html += `<div style="font-size:11.5px;color:${PDF_COLORS.textMuted};">Tidak ada transaksi pada tanggal ini untuk grup yang difilter.</div>`;
   } else {
     html += `<table style="border-collapse:collapse;width:100%;"><thead><tr>${pdfTh("#")}${pdfTh("Nama", { align: "left" })}${pdfTh("Realisasi")}${pdfTh("AO")}</tr></thead><tbody>`;
     sortedSales.forEach((s, idx) => {
@@ -262,17 +267,17 @@ export function buildSalesGroupComparisonHTML(agg, opts) {
 
 function renderAchPill(ach) {
   if (ach === null || ach === undefined || Number.isNaN(ach)) {
-    return `<span style="color:${PDF_COLORS.textMuted};font-size:11px;">-</span>`;
+    return `<span style="color:${PDF_COLORS.textMuted};font-size:12.5px;">-</span>`;
   }
   const color = getAchColor(ach, PDF_COLORS);
-  return `<span style="display:inline-block;padding:2px 7px;border-radius:12px;font-size:10px;font-weight:700;color:${color};background:${color}1A;border:1px solid ${color}44;white-space:nowrap;">${fmtPct(ach)}</span>`;
+  return `<span style="display:inline-block;padding:2px 7px;border-radius:12px;font-size:11.5px;font-weight:700;color:${color};background:${color}1A;border:1px solid ${color}44;white-space:nowrap;">${fmtPct(ach)}</span>`;
 }
 
 function renderRatePill(rate) {
   if (!rate) {
-    return `<span style="display:inline-block;padding:2px 6px;border-radius:10px;font-size:9.5px;font-weight:700;background:#F1F5F9;color:${PDF_COLORS.textMuted};border:1px solid #E2E8F0;">0%</span>`;
+    return `<span style="display:inline-block;padding:2px 6px;border-radius:10px;font-size:12px;font-weight:700;background:#F1F5F9;color:${PDF_COLORS.textMuted};border:1px solid #E2E8F0;">0%</span>`;
   }
-  return `<span style="display:inline-block;padding:2px 6px;border-radius:10px;font-size:9.5px;font-weight:700;background:${PDF_COLORS.gold}1A;color:${PDF_COLORS.gold};border:1px solid ${PDF_COLORS.gold}44;">${rate}%*</span>`;
+  return `<span style="display:inline-block;padding:2px 6px;border-radius:10px;font-size:12px;font-weight:700;background:${PDF_COLORS.gold}1A;color:${PDF_COLORS.gold};border:1px solid ${PDF_COLORS.gold}44;">${rate}%*</span>`;
 }
 
 function renderTierBadge(tier) {
@@ -347,7 +352,7 @@ export function buildExcelReportHTML(agg, targets, opts) {
   html += `</div>`;
   html += `<div>`;
   html += `<div style="font-size:20px;font-weight:800;color:#0F172A;letter-spacing:-0.02em;">${esc(depotName || "DEPO LOTIM")}</div>`;
-  html += `<div style="font-size:11px;font-weight:600;color:#64748B;letter-spacing:0.04em;text-transform:uppercase;">${includeIncentives ? "LAPORAN MONITORING PENCAPAIAN PENJUALAN & KALKULASI INSENTIF SALES" : "LAPORAN MONITORING PENCAPAIAN PENJUALAN SALES"}</div>`;
+  html += `<div style="font-size:12.5px;font-weight:600;color:#334155;letter-spacing:0.04em;text-transform:uppercase;">${includeIncentives ? "LAPORAN MONITORING PENCAPAIAN PENJUALAN & KALKULASI INSENTIF SALES" : "LAPORAN MONITORING PENCAPAIAN PENJUALAN SALES"}</div>`;
   html += `</div>`;
   html += `</div>`;
 
@@ -358,7 +363,7 @@ export function buildExcelReportHTML(agg, targets, opts) {
   html += `<span>Cut-off: <b>${esc(fmtDMonYY(lastDateObj))}</b></span>`;
   html += `</div>`;
   if (includeIncentives && commissionRules) {
-    html += `<div style="font-size:9.5px;color:#64748B;margin-top:4px;">Aturan Insentif: Standar FMCG Depo (Tier 1 ≥${commissionRules.tier1MinAch}%, T2 ≥${commissionRules.tier2MinAch}%, T3 ≥${commissionRules.tier3MinAch}%)</div>`;
+    html += `<div style="font-size:12px;color:#334155;margin-top:4px;">Aturan Insentif: Standar FMCG Depo (Tier 1 ≥${commissionRules.tier1MinAch}%, T2 ≥${commissionRules.tier2MinAch}%, T3 ≥${commissionRules.tier3MinAch}%)</div>`;
   }
   html += `</div>`;
   html += `</div>`;
@@ -369,63 +374,63 @@ export function buildExcelReportHTML(agg, targets, opts) {
 
   // Card 1: Hari Kerja
   html += `<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;">`;
-  html += `<div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">PROGRESS HARI KERJA</div>`;
-  html += `<div style="font-size:16px;font-weight:800;color:#0F172A;">Hari ke-${sdHariIni} <span style="font-size:12px;font-weight:500;color:#64748B;">/ ${workDays || 0} HK</span></div>`;
-  html += `<div style="font-size:10.5px;font-weight:600;color:${PDF_COLORS.gold};margin-top:2px;">Time Gone ${fmtPct(timeGone)}</div>`;
+  html += `<div style="font-size:11.5px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">PROGRESS HARI KERJA</div>`;
+  html += `<div style="font-size:16px;font-weight:800;color:#0F172A;">Hari ke-${sdHariIni} <span style="font-size:12px;font-weight:500;color:#334155;">/ ${workDays || 0} HK</span></div>`;
+  html += `<div style="font-size:12px;font-weight:600;color:${PDF_COLORS.gold};margin-top:2px;">Time Gone ${fmtPct(timeGone)}</div>`;
   html += `</div>`;
 
   // Card 2: Sisa Waktu
   html += `<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;">`;
-  html += `<div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">SISA WAKTU KERJA</div>`;
+  html += `<div style="font-size:11.5px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">SISA WAKTU KERJA</div>`;
   html += `<div style="font-size:16px;font-weight:800;color:#0F172A;">${sisaHk} Hari</div>`;
-  html += `<div style="font-size:10.5px;color:${PDF_COLORS.textMuted};margin-top:2px;">${fmtPct(sisaTimePct)} periode tersisa</div>`;
+  html += `<div style="font-size:12px;color:${PDF_COLORS.textMuted};margin-top:2px;">${fmtPct(sisaTimePct)} periode tersisa</div>`;
   html += `</div>`;
 
   // Card 3: Realisasi Depo
   html += `<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;">`;
-  html += `<div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">TOTAL REALISASI DEPO</div>`;
+  html += `<div style="font-size:11.5px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">TOTAL REALISASI DEPO</div>`;
   html += `<div style="font-size:16px;font-weight:800;color:${PDF_COLORS.mint};">${fmtCompactRp(totalRealV)}</div>`;
-  html += `<div style="font-size:10.5px;font-weight:600;color:${PDF_COLORS.mint};margin-top:2px;">Pencapaian ${fmtPct(totalAchV)} <span style="font-weight:normal;color:${PDF_COLORS.textMuted};">• ${fmtNum(totalRealAo)} AO</span></div>`;
+  html += `<div style="font-size:12px;font-weight:600;color:${PDF_COLORS.mint};margin-top:2px;">Pencapaian ${fmtPct(totalAchV)} <span style="font-weight:normal;color:${PDF_COLORS.textMuted};">• ${fmtNum(totalRealAo)} AO</span></div>`;
   html += `</div>`;
 
   // Card 4: Target Bulanan
   html += `<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;">`;
-  html += `<div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">TARGET BULANAN DEPO</div>`;
+  html += `<div style="font-size:11.5px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">TARGET BULANAN DEPO</div>`;
   html += `<div style="font-size:16px;font-weight:800;color:#0F172A;">${fmtCompactRp(totalTargetV)}</div>`;
-  html += `<div style="font-size:10.5px;color:#64748B;margin-top:2px;">Sisa Target: ${fmtCompactRp(totalDeviasiV)}</div>`;
+  html += `<div style="font-size:12px;color:#334155;margin-top:2px;">Sisa Target: ${fmtCompactRp(totalDeviasiV)}</div>`;
   html += `</div>`;
 
   // Card 5: Estimasi Insentif (Optional)
   if (includeIncentives) {
     html += `<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;padding:12px 14px;">`;
-    html += `<div style="font-size:10px;font-weight:700;color:#065F46;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">ESTIMASI INSENTIF DEPO</div>`;
+    html += `<div style="font-size:11.5px;font-weight:700;color:#065F46;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">ESTIMASI INSENTIF DEPO</div>`;
     html += `<div style="font-size:16px;font-weight:800;color:#047857;">${fmtRp(totalDepoIncentive)}*</div>`;
-    html += `<div style="font-size:10.5px;font-weight:600;color:#059669;margin-top:2px;">Kalkulasi Berjalan Depo</div>`;
+    html += `<div style="font-size:12px;font-weight:600;color:#059669;margin-top:2px;">Kalkulasi Berjalan Depo</div>`;
     html += `</div>`;
   }
 
   html += `</div>`; // End KPI Grid
 
   // 3. MAIN DATA TABLE
-  html += `<table style="width:100%;border-collapse:collapse;font-size:11px;border:1px solid #CBD5E1;">`;
+  html += `<table style="width:100%;border-collapse:collapse;font-size:12.5px;border:1px solid #CBD5E1;">`;
   html += `<thead>`;
 
   // Header Row 1
   html += `<tr style="color:#FFFFFF;text-align:center;">`;
-  html += `<th rowspan="2" style="background:#0F172A;width:36px;padding:8px 4px;font-weight:700;border:1px solid #334155;font-size:10px;vertical-align:middle;line-height:1.2;">NO</th>`;
-  html += `<th rowspan="2" style="background:#0F172A;padding:8px 8px;font-weight:700;border:1px solid #334155;text-align:center;font-size:10.5px;min-width:140px;vertical-align:middle;line-height:1.2;">SALESMAN</th>`;
-  html += `<th colspan="2" style="background:#0F172A;padding:6px;font-weight:700;border:1px solid #334155;font-size:10px;letter-spacing:0.03em;">TARGET</th>`;
-  html += `<th colspan="2" style="background:#0F172A;padding:6px;font-weight:700;border:1px solid #334155;font-size:10px;letter-spacing:0.03em;">REALISASI</th>`;
-  html += `<th colspan="2" style="background:#0F172A;padding:6px;font-weight:700;border:1px solid #334155;font-size:10px;letter-spacing:0.03em;">ACH</th>`;
-  html += `<th colspan="2" style="background:#0F172A;padding:6px;font-weight:700;border:1px solid #334155;font-size:10px;letter-spacing:0.03em;">DEVIASI</th>`;
-  html += `<th colspan="4" style="background:#1E3A8A;padding:6px;font-weight:700;border:1px solid #3B82F6;font-size:10px;letter-spacing:0.03em;">PRODUK FOKUS</th>`;
+  html += `<th rowspan="2" style="background:#0F172A;width:36px;padding:8px 4px;font-weight:700;border:1px solid #334155;font-size:11.5px;vertical-align:middle;line-height:1.2;">NO</th>`;
+  html += `<th rowspan="2" style="background:#0F172A;padding:8px 8px;font-weight:700;border:1px solid #334155;text-align:center;font-size:12px;min-width:140px;vertical-align:middle;line-height:1.2;">SALESMAN</th>`;
+  html += `<th colspan="2" style="background:#0F172A;padding:6px;font-weight:700;border:1px solid #334155;font-size:11.5px;letter-spacing:0.03em;">TARGET</th>`;
+  html += `<th colspan="2" style="background:#0F172A;padding:6px;font-weight:700;border:1px solid #334155;font-size:11.5px;letter-spacing:0.03em;">REALISASI</th>`;
+  html += `<th colspan="2" style="background:#0F172A;padding:6px;font-weight:700;border:1px solid #334155;font-size:11.5px;letter-spacing:0.03em;">ACH</th>`;
+  html += `<th colspan="2" style="background:#0F172A;padding:6px;font-weight:700;border:1px solid #334155;font-size:11.5px;letter-spacing:0.03em;">DEVIASI</th>`;
+  html += `<th colspan="4" style="background:#1E3A8A;padding:6px;font-weight:700;border:1px solid #3B82F6;font-size:11.5px;letter-spacing:0.03em;">PRODUK FOKUS</th>`;
   if (includeIncentives) {
-    html += `<th colspan="3" style="background:#064E3B;padding:6px;font-weight:700;border:1px solid #059669;font-size:10px;letter-spacing:0.03em;">ESTIMASI INSENTIF</th>`;
+    html += `<th colspan="3" style="background:#064E3B;padding:6px;font-weight:700;border:1px solid #059669;font-size:11.5px;letter-spacing:0.03em;">ESTIMASI INSENTIF</th>`;
   }
   html += `</tr>`;
 
   // Header Row 2
-  html += `<tr style="color:#CBD5E1;font-size:9.5px;text-align:center;">`;
+  html += `<tr style="color:#CBD5E1;font-size:12px;text-align:center;">`;
   html += `<th style="background:#1E293B;padding:5px 6px;border:1px solid #334155;width:90px;">VALUE</th>`;
   html += `<th style="background:#1E293B;padding:5px 4px;border:1px solid #334155;width:34px;">AO</th>`;
   html += `<th style="background:#1E293B;padding:5px 6px;border:1px solid #334155;width:90px;">VALUE</th>`;
@@ -462,7 +467,7 @@ export function buildExcelReportHTML(agg, targets, opts) {
     // 1. SALESMAN SUMMARY ROW (Row 0)
     html += `<tr style="border-top:1px solid #94A3B8;">`;
     // NO column: centered horizontally and vertically across the salesman block
-    html += `<td rowspan="${totalRows}" style="text-align:center;vertical-align:middle;font-weight:800;color:#0F172A;border:1px solid #CBD5E1;background:${rowBg};padding:6px 4px;font-size:11px;">${idx + 1}</td>`;
+    html += `<td rowspan="${totalRows}" style="text-align:center;vertical-align:middle;font-weight:800;color:#0F172A;border:1px solid #CBD5E1;background:${rowBg};padding:6px 4px;font-size:12.5px;">${idx + 1}</td>`;
     html += `<td style="padding:6px 8px;font-weight:800;color:#0F172A;border:1px solid #E2E8F0;background:${rowBg};white-space:nowrap;">`;
     html += `<span style="display:inline-block;width:3px;height:12px;background:#059669;border-radius:2px;margin-right:6px;vertical-align:middle;"></span>`;
     html += `${esc(sm.name)} ${renderTierBadge(sm.tier)}`;
@@ -474,14 +479,14 @@ export function buildExcelReportHTML(agg, targets, opts) {
     html += `<td style="padding:6px 4px;text-align:center;font-weight:800;border:1px solid #E2E8F0;background:${rowBg};">${fmtNum(sm.realisasiAo)}</td>`;
     html += `<td style="padding:6px 4px;text-align:center;border:1px solid #E2E8F0;background:${rowBg};">${renderAchPill(sm.ach)}</td>`;
     html += `<td style="padding:6px 4px;text-align:center;border:1px solid #E2E8F0;background:${rowBg};">${renderAchPill(sm.achAo)}</td>`;
-    html += `<td style="padding:6px 7px;text-align:right;font-weight:700;color:#DC2626;border:1px solid #E2E8F0;background:${rowBg};white-space:nowrap;">${fmtDeviasi(sm.deviasiValue)}</td>`;
-    html += `<td style="padding:6px 4px;text-align:center;color:#64748B;font-weight:700;border:1px solid #E2E8F0;background:${rowBg};">${fmtNum(sm.deviasiAo)}</td>`;
+    html += `<td style="padding:6px 7px;text-align:right;font-weight:700;color:${pdfDeviasiTextColor(sm.deviasiValue)};border:1px solid #E2E8F0;background:${rowBg};white-space:nowrap;">${fmtDeviasi(sm.deviasiValue)}</td>`;
+    html += `<td style="padding:6px 4px;text-align:center;color:#334155;font-weight:700;border:1px solid #E2E8F0;background:${rowBg};">${fmtNum(sm.deviasiAo)}</td>`;
 
     // Focus product col in Row 0
     if (focusList.length === 0) {
-      html += `<td colspan="4" rowspan="${totalRows}" style="padding:6px;text-align:center;vertical-align:middle;color:#94A3B8;font-size:10.5px;font-style:italic;border:1px solid #E2E8F0;background:#FAFAFA;white-space:nowrap;">— Tidak ada target fokus —</td>`;
+      html += `<td colspan="4" rowspan="${totalRows}" style="padding:6px;text-align:center;vertical-align:middle;color:#1E293B;font-size:12px;font-style:italic;border:1px solid #E2E8F0;background:#FAFAFA;white-space:nowrap;">— Tidak ada target fokus —</td>`;
     } else {
-      html += `<td colspan="4" style="padding:5px 6px;text-align:center;font-weight:700;font-size:9.5px;color:#1E40AF;background:#EFF6FF;border:1px solid #BFDBFE;white-space:nowrap;">🎯 TARGET PRODUK FOKUS (${focusList.length} SKU)</td>`;
+      html += `<td colspan="4" style="padding:5px 6px;text-align:center;font-weight:700;font-size:12px;color:#1E40AF;background:#EFF6FF;border:1px solid #BFDBFE;white-space:nowrap;">🎯 TARGET PRODUK FOKUS (${focusList.length} SKU)</td>`;
     }
 
     // Incentive cols in Row 0
@@ -501,15 +506,15 @@ export function buildExcelReportHTML(agg, targets, opts) {
 
       if (i < groups.length) {
         const g = groups[i];
-        html += `<td style="padding:4px 8px 4px 18px;font-size:10px;color:#475569;border:1px solid #E2E8F0;background:${rowBg};white-space:nowrap;">↳ ${esc(g.name)}</td>`;
-        html += `<td style="padding:4px 7px;text-align:right;font-size:10px;color:#64748B;border:1px solid #E2E8F0;background:${rowBg};white-space:nowrap;">${fmtRp(g.targetValue)}</td>`;
-        html += `<td style="padding:4px 4px;text-align:center;font-size:10px;color:#64748B;border:1px solid #E2E8F0;background:${rowBg};">${fmtNum(g.targetAo)}</td>`;
-        html += `<td style="padding:4px 7px;text-align:right;font-size:10px;color:#0F172A;border:1px solid #E2E8F0;background:${rowBg};white-space:nowrap;">${fmtRp(g.realisasiValue)}</td>`;
-        html += `<td style="padding:4px 4px;text-align:center;font-size:10px;color:#0F172A;border:1px solid #E2E8F0;background:${rowBg};">${fmtNum(g.realisasiAo)}</td>`;
+        html += `<td style="padding:4px 8px 4px 18px;font-size:11.5px;color:#1E293B;border:1px solid #E2E8F0;background:${rowBg};white-space:nowrap;">↳ ${esc(g.name)}</td>`;
+        html += `<td style="padding:4px 7px;text-align:right;font-size:11.5px;color:#334155;border:1px solid #E2E8F0;background:${rowBg};white-space:nowrap;">${fmtRp(g.targetValue)}</td>`;
+        html += `<td style="padding:4px 4px;text-align:center;font-size:11.5px;color:#334155;border:1px solid #E2E8F0;background:${rowBg};">${fmtNum(g.targetAo)}</td>`;
+        html += `<td style="padding:4px 7px;text-align:right;font-size:11.5px;color:#0F172A;border:1px solid #E2E8F0;background:${rowBg};white-space:nowrap;">${fmtRp(g.realisasiValue)}</td>`;
+        html += `<td style="padding:4px 4px;text-align:center;font-size:11.5px;color:#0F172A;border:1px solid #E2E8F0;background:${rowBg};">${fmtNum(g.realisasiAo)}</td>`;
         html += `<td style="padding:4px 4px;text-align:center;border:1px solid #E2E8F0;background:${rowBg};">${renderAchPill(g.ach)}</td>`;
         html += `<td style="padding:4px 4px;text-align:center;border:1px solid #E2E8F0;background:${rowBg};">${renderAchPill(g.achAo)}</td>`;
-        html += `<td style="padding:4px 7px;text-align:right;font-size:10px;color:#64748B;border:1px solid #E2E8F0;background:${rowBg};white-space:nowrap;">${fmtDeviasi(g.deviasiValue)}</td>`;
-        html += `<td style="padding:4px 4px;text-align:center;font-size:10px;color:#64748B;border:1px solid #E2E8F0;background:${rowBg};">${fmtNum(g.deviasiAo)}</td>`;
+        html += `<td style="padding:4px 7px;text-align:right;font-size:11.5px;color:${pdfDeviasiTextColor(g.deviasiValue)};border:1px solid #E2E8F0;background:${rowBg};white-space:nowrap;">${fmtDeviasi(g.deviasiValue)}</td>`;
+        html += `<td style="padding:4px 4px;text-align:center;font-size:11.5px;color:#334155;border:1px solid #E2E8F0;background:${rowBg};">${fmtNum(g.deviasiAo)}</td>`;
       } else {
         for (let c = 0; c < 9; c++) {
           html += `<td style="border:1px solid #E2E8F0;background:${rowBg};"></td>`;
@@ -520,9 +525,9 @@ export function buildExcelReportHTML(agg, targets, opts) {
       if (focusList.length > 0) {
         if (i < focusList.length) {
           const fi = focusList[i];
-          html += `<td style="padding:4px 6px;border:1px solid #E2E8F0;font-size:10px;color:#334155;background:${rowBg};white-space:nowrap;">${esc(fi.hasUnconvertible ? `${fi.name} *` : fi.name)}</td>`;
-          html += `<td style="padding:4px 4px;text-align:center;border:1px solid #E2E8F0;font-size:10px;background:${rowBg};">${fmtNum(fi.target)}</td>`;
-          html += `<td style="padding:4px 4px;text-align:center;border:1px solid #E2E8F0;font-size:10px;font-weight:600;background:${rowBg};">${fmtNum(fi.realisasi)}</td>`;
+          html += `<td style="padding:4px 6px;border:1px solid #E2E8F0;font-size:11.5px;color:#334155;background:${rowBg};white-space:nowrap;">${esc(fi.hasUnconvertible ? `${fi.name} *` : fi.name)}</td>`;
+          html += `<td style="padding:4px 4px;text-align:center;border:1px solid #E2E8F0;font-size:11.5px;background:${rowBg};">${fmtNum(fi.target)}</td>`;
+          html += `<td style="padding:4px 4px;text-align:center;border:1px solid #E2E8F0;font-size:11.5px;font-weight:600;background:${rowBg};">${fmtNum(fi.realisasi)}</td>`;
           html += `<td style="padding:4px 4px;text-align:center;border:1px solid #E2E8F0;background:${rowBg};">${renderAchPill(fi.pct)}</td>`;
         } else {
           for (let c = 0; c < 4; c++) {
@@ -538,25 +543,25 @@ export function buildExcelReportHTML(agg, targets, opts) {
   // 4. TOTAL FOOTER ROW
   html += `</tbody><tfoot>`;
   html += `<tr style="background:#0F172A;color:#FFFFFF;font-weight:800;border:1px solid #0F172A;">`;
-  html += `<td colspan="2" style="padding:9px 10px;text-align:left;font-size:11px;letter-spacing:0.04em;border:1px solid #334155;">TOTAL PENCAPAIAN DEPO</td>`;
+  html += `<td colspan="2" style="padding:9px 10px;text-align:left;font-size:12.5px;letter-spacing:0.04em;border:1px solid #334155;">TOTAL PENCAPAIAN DEPO</td>`;
   html += `<td style="padding:9px 7px;text-align:right;border:1px solid #334155;white-space:nowrap;">${fmtRp(totalTargetV)}</td>`;
   html += `<td style="padding:9px 4px;text-align:center;border:1px solid #334155;">${fmtNum(totalTargetAo)}</td>`;
   html += `<td style="padding:9px 7px;text-align:right;color:#34D399;border:1px solid #334155;white-space:nowrap;">${fmtRp(totalRealV)}</td>`;
   html += `<td style="padding:9px 4px;text-align:center;color:#34D399;border:1px solid #334155;">${fmtNum(totalRealAo)}</td>`;
   html += `<td style="padding:9px 4px;text-align:center;border:1px solid #334155;">${renderAchPill(totalAchV)}</td>`;
   html += `<td style="padding:9px 4px;text-align:center;border:1px solid #334155;">${renderAchPill(totalAchAo)}</td>`;
-  html += `<td style="padding:9px 7px;text-align:right;color:#F87171;border:1px solid #334155;white-space:nowrap;">${fmtDeviasi(totalDeviasiV)}</td>`;
+  html += `<td style="padding:9px 7px;text-align:right;color:${pdfDeviasiTextColor(totalDeviasiV)};border:1px solid #334155;white-space:nowrap;">${fmtDeviasi(totalDeviasiV)}</td>`;
   html += `<td style="padding:9px 4px;text-align:center;border:1px solid #334155;">${fmtNum(totalDeviasiAo)}</td>`;
-  html += `<td colspan="4" style="padding:9px 8px;text-align:center;font-size:9.5px;color:#94A3B8;font-weight:500;border:1px solid #334155;">* Produk fokus dalam karton</td>`;
+  html += `<td colspan="4" style="padding:9px 8px;text-align:center;font-size:12px;color:#1E293B;font-weight:500;border:1px solid #334155;">* Kuantitas produk fokus mengikuti satuan target</td>`;
 
   if (includeIncentives) {
-    html += `<td colspan="3" style="padding:9px 10px;text-align:right;color:#34D399;font-size:11px;font-weight:800;border:1px solid #059669;white-space:nowrap;">${fmtRp(totalDepoIncentive)}*</td>`;
+    html += `<td colspan="3" style="padding:9px 10px;text-align:right;color:#34D399;font-size:12.5px;font-weight:800;border:1px solid #059669;white-space:nowrap;">${fmtRp(totalDepoIncentive)}*</td>`;
   }
   html += `</tr>`;
   html += `</tfoot></table>`;
 
   // 5. FOOTER NOTES
-  html += `<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:14px;padding-top:10px;border-top:1px solid #E2E8F0;font-size:9.5px;color:#64748B;">`;
+  html += `<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:14px;padding-top:10px;border-top:1px solid #E2E8F0;font-size:12px;color:#334155;">`;
   html += `<div>`;
   if (includeIncentives) {
     html += `<div>💡 <b>Catatan Insentif:</b> Angka bertanda (*) adalah estimasi proyeksi/kalkulasi insentif berdasarkan target & aturan komisi berjalan depo.</div>`;
@@ -567,8 +572,8 @@ export function buildExcelReportHTML(agg, targets, opts) {
   }
   html += `</div>`;
   html += `<div style="text-align:right;flex-shrink:0;">`;
-  html += `<div style="font-weight:600;color:#64748B;">Dibuat otomatis oleh Monitoring Penjualan — ${esc(formatGeneratedAt())}</div>`;
-  html += `<div style="font-size:8.5px;color:#94A3B8;margin-top:2px;">Monitoring Penjualan Sales • Versi 4.4.2</div>`;
+  html += `<div style="font-weight:600;color:#334155;">Dibuat otomatis oleh Monitoring Penjualan — ${esc(formatGeneratedAt())}</div>`;
+  html += `<div style="font-size:12px;color:#1E293B;margin-top:2px;">Monitoring Penjualan Sales • Versi 4.4.2</div>`;
   html += `</div>`;
   html += `</div>`;
 
