@@ -29,6 +29,11 @@
         "hash": "6445992",
         "scope": "Ekspor Data",
         "title": "Tingkatkan ukuran font dan kontras warna pada hasil export gambar laporan agar lebih terbaca di whatsapp, serta perbaiki pewarnaan nilai deviasi"
+      },
+      {
+        "hash": "4c6fa4e",
+        "scope": "Ekspor Data",
+        "title": "Ubah formatting teks deviasi AO agar tidak membingungkan saat surplus dan berikan warna dinamis (merah/hijau)"
       }
     ],
     "improvements": []

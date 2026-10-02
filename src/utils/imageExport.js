@@ -3,6 +3,7 @@ import { fmtRp, fmtNum, fmtPct, fmtDeviasi, fmtDeviasiAo, formatDateID, esc, MON
 import { dateStrToLocalDate } from "./excelParse.js";
 import { getAchColor } from "../constants/thresholds.js";
 import { APP_LOGO_BASE64 } from "./exportLogo.js";
+import changelogData from "../data/changelog.json";
 import { getStoredCommissionRules, calculateSingleSalesCommission } from "./commissionEngine.js";
 
 /* ============================================================================
@@ -20,6 +21,8 @@ import { getStoredCommissionRules, calculateSingleSalesCommission } from "./comm
 ============================================================================ */
 
 // ---- Warna khusus mirror "Laporan Perbandingan Sales" (PDF) ----
+const APP_VERSION = changelogData?.[0]?.version || "4.4.3";
+
 const PDF_COLORS = {
   headerFill: "#111827",
   goldTint: "#F9EBDA",
@@ -573,7 +576,7 @@ export function buildExcelReportHTML(agg, targets, opts) {
   html += `</div>`;
   html += `<div style="text-align:right;flex-shrink:0;">`;
   html += `<div style="font-weight:600;color:#334155;">Dibuat otomatis oleh Monitoring Penjualan — ${esc(formatGeneratedAt())}</div>`;
-  html += `<div style="font-size:12px;color:#1E293B;margin-top:2px;">Monitoring Penjualan Sales • Versi 4.4.2</div>`;
+  html += `<div style="font-size:12px;color:#1E293B;margin-top:2px;">Monitoring Penjualan Sales • Versi ${APP_VERSION}</div>`;
   html += `</div>`;
   html += `</div>`;
 
