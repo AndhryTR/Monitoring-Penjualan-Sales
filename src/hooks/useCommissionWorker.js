@@ -39,6 +39,21 @@ export function useCommissionWorker(salesList, rules, transactionRows) {
       realisasiAo: Number(s.realisasiAo ?? s.ao ?? 0),
       targetAo: Number(s.targetAo ?? 0),
       achAo: s.achAo !== null && s.achAo !== undefined ? Number(s.achAo) : null,
+      focus: Array.isArray(s.focus)
+        ? s.focus.map((f) => ({
+            name: f.name || "",
+            target: Number(f.target) || 0,
+            keyword: f.keyword || "",
+            matchType: f.matchType || "",
+          }))
+        : [],
+      focusGroups: Array.isArray(s.focusGroups)
+        ? s.focusGroups.map((fg) => ({
+            name: fg.name || "",
+            targetAo: Number(fg.targetAo) || 0,
+            targetValue: Number(fg.targetValue) || 0,
+          }))
+        : [],
     }));
   }, [salesList]);
 

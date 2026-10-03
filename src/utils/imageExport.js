@@ -276,11 +276,19 @@ function renderAchPill(ach) {
   return `<span style="display:inline-block;padding:2px 7px;border-radius:12px;font-size:11.5px;font-weight:700;color:${color};background:${color}1A;border:1px solid ${color}44;white-space:nowrap;">${fmtPct(ach)}</span>`;
 }
 
-function renderRatePill(rate) {
-  if (!rate) {
+function renderRatePill(commOrRate) {
+  if (commOrRate && typeof commOrRate === "object") {
+    if (commOrRate.valueMode === "flat_tier") {
+      const label = commOrRate.tierShortLabel || "—";
+      const active = commOrRate.valueCommission > 0;
+      return `<span style="display:inline-block;padding:2px 6px;border-radius:10px;font-size:11px;font-weight:700;background:${active ? PDF_COLORS.gold + "1A" : "#F1F5F9"};color:${active ? PDF_COLORS.gold : PDF_COLORS.textMuted};border:1px solid ${active ? PDF_COLORS.gold + "44" : "#E2E8F0"};white-space:nowrap;">${esc(label)}</span>`;
+    }
+    commOrRate = commOrRate.appliedRatePct;
+  }
+  if (!commOrRate) {
     return `<span style="display:inline-block;padding:2px 6px;border-radius:10px;font-size:12px;font-weight:700;background:#F1F5F9;color:${PDF_COLORS.textMuted};border:1px solid #E2E8F0;">0%</span>`;
   }
-  return `<span style="display:inline-block;padding:2px 6px;border-radius:10px;font-size:12px;font-weight:700;background:${PDF_COLORS.gold}1A;color:${PDF_COLORS.gold};border:1px solid ${PDF_COLORS.gold}44;">${rate}%*</span>`;
+  return `<span style="display:inline-block;padding:2px 6px;border-radius:10px;font-size:12px;font-weight:700;background:${PDF_COLORS.gold}1A;color:${PDF_COLORS.gold};border:1px solid ${PDF_COLORS.gold}44;">${commOrRate}%*</span>`;
 }
 
 function renderTierBadge(tier) {
@@ -494,7 +502,7 @@ export function buildExcelReportHTML(agg, targets, opts) {
 
     // Incentive cols in Row 0
     if (includeIncentives) {
-      html += `<td rowspan="${totalRows}" style="padding:6px 4px;text-align:center;vertical-align:middle;border:1px solid #E2E8F0;background:${rowBg};">${renderRatePill(comm?.appliedRatePct)}</td>`;
+      html += `<td rowspan="${totalRows}" style="padding:6px 4px;text-align:center;vertical-align:middle;border:1px solid #E2E8F0;background:${rowBg};">${renderRatePill(comm)}</td>`;
       html += `<td rowspan="${totalRows}" style="padding:6px 7px;text-align:right;vertical-align:middle;font-weight:700;color:#0F172A;border:1px solid #E2E8F0;background:${rowBg};white-space:nowrap;">${fmtRp(comm?.valueCommission || 0)}*</td>`;
       html += `<td rowspan="${totalRows}" style="padding:6px 7px;text-align:right;vertical-align:middle;font-weight:800;color:#059669;border:1px solid #E2E8F0;background:${rowBg};white-space:nowrap;">${fmtRp(comm?.totalIncentive || 0)}*</td>`;
     }
