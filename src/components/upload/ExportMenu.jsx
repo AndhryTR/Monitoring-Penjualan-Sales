@@ -450,59 +450,109 @@ export function ExportMenu({
     if (activeTab === "sales") {
       return (
         <>
-          <SectionLabel colors={colors}>Excel</SectionLabel>
-          <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Sales (Excel)"
-            desc="2 Sheet: Per Grup Produk & Total vs Hari Terakhir"
-            colors={colors}
-            onClick={async () => {
-              const { exportSalesReportExcel } = await import("../../utils/reportExcelExport.js");
-              const groupRows = agg.bySales.flatMap((sm) => sm.groups.map((g) => ({
-                salesName: sm.name, groupName: g.name,
-                value: g.realisasiValue, ao: g.realisasiAo,
-                targetValue: g.targetValue || 0, targetAo: g.targetAo || 0,
-                ach: g.ach, deviasiValue: g.deviasiValue ?? 0,
-                deviasiShow: (g.realisasiValue || 0) - (g.targetValue || 0),
-                predicate: g.predicate,
-              })));
-              const lastDaySalesMap = getLastDaySalesMap(agg.filteredRows, agg.meta.lastDate);
-              const totalVsLastDayRows = agg.bySales.map((sm) => {
-                const ld = lastDaySalesMap[sm.code] || { valueLastDay: 0, aoLastDay: 0 };
-                return {
-                  code: sm.code, salesName: sm.name,
-                  totalValue: sm.realisasiValue, totalAo: sm.realisasiAo, totalAch: sm.ach, totalAchAo: sm.achAo,
-                  lastDayValue: ld.valueLastDay, lastDayAo: ld.aoLastDay,
-                  predicate: sm.predicate,
-                };
-              });
-              exportSalesReportExcel(agg, groupRows, totalVsLastDayRows, opts);
-              await notifyExportSuccess("Export berhasil", "Laporan Sales (Excel)");
-              setOpen(false);
-            }} />
+          {allowExcel && (
+            <>
+              <SectionLabel colors={colors}>Excel</SectionLabel>
+              <MenuItem icon={FileSpreadsheet} iconColor={colors.mint} label="Laporan Sales (Excel)"
+                desc="2 Sheet: Per Grup Produk & Total vs Hari Terakhir"
+                colors={colors}
+                onClick={async () => {
+                  const { exportSalesReportExcel } = await import("../../utils/reportExcelExport.js");
+                  const groupRows = agg.bySales.flatMap((sm) => sm.groups.map((g) => ({
+                    salesName: sm.name, groupName: g.name,
+                    value: g.realisasiValue, ao: g.realisasiAo,
+                    targetValue: g.targetValue || 0, targetAo: g.targetAo || 0,
+                    ach: g.ach, deviasiValue: g.deviasiValue ?? 0,
+                    deviasiShow: (g.realisasiValue || 0) - (g.targetValue || 0),
+                    predicate: g.predicate,
+                  })));
+                  const lastDaySalesMap = getLastDaySalesMap(agg.filteredRows, agg.meta.lastDate);
+                  const totalVsLastDayRows = agg.bySales.map((sm) => {
+                    const ld = lastDaySalesMap[sm.code] || { valueLastDay: 0, aoLastDay: 0 };
+                    return {
+                      code: sm.code, salesName: sm.name,
+                      totalValue: sm.realisasiValue, totalAo: sm.realisasiAo, totalAch: sm.ach, totalAchAo: sm.achAo,
+                      lastDayValue: ld.valueLastDay, lastDayAo: ld.aoLastDay,
+                      predicate: sm.predicate,
+                    };
+                  });
+                  exportSalesReportExcel(agg, groupRows, totalVsLastDayRows, opts);
+                  await notifyExportSuccess("Export berhasil", "Laporan Sales (Excel)");
+                  setOpen(false);
+                }} />
+              <MenuItem icon={FileSpreadsheet} iconColor={colors.gold} label="Kalkulator Insentif (Excel)"
+                desc="3 Sheet: Rekap Insentif, Detail Fokus/EC & Rincian Skema Aktif"
+                colors={colors}
+                onClick={async () => {
+                  const { exportCommissionExcel } = await import("../../utils/commissionExport.js");
+                  exportCommissionExcel(agg, opts);
+                  await notifyExportSuccess("Export berhasil", "Kalkulator Insentif (Excel)");
+                  setOpen(false);
+                }} />
+            </>
+          )}
 
-          <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
-          <SectionLabel colors={colors}>PDF</SectionLabel>
-          <MenuItem icon={FileText} iconColor={colors.coral} label="Scorecard Semua Sales"
-            desc={`1 halaman per sales (${agg.bySales.length} sales)`}
-            colors={colors}
-            onClick={async () => {
-              const { exportAllScorecardsPDF } = await import("../../utils/pdfExport.js");
-              exportAllScorecardsPDF(agg, opts);
-              await notifyExportSuccess("Export berhasil", `Scorecard Semua Sales (${agg.bySales.length} sales)`);
-              setOpen(false);
-            }} />
+          {allowPdf && (
+            <>
+              {allowExcel && <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />}
+              <SectionLabel colors={colors}>PDF</SectionLabel>
+              <MenuItem icon={FileText} iconColor={colors.gold} label="Kalkulator Insentif (PDF)"
+                desc="Tabel detail pencapaian, rincian bonus & referensi skema aktif"
+                colors={colors}
+                onClick={async () => {
+                  const { exportCommissionPDF } = await import("../../utils/commissionExport.js");
+                  exportCommissionPDF(agg, opts);
+                  await notifyExportSuccess("Export berhasil", "Kalkulator Insentif (PDF)");
+                  setOpen(false);
+                }} />
+              <MenuItem icon={FileText} iconColor={colors.coral} label="Scorecard Semua Sales"
+                desc={`1 halaman per sales (${agg.bySales.length} sales)`}
+                colors={colors}
+                onClick={async () => {
+                  const { exportAllScorecardsPDF } = await import("../../utils/pdfExport.js");
+                  exportAllScorecardsPDF(agg, opts);
+                  await notifyExportSuccess("Export berhasil", `Scorecard Semua Sales (${agg.bySales.length} sales)`);
+                  setOpen(false);
+                }} />
 
-          <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
-          {renderScorecardIndividual()}
+              <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
+              {renderScorecardIndividual()}
+            </>
+          )}
 
-          <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
-          <SectionLabel colors={colors}>Pesan Singkat</SectionLabel>
-          <MenuItem icon={MessageSquare} iconColor={colors.mint} label="Laporan Ringkas Harian"
-            desc="Format teks WhatsApp & kartu gambar ringkas (PNG)"
-            colors={colors}
-            onClick={() => {
-              setOpen(false);
-              onOpenDailyReport?.();
-            }} />
+          {allowImage && (
+            <>
+              {(allowExcel || allowPdf) && <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />}
+              <SectionLabel colors={colors}>Gambar</SectionLabel>
+              <ImageMenuItem
+                itemKey="commission_image"
+                label="Kalkulator Insentif (Gambar)"
+                desc="Visual tabel detail insentif & rincian skema aktif di bawah tabel"
+                imageBusy={imageBusy}
+                onImageExport={handleImageExport}
+                colors={colors}
+                buildFn={async () => {
+                  const { buildCommissionReportHTML } = await import("../../utils/commissionExport.js");
+                  return { html: buildCommissionReportHTML(agg, opts) };
+                }}
+                filenameBase={`Laporan_Kalkulator_Insentif_Gambar_${agg?.meta?.lastDate || "export"}`}
+              />
+            </>
+          )}
+
+          {allowDaily && (
+            <>
+              <div style={{ borderTop: `1px solid ${colors.glassBorder}` }} />
+              <SectionLabel colors={colors}>Pesan Singkat</SectionLabel>
+              <MenuItem icon={MessageSquare} iconColor={colors.mint} label="Laporan Ringkas Harian"
+                desc="Format teks WhatsApp & kartu gambar ringkas (PNG)"
+                colors={colors}
+                onClick={() => {
+                  setOpen(false);
+                  onOpenDailyReport?.();
+                }} />
+            </>
+          )}
         </>
       );
     }
