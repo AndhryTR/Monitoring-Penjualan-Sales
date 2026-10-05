@@ -10,13 +10,21 @@
    pengaturan + riwayat snapshot yang ringan, sesuai namanya.
 ============================================================================ */
 
+import { exportAllStoredCommissionRules } from "./commissionEngine.js";
+
 const BACKUP_APP_ID = "smapp-backup";
 const BACKUP_VERSION = 1;
 
 export function buildBackupPayload({
   theme, filters, workDays, targets, depotName, projectionMethod, history,
-  depots, activeDepotId,
+  depots, activeDepotId, commissionRules, commissionRulesByDepot,
 }) {
+  const exportedComm = (!commissionRules || !commissionRulesByDepot)
+    ? exportAllStoredCommissionRules(depotName || "default")
+    : null;
+  const resolvedCommissionRules = commissionRules ?? exportedComm?.commissionRules;
+  const resolvedCommissionByDepot = commissionRulesByDepot ?? exportedComm?.commissionRulesByDepot;
+
   return {
     _app: BACKUP_APP_ID,
     _v: BACKUP_VERSION,
@@ -30,6 +38,10 @@ export function buildBackupPayload({
       projectionMethod,
       ...(depots ? { depots } : {}),
       ...(activeDepotId ? { activeDepotId } : {}),
+      ...(resolvedCommissionRules ? { commissionRules: resolvedCommissionRules } : {}),
+      ...(resolvedCommissionByDepot && Object.keys(resolvedCommissionByDepot).length > 0
+        ? { commissionRulesByDepot: resolvedCommissionByDepot }
+        : {}),
     },
     history: history || [],
   };

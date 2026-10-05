@@ -873,6 +873,9 @@ export default function SalesMonitoringApp() {
     // ⚠️ Sprint 6 / R4: settings reset didelegasi ke hook useSettings
     // (resetAllSettings clear localStorage + reset semua state settings).
     resetAllSettings();
+    import("./utils/commissionEngine.js")
+      .then((m) => m.clearAllStoredCommissionRules?.())
+      .catch(() => {});
     clearSession();
     clearHistory();
     clearCompareState();

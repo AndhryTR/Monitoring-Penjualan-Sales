@@ -147,13 +147,17 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
   };
 
   const handleExportBackup = async () => {
-    const { buildBackupPayload, downloadBackupFile } = await import("../../utils/backupExport.js");
+    const [{ buildBackupPayload, downloadBackupFile }, { exportAllStoredCommissionRules }] = await Promise.all([
+      import("../../utils/backupExport.js"),
+      import("../../utils/commissionEngine.js"),
+    ]);
+    const { commissionRules, commissionRulesByDepot } = exportAllStoredCommissionRules(localDepotName || depotName || "default");
     const payload = buildBackupPayload({
       theme, filters, workDays: localWorkDays, targets: localTargets, depotName: localDepotName,
-      projectionMethod, history,
+      projectionMethod, history, commissionRules, commissionRulesByDepot,
     });
     downloadBackupFile(payload);
-    await notifyExportSuccess("Export berhasil", "Backup Pengaturan (JSON)");
+    await notifyExportSuccess("Export berhasil", "Backup Pengaturan & Kalkulator Insentif (JSON)");
   };
 
   const handleImportFile = async (e) => {
@@ -167,25 +171,46 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
       const parsed = await parseBackupFile(file);
       const s = parsed.settings || {};
       const historyCount = (parsed.history || []).length;
+      const hasCommission = Boolean(
+        (s.commissionRules && typeof s.commissionRules === "object") ||
+        (s.commissionRulesByDepot && typeof s.commissionRulesByDepot === "object" && Object.keys(s.commissionRulesByDepot).length > 0)
+      );
       // Buka ConfirmDialog dulu — apply sesudah konfirm
-      setImportConfirm({ settings: s, history: parsed.history || [], historyCount });
+      setImportConfirm({ settings: s, history: parsed.history || [], historyCount, hasCommission });
     } catch (err) {
       setImportError(err.message || "Gagal mengimpor file.");
     }
   };
 
-  const handleImportConfirm = () => {
+  const handleImportConfirm = async () => {
     if (!importConfirm) return;
     const s = importConfirm.settings || {};
-    if (s.targets) setLocalTargets(s.targets);
-    if (s.workDays != null) setLocalWorkDays(s.workDays);
-    if (s.depotName != null) setLocalDepotName(s.depotName);
+    if (s.targets) {
+      setLocalTargets(s.targets);
+      setTargets?.(s.targets);
+    }
+    if (s.workDays != null) {
+      setLocalWorkDays(s.workDays);
+      setWorkDays?.(s.workDays);
+    }
+    if (s.depotName != null) {
+      setLocalDepotName(s.depotName);
+      setDepotName?.(s.depotName);
+    }
     if (s.theme) setTheme?.(s.theme);
     if (s.filters) setFilters?.(s.filters);
     if (s.projectionMethod) setProjectionMethod?.(s.projectionMethod);
+    if (s.commissionRules || s.commissionRulesByDepot) {
+      const { restoreStoredCommissionRules } = await import("../../utils/commissionEngine.js");
+      restoreStoredCommissionRules(s, s.depotName || localDepotName || depotName || "default");
+    }
     if (importConfirm.history?.length) onImportHistory?.(importConfirm.history);
     setImportConfirm(null);
-    setImportSuccess("Impor berhasil diterapkan.");
+    setImportSuccess(
+      importConfirm.hasCommission
+        ? "Impor pengaturan & skema Kalkulator Insentif berhasil diterapkan."
+        : "Impor berhasil diterapkan."
+    );
   };
 
   // Label tombol simpan dinamis: "Simpan Perubahan" → "Konfirmasi & Simpan"
@@ -296,9 +321,9 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                   <div className="min-w-0">
                     <h3 className="text-sm font-semibold" style={{ color: colors.mint }}>Backup & Restore</h3>
                     <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
-                      Export Target, Hari Kerja, Nama Depo, Tema, Filter, Metode Proyeksi, dan Riwayat Snapshot
-                      jadi 1 file JSON — untuk backup atau pindah ke device/browser lain. Tidak termasuk data
-                      transaksi mentah.
+                      Export Target, Hari Kerja, Nama Depo, Skema & Rule Kalkulator Insentif, Tema, Filter,
+                      Metode Proyeksi, dan Riwayat Snapshot jadi 1 file JSON — untuk backup atau pindah ke
+                      device/browser lain. Tidak termasuk data transaksi mentah.
                     </p>
                   </div>
                 </div>
@@ -328,8 +353,8 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
                   <div className="min-w-0">
                     <h3 className="text-sm font-semibold" style={{ color: colors.coral }}>Zona Berbahaya</h3>
                     <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
-                      Menghapus semua target, hari kerja, nama depo, tema, dan data upload yang tersimpan otomatis
-                      di perangkat ini. Tindakan ini tidak bisa dibatalkan.
+                      Menghapus semua target, skema kalkulator insentif, hari kerja, nama depo, tema, dan data upload
+                      yang tersimpan otomatis di perangkat ini. Tindakan ini tidak bisa dibatalkan.
                     </p>
                   </div>
                 </div>
@@ -579,7 +604,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
         onConfirm={handleImportConfirm}
         title="Impor backup?"
         subtitle={importConfirm
-          ? `Impor akan MENGGANTI Target, Hari Kerja, Nama Depo, Tema, Filter & Metode Proyeksi dengan isi file ini, dan MENGGABUNGKAN ${importConfirm.historyCount} riwayat snapshot ke device ini.`
+          ? `Impor akan MENGGANTI Target, Hari Kerja, Nama Depo${importConfirm.hasCommission ? ", Skema Kalkulator Insentif" : ""}, Tema, Filter & Metode Proyeksi dengan isi file ini, dan MENGGABUNGKAN ${importConfirm.historyCount} riwayat snapshot ke device ini.`
           : ""}
         confirmLabel="Impor"
         variant="danger"
@@ -591,7 +616,7 @@ export function SettingsModal({ isOpen, onClose, targets, setTargets, workDays, 
         onCancel={() => setClearConfirm(false)}
         onConfirm={() => { setClearConfirm(false); onClearAll?.(); onClose(); }}
         title="Hapus semua data?"
-        subtitle="Semua target, hari kerja, nama depo, tema, dan data upload di perangkat ini dihapus. Tidak bisa dibatalkan."
+        subtitle="Semua target, skema kalkulator insentif, hari kerja, nama depo, tema, dan data upload di perangkat ini dihapus. Tidak bisa dibatalkan."
         confirmLabel="Hapus Semua"
         variant="danger"
         colors={colors}

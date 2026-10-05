@@ -168,6 +168,91 @@ export function saveStoredCommissionRules(depotName = "default", rules) {
 }
 
 /**
+ * Kumpulkan aturan komisi untuk keperluan Backup Pengaturan (.json).
+ * Mengembalikan rules depo aktif (`commissionRules`) sekaligus seluruh depo
+ * yang pernah disimpan di localStorage (`commissionRulesByDepot`).
+ */
+export function exportAllStoredCommissionRules(activeDepotName = "default") {
+  const commissionRules = getStoredCommissionRules(activeDepotName);
+  const commissionRulesByDepot = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(STORAGE_PREFIX)) {
+        const depotKey = key.slice(STORAGE_PREFIX.length) || "default";
+        commissionRulesByDepot[depotKey] = getStoredCommissionRules(depotKey);
+      }
+    }
+    if (activeDepotName && !commissionRulesByDepot[activeDepotName]) {
+      commissionRulesByDepot[activeDepotName] = commissionRules;
+    }
+  } catch (err) {
+    console.warn("Gagal mengekspor seluruh aturan komisi:", err);
+  }
+  return { commissionRules, commissionRulesByDepot };
+}
+
+/**
+ * Pulihkan aturan komisi dari file Backup Pengaturan (.json) ke localStorage.
+ */
+export function restoreStoredCommissionRules(backupSettings = {}, activeDepotName = "default") {
+  if (!backupSettings || typeof backupSettings !== "object") return false;
+  let restoredAny = false;
+  try {
+    const byDepot = backupSettings.commissionRulesByDepot;
+    if (byDepot && typeof byDepot === "object") {
+      Object.entries(byDepot).forEach(([depotKey, rulesObj]) => {
+        if (depotKey && rulesObj && typeof rulesObj === "object") {
+          localStorage.setItem(`${STORAGE_PREFIX}${depotKey}`, JSON.stringify(rulesObj));
+          restoredAny = true;
+        }
+      });
+    }
+    const targetDepot = backupSettings.depotName || activeDepotName || "default";
+    if (backupSettings.commissionRules && typeof backupSettings.commissionRules === "object") {
+      localStorage.setItem(`${STORAGE_PREFIX}${targetDepot}`, JSON.stringify(backupSettings.commissionRules));
+      if (activeDepotName && activeDepotName !== targetDepot) {
+        localStorage.setItem(`${STORAGE_PREFIX}${activeDepotName}`, JSON.stringify(backupSettings.commissionRules));
+      }
+      restoredAny = true;
+    }
+    if (restoredAny) {
+      window.dispatchEvent(
+        new CustomEvent("sm_commission_rules_updated", {
+          detail: { depotName: targetDepot, restored: true },
+        })
+      );
+    }
+  } catch (err) {
+    console.warn("Gagal memulihkan aturan komisi dari backup:", err);
+  }
+  return restoredAny;
+}
+
+/**
+ * Hapus seluruh aturan komisi yang tersimpan di localStorage (dipakai saat Hapus Semua Data).
+ */
+export function clearAllStoredCommissionRules() {
+  try {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(STORAGE_PREFIX)) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+    window.dispatchEvent(
+      new CustomEvent("sm_commission_rules_updated", {
+        detail: { cleared: true },
+      })
+    );
+  } catch (err) {
+    console.warn("Gagal menghapus aturan komisi:", err);
+  }
+}
+
+/**
  * Cek apakah salesman masuk dalam cakupan suatu rule/skema
  */
 export function isSalesmanIncludedInRule(salesCode, salesName, filterMode = "all", assignedList = []) {

@@ -30,6 +30,14 @@ export function SalesCommissionView({ rows = [], filteredRows = [], colors, depo
   useEffect(() => {
     setRules(getStoredCommissionRules(depotName));
     setActiveSchemeTab("main");
+    const onRulesExternalUpdate = (e) => {
+      if (e?.detail?.restored || e?.detail?.cleared) {
+        setRules(getStoredCommissionRules(depotName));
+        setActiveSchemeTab("main");
+      }
+    };
+    window.addEventListener("sm_commission_rules_updated", onRulesExternalUpdate);
+    return () => window.removeEventListener("sm_commission_rules_updated", onRulesExternalUpdate);
   }, [depotName]);
 
   // Ekstrak daftar salesman unik dari rows / filteredRows
