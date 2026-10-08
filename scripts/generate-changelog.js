@@ -100,18 +100,32 @@ function getPreviousGitTag(currentVer) {
 
 // Ambil riwayat commit dari Git (mendukung rentang tag: previousTag..HEAD)
 function getGitCommits(previousTag = null) {
+  const defaultCmd = 'git log -n 50 --pretty=format:"%h|%ad|%s" --date=short';
   try {
-    let logCmd = 'git log -n 50 --pretty=format:"%h|%ad|%s" --date=short';
+    let rawLog = "";
     if (previousTag) {
-      logCmd = `git log ${previousTag}..HEAD --pretty=format:"%h|%ad|%s" --date=short`;
-      console.log(`📌 [changelog] Menggunakan rentang Git Tag: ${previousTag}..HEAD`);
+      try {
+        const tagCmd = `git log ${previousTag}..HEAD --pretty=format:"%h|%ad|%s" --date=short`;
+        console.log(`📌 [changelog] Menggunakan rentang Git Tag: ${previousTag}..HEAD`);
+        rawLog = execSync(tagCmd, {
+          cwd: rootDir,
+          encoding: "utf-8",
+          stdio: ["pipe", "pipe", "ignore"],
+        });
+      } catch {
+        rawLog = execSync(defaultCmd, {
+          cwd: rootDir,
+          encoding: "utf-8",
+          stdio: ["pipe", "pipe", "ignore"],
+        });
+      }
+    } else {
+      rawLog = execSync(defaultCmd, {
+        cwd: rootDir,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "ignore"],
+      });
     }
-
-    const rawLog = execSync(logCmd, {
-      cwd: rootDir,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "ignore"],
-    });
 
     if (!rawLog || !rawLog.trim()) return [];
 

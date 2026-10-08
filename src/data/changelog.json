@@ -1,5 +1,29 @@
 [
   {
+    "version": "4.4.4",
+    "date": "2026-10-03",
+    "title": "Pembaruan Versi 4.4.4",
+    "features": [
+      {
+        "hash": "a140f7a",
+        "scope": "Commission",
+        "title": "Tambah dukungan multi-skema per salesman, skema bobot 4-tier, dan effective calls AO produk fokus"
+      },
+      {
+        "hash": "60382a6",
+        "scope": "Ekspor Data",
+        "title": "Tambah fitur export gambar, excel 3-sheet, dan pdf untuk kalkulator insentif di menu export global"
+      },
+      {
+        "hash": "ec000ff",
+        "scope": "Backup",
+        "title": "Sertakan skema & rule kalkulator insentif pada fitur backup/restore pengaturan"
+      }
+    ],
+    "fixes": [],
+    "improvements": []
+  },
+  {
     "version": "4.4.3",
     "date": "2026-10-01",
     "title": "Pembaruan Versi 4.4.3",
@@ -34,6 +58,11 @@
         "hash": "4c6fa4e",
         "scope": "Ekspor Data",
         "title": "Ubah formatting teks deviasi AO agar tidak membingungkan saat surplus dan berikan warna dinamis (merah/hijau)"
+      },
+      {
+        "hash": "37d6b17",
+        "scope": "Ekspor Data",
+        "title": "Gunakan versi aplikasi yang diambil dari changelog secara otomatis pada footer gambar"
       }
     ],
     "improvements": []
